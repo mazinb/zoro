@@ -35,20 +35,3 @@ export interface Article {
 
 export type ContactMethod = 'whatsapp' | 'email';
 
-export interface FormData {
-  answers: FormAnswers;
-  phone: string | null;
-  countryCode: string;
-  contactMethod: ContactMethod;
-  additionalInfo: string;
-}
-
-export type AnimationStage = 
-  | 'idle'
-  | 'bars'
-  | 'blueLine'
-  | 'greyLine'
-  | 'text'
-  | 'fadeOut'
-  | 'complete';
-

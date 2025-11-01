@@ -1,7 +1,7 @@
 'use client';
 
-import React from 'react';
-import { ArrowRight, Moon, Sun, TrendingUp } from 'lucide-react';
+import React, { useRef, useEffect } from 'react';
+import { Moon, Sun, ChevronLeft, ChevronRight } from 'lucide-react';
 import { ZoroLogo } from '@/components/ZoroLogo';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -14,6 +14,29 @@ interface LandingPageProps {
   onGetStarted: () => void;
 }
 
+const personas = [
+  {
+    title: 'Busy professionals',
+    description: 'Get quick financial insights and estate planning status without scheduling advisor meetings.',
+    bgColor: '#3B82F6', // Blue
+  },
+  {
+    title: 'Families planning ahead',
+    description: 'Coordinate estate planning, beneficiaries, college savings, and retirement goals all in one place.',
+    bgColor: '#10B981', // Green
+  },
+  {
+    title: 'Retirees & seniors',
+    description: 'Review estate documents, track healthcare directives, and ensure beneficiaries are aligned across accounts.',
+    bgColor: '#F59E0B', // Orange
+  },
+  {
+    title: 'High net worth individuals',
+    description: 'Optimize estate tax exposure, manage trusts, and coordinate complex financial structures efficiently.',
+    bgColor: '#8B5CF6', // Purple
+  },
+];
+
 export const LandingPage: React.FC<LandingPageProps> = ({
   darkMode,
   onToggleDarkMode,
@@ -21,6 +44,43 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   onGetStarted
 }) => {
   const theme = useThemeClasses(darkMode);
+  const carouselRef = useRef<HTMLDivElement>(null);
+  const [currentIndex, setCurrentIndex] = React.useState(0);
+
+  // Auto-scroll carousel
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentIndex((prev) => (prev + 1) % personas.length);
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // Scroll carousel on index change
+  useEffect(() => {
+    if (carouselRef.current) {
+      const scrollContainer = carouselRef.current;
+      const slideWidth = scrollContainer.offsetWidth;
+      const scrollPosition = currentIndex * slideWidth;
+      
+      scrollContainer.scrollTo({
+        left: scrollPosition,
+        behavior: 'smooth',
+      });
+    }
+  }, [currentIndex]);
+
+  const scrollCarousel = (direction: 'left' | 'right') => {
+    const newIndex = direction === 'left' 
+      ? (currentIndex - 1 + personas.length) % personas.length
+      : (currentIndex + 1) % personas.length;
+    setCurrentIndex(newIndex);
+  };
+
+  // Dark blue for light mode headers and buttons
+  const headerTextClass = darkMode ? theme.textClass : 'text-slate-900';
+  const numberBgClass = darkMode ? theme.buttonClass : 'bg-slate-900 text-white';
+  const ctaInverted = !darkMode; // Inverted for contrast
 
   return (
     <div className={`min-h-screen ${theme.bgClass} transition-colors duration-300`}>
@@ -69,7 +129,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
         <Button
           variant="primary"
-          darkMode={darkMode}
+          darkMode={!darkMode}
           showArrow
           onClick={onGetStarted}
           className="px-8 py-4 text-lg transform hover:scale-105"
@@ -148,13 +208,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       {/* How it works */}
       <div className={`${theme.accentBgClass} py-24`}>
         <div className="max-w-4xl mx-auto px-6">
-          <h2 className={`text-3xl font-bold ${theme.textClass} mb-16 text-center`}>
+          <h2 className={`text-3xl font-bold ${headerTextClass} mb-16 text-center`}>
             How it works
           </h2>
           
           <div className="space-y-12">
             <div className="flex gap-6">
-              <div className={`flex-shrink-0 w-12 h-12 ${theme.buttonClass} rounded-lg flex items-center justify-center font-semibold`}>
+              <div className={`flex-shrink-0 w-12 h-12 ${numberBgClass} rounded-lg flex items-center justify-center font-semibold`}>
                 1
               </div>
               <div>
@@ -169,7 +229,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </div>
 
             <div className="flex gap-6">
-              <div className={`flex-shrink-0 w-12 h-12 ${theme.buttonClass} rounded-lg flex items-center justify-center font-semibold`}>
+              <div className={`flex-shrink-0 w-12 h-12 ${numberBgClass} rounded-lg flex items-center justify-center font-semibold`}>
                 2
               </div>
               <div>
@@ -184,7 +244,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </div>
 
             <div className="flex gap-6">
-              <div className={`flex-shrink-0 w-12 h-12 ${theme.buttonClass} rounded-lg flex items-center justify-center font-semibold`}>
+              <div className={`flex-shrink-0 w-12 h-12 ${numberBgClass} rounded-lg flex items-center justify-center font-semibold`}>
                 3
               </div>
               <div>
@@ -201,64 +261,99 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </div>
       </div>
 
-      {/* Use cases */}
-      <div className="max-w-4xl mx-auto px-6 py-24">
-        <h2 className={`text-3xl font-bold ${theme.textClass} mb-16 text-center`}>
+      {/* Use cases - Carousel */}
+      <div className="max-w-6xl mx-auto px-6 py-24">
+        <h2 className={`text-3xl font-bold ${headerTextClass} mb-16 text-center`}>
           Perfect for
         </h2>
 
-        <div className="grid md:grid-cols-2 gap-6">
-          <Card darkMode={darkMode} className="p-6">
-            <div className="text-2xl mb-2">📊</div>
-            <h3 className={`font-semibold ${theme.textClass} mb-2`}>Busy professionals</h3>
-            <p className={`${theme.textSecondaryClass} text-sm`}>
-              Get quick financial insights and estate planning status without 
-              scheduling advisor meetings.
-            </p>
-          </Card>
+        <div className="relative">
+          {/* Carousel Container */}
+          <div 
+            ref={carouselRef}
+            className="overflow-x-scroll rounded-2xl scroll-smooth [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+          >
+            <div className="flex" style={{ width: `${personas.length * 100}%` }}>
+              {personas.map((persona, index) => (
+                <div
+                  key={index}
+                  className="relative h-[400px] md:h-[500px] flex items-center justify-center flex-shrink-0"
+                  style={{
+                    width: `${100 / personas.length}%`,
+                  }}
+                >
+                  {/* Blurred Background */}
+                  <div
+                    className="absolute inset-0 blur-3xl opacity-60"
+                    style={{
+                      backgroundColor: persona.bgColor,
+                    }}
+                  />
+                  
+                  {/* Gradient Overlay for better text readability */}
+                  <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-black/40 to-black/60" />
+                  
+                  {/* Content */}
+                  <div className="relative z-10 max-w-2xl px-8 text-center">
+                    <h3 className={`text-3xl md:text-4xl font-bold text-white mb-4`}>
+                      {persona.title}
+                    </h3>
+                    <p className={`text-lg md:text-xl text-white/90 leading-relaxed`}>
+                      {persona.description}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
 
-          <Card darkMode={darkMode} className="p-6">
-            <div className="text-2xl mb-2">🏠</div>
-            <h3 className={`font-semibold ${theme.textClass} mb-2`}>Families planning ahead</h3>
-            <p className={`${theme.textSecondaryClass} text-sm`}>
-              Coordinate estate planning, beneficiaries, college savings, and 
-              retirement goals all in one place.
-            </p>
-          </Card>
+          {/* Navigation Arrows */}
+          <button
+            onClick={() => scrollCarousel('left')}
+            className="absolute left-4 top-1/2 -translate-y-1/2 z-20 p-3 rounded-full bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white transition-all"
+            aria-label="Previous slide"
+          >
+            <ChevronLeft className="w-6 h-6" />
+          </button>
+          <button
+            onClick={() => scrollCarousel('right')}
+            className="absolute right-4 top-1/2 -translate-y-1/2 z-20 p-3 rounded-full bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white transition-all"
+            aria-label="Next slide"
+          >
+            <ChevronRight className="w-6 h-6" />
+          </button>
 
-          <Card darkMode={darkMode} className="p-6">
-            <div className="text-2xl mb-2">👴</div>
-            <h3 className={`font-semibold ${theme.textClass} mb-2`}>Retirees & seniors</h3>
-            <p className={`${theme.textSecondaryClass} text-sm`}>
-              Review estate documents, track healthcare directives, and ensure 
-              beneficiaries are aligned across accounts.
-            </p>
-          </Card>
-
-          <Card darkMode={darkMode} className="p-6">
-            <div className="text-2xl mb-2">💼</div>
-            <h3 className={`font-semibold ${theme.textClass} mb-2`}>High net worth individuals</h3>
-            <p className={`${theme.textSecondaryClass} text-sm`}>
-              Optimize estate tax exposure, manage trusts, and coordinate complex 
-              financial structures efficiently.
-            </p>
-          </Card>
+          {/* Indicators */}
+          <div className="flex justify-center gap-2 mt-8">
+            {personas.map((_, index) => (
+              <button
+                key={index}
+                onClick={() => setCurrentIndex(index)}
+                className={`h-2 rounded-full transition-all ${
+                  index === currentIndex
+                    ? 'w-8 bg-blue-600 dark:bg-blue-400'
+                    : 'w-2 bg-slate-400 dark:bg-slate-600'
+                }`}
+                aria-label={`Go to slide ${index + 1}`}
+              />
+            ))}
+          </div>
         </div>
       </div>
 
-      {/* Final CTA */}
-      <div className={`${darkMode ? 'bg-slate-900' : 'bg-white border-t border-slate-200'} py-24`}>
+      {/* Final CTA - Contrasting section */}
+      <div className={`${darkMode ? 'bg-white' : 'bg-slate-900'} py-24 transition-colors duration-300`}>
         <div className="max-w-4xl mx-auto px-6 text-center">
-          <h2 className={`text-4xl font-bold ${theme.textClass} mb-6`}>
+          <h2 className={`text-4xl font-bold ${darkMode ? 'text-slate-900' : 'text-white'} mb-6`}>
             Ready to take control?
           </h2>
-          <p className={`text-xl ${theme.textSecondaryClass} mb-12`}>
+          <p className={`text-xl ${darkMode ? 'text-slate-600' : 'text-slate-300'} mb-12`}>
             Answer 5 quick questions to get your personalized plan
           </p>
 
           <Button
             variant="primary"
-            darkMode={!darkMode}
+            darkMode={ctaInverted}
             showArrow
             onClick={onGetStarted}
             className="px-8 py-4 text-lg transform hover:scale-105"
@@ -266,7 +361,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             Get Started
           </Button>
 
-          <p className={`text-sm ${theme.textSecondaryClass} mt-4`}>
+          <p className={`text-sm ${darkMode ? 'text-slate-500' : 'text-slate-400'} mt-4`}>
             Free for early adopters • Takes 2 minutes
           </p>
         </div>
@@ -286,4 +381,3 @@ export const LandingPage: React.FC<LandingPageProps> = ({
     </div>
   );
 };
-

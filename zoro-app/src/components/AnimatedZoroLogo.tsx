@@ -18,7 +18,6 @@ export const AnimatedZoroLogo = ({
   const [showBars, setShowBars] = useState(false);
   const [showBlueLine, setShowBlueLine] = useState(false);
   const [showGreyLine, setShowGreyLine] = useState(false);
-  const [showText, setShowText] = useState(false);
   const [fadeOut, setFadeOut] = useState(false);
 
   useEffect(() => {
@@ -35,13 +34,8 @@ export const AnimatedZoroLogo = ({
       setShowGreyLine(true);
     }, ANIMATION_DELAYS.GREY_LINE);
 
-    // Stage 4: Show text
+    // Stage 4: Fade out (after lines complete)
     const timer3 = setTimeout(() => {
-      setShowText(true);
-    }, ANIMATION_DELAYS.TEXT);
-
-    // Stage 5: Fade out
-    const timer4 = setTimeout(() => {
       setFadeOut(true);
       if (onAnimationComplete) {
         setTimeout(() => {
@@ -54,20 +48,23 @@ export const AnimatedZoroLogo = ({
       clearTimeout(timer1);
       clearTimeout(timer2);
       clearTimeout(timer3);
-      clearTimeout(timer4);
     };
   }, [onAnimationComplete]);
 
+  // Center the Z icon - Z spans from x=6 to x=38 (center at x=22)
+  // Full logo viewBox is 160 units wide (center at x=80)
+  // To center just the Z, we shift right by (80 - 22) = 58 units = 36.25% of width
   return (
-    <div className={`transition-opacity duration-500 ${fadeOut ? 'opacity-0' : 'opacity-100'}`}>
-      <svg 
-        className={className}
-        viewBox="0 0 160 50" 
-        fill="none" 
-        xmlns="http://www.w3.org/2000/svg"
-        role="img"
-        aria-label="Animated Zoro Logo"
-      >
+    <div className={`transition-opacity duration-500 ${fadeOut ? 'opacity-0' : 'opacity-100'} flex items-center justify-center w-full`}>
+      <div className="translate-x-[36.25%]">
+        <svg 
+          className={className}
+          viewBox="0 0 160 50" 
+          fill="none" 
+          xmlns="http://www.w3.org/2000/svg"
+          role="img"
+          aria-label="Animated Zoro Logo"
+        >
         {/* Z Graph Icon */}
         <g>
           {/* Top horizontal bar (solid) - appears first */}
@@ -132,24 +129,8 @@ export const AnimatedZoroLogo = ({
             style={{ transition: 'opacity 0.3s ease-in' }}
           />
         </g>
-        
-        {/* "oro" text - fades in after lines */}
-        <g 
-          className={`transition-opacity duration-500 ${showText ? 'opacity-100' : 'opacity-0'}`}
-        >
-          <text 
-            x={LOGO_DIMENSIONS.TEXT_X}
-            y={LOGO_DIMENSIONS.TEXT_Y}
-            fontFamily="system-ui, -apple-system, sans-serif" 
-            fontSize={LOGO_DIMENSIONS.FONT_SIZE}
-            fontWeight="600"
-          >
-            <tspan fill={LOGO_COLORS.BLUE}>o</tspan>
-            <tspan fill={isDark ? LOGO_COLORS.WHITE : LOGO_COLORS.DARK_TEXT}>r</tspan>
-            <tspan fill={LOGO_COLORS.GREY}>o</tspan>
-          </text>
-        </g>
-      </svg>
+        </svg>
+      </div>
     </div>
   );
 };

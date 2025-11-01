@@ -13,6 +13,57 @@ import { Target, Shield, TrendingUp, Users, DollarSign, Check, Briefcase, Home }
 import { FormAnswers, ContactMethod, Question } from '@/types';
 import { DEFAULT_FORM_ANSWERS, ANIMATION_DELAYS, QUESTION_CONFIGS } from '@/constants';
 
+// Helper function to create questions with icons
+const createQuestions = (): Question[] => {
+  return [
+    {
+      ...QUESTION_CONFIGS[0],
+      options: [
+        { value: 'retirement', label: 'Retirement Planning', icon: <Target className="w-8 h-8" /> },
+        { value: 'estate', label: 'Estate Planning', icon: <Shield className="w-8 h-8" /> },
+        { value: 'wealth', label: 'Wealth Building', icon: <TrendingUp className="w-8 h-8" /> },
+        { value: 'family', label: 'Family Security', icon: <Users className="w-8 h-8" /> }
+      ]
+    },
+    {
+      ...QUESTION_CONFIGS[1],
+      options: [
+        { value: 'under50L', label: 'Under ₹50 Lakhs', icon: <DollarSign className="w-8 h-8" /> },
+        { value: '50L-1Cr', label: '₹50L - ₹1 Crore', icon: <DollarSign className="w-8 h-8" /> },
+        { value: '1Cr-10Cr', label: '₹1 Cr - ₹10 Crore', icon: <DollarSign className="w-8 h-8" /> },
+        { value: 'over10Cr', label: 'Over ₹10 Crore', icon: <DollarSign className="w-8 h-8" /> }
+      ]
+    },
+    {
+      ...QUESTION_CONFIGS[2],
+      options: [
+        { value: 'complete', label: 'Yes, complete', icon: <Check className="w-8 h-8" /> },
+        { value: 'partial', label: 'Partially done', icon: <Shield className="w-8 h-8" /> },
+        { value: 'outdated', label: 'Yes, but outdated', icon: <Shield className="w-8 h-8" /> },
+        { value: 'none', label: 'No, not yet', icon: <Shield className="w-8 h-8" /> }
+      ]
+    },
+    {
+      ...QUESTION_CONFIGS[3],
+      options: [
+        { value: 'immediate', label: 'Immediate (0-1 year)', icon: <TrendingUp className="w-8 h-8" /> },
+        { value: 'short', label: 'Short-term (1-5 years)', icon: <TrendingUp className="w-8 h-8" /> },
+        { value: 'medium', label: 'Medium-term (5-10 years)', icon: <TrendingUp className="w-8 h-8" /> },
+        { value: 'long', label: 'Long-term (10+ years)', icon: <TrendingUp className="w-8 h-8" /> }
+      ]
+    },
+    {
+      ...QUESTION_CONFIGS[4],
+      options: [
+        { value: 'taxes', label: 'Tax optimization', icon: <Briefcase className="w-8 h-8" /> },
+        { value: 'legacy', label: 'Leaving a legacy', icon: <Home className="w-8 h-8" /> },
+        { value: 'protection', label: 'Asset protection', icon: <Shield className="w-8 h-8" /> },
+        { value: 'clarity', label: 'Financial clarity', icon: <Target className="w-8 h-8" /> }
+      ]
+    }
+  ];
+};
+
 const ZoroLanding = () => {
   // Dark mode
   const { darkMode, toggleDarkMode } = useDarkMode();
@@ -34,56 +85,8 @@ const ZoroLanding = () => {
   const [showSuccess, setShowSuccess] = useState(false);
   const [showFormIntro, setShowFormIntro] = useState(false);
 
-  // Create questions with icons
-  const questions = useMemo((): Question[] => {
-    return [
-      {
-        ...QUESTION_CONFIGS[0],
-        options: [
-          { value: 'retirement', label: 'Retirement Planning', icon: <Target className="w-8 h-8" /> },
-          { value: 'estate', label: 'Estate Planning', icon: <Shield className="w-8 h-8" /> },
-          { value: 'wealth', label: 'Wealth Building', icon: <TrendingUp className="w-8 h-8" /> },
-          { value: 'family', label: 'Family Security', icon: <Users className="w-8 h-8" /> }
-        ]
-      },
-      {
-        ...QUESTION_CONFIGS[1],
-        options: [
-          { value: 'under50L', label: 'Under ₹50 Lakhs', icon: <DollarSign className="w-8 h-8" /> },
-          { value: '50L-1Cr', label: '₹50L - ₹1 Crore', icon: <DollarSign className="w-8 h-8" /> },
-          { value: '1Cr-10Cr', label: '₹1 Cr - ₹10 Crore', icon: <DollarSign className="w-8 h-8" /> },
-          { value: 'over10Cr', label: 'Over ₹10 Crore', icon: <DollarSign className="w-8 h-8" /> }
-        ]
-      },
-      {
-        ...QUESTION_CONFIGS[2],
-        options: [
-          { value: 'complete', label: 'Yes, complete', icon: <Check className="w-8 h-8" /> },
-          { value: 'partial', label: 'Partially done', icon: <Shield className="w-8 h-8" /> },
-          { value: 'outdated', label: 'Yes, but outdated', icon: <Shield className="w-8 h-8" /> },
-          { value: 'none', label: 'No, not yet', icon: <Shield className="w-8 h-8" /> }
-        ]
-      },
-      {
-        ...QUESTION_CONFIGS[3],
-        options: [
-          { value: 'immediate', label: 'Immediate (0-1 year)', icon: <TrendingUp className="w-8 h-8" /> },
-          { value: 'short', label: 'Short-term (1-5 years)', icon: <TrendingUp className="w-8 h-8" /> },
-          { value: 'medium', label: 'Medium-term (5-10 years)', icon: <TrendingUp className="w-8 h-8" /> },
-          { value: 'long', label: 'Long-term (10+ years)', icon: <TrendingUp className="w-8 h-8" /> }
-        ]
-      },
-      {
-        ...QUESTION_CONFIGS[4],
-        options: [
-          { value: 'taxes', label: 'Tax optimization', icon: <Briefcase className="w-8 h-8" /> },
-          { value: 'legacy', label: 'Leaving a legacy', icon: <Home className="w-8 h-8" /> },
-          { value: 'protection', label: 'Asset protection', icon: <Shield className="w-8 h-8" /> },
-          { value: 'clarity', label: 'Financial clarity', icon: <Target className="w-8 h-8" /> }
-        ]
-      }
-    ];
-  }, []);
+  // Create questions with icons (memoized to prevent recreation on each render)
+  const questions = useMemo(() => createQuestions(), []);
 
   // Reset form state
   const resetForm = useCallback(() => {

@@ -1,12 +1,11 @@
 'use client';
 
 import React from 'react';
-import { Check, ArrowRight } from 'lucide-react';
+import { Check } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { ZoroLogo } from '@/components/ZoroLogo';
-import { FormAnswers, ContactMethod } from '@/types';
-import { Question } from '@/types';
+import { FormAnswers, ContactMethod, Question } from '@/types';
 
 interface FormReviewProps {
   answers: FormAnswers;
