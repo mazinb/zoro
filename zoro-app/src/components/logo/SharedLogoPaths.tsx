@@ -1,0 +1,28 @@
+export const LOGO_PATHS = {
+  BLUE_LINE: "M 10 30 L 19 20 L 25 25 L 34 16",
+  GREY_LINE: "M 10 37 L 19 27 L 25 32 L 34 23",
+  BLUE_LINE_LENGTH: 35,
+  GREY_LINE_LENGTH: 35,
+} as const;
+
+export const LOGO_DIMENSIONS = {
+  TOP_BAR_X: 6,
+  TOP_BAR_Y: 8,
+  TOP_BAR_WIDTH: 32,
+  TOP_BAR_HEIGHT: 5,
+  BOTTOM_BAR_X: 6,
+  BOTTOM_BAR_Y: 37,
+  BOTTOM_BAR_WIDTH: 32,
+  BOTTOM_BAR_HEIGHT: 5,
+  TEXT_X: 40,
+  TEXT_Y: 37,
+  FONT_SIZE: 36,
+} as const;
+
+export const LOGO_COLORS = {
+  BLUE: "#3B82F6",
+  GREY: "#64748B",
+  DARK_TEXT: "#0F172A",
+  WHITE: "white",
+} as const;
+
