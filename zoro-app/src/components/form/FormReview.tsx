@@ -13,6 +13,7 @@ interface FormReviewProps {
   countryCode: string;
   contactMethod: ContactMethod;
   additionalInfo: string;
+  userEmail?: string;
   questions: Question[];
   darkMode: boolean;
   isSubmitting: boolean;
@@ -27,6 +28,7 @@ export const FormReview: React.FC<FormReviewProps> = ({
   countryCode,
   contactMethod,
   additionalInfo,
+  userEmail,
   questions,
   darkMode,
   isSubmitting,
@@ -94,41 +96,54 @@ export const FormReview: React.FC<FormReviewProps> = ({
               </React.Fragment>
             ))}
 
+            {/* Email Address */}
+            {userEmail && (
+              <>
+                <div className="flex justify-between items-start">
+                  <div className="flex-1">
+                    <p className={`text-sm ${themeClasses.textSecondaryClass} mb-1`}>Email address</p>
+                    <p className={`font-semibold ${themeClasses.textClass}`}>
+                      {userEmail}
+                    </p>
+                  </div>
+                </div>
+                <div className={`h-px ${themeClasses.borderClass}`}></div>
+              </>
+            )}
+
             {/* Contact Method */}
             <div className="flex justify-between items-start">
               <div className="flex-1">
-                <p className={`text-sm ${themeClasses.textSecondaryClass} mb-1`}>Contact method</p>
+                <p className={`text-sm ${themeClasses.textSecondaryClass} mb-1`}>Communication preference</p>
                 <p className={`font-semibold ${themeClasses.textClass}`}>
-                  {contactMethod === 'whatsapp' ? `WhatsApp: ${countryCode} ${phone}` : 'Email via Google'}
+                  {contactMethod === 'whatsapp' 
+                    ? `WhatsApp: ${countryCode} ${phone}` 
+                    : `Email${userEmail ? `: ${userEmail}` : ''}`}
                 </p>
               </div>
               <button
                 onClick={() => onEdit(questions.length)}
                 className={`text-blue-600 hover:text-blue-700 text-sm font-medium`}
-                aria-label="Edit contact method"
+                aria-label="Edit communication preference"
               >
                 Edit
               </button>
             </div>
 
-            {additionalInfo && (
-              <>
-                <div className={`h-px ${themeClasses.borderClass}`}></div>
-                <div className="flex justify-between items-start">
-                  <div className="flex-1">
-                    <p className={`text-sm ${themeClasses.textSecondaryClass} mb-1`}>Additional information</p>
-                    <p className={`${themeClasses.textClass} text-sm`}>{additionalInfo}</p>
-                  </div>
-                  <button
-                    onClick={() => onEdit(questions.length)}
-                    className={`text-blue-600 hover:text-blue-700 text-sm font-medium`}
-                    aria-label="Edit additional information"
-                  >
-                    Edit
-                  </button>
-                </div>
-              </>
-            )}
+            <div className={`h-px ${themeClasses.borderClass}`}></div>
+            <div className="flex justify-between items-start">
+              <div className="flex-1">
+                <p className={`text-sm ${themeClasses.textSecondaryClass} mb-1`}>Additional information</p>
+                <p className={`${themeClasses.textClass} text-sm`}>{additionalInfo || <span className={themeClasses.textSecondaryClass}>No additional information provided</span>}</p>
+              </div>
+              <button
+                onClick={() => onEdit(questions.length)}
+                className={`text-blue-600 hover:text-blue-700 text-sm font-medium`}
+                aria-label="Edit additional information"
+              >
+                Edit
+              </button>
+            </div>
           </div>
         </Card>
 

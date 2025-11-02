@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 export async function POST(request: NextRequest) {
   try {
@@ -22,12 +26,37 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Get user if authenticated
+    let userId = null;
+    const authHeader = request.headers.get('authorization');
+    if (authHeader) {
+      const token = authHeader.replace('Bearer ', '');
+      const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
+        global: {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      });
+      
+      const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
+      if (!authError && user) {
+        userId = user.id;
+      }
+    }
+
+    // Use userId from body if provided (fallback for client-side)
+    if (!userId && body.userId) {
+      userId = body.userId;
+    }
     
     // Save to database - convert camelCase to snake_case
     // Convert empty strings to null for optional fields
     const { data, error } = await supabase
       .from('form_submissions')
       .insert({
+        user_id: userId || null,
         primary_goal: body.primaryGoal,
         net_worth: body.netWorth,
         estate_status: body.estateStatus,

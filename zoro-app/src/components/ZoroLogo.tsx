@@ -41,7 +41,7 @@ export const ZoroLogo = ({ className = "h-8", isDark = false }: ZoroLogoProps) =
       {/* Second line - Grey (bottom, larger y-offset) */}
       <path 
         d={LOGO_PATHS.GREY_LINE}
-        stroke={LOGO_COLORS.GREY}
+        stroke={isDark ? "#94a3b8" : LOGO_COLORS.GREY}
         strokeWidth="3.5" 
         strokeLinecap="round" 
         strokeLinejoin="round"
@@ -67,9 +67,9 @@ export const ZoroLogo = ({ className = "h-8", isDark = false }: ZoroLogoProps) =
       fontSize={LOGO_DIMENSIONS.FONT_SIZE}
       fontWeight="600"
     >
-      <tspan fill={LOGO_COLORS.BLUE}>o</tspan>
-      <tspan fill={isDark ? LOGO_COLORS.WHITE : LOGO_COLORS.DARK_TEXT}>r</tspan>
-      <tspan fill={LOGO_COLORS.GREY}>o</tspan>
+            <tspan fill={LOGO_COLORS.BLUE}>o</tspan>
+            <tspan fill={isDark ? LOGO_COLORS.WHITE : LOGO_COLORS.DARK_TEXT}>r</tspan>
+            <tspan fill={isDark ? "#94a3b8" : LOGO_COLORS.GREY}>o</tspan>
     </text>
   </svg>
 );

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Mail, Lock, UserPlus, Loader2, User } from 'lucide-react';
+import { Mail, Lock, UserPlus, Loader2, User, LogIn } from 'lucide-react';
 import { useThemeClasses } from '@/hooks/useThemeClasses';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
@@ -64,6 +64,27 @@ export const SignupForm: React.FC<SignupFormProps> = ({
           <ZoroLogo className="h-12 mb-4" isDark={darkMode} />
           <h1 className={`text-2xl font-bold ${theme.textClass} mb-2`}>Create Account</h1>
           <p className={theme.textSecondaryClass}>Sign up to get started</p>
+        </div>
+
+        {/* Login with Email Option */}
+        <div className="mb-6">
+          <Button
+            variant="secondary"
+            darkMode={darkMode}
+            onClick={onSwitchToLogin}
+            disabled={isSubmitting || loading}
+            className="w-full"
+          >
+            <LogIn className="w-5 h-5 mr-2" />
+            Login with Email
+          </Button>
+        </div>
+
+        {/* Divider */}
+        <div className="flex items-center gap-4 mb-6">
+          <div className={`flex-1 h-px ${darkMode ? 'bg-slate-700' : 'bg-slate-200'}`}></div>
+          <span className={`text-sm ${theme.textSecondaryClass}`}>or</span>
+          <div className={`flex-1 h-px ${darkMode ? 'bg-slate-700' : 'bg-slate-200'}`}></div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">

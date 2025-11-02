@@ -105,7 +105,7 @@ export const AnimatedZoroLogo = ({
           {showGreyLine && (
             <path 
               d={LOGO_PATHS.GREY_LINE}
-              stroke={LOGO_COLORS.GREY}
+              stroke={isDark ? "#94a3b8" : LOGO_COLORS.GREY}
               strokeWidth="3.5" 
               strokeLinecap="round" 
               strokeLinejoin="round"

@@ -9,6 +9,7 @@ import { ContactMethodSelection } from '@/components/form/ContactMethodSelection
 import { FormReview } from '@/components/form/FormReview';
 import { FormSuccess } from '@/components/form/FormSuccess';
 import { useDarkMode } from '@/hooks/useDarkMode';
+import { useAuth } from '@/hooks/useAuth';
 import { Target, Shield, TrendingUp, Users, DollarSign, Check, Briefcase, Home } from 'lucide-react';
 import { FormAnswers, ContactMethod, Question } from '@/types';
 import { DEFAULT_FORM_ANSWERS, ANIMATION_DELAYS, QUESTION_CONFIGS } from '@/constants';
@@ -67,6 +68,8 @@ const createQuestions = (): Question[] => {
 const ZoroLanding = () => {
   // Dark mode
   const { darkMode, toggleDarkMode } = useDarkMode();
+  // Auth
+  const { signIn, signUp, user } = useAuth();
 
   // Navigation state
   const [showForm, setShowForm] = useState(false);
@@ -131,8 +134,8 @@ const ZoroLanding = () => {
     setShowReview(true);
   }, []);
 
-  // Handle Google submit (Email)
-  const handleGoogleSubmit = useCallback(() => {
+  // Handle email auth success
+  const handleEmailAuthSuccess = useCallback(() => {
     setContactMethod('email');
     setShowReview(true);
   }, []);
@@ -143,18 +146,32 @@ const ZoroLanding = () => {
     
     setIsSubmitting(true);
     try {
+      // Get user session token if logged in
+      let authToken = null;
+      if (user) {
+        const { data: { session } } = await (await import('@/lib/supabase-client')).supabaseClient.auth.getSession();
+        authToken = session?.access_token || null;
+      }
+
       const formData = {
         ...answers,
         phone: contactMethod === 'whatsapp' ? countryCode + phone : null,
         contactMethod,
-        additionalInfo
+        additionalInfo,
+        userId: user?.id || null
       };
+
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json',
+      };
+
+      if (authToken) {
+        headers['Authorization'] = `Bearer ${authToken}`;
+      }
 
       const response = await fetch('/api/submit', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
         body: JSON.stringify(formData),
       });
 
@@ -162,7 +179,27 @@ const ZoroLanding = () => {
         throw new Error('Failed to submit form');
       }
 
-      await response.json();
+      const result = await response.json();
+
+      // If user is logged in, save communication preference
+      if (user && authToken && contactMethod) {
+        try {
+          await fetch('/api/user/preference', {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${authToken}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              preferred_communication_method: contactMethod
+            }),
+          });
+        } catch (error) {
+          console.error('Error saving communication preference:', error);
+          // Don't fail the form submission if preference save fails
+        }
+      }
+
       setSubmitted(true);
     } catch (error) {
       console.error('Error submitting form:', error);
@@ -170,7 +207,7 @@ const ZoroLanding = () => {
     } finally {
       setIsSubmitting(false);
     }
-  }, [answers, phone, countryCode, contactMethod, additionalInfo]);
+  }, [answers, phone, countryCode, contactMethod, additionalInfo, user]);
 
   // Handle get started
   const handleGetStarted = useCallback(() => {
@@ -242,6 +279,7 @@ const ZoroLanding = () => {
         countryCode={countryCode}
         contactMethod={contactMethod as ContactMethod}
         additionalInfo={additionalInfo}
+        userEmail={user?.email}
         questions={questions}
         darkMode={darkMode}
         isSubmitting={isSubmitting}
@@ -269,7 +307,17 @@ const ZoroLanding = () => {
         }}
         onAdditionalInfoChange={setAdditionalInfo}
         onWhatsAppSubmit={handlePhoneSubmit}
-        onGoogleSubmit={handleGoogleSubmit}
+        onEmailAuthSuccess={handleEmailAuthSuccess}
+        userEmail={user?.email}
+        isLoggedIn={!!user}
+        onSignIn={async (email, password) => {
+          const result = await signIn(email, password);
+          return result;
+        }}
+        onSignUp={async (email, password, name) => {
+          const result = await signUp(email, password, name);
+          return result;
+        }}
         onBack={handleBack}
         onRestart={() => {
           setCurrentStep(0);

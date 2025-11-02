@@ -522,7 +522,7 @@ export const PhilosophyPage: React.FC<PhilosophyPageProps> = ({
         <div className="text-center mb-16">
           <h2 className={`text-4xl font-bold ${theme.textClass} mb-4`}>Meet Zoro, Your Financial Companion</h2>
           <p className={`text-xl ${theme.textSecondaryClass} max-w-3xl mx-auto`}>
-            Like a curious cat that learns your habits and preferences, Zoro adapts to your unique financial journey. But unlike most financial tools, you're always in control of what Zoro learns.
+            Like a curious cat that learns your habits and preferences, Zoro adapts to you but you are always in control.
         </p>
       </div>
 
@@ -538,7 +538,7 @@ export const PhilosophyPage: React.FC<PhilosophyPageProps> = ({
                 </div>
             <h3 className={`text-2xl font-bold ${theme.textClass} mb-4`}>You Feed Zoro</h3>
             <p className={`${theme.textSecondaryClass} mb-6`}>
-              Just like you choose what treats to give your cat, you decide what knowledge to feed Zoro. Curate articles from our library that match your financial interests and goals. Quality over quantity—you control what Zoro learns about your preferences.
+              Just like you choose what treats to give your cat, you decide what knowledge to feed Zoro. Curate articles from our library that match your financial interests and goals. Quality over quantity, you are in control of what Zoro learns about you.
             </p>
             <div className={`flex items-center font-medium transition-colors ${theme.textSecondaryClass} ${darkMode ? 'group-hover:text-white' : 'group-hover:text-slate-900'}`}>
               Explore Articles <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
@@ -555,7 +555,7 @@ export const PhilosophyPage: React.FC<PhilosophyPageProps> = ({
             </div>
             <h3 className={`text-2xl font-bold ${theme.textClass} mb-4`}>Zoro Learns</h3>
             <p className={`${theme.textSecondaryClass} mb-6`}>
-              Every cat has its own personality—Zoro develops yours. The more you interact, the better Zoro understands your context: NRI or resident, risk appetite, life stage, and financial goals. Powered by specialized agents working behind the scenes.
+              Every cat has its own personality, Zoro develops yours. The more you interact the better Zoro understands your context: NRI or resident, risk appetite, life stage, and financial goals. Powered by specialized agents working for you behind the scenes.
             </p>
             <div className={`flex items-center font-medium transition-colors ${theme.textSecondaryClass} ${darkMode ? 'group-hover:text-white' : 'group-hover:text-slate-900'}`}>
               See How It Works <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
@@ -572,7 +572,7 @@ export const PhilosophyPage: React.FC<PhilosophyPageProps> = ({
             </div>
             <h3 className={`text-2xl font-bold ${theme.textClass} mb-4`}>You Decide</h3>
             <p className={`${theme.textSecondaryClass} mb-6`}>
-              Cats are independent, but they still need their humans. Zoro provides insights and recommendations, but YOU make the final decisions. AI assists, you control. Financial planning is deeply personal—Zoro is your guide, not your master.
+              Cats are independent, but they still need their humans. Zoro provides insights and recommendations, but YOU make the final decisions. AI assists, you control. Financial planning is deeply personal. Zoro is your guide, not your master.
             </p>
             <div className={`flex items-center font-medium transition-colors ${theme.textSecondaryClass} ${darkMode ? 'group-hover:text-white' : 'group-hover:text-slate-900'}`}>
               About Us & Roadmap <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
