@@ -21,8 +21,10 @@ export const AnimatedZoroLogo = ({
   const [fadeOut, setFadeOut] = useState(false);
 
   useEffect(() => {
-    // Stage 1: Show horizontal bars immediately
-    setShowBars(true);
+    // Stage 1: Show horizontal bars immediately (use requestAnimationFrame for better performance)
+    requestAnimationFrame(() => {
+      setShowBars(true);
+    });
 
     // Stage 2: Start drawing blue line
     const timer1 = setTimeout(() => {
@@ -51,20 +53,21 @@ export const AnimatedZoroLogo = ({
     };
   }, [onAnimationComplete]);
 
-  // Center the Z icon - Z spans from x=6 to x=38 (center at x=22)
-  // Full logo viewBox is 160 units wide (center at x=80)
-  // To center just the Z, we shift right by (80 - 22) = 58 units = 36.25% of width
+  // Z icon spans from x=6 to x=38 (width: 32 units)
+  // To eliminate extra right padding, use a viewBox that crops to just the Z area
+  // Use viewBox starting at x=2 with width 40 to show Z with balanced padding
+  // This centers the Z naturally without needing transform offsets
   return (
     <div className={`transition-opacity duration-500 ${fadeOut ? 'opacity-0' : 'opacity-100'} flex items-center justify-center w-full`}>
-      <div className="translate-x-[36.25%]">
-        <svg 
-          className={className}
-          viewBox="0 0 160 50" 
-          fill="none" 
-          xmlns="http://www.w3.org/2000/svg"
-          role="img"
-          aria-label="Animated Zoro Logo"
-        >
+      <svg 
+        className={className}
+        viewBox="2 0 40 50" 
+        fill="none" 
+        xmlns="http://www.w3.org/2000/svg"
+        role="img"
+        aria-label="Animated Zoro Logo"
+        preserveAspectRatio="xMidYMid meet"
+      >
         {/* Z Graph Icon */}
         <g>
           {/* Top horizontal bar (solid) - appears first */}
@@ -129,8 +132,7 @@ export const AnimatedZoroLogo = ({
             style={{ transition: 'opacity 0.3s ease-in' }}
           />
         </g>
-        </svg>
-      </div>
+      </svg>
     </div>
   );
 };

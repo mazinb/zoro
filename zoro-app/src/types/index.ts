@@ -35,3 +35,46 @@ export interface Article {
 
 export type ContactMethod = 'whatsapp' | 'email';
 
+export interface BlogPost {
+  id: string;
+  title: string;
+  excerpt: string;
+  tags: string[];
+  author: string;
+  publishDate: string;
+  estimatedReadTime: number;
+  category: string;
+  targetAudience: string[];
+  complexity: string;
+  jurisdiction: string[];
+  keyTopics: string[];
+  engagementScore: number;
+}
+
+export type ViewMode = 'user' | 'planner';
+
+export type SearchExpanded = 'tags' | 'author' | '';
+
+export interface User {
+  id: string;
+  email?: string;
+  name?: string;
+  role?: 'user' | 'planner' | 'admin';
+  avatar_url?: string;
+}
+
+export interface AuthSession {
+  user: User | null;
+  session: {
+    access_token?: string;
+    refresh_token?: string;
+    expires_at?: number;
+    user?: {
+      id: string;
+      email?: string;
+      user_metadata?: Record<string, unknown>;
+    };
+  } | null;
+  loading: boolean;
+}
+

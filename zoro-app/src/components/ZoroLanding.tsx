@@ -192,7 +192,7 @@ const ZoroLanding = () => {
       <div className={`min-h-screen ${darkMode ? 'bg-slate-900' : 'bg-white'} flex items-center justify-center p-4 transition-colors duration-300`}>
         <div className="flex flex-col items-center justify-center">
           <AnimatedZoroLogo 
-            className="h-16 md:h-24" 
+            className="h-32 md:h-48 lg:h-64" 
             isDark={darkMode}
             onAnimationComplete={() => {
               setShowSuccess(true);
@@ -209,7 +209,7 @@ const ZoroLanding = () => {
       <div className={`min-h-screen ${darkMode ? 'bg-slate-900' : 'bg-white'} flex items-center justify-center p-4 transition-colors duration-300`}>
         <div className="flex flex-col items-center justify-center">
           <AnimatedZoroLogo 
-            className="h-16 md:h-24" 
+            className="h-32 md:h-48 lg:h-64" 
             isDark={darkMode}
             onAnimationComplete={() => {
               setShowFormIntro(false);

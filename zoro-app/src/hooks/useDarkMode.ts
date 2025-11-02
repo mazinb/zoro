@@ -8,7 +8,10 @@ export const useDarkMode = () => {
     const now = new Date();
     const hour = now.getHours();
     // Dark mode between 6 PM and 6 AM
-    setDarkMode(hour >= 18 || hour < 6);
+    // Use requestAnimationFrame to avoid synchronous setState in effect
+    requestAnimationFrame(() => {
+      setDarkMode(hour >= 18 || hour < 6);
+    });
   }, []);
 
   const toggleDarkMode = () => setDarkMode(!darkMode);
