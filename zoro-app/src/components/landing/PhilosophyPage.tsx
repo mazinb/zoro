@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { BookOpen, Sparkles, Compass, ArrowRight, Moon, Sun, ThumbsUp, Lightbulb, LogIn, X, Send } from 'lucide-react';
 import { ZoroLogo } from '@/components/ZoroLogo';
 import { Button } from '@/components/ui/Button';
 import { useThemeClasses } from '@/hooks/useThemeClasses';
 import { useAuth } from '@/hooks/useAuth';
+import { getAuthHeaders } from '@/lib/api-client';
 
 interface PhilosophyPageProps {
   darkMode: boolean;
@@ -44,39 +45,58 @@ export const PhilosophyPage: React.FC<PhilosophyPageProps> = ({
   const [ideaDescription, setIdeaDescription] = useState('');
   const [ideaCategory, setIdeaCategory] = useState('new-agent');
 
-  // Mock ideas data (will be replaced with DB integration later)
-  const [ideas, setIdeas] = useState<Idea[]>([
-    {
-      id: '1',
-      title: 'Estate Planning Agent',
-      description: 'An agent specialized in estate planning for NRIs with assets in multiple countries. Could help with wills, trusts, and tax-efficient wealth transfer strategies.',
-      category: 'new-agent',
-      votes: 23,
-      userVoted: false,
-      author: 'Community Member',
-      createdAt: '2 days ago'
-    },
-    {
-      id: '2',
-      title: 'Real-Time Portfolio Rebalancing',
-      description: 'An agent that monitors portfolio allocations and suggests rebalancing based on market conditions and personal goals.',
-      category: 'feature',
-      votes: 18,
-      userVoted: true,
-      author: 'Community Member',
-      createdAt: '5 days ago'
-    },
-    {
-      id: '3',
-      title: 'Tax Optimization Calculator',
-      description: 'An interactive tool that helps calculate optimal tax-saving strategies based on income, investments, and residency status.',
-      category: 'tool',
-      votes: 31,
-      userVoted: false,
-      author: 'Community Member',
-      createdAt: '1 week ago'
+  const [ideas, setIdeas] = useState<Idea[]>([]);
+  const [loadingIdeas, setLoadingIdeas] = useState(true);
+
+  // Helper to format relative time
+  const formatRelativeTime = (dateString: string): string => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffSeconds = Math.floor(diffMs / 1000);
+    const diffMinutes = Math.floor(diffSeconds / 60);
+    const diffHours = Math.floor(diffMinutes / 60);
+    const diffDays = Math.floor(diffHours / 24);
+    
+    if (diffSeconds < 60) return 'just now';
+    if (diffMinutes < 60) return `${diffMinutes} ${diffMinutes === 1 ? 'minute' : 'minutes'} ago`;
+    if (diffHours < 24) return `${diffHours} ${diffHours === 1 ? 'hour' : 'hours'} ago`;
+    if (diffDays < 7) return `${diffDays} ${diffDays === 1 ? 'day' : 'days'} ago`;
+    return date.toLocaleDateString();
+  };
+
+  // Fetch ideas from API
+  useEffect(() => {
+    async function fetchIdeas() {
+      try {
+        setLoadingIdeas(true);
+        const headers = await getAuthHeaders();
+        const response = await fetch('/api/community/ideas', {
+          headers
+        });
+        
+        if (!response.ok) {
+          throw new Error('Failed to fetch ideas');
+        }
+        
+        const data = await response.json();
+        // Format ideas with relative time
+        const formattedIdeas = (data.ideas || []).map((idea: any) => ({
+          ...idea,
+          createdAt: formatRelativeTime(idea.createdAt)
+        }));
+        setIdeas(formattedIdeas);
+      } catch (error) {
+        console.error('Error fetching ideas:', error);
+        // Keep empty array on error
+        setIdeas([]);
+      } finally {
+        setLoadingIdeas(false);
+      }
     }
-  ]);
+    
+    fetchIdeas();
+  }, [user]);
 
   const bgGradientClass = darkMode 
     ? 'bg-gradient-to-br from-slate-900 to-slate-800' 
@@ -130,42 +150,90 @@ export const PhilosophyPage: React.FC<PhilosophyPageProps> = ({
   }
 
   // Handle idea submission
-  const handleSubmitIdea = () => {
-    if (!ideaTitle.trim() || !ideaDescription.trim()) return;
+  const handleSubmitIdea = async () => {
+    if (!ideaTitle.trim() || !ideaDescription.trim() || !user) return;
     
-    const newIdea: Idea = {
-      id: Date.now().toString(),
-      title: ideaTitle,
-      description: ideaDescription,
-      category: ideaCategory,
-      votes: 0,
-      userVoted: false,
-      author: user?.name || 'You',
-      createdAt: 'just now'
-    };
-    
-    setIdeas([newIdea, ...ideas]);
-    setIdeaTitle('');
-    setIdeaDescription('');
-    setIdeaCategory('new-agent');
-    setShowSubmitForm(false);
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch('/api/community/ideas', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          title: ideaTitle,
+          description: ideaDescription,
+          category: ideaCategory
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to submit idea');
+      }
+      
+      const { idea } = await response.json();
+      
+      // Add new idea to the list
+      const formattedIdea: Idea = {
+        ...idea,
+        createdAt: formatRelativeTime(idea.createdAt)
+      };
+      
+      setIdeas([formattedIdea, ...ideas]);
+      setIdeaTitle('');
+      setIdeaDescription('');
+      setIdeaCategory('new-agent');
+      setShowSubmitForm(false);
+    } catch (error) {
+      console.error('Error submitting idea:', error);
+      alert('Failed to submit idea. Please try again.');
+    }
   };
 
   // Handle vote toggle
-  const handleVote = (ideaId: string) => {
-    if (!user) return;
+  const handleVote = async (ideaId: string) => {
+    if (!user) {
+      router.push('/login');
+      return;
+    }
     
-    setIdeas(ideas.map(idea => {
-      if (idea.id === ideaId) {
-        const newVoted = !idea.userVoted;
-        return {
-          ...idea,
-          userVoted: newVoted,
-          votes: newVoted ? idea.votes + 1 : idea.votes - 1
-        };
+    try {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`/api/community/ideas/${ideaId}/vote`, {
+        method: 'POST',
+        headers
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to vote');
       }
-      return idea;
-    }));
+      
+      const { voted, votes } = await response.json();
+      
+      // Update idea in the list
+      setIdeas(ideas.map(idea => {
+        if (idea.id === ideaId) {
+          return {
+            ...idea,
+            userVoted: voted,
+            votes: votes
+          };
+        }
+        return idea;
+      }));
+    } catch (error) {
+      console.error('Error voting:', error);
+      // Optimistically update UI
+      setIdeas(ideas.map(idea => {
+        if (idea.id === ideaId) {
+          const newVoted = !idea.userVoted;
+          return {
+            ...idea,
+            userVoted: newVoted,
+            votes: newVoted ? idea.votes + 1 : Math.max(0, idea.votes - 1)
+          };
+        }
+        return idea;
+      }));
+    }
   };
 
   // Adaptive Intelligence page
@@ -335,7 +403,17 @@ export const PhilosophyPage: React.FC<PhilosophyPageProps> = ({
 
             {user ? (
               <div className="space-y-4">
-                {ideas.map((idea) => (
+                {loadingIdeas && (
+                  <div className={`${theme.cardBgClass} rounded-xl p-6 border ${theme.borderClass} text-center`}>
+                    <p className={theme.textSecondaryClass}>Loading ideas...</p>
+                  </div>
+                )}
+                {!loadingIdeas && ideas.length === 0 && (
+                  <div className={`${theme.cardBgClass} rounded-xl p-6 border ${theme.borderClass} text-center`}>
+                    <p className={theme.textSecondaryClass}>No ideas yet. Be the first to submit one!</p>
+                  </div>
+                )}
+                {!loadingIdeas && ideas.map((idea) => (
                   <div
                     key={idea.id}
                     className={`${theme.cardBgClass} rounded-xl p-6 border ${theme.borderClass} hover:shadow-lg transition-shadow`}
@@ -584,7 +662,7 @@ export const PhilosophyPage: React.FC<PhilosophyPageProps> = ({
         <div className={`${darkMode ? 'bg-white' : 'bg-slate-800'} ${darkMode ? 'text-blue-600' : 'text-white'} rounded-2xl p-12 border ${theme.borderClass}`}>
           <h3 className={`text-3xl font-bold mb-4 text-center ${darkMode ? 'text-blue-600' : 'text-white'}`}>Why This Approach Works</h3>
           <p className={`text-lg ${darkMode ? 'text-slate-700' : 'text-slate-200'} max-w-3xl mx-auto mb-8 text-center`}>
-            Traditional financial advice is either too generic or too expensive. Zoro combines the best of both worlds: personalized AI-powered insights at your fingertips, while you remain in full control of your financial journey. No one-size-fits-all solutions, just context-aware guidance tailored to Indians and NRIs.
+            Traditional financial advice is too generic, expensive and slow. Zoro combines the best of both worlds with personalized insights while you remain in full control with context aware guidance tailored for Indians and NRIs
           </p>
           <div className="text-center mb-8">
           <Button
@@ -597,7 +675,7 @@ export const PhilosophyPage: React.FC<PhilosophyPageProps> = ({
           </Button>
           </div>
           <p className={`text-sm ${darkMode ? 'text-slate-600' : 'text-slate-400'} text-center italic`}>
-            Zoro is your money cat—calm, clever, and on your side. Feed it your principles and it grows your wealth.
+            Zoro is your money cat. It is always on your side. Feed it your principles and it grows your wealth.
           </p>
         </div>
       </div>
