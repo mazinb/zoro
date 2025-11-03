@@ -168,7 +168,7 @@ export const BlogPage: React.FC = () => {
         }
         
         const data = await response.json();
-        const posts = (data.posts || []).map(convertDbPostToBlogPost);
+        const posts: BlogPost[] = (data.posts || []).map(convertDbPostToBlogPost);
         setBlogPosts(posts);
         
         // Initialize view counts and read time from DB or defaults
@@ -209,7 +209,7 @@ export const BlogPage: React.FC = () => {
         });
         
         if (response.ok) {
-          const { posts } = await response.json();
+          const { posts }: { posts: Array<{ id: string }> } = await response.json();
           const savedSet = new Set<string>();
           const zoroSet = new Set<string>();
           
