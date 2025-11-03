@@ -64,7 +64,8 @@ export async function POST(request: NextRequest) {
         concern_level: body.concernLevel,
         contact_method: body.contactMethod,
         phone: body.phone && body.phone.trim() ? body.phone : null,
-        additional_info: body.additionalInfo && body.additionalInfo.trim() ? body.additionalInfo : null
+        additional_info: body.additionalInfo && body.additionalInfo.trim() ? body.additionalInfo : null,
+        email: body.email && body.email.trim() ? body.email.trim() : null
       })
       .select()
       .single();

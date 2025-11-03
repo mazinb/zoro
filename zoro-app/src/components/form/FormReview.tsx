@@ -130,20 +130,20 @@ export const FormReview: React.FC<FormReviewProps> = ({
               </button>
             </div>
 
-            <div className={`h-px ${themeClasses.borderClass}`}></div>
-            <div className="flex justify-between items-start">
-              <div className="flex-1">
-                <p className={`text-sm ${themeClasses.textSecondaryClass} mb-1`}>Additional information</p>
+                <div className={`h-px ${themeClasses.borderClass}`}></div>
+                <div className="flex justify-between items-start">
+                  <div className="flex-1">
+                    <p className={`text-sm ${themeClasses.textSecondaryClass} mb-1`}>Additional information</p>
                 <p className={`${themeClasses.textClass} text-sm`}>{additionalInfo || <span className={themeClasses.textSecondaryClass}>No additional information provided</span>}</p>
-              </div>
-              <button
-                onClick={() => onEdit(questions.length)}
-                className={`text-blue-600 hover:text-blue-700 text-sm font-medium`}
-                aria-label="Edit additional information"
-              >
-                Edit
-              </button>
-            </div>
+                  </div>
+                  <button
+                    onClick={() => onEdit(questions.length)}
+                    className={`text-blue-600 hover:text-blue-700 text-sm font-medium`}
+                    aria-label="Edit additional information"
+                  >
+                    Edit
+                  </button>
+                </div>
           </div>
         </Card>
 

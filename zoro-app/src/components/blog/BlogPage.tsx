@@ -19,7 +19,21 @@ import { Button } from '@/components/ui/Button';
 import { apiCall, getAuthHeaders } from '@/lib/api-client';
 
 // Helper to convert DB post (snake_case) to BlogPost type (camelCase)
-function convertDbPostToBlogPost(dbPost: any): BlogPost {
+function convertDbPostToBlogPost(dbPost: {
+  id: string;
+  title: string;
+  excerpt: string;
+  tags?: string[];
+  author: string;
+  publish_date: string;
+  estimated_read_time: number;
+  category: string;
+  target_audience?: string[];
+  complexity: string;
+  jurisdiction?: string[];
+  key_topics?: string[];
+  engagement_score?: number;
+}): BlogPost {
   return {
     id: dbPost.id,
     title: dbPost.title,
@@ -192,45 +206,44 @@ export const BlogPage: React.FC = () => {
     fetchPosts();
   }, []);
 
-  // Fetch saved articles and zoro context for authenticated users
+  // Fetch saved articles and zoro context when posts are loaded (optimized - single API call)
   useEffect(() => {
-    if (!user) {
-      setSavedArticles(new Set());
-      setZoroArticles(new Set());
+    if (!user || blogPosts.length === 0) {
+      if (!user) {
+        setSavedArticles(new Set());
+        setZoroArticles(new Set());
+      }
       return;
     }
     
     async function fetchSavedArticles() {
       try {
         const headers = await getAuthHeaders();
-        // Fetch all saves for current user
+        // Fetch posts with saves data in one call
         const response = await fetch('/api/blog/posts', {
           headers
         });
         
         if (response.ok) {
-          const { posts }: { posts: Array<{ id: string }> } = await response.json();
-          const savedSet = new Set<string>();
-          const zoroSet = new Set<string>();
+          const { saves }: { saves?: Record<string, { saved: boolean; zoroContext: boolean }> } = await response.json();
           
-          // Check each post if it's saved or in zoro context
-          for (const post of posts) {
-            const saveResponse = await fetch(`/api/blog/posts/${post.id}/save`, {
-              headers
+          if (saves) {
+            const savedSet = new Set<string>();
+            const zoroSet = new Set<string>();
+            
+            // Process saves data efficiently
+            Object.entries(saves).forEach(([postId, saveData]) => {
+              if (saveData.saved) {
+                savedSet.add(postId);
+              }
+              if (saveData.zoroContext) {
+                zoroSet.add(postId);
+              }
             });
-            if (saveResponse.ok) {
-              const { saved, zoroContext } = await saveResponse.json();
-              if (saved) {
-                savedSet.add(post.id);
-              }
-              if (zoroContext) {
-                zoroSet.add(post.id);
-              }
-            }
+            
+            setSavedArticles(savedSet);
+            setZoroArticles(zoroSet);
           }
-          
-          setSavedArticles(savedSet);
-          setZoroArticles(zoroSet);
         }
       } catch (error) {
         console.error('Error fetching saved articles:', error);
@@ -238,7 +251,7 @@ export const BlogPage: React.FC = () => {
     }
     
     fetchSavedArticles();
-  }, [user]);
+  }, [user, blogPosts.length]);
 
   // Track read time when article is opened
   useEffect(() => {

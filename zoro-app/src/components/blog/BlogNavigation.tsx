@@ -149,7 +149,7 @@ export const BlogNavigation: React.FC<BlogNavigationProps> = ({
                     className={`relative px-4 py-2 rounded-lg font-medium transition-all flex items-center gap-2 ${darkMode ? 'bg-slate-700 text-white hover:bg-slate-600' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}`}
                     aria-label="Zoro context"
                   >
-                    <ZoroZIcon postId="header" isSelected={false} className="w-5 h-5" />
+                    <ZoroZIcon postId="header" isSelected={zoroArticlesCount > 0} className="w-5 h-5" />
                     {zoroArticlesCount > 0 && (
                       <span className={`absolute -top-1 -right-1 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center ${darkMode ? 'bg-blue-500' : 'bg-slate-800'}`}>
                         {zoroArticlesCount}

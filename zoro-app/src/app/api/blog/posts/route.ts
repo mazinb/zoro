@@ -38,7 +38,36 @@ export async function GET(request: NextRequest) {
       );
     }
     
-    return NextResponse.json({ posts: data || [] }, { status: 200 });
+    // If authenticated, also fetch saved/zoro context status for all posts
+    let savesData: Record<string, { saved: boolean; zoroContext: boolean }> = {};
+    
+    if (token) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        // Fetch all saves for this user in one query
+        const { data: saves } = await supabase
+          .from('blog_post_saves')
+          .select('post_id, type')
+          .eq('user_id', user.id);
+        
+        // Group by post_id
+        saves?.forEach(save => {
+          if (!savesData[save.post_id]) {
+            savesData[save.post_id] = { saved: false, zoroContext: false };
+          }
+          if (save.type === 'save') {
+            savesData[save.post_id].saved = true;
+          } else if (save.type === 'zoro_context') {
+            savesData[save.post_id].zoroContext = true;
+          }
+        });
+      }
+    }
+    
+    return NextResponse.json({ 
+      posts: data || [],
+      saves: savesData 
+    }, { status: 200 });
   } catch (error) {
     console.error('Error in GET /api/blog/posts:', error);
     return NextResponse.json(

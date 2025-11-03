@@ -6,6 +6,7 @@ import { ZoroLogo } from '@/components/ZoroLogo';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { useThemeClasses } from '@/hooks/useThemeClasses';
+import ZoroLearningAnimation from '@/components/bloganimation';
 
 interface LandingPageProps {
   darkMode: boolean;
@@ -88,7 +89,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       <nav className={`border-b ${theme.borderClass}`}>
         <div className="max-w-6xl mx-auto px-6 py-6 flex items-center justify-between">
           <div className="flex items-center">
-            <ZoroLogo className="h-8" isDark={darkMode} />
+            <ZoroLogo className="h-10" isDark={darkMode} />
           </div>
           <div className="flex items-center gap-6">
             <button
@@ -160,48 +161,40 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </div>
       </div>
 
-      {/* Features */}
-      <div className="max-w-4xl mx-auto px-6 py-24">
-        <div className="grid md:grid-cols-2 gap-16">
-          <div>
-            <h3 className={`text-2xl font-semibold ${theme.textClass} mb-4`}>
-              Natural language queries
-            </h3>
-            <p className={`${theme.textSecondaryClass} leading-relaxed`}>
-              Ask "Am I on track for retirement?" or "Is my estate plan complete?" 
-              Get detailed answers with specific numbers and recommendations.
-            </p>
+      {/* Blog Interaction Section */}
+      <div className="max-w-6xl mx-auto px-6 py-24">
+        {/* Mobile-first flow: title → animation → text → CTA */}
+        <h3 className={`md:hidden text-3xl font-bold ${theme.textClass} mb-4`}>
+            Read, React, We Learn
+        </h3>
+
+        <div className="grid md:grid-cols-2 gap-12 items-center">
+          {/* Animation (left on desktop, second on mobile) */}
+          <div className="order-2 md:order-1 flex justify-center md:justify-start">
+            <ZoroLearningAnimation width={380} height={260} darkMode={darkMode} />
           </div>
 
-          <div>
-            <h3 className={`text-2xl font-semibold ${theme.textClass} mb-4`}>
-              Estate planning review
+          {/* Copy (right on desktop, third on mobile) */}
+          <div className="order-3 md:order-2">
+            <h3 className={`hidden md:block text-4xl font-bold ${theme.textClass} mb-4`}>
+              Read, React, We Learn
             </h3>
-            <p className={`${theme.textSecondaryClass} leading-relaxed`}>
-              Analyze wills, trusts, and beneficiary designations. Get completeness 
-              checks, alignment verification, and tax efficiency recommendations.
+            <p className={`${theme.textSecondaryClass} text-lg leading-relaxed mb-6`}>
+              Every highlight teaches us how you think about money. Love an idea? Tap to agree Disagree? tell us why. We learn and grows with you
             </p>
+            <Button
+              variant="primary"
+              darkMode={!darkMode}
+              onClick={() => { if (typeof window !== 'undefined') window.location.href = '/blog'; }}
+              className="px-6"
+              showArrow
+            >
+              Explore articles
+            </Button>
           </div>
 
-          <div>
-            <h3 className={`text-2xl font-semibold ${theme.textClass} mb-4`}>
-              Financial insights
-            </h3>
-            <p className={`${theme.textSecondaryClass} leading-relaxed`}>
-              Track budgets, retirement accounts, investments, and debt. 
-              AI analyzes everything in seconds and surfaces what matters most.
-            </p>
-          </div>
-
-          <div>
-            <h3 className={`text-2xl font-semibold ${theme.textClass} mb-4`}>
-              You're always in control
-            </h3>
-            <p className={`${theme.textSecondaryClass} leading-relaxed`}>
-              Zoro suggests, you decide. Review every recommendation before taking action. 
-              Your documents stay private in your Google Drive.
-            </p>
-          </div>
+          {/* Title (first on mobile only) */}
+          <div className="order-1 md:order-3 hidden" />
         </div>
       </div>
 
@@ -371,10 +364,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       <div className={`border-t ${theme.borderClass} py-12`}>
         <div className="max-w-6xl mx-auto px-6 flex items-center justify-between">
           <div className="flex items-center">
-            <ZoroLogo className="h-7" isDark={darkMode} />
+            <ZoroLogo className="h-8" isDark={darkMode} />
           </div>
           <div className={`text-sm ${theme.textSecondaryClass}`}>
-            Powered by Claude AI & Google Drive
+            Terms of use | Privacy policy
           </div>
         </div>
       </div>

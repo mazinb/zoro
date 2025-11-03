@@ -81,6 +81,7 @@ const ZoroLanding = () => {
   const [phone, setPhone] = useState('');
   const [countryCode, setCountryCode] = useState('+91');
   const [additionalInfo, setAdditionalInfo] = useState('');
+  const [contactEmail, setContactEmail] = useState('');
   const [contactMethod, setContactMethod] = useState<ContactMethod | ''>('');
   const [showReview, setShowReview] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -158,6 +159,7 @@ const ZoroLanding = () => {
         phone: contactMethod === 'whatsapp' ? countryCode + phone : null,
         contactMethod,
         additionalInfo,
+        email: user?.email || contactEmail || null,
         userId: user?.id || null
       };
 
@@ -279,7 +281,7 @@ const ZoroLanding = () => {
         countryCode={countryCode}
         contactMethod={contactMethod as ContactMethod}
         additionalInfo={additionalInfo}
-        userEmail={user?.email}
+        userEmail={user?.email || contactEmail}
         questions={questions}
         darkMode={darkMode}
         isSubmitting={isSubmitting}
@@ -301,6 +303,7 @@ const ZoroLanding = () => {
         countryCode={countryCode}
         additionalInfo={additionalInfo}
         darkMode={darkMode}
+        email={contactEmail}
         onPhoneChange={setPhone}
         onCountryCodeChange={(code) => {
           setCountryCode(code);
@@ -310,14 +313,7 @@ const ZoroLanding = () => {
         onEmailAuthSuccess={handleEmailAuthSuccess}
         userEmail={user?.email}
         isLoggedIn={!!user}
-        onSignIn={async (email, password) => {
-          const result = await signIn(email, password);
-          return result;
-        }}
-        onSignUp={async (email, password, name) => {
-          const result = await signUp(email, password, name);
-          return result;
-        }}
+        onEmailChange={setContactEmail}
         onBack={handleBack}
         onRestart={() => {
           setCurrentStep(0);
@@ -325,6 +321,7 @@ const ZoroLanding = () => {
           setPhone('');
           setCountryCode('+91');
           setAdditionalInfo('');
+          setContactEmail('');
         }}
         onGoHome={resetForm}
       />

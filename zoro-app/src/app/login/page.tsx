@@ -87,8 +87,8 @@ function LoginContent() {
   };
 
   const handleSkipPreference = () => {
-    const finalPath = mode ? `${redirectPath}?mode=${mode}` : redirectPath;
-    router.push(finalPath);
+      const finalPath = mode ? `${redirectPath}?mode=${mode}` : redirectPath;
+      router.push(finalPath);
   };
 
   // Show communication preference if user is logged in and hasn't set one
