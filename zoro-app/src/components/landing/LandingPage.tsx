@@ -124,7 +124,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </h1>
         
         <p className={`text-xl ${theme.textSecondaryClass} mb-12 max-w-2xl mx-auto leading-relaxed`}>
-          Zoro analyzes your finances, plans your estate, and gives you instant AI-powered insights. 
+          Zoro analyzes your finances, plans your estate, and gives you regular AI-powered insights. 
           Always transparent. Always your decision.
         </p>
 
@@ -139,7 +139,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </Button>
 
         <p className={`text-sm ${theme.textSecondaryClass} mt-4`}>
-          Free for early adopters • 2 minutes to complete
+          Free for early adopters • 10 minutes to complete
         </p>
       </div>
 
@@ -180,7 +180,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               Read, React, We Learn
             </h3>
             <p className={`${theme.textSecondaryClass} text-lg leading-relaxed mb-6`}>
-              Every highlight teaches us how you think about money. Love an idea? Tap to agree Disagree? tell us why. We learn and grows with you
+              Get timely reminders to stay on track and accomplish your goals, simply reply to gives us feedback or update your info
             </p>
             <Button
               variant="primary"
@@ -189,7 +189,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               className="px-6"
               showArrow
             >
-              Explore articles
+              Check In
             </Button>
           </div>
 

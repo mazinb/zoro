@@ -111,17 +111,14 @@ export default function CheckinPage() {
   const router = useRouter();
   const { darkMode, toggleDarkMode } = useDarkMode();
   const theme = useThemeClasses(darkMode);
-  const { user, loading: authLoading, signOut } = useAuth();
+  const { user, session, loading: authLoading, signOut } = useAuth();
   
   // UI State
   const [frequency, setFrequency] = useState("Weekly");
-  
-  // Goal selection state
-  const [selectedGoals, setSelectedGoals] = useState<string[]>([]); // Currently selected (staged)
-  const [savedGoals, setSavedGoals] = useState<string[]>([]); // Last saved state (from DB)
-  
-  // Validation state
-  const [lastGoalUpdate, setLastGoalUpdate] = useState<number | null>(null); // Timestamp of last save
+  const [savedFrequency, setSavedFrequency] = useState("Weekly");
+  const [selectedGoals, setSelectedGoals] = useState<string[]>([]);
+  const [savedGoals, setSavedGoals] = useState<string[]>([]);
+  const [lastGoalUpdate, setLastGoalUpdate] = useState<number | null>(null);
   const [showUpdateError, setShowUpdateError] = useState(false); // Show hourly limit error
   const [isSaving, setIsSaving] = useState(false);
 
@@ -129,18 +126,51 @@ export default function CheckinPage() {
    * Load saved goals from database (when user is logged in)
    */
   useEffect(() => {
-    if (user && !authLoading) {
-      // TODO: Fetch from API
-      const initialGoals = ["save", "invest"];
-      setSelectedGoals(initialGoals);
-      setSavedGoals(initialGoals);
-      setLastGoalUpdate(Date.now() - 3700000); // Set to >1 hour ago so user can immediately update
-    } else if (!user && !authLoading) {
-      setSelectedGoals([]);
-      setSavedGoals([]);
-      setLastGoalUpdate(null);
-    }
-  }, [user, authLoading]);
+    const loadSettings = async () => {
+      if (user && session?.access_token && !authLoading) {
+        try {
+          const response = await fetch('/api/checkin/settings', {
+            method: 'GET',
+            headers: {
+              Authorization: `Bearer ${session.access_token}`,
+            },
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            const goals = Array.isArray(data.goals) ? data.goals : [];
+            const freq = data.frequency || "Weekly";
+
+            setFrequency(freq);
+            setSavedFrequency(freq);
+            setSelectedGoals(goals);
+            setSavedGoals(goals);
+            setLastGoalUpdate(
+              data.last_updated ? new Date(data.last_updated).getTime() : null
+            );
+          } else {
+            // Fallback demo defaults on failure
+            const initialGoals = ["save", "invest"];
+            setSelectedGoals(initialGoals);
+            setSavedGoals(initialGoals);
+            setFrequency("Weekly");
+            setSavedFrequency("Weekly");
+            setLastGoalUpdate(Date.now() - 3700000);
+          }
+        } catch (error) {
+          console.error("Error loading check-in settings:", error);
+        }
+      } else if (!user && !authLoading) {
+        setSelectedGoals([]);
+        setSavedGoals([]);
+        setFrequency("Weekly");
+        setSavedFrequency("Weekly");
+        setLastGoalUpdate(null);
+      }
+    };
+
+    loadSettings();
+  }, [user, session, authLoading]);
 
   /**
    * Handle user logout - clear all state
@@ -185,13 +215,34 @@ export default function CheckinPage() {
       }
     }
 
-    // Simulate API save
     setIsSaving(true);
     try {
-      // TODO: Call API to save goals
-      await new Promise(resolve => setTimeout(resolve, 800));
-      setSavedGoals([...selectedGoals]);
-      setLastGoalUpdate(Date.now());
+      const response = await fetch('/api/checkin/settings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session?.access_token}`,
+        },
+        body: JSON.stringify({
+          frequency,
+          goals: selectedGoals,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.error || 'Failed to save check-in settings');
+      }
+
+      const data = await response.json();
+      const goals = Array.isArray(data.goals) ? data.goals : selectedGoals;
+      const freq = data.frequency || frequency;
+
+      setSavedGoals([...goals]);
+      setSavedFrequency(freq);
+      setLastGoalUpdate(
+        data.last_updated ? new Date(data.last_updated).getTime() : Date.now()
+      );
     } catch (error) {
       console.error('Error saving goals:', error);
     } finally {
@@ -199,8 +250,10 @@ export default function CheckinPage() {
     }
   };
 
-  // Check if user has unsaved changes
-  const hasUnsavedChanges = JSON.stringify(selectedGoals.sort()) !== JSON.stringify(savedGoals.sort());
+  const hasUnsavedChanges =
+    JSON.stringify(selectedGoals.slice().sort()) !==
+      JSON.stringify(savedGoals.slice().sort()) ||
+    frequency !== savedFrequency;
   const isLoggedIn = !!user;
 
   return (
