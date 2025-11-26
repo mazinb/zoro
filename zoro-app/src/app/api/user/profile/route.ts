@@ -4,6 +4,39 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
+type UserProfileRow = {
+  email?: string | null;
+  full_name?: string | null;
+  phone?: string | null;
+  date_of_birth?: string | null;
+  address?: string | null;
+  city?: string | null;
+  state?: string | null;
+  country?: string | null;
+  income_primary?: number | null;
+  income_other?: number | null;
+  income_notes?: string | null;
+  assets_home_value?: number | null;
+  assets_other_property_value?: number | null;
+  assets_equity_mutual_funds?: number | null;
+  assets_fixed_income?: number | null;
+  assets_crypto?: number | null;
+  assets_cash_bank?: number | null;
+  assets_other_assets_notes?: string | null;
+  liabilities_home_loan?: number | null;
+  liabilities_personal_loan?: number | null;
+  liabilities_credit_card_dues?: number | null;
+  liabilities_business_other_commitments?: number | null;
+  insurance_life_cover?: number | null;
+  insurance_health_cover?: number | null;
+  insurance_pension_value?: number | null;
+  insurance_nominee_details?: string | null;
+  estate_primary_beneficiaries?: string | null;
+  estate_guardianship_wishes?: string | null;
+  estate_asset_distribution_instructions?: string | null;
+  estate_funeral_preferences?: string | null;
+};
+
 function getSupabaseClient(token?: string) {
   if (!supabaseUrl || !supabaseAnonKey) {
     throw new Error('Missing Supabase environment variables');
@@ -94,7 +127,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const profile = data || {};
+    const profile: UserProfileRow = (data as UserProfileRow | null) || {};
 
     return NextResponse.json(
       {
