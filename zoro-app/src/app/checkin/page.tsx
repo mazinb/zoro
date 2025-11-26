@@ -34,8 +34,10 @@ const TOKENS = {
 /**
  * useOnScreen - Detects when an element enters viewport
  * Used for scroll-triggered animations
+ *
+ * Accepts any element ref that may be null before mounting.
  */
-function useOnScreen(ref: React.RefObject<HTMLElement>, rootMargin = "0px") {
+function useOnScreen(ref: React.RefObject<HTMLElement | null>, rootMargin = "0px") {
   const [isIntersecting, setIntersecting] = useState(false);
   useEffect(() => {
     if (!ref.current) return;
