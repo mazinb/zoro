@@ -22,6 +22,9 @@ function LoginContent() {
   const redirectPath = searchParams?.get('redirect') || '/checkin';
   const mode = searchParams?.get('mode');
   const skipPreference = searchParams?.get('skipPreference') === 'true';
+  const emailParam = searchParams?.get('email');
+  const tokenParam = searchParams?.get('token');
+  const messageParam = searchParams?.get('message');
 
   const checkUserPreference = useCallback(async () => {
     if (!session?.access_token) return;
@@ -59,10 +62,16 @@ function LoginContent() {
   // Check if user is logged in and show preference selection
   useEffect(() => {
     if (user && session?.access_token && !skipPreference) {
+      // If user is already logged in and trying to signup/login, redirect to profile
+      if (emailParam && !tokenParam) {
+        // Email exists message - redirect to profile
+        router.push(`/profile?message=${encodeURIComponent(messageParam || 'You are already logged in')}`);
+        return;
+      }
       // Check if user already has a preference set
       checkUserPreference();
     }
-  }, [user, session, skipPreference, checkUserPreference]);
+  }, [user, session, skipPreference, checkUserPreference, emailParam, tokenParam, messageParam, router]);
 
   const handlePreferenceSelected = async (method: ContactMethod) => {
     if (!session?.access_token) {
@@ -109,22 +118,104 @@ function LoginContent() {
     return null; // Will redirect or preference check is running
   }
 
-  return isSignup ? (
+  // If mode is signup or token is present, show signup form
+  const shouldShowSignup = mode === 'signup' || !!tokenParam || isSignup;
+
+  return shouldShowSignup ? (
     <SignupForm
       darkMode={darkMode}
+      initialEmail={emailParam || undefined}
+      verificationToken={tokenParam || undefined}
+      message={messageParam || undefined}
       onSignup={async (email, password, name) => {
         setLoading(true);
+        
+        // Verify token if present
+        if (tokenParam) {
+          try {
+            const verifyResponse = await fetch('/api/auth/verify-token', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ email, token: tokenParam }),
+            });
+            
+            if (!verifyResponse.ok) {
+              const errorData = await verifyResponse.json();
+              setLoading(false);
+              return { error: new Error(errorData.error || 'Invalid verification token') };
+            }
+          } catch (err) {
+            setLoading(false);
+            return { error: new Error('Failed to verify token') };
+          }
+        }
+
         const result = await signUp(email, password, name);
+        
+        // If signup successful and we have pending form submission, submit it
+        if (!result.error && typeof window !== 'undefined') {
+          const pendingData = sessionStorage.getItem('pendingFormSubmission');
+          if (pendingData) {
+            try {
+              const formData = JSON.parse(pendingData);
+              // Wait a bit for session to be available
+              await new Promise(resolve => setTimeout(resolve, 500));
+              const { data: { session } } = await (await import('@/lib/supabase-client')).supabaseClient.auth.getSession();
+              
+              if (session?.access_token) {
+                const submitResponse = await fetch('/api/submit', {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.access_token}`,
+                  },
+                  body: JSON.stringify({
+                    goals: formData.selectedGoals || [],
+                    goalDetails: formData.goalDetails || {},
+                    name: formData.name,
+                    netWorth: formData.netWorth,
+                    contactMethod: 'email',
+                    additionalInfo: formData.additionalInfo,
+                    email: email,
+                    userId: session.user.id
+                  }),
+                });
+                
+                if (submitResponse.ok) {
+                  // Clear pending submission
+                  sessionStorage.removeItem('pendingFormSubmission');
+                  
+                  // Redirect to home with success message
+                  router.push('/?submitted=true');
+                  return result;
+                }
+              }
+            } catch (err) {
+              console.error('Error submitting pending form:', err);
+              // Don't fail signup if form submission fails
+            }
+          }
+        }
+        
         setLoading(false);
         // Preference check will happen automatically via useEffect when session is available
         return result;
       }}
-      onSwitchToLogin={() => setIsSignup(false)}
+      onSwitchToLogin={() => {
+        setIsSignup(false);
+        // Remove token from URL
+        const newParams = new URLSearchParams(searchParams?.toString() || '');
+        newParams.delete('token');
+        newParams.delete('mode');
+        router.push(`/login?${newParams.toString()}`);
+      }}
       loading={loading}
     />
   ) : (
     <LoginForm
       darkMode={darkMode}
+      initialEmail={emailParam || undefined}
+      message={messageParam || undefined}
       onLogin={async (email, password) => {
         setLoading(true);
         const result = await signIn(email, password);
@@ -132,7 +223,15 @@ function LoginContent() {
         // Preference check will happen automatically via useEffect when session is available
         return result;
       }}
-      onSwitchToSignup={() => setIsSignup(true)}
+      onSwitchToSignup={() => {
+        setIsSignup(true);
+        // Add email to signup URL if present
+        if (emailParam) {
+          const newParams = new URLSearchParams(searchParams?.toString() || '');
+          newParams.set('mode', 'signup');
+          router.push(`/login?${newParams.toString()}`);
+        }
+      }}
       loading={loading}
     />
   );

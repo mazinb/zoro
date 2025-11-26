@@ -303,6 +303,8 @@ const ZoroLanding = () => {
         additionalInfo={additionalInfo}
         darkMode={darkMode}
         email={contactEmail}
+        selectedGoals={selectedGoals}
+        goalDetails={goalDetails}
         onNameChange={setName}
         onNetWorthChange={setNetWorth}
         onPhoneChange={setPhone}

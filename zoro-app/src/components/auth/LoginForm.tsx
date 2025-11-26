@@ -9,6 +9,8 @@ import { ZoroLogo } from '@/components/ZoroLogo';
 
 interface LoginFormProps {
   darkMode: boolean;
+  initialEmail?: string;
+  message?: string;
   onLogin: (email: string, password: string) => Promise<{ error: Error | null }>;
   onSwitchToSignup: () => void;
   loading?: boolean;
@@ -16,15 +18,18 @@ interface LoginFormProps {
 
 export const LoginForm: React.FC<LoginFormProps> = ({
   darkMode,
+  initialEmail,
+  message,
   onLogin,
   onSwitchToSignup,
   loading = false
 }) => {
   const theme = useThemeClasses(darkMode);
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(initialEmail || '');
   const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [infoMessage, setInfoMessage] = useState<string | null>(message || null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,6 +59,11 @@ export const LoginForm: React.FC<LoginFormProps> = ({
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {infoMessage && (
+            <div className={`p-4 rounded-lg ${darkMode ? 'bg-blue-900/30 border border-blue-700' : 'bg-blue-50 border border-blue-200'}`}>
+              <p className={`text-sm ${darkMode ? 'text-blue-300' : 'text-blue-700'}`}>{infoMessage}</p>
+            </div>
+          )}
           {error && (
             <div className={`p-4 rounded-lg ${darkMode ? 'bg-red-900/30 border border-red-700' : 'bg-red-50 border border-red-200'}`}>
               <p className={`text-sm ${darkMode ? 'text-red-300' : 'text-red-700'}`}>{error}</p>
@@ -73,7 +83,8 @@ export const LoginForm: React.FC<LoginFormProps> = ({
                 required
                 className={`w-full pl-10 pr-4 py-3 ${theme.inputBgClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 ${theme.textClass}`}
                 placeholder="your@email.com"
-                disabled={isSubmitting || loading}
+                disabled={isSubmitting || loading || !!initialEmail}
+                readOnly={!!initialEmail}
               />
             </div>
           </div>

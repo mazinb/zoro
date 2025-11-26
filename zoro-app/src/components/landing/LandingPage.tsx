@@ -143,24 +143,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </p>
       </div>
 
-      {/* Stats */}
-      <div className={`border-t border-b ${theme.borderClass} py-12`}>
-        <div className="max-w-4xl mx-auto px-6 grid grid-cols-3 gap-8 text-center">
-          <div>
-            <div className={`text-3xl font-bold ${theme.textClass} mb-1`}>10x</div>
-            <div className={`text-sm ${theme.textSecondaryClass}`}>Faster analysis</div>
-          </div>
-          <div>
-            <div className={`text-3xl font-bold ${theme.textClass} mb-1`}>24/7</div>
-            <div className={`text-sm ${theme.textSecondaryClass}`}>Availability</div>
-          </div>
-          <div>
-            <div className={`text-3xl font-bold ${theme.textClass} mb-1`}>100%</div>
-            <div className={`text-sm ${theme.textSecondaryClass}`}>Your control</div>
-          </div>
-        </div>
-      </div>
-
       {/* Blog Interaction Section */}
       <div className="max-w-6xl mx-auto px-6 py-24">
         {/* Mobile-first flow: title → animation → text → CTA */}
@@ -212,11 +194,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </div>
               <div>
                 <h3 className={`text-xl font-semibold ${theme.textClass} mb-2`}>
-                  Connect your Drive
+                  Set your goals
                 </h3>
                 <p className={theme.textSecondaryClass}>
-                  Securely link your Google Drive with one click. Your documents 
-                  stay private and under your control.
+                  Choose what matters most to you: saving, investing, home planning, 
+                  insurance, tax optimization, or retirement. You decide what Zoro focuses on.
                 </p>
               </div>
             </div>
@@ -227,11 +209,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </div>
               <div>
                 <h3 className={`text-xl font-semibold ${theme.textClass} mb-2`}>
-                  Add your documents
+                  Get regular check-ins
                 </h3>
                 <p className={theme.textSecondaryClass}>
-                  Upload financial docs, wills, trusts, or create new ones. 
-                  Everything stays organized in your Drive.
+                  Receive personalized financial insights delivered to your inbox. 
+                  Each check-in includes a snapshot of your finances and actionable suggestions.
                 </p>
               </div>
             </div>
@@ -242,11 +224,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </div>
               <div>
                 <h3 className={`text-xl font-semibold ${theme.textClass} mb-2`}>
-                  Ask Zoro anything
+                  Reply and Zoro learns
                 </h3>
                 <p className={theme.textSecondaryClass}>
-                  Chat with your AI advisor in plain English. Get insights, 
-                  recommendations, and make informed decisions with confidence.
+                  Simply reply to any check-in email with feedback or updates. 
+                  Zoro learns your preferences and adapts to your context over time.
                 </p>
               </div>
             </div>
@@ -338,10 +320,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       <div className={`${darkMode ? 'bg-white' : 'bg-slate-900'} py-24 transition-colors duration-300`}>
         <div className="max-w-4xl mx-auto px-6 text-center">
           <h2 className={`text-4xl font-bold ${darkMode ? 'text-slate-900' : 'text-white'} mb-6`}>
-            Ready to take control?
+            Ready to get started?
           </h2>
           <p className={`text-xl ${darkMode ? 'text-slate-600' : 'text-slate-300'} mb-12`}>
-            Answer 5 quick questions to get your personalized plan
+            Set your financial goals and start receiving personalized check-ins tailored to your needs
           </p>
 
           <Button
@@ -355,7 +337,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </Button>
 
           <p className={`text-sm ${darkMode ? 'text-slate-500' : 'text-slate-400'} mt-4`}>
-            Free for early adopters • Takes 2 minutes
+            Free for early adopters • Takes 10 minutes
           </p>
         </div>
       </div>
