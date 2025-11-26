@@ -31,7 +31,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
       };
       
       if (roleHierarchy[userRole] < roleHierarchy[requiredRole]) {
-        router.push('/blog'); // Redirect to blog if insufficient permissions
+        router.push('/checkin'); // Redirect to checkin if insufficient permissions
       }
     }
   }, [user, loading, requiredRole, redirectTo, router]);

@@ -40,7 +40,7 @@ export const CommunicationPreference: React.FC<CommunicationPreferenceProps> = (
       
       // Redirect after a short delay
       setTimeout(() => {
-        window.location.href = '/blog';
+        window.location.href = '/checkin';
       }, 1500);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save preference. Please try again.');

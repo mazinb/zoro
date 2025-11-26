@@ -185,7 +185,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             <Button
               variant="primary"
               darkMode={!darkMode}
-              onClick={() => { if (typeof window !== 'undefined') window.location.href = '/blog'; }}
+              onClick={() => { if (typeof window !== 'undefined') window.location.href = '/checkin'; }}
               className="px-6"
               showArrow
             >

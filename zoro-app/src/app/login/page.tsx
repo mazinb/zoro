@@ -19,7 +19,7 @@ function LoginContent() {
   const [showPreference, setShowPreference] = useState(false);
 
   // Get redirect params from URL
-  const redirectPath = searchParams?.get('redirect') || '/blog';
+  const redirectPath = searchParams?.get('redirect') || '/checkin';
   const mode = searchParams?.get('mode');
   const skipPreference = searchParams?.get('skipPreference') === 'true';
 

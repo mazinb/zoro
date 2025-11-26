@@ -102,52 +102,9 @@ export const PhilosophyPage: React.FC<PhilosophyPageProps> = ({
     ? 'bg-gradient-to-br from-slate-900 to-slate-800' 
     : 'bg-gradient-to-br from-slate-50 to-blue-50';
 
-  const handleBlogClick = () => {
-    router.push('/blog');
+  const handleCheckinClick = () => {
+    router.push('/checkin');
   };
-
-  // Blog placeholder page
-  if (currentPage === 'blog') {
-    return (
-      <div className={`min-h-screen ${bgGradientClass} transition-colors duration-300`}>
-        <header className={`${theme.cardBgClass} shadow-md border-b ${theme.borderClass}`}>
-          <div className="max-w-7xl mx-auto px-6 py-6">
-            <div className="flex items-center justify-between mb-4">
-              <button
-                onClick={() => setCurrentPage('philosophy')}
-                className={`${theme.textSecondaryClass} hover:${theme.textClass} flex items-center gap-2 transition-colors`}
-              >
-                ← Back to Philosophy
-              </button>
-              <button
-                onClick={onToggleDarkMode}
-                className={`p-2 rounded-lg ${theme.textSecondaryClass} hover:${theme.textClass} transition-colors`}
-                aria-label="Toggle dark mode"
-              >
-                {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-              </button>
-            </div>
-            <h1 className={`text-3xl font-bold ${theme.textClass}`}>Blog</h1>
-          </div>
-        </header>
-        <div className="max-w-7xl mx-auto px-6 py-12">
-          <div className={`${theme.cardBgClass} rounded-2xl shadow-lg p-12 text-center border ${theme.borderClass}`}>
-            <h2 className={`text-2xl font-bold ${theme.textClass} mb-4`}>Blog Goes Here</h2>
-            <p className={theme.textSecondaryClass}>This is where the wealth management blog will be displayed.</p>
-            <div className="mt-8">
-              <Button
-                variant="primary"
-                darkMode={darkMode}
-                onClick={handleBlogClick}
-              >
-                Go to Blog
-              </Button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   // Handle idea submission
   const handleSubmitIdea = async () => {
@@ -524,14 +481,14 @@ export const PhilosophyPage: React.FC<PhilosophyPageProps> = ({
             <div className="space-y-8 max-w-3xl mx-auto mb-12">
               <div className={`border-l-4 ${darkMode ? 'border-blue-400' : 'border-slate-800'} pl-6 py-2`}>
                 <div className={`text-sm ${theme.textSecondaryClass} mb-1`}>Q4 2025</div>
-                <h4 className={`font-bold ${theme.textClass} text-xl mb-2`}>✅ Knowledge Base & Blog</h4>
-                <p className={theme.textSecondaryClass}>Curated wealth management content for Indians and NRIs with LLM-friendly tagging and search</p>
+                <h4 className={`font-bold ${theme.textClass} text-xl mb-2`}>✅ Financial Check-ins</h4>
+                <p className={theme.textSecondaryClass}>Regular email check-ins with personalized financial snapshots and actionable suggestions. Reply to update goals and preferences.</p>
               </div>
 
               <div className={`border-l-4 ${darkMode ? 'border-blue-500' : 'border-slate-600'} pl-6 py-2`}>
                 <div className={`text-sm ${theme.textSecondaryClass} mb-1`}>Q1 2026</div>
-                <h4 className={`font-bold ${theme.textClass} text-xl mb-2`}>🔄 Zoro Core Release</h4>
-                <p className={theme.textSecondaryClass}>Chat-based AI advisor with context from your selected articles. Get personalized answers based on what you've chosen to feed Zoro.</p>
+                <h4 className={`font-bold ${theme.textClass} text-xl mb-2`}>🔄 Profile & Estate Planning</h4>
+                <p className={theme.textSecondaryClass}>Comprehensive financial profile builder and estate planning tools. Track assets, liabilities, insurance, and estate preferences all in one place.</p>
               </div>
 
               <div className={`border-l-4 ${darkMode ? 'border-blue-300' : 'border-slate-400'} pl-6 py-2`}>
@@ -606,20 +563,20 @@ export const PhilosophyPage: React.FC<PhilosophyPageProps> = ({
 
         {/* Three Core Principles */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
-          {/* Principle 1: Selective Feeding */}
+          {/* Principle 1: Goal Setting */}
           <div 
             className={`${theme.cardBgClass} rounded-2xl shadow-lg p-8 hover:shadow-2xl transition-all group cursor-pointer border ${theme.borderClass} ${theme.cardHoverClass}`}
-            onClick={handleBlogClick}
+            onClick={handleCheckinClick}
           >
             <div className={`w-16 h-16 ${theme.accentBgClass} rounded-full flex items-center justify-center mb-6 transition-colors ${darkMode ? 'group-hover:bg-blue-600' : 'group-hover:bg-slate-800'}`}>
               <BookOpen className={`w-8 h-8 transition-colors ${darkMode ? 'text-blue-300 group-hover:text-white' : 'text-slate-700 group-hover:text-white'}`} />
                 </div>
-            <h3 className={`text-2xl font-bold ${theme.textClass} mb-4`}>You Feed Zoro</h3>
+            <h3 className={`text-2xl font-bold ${theme.textClass} mb-4`}>You Set Your Goals</h3>
             <p className={`${theme.textSecondaryClass} mb-6`}>
-              Just like you choose what treats to give your cat, you decide what knowledge to feed Zoro. Curate articles from our library that match your financial interests and goals. Quality over quantity, you are in control of what Zoro learns about you.
+              Just like you choose what treats to give your cat, you decide what financial goals matter most to you. Select from saving, investing, home planning, insurance, tax optimization, or retirement. You control what Zoro focuses on in your regular check-ins.
             </p>
             <div className={`flex items-center font-medium transition-colors ${theme.textSecondaryClass} ${darkMode ? 'group-hover:text-white' : 'group-hover:text-slate-900'}`}>
-              Explore Articles <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
+              Set Up Check-ins <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
                 </div>
               </div>
 
@@ -633,7 +590,7 @@ export const PhilosophyPage: React.FC<PhilosophyPageProps> = ({
             </div>
             <h3 className={`text-2xl font-bold ${theme.textClass} mb-4`}>Zoro Learns</h3>
             <p className={`${theme.textSecondaryClass} mb-6`}>
-              Every cat has its own personality, Zoro develops yours. The more you interact the better Zoro understands your context: NRI or resident, risk appetite, life stage, and financial goals. Powered by specialized agents working for you behind the scenes.
+              Every cat has its own personality, Zoro develops yours. The more you reply to check-in emails and update your goals, the better Zoro understands your context: NRI or resident, risk appetite, life stage, and financial priorities. Powered by specialized agents working for you behind the scenes.
             </p>
             <div className={`flex items-center font-medium transition-colors ${theme.textSecondaryClass} ${darkMode ? 'group-hover:text-white' : 'group-hover:text-slate-900'}`}>
               See How It Works <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
@@ -662,20 +619,20 @@ export const PhilosophyPage: React.FC<PhilosophyPageProps> = ({
         <div className={`${darkMode ? 'bg-white' : 'bg-slate-800'} ${darkMode ? 'text-blue-600' : 'text-white'} rounded-2xl p-12 border ${theme.borderClass}`}>
           <h3 className={`text-3xl font-bold mb-4 text-center ${darkMode ? 'text-blue-600' : 'text-white'}`}>Why This Approach Works</h3>
           <p className={`text-lg ${darkMode ? 'text-slate-700' : 'text-slate-200'} max-w-3xl mx-auto mb-8 text-center`}>
-            Traditional financial advice is too generic, expensive and slow. Zoro combines the best of both worlds with personalized insights while you remain in full control with context aware guidance tailored for Indians and NRIs
+            Traditional financial advice is too generic, expensive and slow. Zoro delivers regular, personalized check-ins via email that adapt to your goals and context. You remain in full control—reply to any email to update your preferences. Tailored for Indians and NRIs.
           </p>
           <div className="text-center mb-8">
           <Button
             variant="primary"
             darkMode={darkMode}
-              onClick={handleBlogClick}
+              onClick={handleCheckinClick}
               className="px-8 py-4 text-lg"
           >
-              Start Feeding Zoro
+              Set Up Your Check-ins
           </Button>
           </div>
           <p className={`text-sm ${darkMode ? 'text-slate-600' : 'text-slate-400'} text-center italic`}>
-            Zoro is your money cat. It is always on your side. Feed it your principles and it grows your wealth.
+            Zoro is your money cat. It is always on your side. Set your goals and it helps you stay on track with regular, actionable check-ins.
           </p>
         </div>
       </div>

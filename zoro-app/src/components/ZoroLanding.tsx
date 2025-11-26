@@ -4,66 +4,16 @@ import { useState, useCallback, useMemo } from 'react';
 import { AnimatedZoroLogo } from '@/components/AnimatedZoroLogo';
 import { LandingPage } from '@/components/landing/LandingPage';
 import { PhilosophyPage } from '@/components/landing/PhilosophyPage';
-import { FormFlow } from '@/components/form/FormFlow';
+import { GoalSelection } from '@/components/form/GoalSelection';
+import { GoalDetails, GoalDetailsMap } from '@/components/form/GoalDetails';
 import { ContactMethodSelection } from '@/components/form/ContactMethodSelection';
 import { FormReview } from '@/components/form/FormReview';
 import { FormSuccess } from '@/components/form/FormSuccess';
 import { useDarkMode } from '@/hooks/useDarkMode';
 import { useAuth } from '@/hooks/useAuth';
-import { Target, Shield, TrendingUp, Users, DollarSign, Check, Briefcase, Home } from 'lucide-react';
-import { FormAnswers, ContactMethod, Question } from '@/types';
-import { DEFAULT_FORM_ANSWERS, ANIMATION_DELAYS, QUESTION_CONFIGS } from '@/constants';
+import { ContactMethod } from '@/types';
+import { ANIMATION_DELAYS } from '@/constants';
 
-// Helper function to create questions with icons
-const createQuestions = (): Question[] => {
-  return [
-    {
-      ...QUESTION_CONFIGS[0],
-      options: [
-        { value: 'retirement', label: 'Retirement Planning', icon: <Target className="w-8 h-8" /> },
-        { value: 'estate', label: 'Estate Planning', icon: <Shield className="w-8 h-8" /> },
-        { value: 'wealth', label: 'Wealth Building', icon: <TrendingUp className="w-8 h-8" /> },
-        { value: 'family', label: 'Family Security', icon: <Users className="w-8 h-8" /> }
-      ]
-    },
-    {
-      ...QUESTION_CONFIGS[1],
-      options: [
-        { value: 'under50L', label: 'Under ₹50 Lakhs', icon: <DollarSign className="w-8 h-8" /> },
-        { value: '50L-1Cr', label: '₹50L - ₹1 Crore', icon: <DollarSign className="w-8 h-8" /> },
-        { value: '1Cr-10Cr', label: '₹1 Cr - ₹10 Crore', icon: <DollarSign className="w-8 h-8" /> },
-        { value: 'over10Cr', label: 'Over ₹10 Crore', icon: <DollarSign className="w-8 h-8" /> }
-      ]
-    },
-    {
-      ...QUESTION_CONFIGS[2],
-      options: [
-        { value: 'complete', label: 'Yes, complete', icon: <Check className="w-8 h-8" /> },
-        { value: 'partial', label: 'Partially done', icon: <Shield className="w-8 h-8" /> },
-        { value: 'outdated', label: 'Yes, but outdated', icon: <Shield className="w-8 h-8" /> },
-        { value: 'none', label: 'No, not yet', icon: <Shield className="w-8 h-8" /> }
-      ]
-    },
-    {
-      ...QUESTION_CONFIGS[3],
-      options: [
-        { value: 'immediate', label: 'Immediate (0-1 year)', icon: <TrendingUp className="w-8 h-8" /> },
-        { value: 'short', label: 'Short-term (1-5 years)', icon: <TrendingUp className="w-8 h-8" /> },
-        { value: 'medium', label: 'Medium-term (5-10 years)', icon: <TrendingUp className="w-8 h-8" /> },
-        { value: 'long', label: 'Long-term (10+ years)', icon: <TrendingUp className="w-8 h-8" /> }
-      ]
-    },
-    {
-      ...QUESTION_CONFIGS[4],
-      options: [
-        { value: 'taxes', label: 'Tax optimization', icon: <Briefcase className="w-8 h-8" /> },
-        { value: 'legacy', label: 'Leaving a legacy', icon: <Home className="w-8 h-8" /> },
-        { value: 'protection', label: 'Asset protection', icon: <Shield className="w-8 h-8" /> },
-        { value: 'clarity', label: 'Financial clarity', icon: <Target className="w-8 h-8" /> }
-      ]
-    }
-  ];
-};
 
 const ZoroLanding = () => {
   // Dark mode
@@ -76,8 +26,12 @@ const ZoroLanding = () => {
   const [showPhilosophy, setShowPhilosophy] = useState(false);
   
   // Form state
-  const [currentStep, setCurrentStep] = useState(0);
-  const [answers, setAnswers] = useState<FormAnswers>(DEFAULT_FORM_ANSWERS);
+  const [selectedGoals, setSelectedGoals] = useState<string[]>([]);
+  const [goalDetails, setGoalDetails] = useState<GoalDetailsMap>({});
+  const [showGoalDetails, setShowGoalDetails] = useState(false);
+  const [showContactMethod, setShowContactMethod] = useState(false);
+  const [name, setName] = useState('');
+  const [netWorth, setNetWorth] = useState('');
   const [phone, setPhone] = useState('');
   const [countryCode, setCountryCode] = useState('+91');
   const [additionalInfo, setAdditionalInfo] = useState('');
@@ -89,45 +43,71 @@ const ZoroLanding = () => {
   const [showSuccess, setShowSuccess] = useState(false);
   const [showFormIntro, setShowFormIntro] = useState(false);
 
-  // Create questions with icons (memoized to prevent recreation on each render)
-  const questions = useMemo(() => createQuestions(), []);
-
   // Reset form state
   const resetForm = useCallback(() => {
     setShowForm(false);
     setShowFormIntro(false);
     setShowReview(false);
+    setShowGoalDetails(false);
+    setShowContactMethod(false);
     setSubmitted(false);
     setShowSuccess(false);
-    setCurrentStep(0);
-    setAnswers(DEFAULT_FORM_ANSWERS);
+    setSelectedGoals([]);
+    setGoalDetails({});
+    setName('');
+    setNetWorth('');
     setPhone('');
     setCountryCode('+91');
     setAdditionalInfo('');
     setContactMethod('');
   }, []);
 
-  // Handle answer selection
-  const handleAnswerSelect = useCallback((value: string) => {
-    const currentQuestion = questions[currentStep];
-    const newAnswers = { ...answers, [currentQuestion.id]: value };
-    setAnswers(newAnswers);
-    
-    if (currentStep < questions.length - 1) {
-      setTimeout(() => setCurrentStep(currentStep + 1), ANIMATION_DELAYS.STEP_TRANSITION);
-    } else {
-      setTimeout(() => setCurrentStep(questions.length), ANIMATION_DELAYS.STEP_TRANSITION);
+  // Handle goal toggle
+  const handleGoalToggle = useCallback((goalId: string) => {
+    setSelectedGoals(prev => {
+      if (prev.includes(goalId)) {
+        return prev.filter(id => id !== goalId);
+      } else if (prev.length < 3) {
+        return [...prev, goalId];
+      }
+      return prev;
+    });
+  }, []);
+
+  // Handle next (go to contact method selection)
+  const handleNext = useCallback(() => {
+    if (selectedGoals.length > 0 && selectedGoals.length <= 3) {
+      setShowGoalDetails(true);
+      setShowContactMethod(false);
     }
-  }, [answers, currentStep, questions]);
+  }, [selectedGoals]);
+
+  // Handle goal details change
+  const handleGoalDetailsChange = useCallback(
+    (goalId: string, field: 'main' | 'extra', value: string) => {
+      setGoalDetails((prev) => ({
+        ...prev,
+        [goalId]: {
+          main: field === 'main' ? value : prev[goalId]?.main || '',
+          extra: field === 'extra' ? value : prev[goalId]?.extra || '',
+        },
+      }));
+    },
+    [],
+  );
+
+  // Handle goal details next
+  const handleGoalDetailsNext = useCallback(() => {
+    if (selectedGoals.length > 0 && selectedGoals.length <= 3) {
+      setShowGoalDetails(false);
+      setShowContactMethod(true);
+    }
+  }, [selectedGoals]);
 
   // Handle back navigation
   const handleBack = useCallback(() => {
-    if (currentStep > 0) {
-      setCurrentStep(currentStep - 1);
-    } else {
-      resetForm();
-    }
-  }, [currentStep, resetForm]);
+    resetForm();
+  }, [resetForm]);
 
   // Handle phone submit (WhatsApp)
   const handlePhoneSubmit = useCallback(() => {
@@ -155,7 +135,10 @@ const ZoroLanding = () => {
       }
 
       const formData = {
-        ...answers,
+        goals: selectedGoals,
+        goalDetails,
+        name,
+        netWorth,
         phone: contactMethod === 'whatsapp' ? countryCode + phone : null,
         contactMethod,
         additionalInfo,
@@ -209,20 +192,18 @@ const ZoroLanding = () => {
     } finally {
       setIsSubmitting(false);
     }
-  }, [answers, phone, countryCode, contactMethod, additionalInfo, user]);
+  }, [selectedGoals, goalDetails, name, netWorth, phone, countryCode, contactMethod, additionalInfo, user]);
 
   // Handle get started
   const handleGetStarted = useCallback(() => {
     setShowForm(true);
     setShowFormIntro(true);
     setShowPhilosophy(false);
-    setCurrentStep(0);
   }, []);
 
   // Handle edit in review
-  const handleEdit = useCallback((stepIndex: number) => {
+  const handleEdit = useCallback(() => {
     setShowReview(false);
-    setCurrentStep(stepIndex);
   }, []);
 
   // Show loading animation during submission
@@ -242,8 +223,8 @@ const ZoroLanding = () => {
     );
   }
 
-  // Show animated logo intro before first question
-  if (showForm && currentStep === 0 && showFormIntro) {
+  // Show animated logo intro before goal selection
+  if (showForm && showFormIntro) {
     return (
       <div className={`min-h-screen ${darkMode ? 'bg-slate-900' : 'bg-white'} flex items-center justify-center p-4 transition-colors duration-300`}>
         <div className="flex flex-col items-center justify-center">
@@ -276,34 +257,54 @@ const ZoroLanding = () => {
   if (showReview && contactMethod) {
     return (
       <FormReview
-        answers={answers}
+        goals={selectedGoals}
+        name={name}
+        netWorth={netWorth}
         phone={phone}
         countryCode={countryCode}
         contactMethod={contactMethod as ContactMethod}
         additionalInfo={additionalInfo}
         userEmail={user?.email || contactEmail}
-        questions={questions}
         darkMode={darkMode}
         isSubmitting={isSubmitting}
         onEdit={handleEdit}
         onBack={() => {
           setShowReview(false);
-          setCurrentStep(questions.length);
         }}
         onSubmit={handleFinalSubmit}
       />
     );
   }
 
-  // Show contact method selection
-  if (showForm && currentStep >= questions.length) {
+  // Show goal details page
+  if (showForm && showGoalDetails && !showReview) {
+    return (
+      <GoalDetails
+        selectedGoals={selectedGoals}
+        goalDetails={goalDetails}
+        onChange={handleGoalDetailsChange}
+        darkMode={darkMode}
+        onNext={handleGoalDetailsNext}
+        onBack={() => {
+          setShowGoalDetails(false);
+        }}
+      />
+    );
+  }
+
+  // Show contact method selection (after goals are selected and Continue clicked)
+  if (showForm && showContactMethod && selectedGoals.length > 0 && selectedGoals.length <= 3 && !showReview) {
     return (
       <ContactMethodSelection
+        name={name}
+        netWorth={netWorth}
         phone={phone}
         countryCode={countryCode}
         additionalInfo={additionalInfo}
         darkMode={darkMode}
         email={contactEmail}
+        onNameChange={setName}
+        onNetWorthChange={setNetWorth}
         onPhoneChange={setPhone}
         onCountryCodeChange={(code) => {
           setCountryCode(code);
@@ -314,10 +315,12 @@ const ZoroLanding = () => {
         userEmail={user?.email}
         isLoggedIn={!!user}
         onEmailChange={setContactEmail}
-        onBack={handleBack}
+        onBack={() => {
+          setShowContactMethod(false);
+        }}
         onRestart={() => {
-          setCurrentStep(0);
-          setAnswers(DEFAULT_FORM_ANSWERS);
+          setSelectedGoals([]);
+          setShowContactMethod(false);
           setPhone('');
           setCountryCode('+91');
           setAdditionalInfo('');
@@ -328,15 +331,14 @@ const ZoroLanding = () => {
     );
   }
 
-  // Show form flow (questions)
-  if (showForm && currentStep < questions.length) {
+  // Show goal selection
+  if (showForm && !showFormIntro && !showReview && !showGoalDetails && !showContactMethod) {
     return (
-      <FormFlow
-        questions={questions}
-        currentStep={currentStep}
-        answers={answers}
+      <GoalSelection
+        selectedGoals={selectedGoals}
+        onGoalToggle={handleGoalToggle}
         darkMode={darkMode}
-        onAnswerSelect={handleAnswerSelect}
+        onNext={handleNext}
         onBack={handleBack}
       />
     );

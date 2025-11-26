@@ -9,6 +9,8 @@ import { usePhoneValidation } from '@/hooks/usePhoneValidation';
 // removed inline auth in favor of simple email capture for non-logged-in users
 
 interface ContactMethodSelectionProps {
+  name: string;
+  netWorth: string;
   phone: string;
   countryCode: string;
   additionalInfo: string;
@@ -16,6 +18,8 @@ interface ContactMethodSelectionProps {
   userEmail?: string;
   isLoggedIn?: boolean;
   email?: string;
+  onNameChange: (name: string) => void;
+  onNetWorthChange: (value: string) => void;
   onEmailChange?: (email: string) => void;
   onPhoneChange: (phone: string) => void;
   onCountryCodeChange: (code: string) => void;
@@ -28,6 +32,8 @@ interface ContactMethodSelectionProps {
 }
 
 export const ContactMethodSelection: React.FC<ContactMethodSelectionProps> = ({
+  name,
+  netWorth,
   phone,
   countryCode,
   additionalInfo,
@@ -35,6 +41,8 @@ export const ContactMethodSelection: React.FC<ContactMethodSelectionProps> = ({
   userEmail,
   isLoggedIn = false,
   email = '',
+  onNameChange,
+  onNetWorthChange,
   onEmailChange,
   onPhoneChange,
   onCountryCodeChange,
@@ -45,6 +53,8 @@ export const ContactMethodSelection: React.FC<ContactMethodSelectionProps> = ({
   onRestart,
   onGoHome
 }) => {
+  const [nameError, setNameError] = useState('');
+  const [netWorthError, setNetWorthError] = useState('');
   const [phoneError, setPhoneError] = useState('');
   const [additionalInfoError, setAdditionalInfoError] = useState('');
   const [emailError, setEmailError] = useState('');
@@ -75,6 +85,26 @@ export const ContactMethodSelection: React.FC<ContactMethodSelectionProps> = ({
   const handleEmailChange = (value: string) => {
     onEmailChange && onEmailChange(value);
     setEmailError('');
+  };
+
+  const validateName = (value: string): boolean => {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      setNameError('Please tell us your name');
+      return false;
+    }
+    setNameError('');
+    return true;
+  };
+
+  const validateNetWorth = (value: string): boolean => {
+    const trimmed = value.trim();
+    if (!trimmed) {
+      setNetWorthError('Please select an approximate net worth range');
+      return false;
+    }
+    setNetWorthError('');
+    return true;
   };
 
   const validateEmail = (value: string): boolean => {
@@ -119,18 +149,80 @@ export const ContactMethodSelection: React.FC<ContactMethodSelectionProps> = ({
             <span className={`text-3xl font-bold ${themeClasses.textClass}`}>Zoro</span>
           </div>
           <h2 className={`text-2xl font-bold ${themeClasses.textClass} mb-2`}>
-            How should we reach you?
+            A few final details
           </h2>
           <p className={`${themeClasses.textSecondaryClass} mb-1`}>
-            You're in control - choose your preferred method
+            We use this information to personalize your check-in emails.
           </p>
           <p className={`text-sm ${themeClasses.textSecondaryClass} italic`}>
-            We'll only message when you want us to
+            We'll never share your data or spam you.
           </p>
         </div>
 
         <div className="space-y-4 mb-6">
-          {/* Required Additional Info - First */}
+          {/* Name & Net worth */}
+          <Card darkMode={darkMode} className="p-6 shadow-lg">
+            <h3 className={`font-semibold ${themeClasses.textClass} mb-2`}>
+              About you
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="flex flex-col">
+                  <span className={`text-sm ${themeClasses.textClass} mb-1`}>
+                    Name <span className="text-red-500">*</span>
+                  </span>
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => {
+                      onNameChange(e.target.value);
+                      setNameError('');
+                    }}
+                    onBlur={(e) => validateName(e.target.value)}
+                    className={`w-full px-4 py-3 border ${themeClasses.inputBgClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base ${nameError ? 'border-red-500' : ''}`}
+                    placeholder="Your name"
+                  />
+                  {nameError && (
+                    <p className="text-red-500 text-sm mt-1" role="alert">
+                      {nameError}
+                    </p>
+                  )}
+                </label>
+              </div>
+              <div>
+                <label className="flex flex-col">
+                  <span className={`text-sm ${themeClasses.textClass} mb-1`}>
+                    Approximate net worth <span className="text-red-500">*</span>
+                  </span>
+                  <select
+                    value={netWorth}
+                    onChange={(e) => {
+                      onNetWorthChange(e.target.value);
+                      setNetWorthError('');
+                    }}
+                    onBlur={(e) => validateNetWorth(e.target.value)}
+                    className={`w-full px-4 py-3 border ${themeClasses.inputBgClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base ${netWorthError ? 'border-red-500' : ''}`}
+                  >
+                    <option value="">Select a range</option>
+                    <option value="under50L">Under ₹50 Lakhs</option>
+                    <option value="50L-1Cr">₹50L – ₹1 Crore</option>
+                    <option value="1Cr-10Cr">₹1 Crore – ₹10 Crore</option>
+                    <option value="over10Cr">Over ₹10 Crore</option>
+                  </select>
+                  <p className={`text-xs mt-1 ${themeClasses.textSecondaryClass}`}>
+                    This helps Zoro calibrate examples and suggestions for your context.
+                  </p>
+                  {netWorthError && (
+                    <p className="text-red-500 text-sm mt-1" role="alert">
+                      {netWorthError}
+                    </p>
+                  )}
+                </label>
+              </div>
+            </div>
+          </Card>
+
+          {/* Required Additional Info */}
           <Card darkMode={darkMode} className="p-6 shadow-lg">
             <h3 className={`font-semibold ${themeClasses.textClass} mb-2`}>
               Anything else we should know? <span className="text-red-500">*</span>
@@ -209,9 +301,11 @@ export const ContactMethodSelection: React.FC<ContactMethodSelectionProps> = ({
                   variant="primary"
                   darkMode={darkMode}
                   onClick={() => {
+                    const okName = validateName(name);
+                    const okNetWorth = validateNetWorth(netWorth);
                     const okInfo = validateAdditionalInfo(additionalInfo);
                     const okEmail = validateEmail(email);
-                    if (okInfo && okEmail) {
+                    if (okName && okNetWorth && okInfo && okEmail) {
                       onEmailAuthSuccess();
                     }
                   }}
@@ -233,12 +327,15 @@ export const ContactMethodSelection: React.FC<ContactMethodSelectionProps> = ({
 
           {/* WhatsApp Option (Optional) - Third */}
           <Card darkMode={darkMode} className="p-6 shadow-lg">
-            <div className="flex items-center gap-3 mb-4">
+            <div className="flex items-center gap-3 mb-2">
               <svg className="w-6 h-6 text-green-500" fill="currentColor" viewBox="0 0 24 24" aria-label="WhatsApp icon">
                 <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
               </svg>
-              <h3 className={`font-semibold ${themeClasses.textClass} text-lg`}>WhatsApp</h3>
+              <h3 className={`font-semibold ${themeClasses.textClass} text-lg`}>WhatsApp (optional)</h3>
             </div>
+            <p className={`text-sm ${themeClasses.textSecondaryClass} mb-3`}>
+              Share your WhatsApp if you'd like to join a closed group of members. We'll never add you without consent.
+            </p>
             
             <div className="flex gap-2 mb-3">
               <select

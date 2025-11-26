@@ -5,31 +5,42 @@ import { Check } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { ZoroLogo } from '@/components/ZoroLogo';
-import { FormAnswers, ContactMethod, Question } from '@/types';
+import { ContactMethod } from '@/types';
+
+const goalLabels: Record<string, string> = {
+  save: "Save more consistently",
+  invest: "Invest smarter",
+  home: "Plan for big purchases",
+  insurance: "Review insurance",
+  tax: "Tax optimization",
+  retirement: "Retirement planning",
+};
 
 interface FormReviewProps {
-  answers: FormAnswers;
+  goals: string[];
+  name: string;
+  netWorth: string;
   phone: string;
   countryCode: string;
   contactMethod: ContactMethod;
   additionalInfo: string;
   userEmail?: string;
-  questions: Question[];
   darkMode: boolean;
   isSubmitting: boolean;
-  onEdit: (stepIndex: number) => void;
+  onEdit: () => void;
   onBack: () => void;
   onSubmit: () => void;
 }
 
 export const FormReview: React.FC<FormReviewProps> = ({
-  answers,
+  goals,
+  name,
+  netWorth,
   phone,
   countryCode,
   contactMethod,
   additionalInfo,
   userEmail,
-  questions,
   darkMode,
   isSubmitting,
   onEdit,
@@ -42,21 +53,6 @@ export const FormReview: React.FC<FormReviewProps> = ({
     borderClass: darkMode ? 'border-slate-800' : 'border-slate-100',
     cardBorderClass: darkMode ? 'border-slate-700' : 'border-slate-200',
   };
-
-  const getAnswerLabel = (questionId: string, value: string): string => {
-    const question = questions.find(q => q.id === questionId);
-    if (!question) return value;
-    const option = question.options.find(opt => opt.value === value);
-    return option ? option.label : value;
-  };
-
-  const answerKeys: Array<{ key: keyof FormAnswers; label: string; stepIndex: number }> = [
-    { key: 'primaryGoal', label: 'Primary financial goal', stepIndex: 0 },
-    { key: 'netWorth', label: 'Net worth', stepIndex: 1 },
-    { key: 'estateStatus', label: 'Estate plan status', stepIndex: 2 },
-    { key: 'timeHorizon', label: 'Planning timeline', stepIndex: 3 },
-    { key: 'concernLevel', label: 'Primary concern', stepIndex: 4 },
-  ];
 
   return (
     <div className={`min-h-screen ${darkMode ? 'bg-slate-900' : 'bg-white'} flex items-center justify-center p-4 transition-colors duration-300`}>
@@ -75,26 +71,55 @@ export const FormReview: React.FC<FormReviewProps> = ({
 
         <Card darkMode={darkMode} className="p-8 shadow-lg mb-6">
           <div className="space-y-6">
-            {answerKeys.map(({ key, label, stepIndex }) => (
-              <React.Fragment key={key}>
-                <div className="flex justify-between items-start">
-                  <div className="flex-1">
-                    <p className={`text-sm ${themeClasses.textSecondaryClass} mb-1`}>{label}</p>
-                    <p className={`font-semibold ${themeClasses.textClass}`}>
-                      {getAnswerLabel(key, answers[key])}
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => onEdit(stepIndex)}
-                    className={`text-blue-600 hover:text-blue-700 text-sm font-medium`}
-                    aria-label={`Edit ${label}`}
-                  >
-                    Edit
-                  </button>
+            {/* Name & Net worth */}
+            <div className="flex justify-between items-start">
+              <div className="flex-1 space-y-2">
+                <div>
+                  <p className={`text-sm ${themeClasses.textSecondaryClass} mb-1`}>Name</p>
+                  <p className={`font-semibold ${themeClasses.textClass}`}>{name}</p>
                 </div>
-                <div className={`h-px ${themeClasses.borderClass}`}></div>
-              </React.Fragment>
-            ))}
+                <div>
+                  <p className={`text-sm ${themeClasses.textSecondaryClass} mb-1`}>Approximate net worth</p>
+                  <p className={`font-semibold ${themeClasses.textClass}`}>
+                    {netWorth === 'under50L' && 'Under ₹50 Lakhs'}
+                    {netWorth === '50L-1Cr' && '₹50L – ₹1 Crore'}
+                    {netWorth === '1Cr-10Cr' && '₹1 Crore – ₹10 Crore'}
+                    {netWorth === 'over10Cr' && 'Over ₹10 Crore'}
+                    {!['under50L','50L-1Cr','1Cr-10Cr','over10Cr'].includes(netWorth) && netWorth}
+                  </p>
+                </div>
+              </div>
+            </div>
+            <div className={`h-px ${themeClasses.borderClass}`}></div>
+
+            {/* Goals */}
+            <div className="flex justify-between items-start">
+              <div className="flex-1">
+                <p className={`text-sm ${themeClasses.textSecondaryClass} mb-2`}>Financial Goals</p>
+                <div className="flex flex-wrap gap-2">
+                  {goals.map((goalId) => (
+                    <span
+                      key={goalId}
+                      className={`px-3 py-1 rounded-full text-sm font-medium ${
+                        darkMode 
+                          ? 'bg-blue-900/30 text-blue-300 border border-blue-700' 
+                          : 'bg-blue-100 text-blue-700 border border-blue-200'
+                      }`}
+                    >
+                      {goalLabels[goalId] || goalId}
+                    </span>
+                  ))}
+                </div>
+              </div>
+              <button
+                onClick={onEdit}
+                className={`text-blue-600 hover:text-blue-700 text-sm font-medium`}
+                aria-label="Edit goals"
+              >
+                Edit
+              </button>
+            </div>
+            <div className={`h-px ${themeClasses.borderClass}`}></div>
 
             {/* Email Address */}
             {userEmail && (
@@ -122,7 +147,7 @@ export const FormReview: React.FC<FormReviewProps> = ({
                 </p>
               </div>
               <button
-                onClick={() => onEdit(questions.length)}
+                onClick={onEdit}
                 className={`text-blue-600 hover:text-blue-700 text-sm font-medium`}
                 aria-label="Edit communication preference"
               >
@@ -130,20 +155,20 @@ export const FormReview: React.FC<FormReviewProps> = ({
               </button>
             </div>
 
-                <div className={`h-px ${themeClasses.borderClass}`}></div>
-                <div className="flex justify-between items-start">
-                  <div className="flex-1">
-                    <p className={`text-sm ${themeClasses.textSecondaryClass} mb-1`}>Additional information</p>
+            <div className={`h-px ${themeClasses.borderClass}`}></div>
+            <div className="flex justify-between items-start">
+              <div className="flex-1">
+                <p className={`text-sm ${themeClasses.textSecondaryClass} mb-1`}>Additional information</p>
                 <p className={`${themeClasses.textClass} text-sm`}>{additionalInfo || <span className={themeClasses.textSecondaryClass}>No additional information provided</span>}</p>
-                  </div>
-                  <button
-                    onClick={() => onEdit(questions.length)}
-                    className={`text-blue-600 hover:text-blue-700 text-sm font-medium`}
-                    aria-label="Edit additional information"
-                  >
-                    Edit
-                  </button>
-                </div>
+              </div>
+              <button
+                onClick={onEdit}
+                className={`text-blue-600 hover:text-blue-700 text-sm font-medium`}
+                aria-label="Edit additional information"
+              >
+                Edit
+              </button>
+            </div>
           </div>
         </Card>
 
