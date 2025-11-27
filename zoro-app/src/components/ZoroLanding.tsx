@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback } from 'react';
 import { AnimatedZoroLogo } from '@/components/AnimatedZoroLogo';
 import { LandingPage } from '@/components/landing/LandingPage';
 import { PhilosophyPage } from '@/components/landing/PhilosophyPage';
@@ -9,23 +9,21 @@ import { GoalDetails, GoalDetailsMap } from '@/components/form/GoalDetails';
 import { ContactMethodSelection } from '@/components/form/ContactMethodSelection';
 import { FormReview } from '@/components/form/FormReview';
 import { FormSuccess } from '@/components/form/FormSuccess';
+import { AdvisorChoice } from '@/components/form/AdvisorChoice';
 import { useDarkMode } from '@/hooks/useDarkMode';
 import { useAuth } from '@/hooks/useAuth';
-import { ContactMethod } from '@/types';
-import { ANIMATION_DELAYS } from '@/constants';
-
+import { AdvisorRecord, ContactMethod } from '@/types';
 
 const ZoroLanding = () => {
-  // Dark mode
   const { darkMode, toggleDarkMode } = useDarkMode();
-  // Auth
-  const { signIn, signUp, user } = useAuth();
+  const { user } = useAuth();
 
-  // Navigation state
   const [showForm, setShowForm] = useState(false);
   const [showPhilosophy, setShowPhilosophy] = useState(false);
-  
-  // Form state
+  const [showAdvisorChoice, setShowAdvisorChoice] = useState(false);
+  const [advisorMode, setAdvisorMode] = useState<'self' | 'advisor' | null>(null);
+  const [selectedAdvisor, setSelectedAdvisor] = useState<AdvisorRecord | null>(null);
+
   const [selectedGoals, setSelectedGoals] = useState<string[]>([]);
   const [goalDetails, setGoalDetails] = useState<GoalDetailsMap>({});
   const [showGoalDetails, setShowGoalDetails] = useState(false);
@@ -43,10 +41,12 @@ const ZoroLanding = () => {
   const [showSuccess, setShowSuccess] = useState(false);
   const [showFormIntro, setShowFormIntro] = useState(false);
 
-  // Reset form state
   const resetForm = useCallback(() => {
     setShowForm(false);
     setShowFormIntro(false);
+    setShowAdvisorChoice(false);
+    setAdvisorMode(null);
+    setSelectedAdvisor(null);
     setShowReview(false);
     setShowGoalDetails(false);
     setShowContactMethod(false);
@@ -60,9 +60,9 @@ const ZoroLanding = () => {
     setCountryCode('+91');
     setAdditionalInfo('');
     setContactMethod('');
+    setContactEmail('');
   }, []);
 
-  // Handle goal toggle
   const handleGoalToggle = useCallback((goalId: string) => {
     setSelectedGoals(prev => {
       if (prev.includes(goalId)) {
@@ -74,7 +74,6 @@ const ZoroLanding = () => {
     });
   }, []);
 
-  // Handle next (go to contact method selection)
   const handleNext = useCallback(() => {
     if (selectedGoals.length > 0 && selectedGoals.length <= 3) {
       setShowGoalDetails(true);
@@ -82,7 +81,6 @@ const ZoroLanding = () => {
     }
   }, [selectedGoals]);
 
-  // Handle goal details change
   const handleGoalDetailsChange = useCallback(
     (goalId: string, field: 'main' | 'extra', value: string) => {
       setGoalDetails((prev) => ({
@@ -96,7 +94,6 @@ const ZoroLanding = () => {
     [],
   );
 
-  // Handle goal details next
   const handleGoalDetailsNext = useCallback(() => {
     if (selectedGoals.length > 0 && selectedGoals.length <= 3) {
       setShowGoalDetails(false);
@@ -104,30 +101,21 @@ const ZoroLanding = () => {
     }
   }, [selectedGoals]);
 
-  // Handle back navigation
-  const handleBack = useCallback(() => {
-    resetForm();
-  }, [resetForm]);
-
-  // Handle phone submit (WhatsApp)
   const handlePhoneSubmit = useCallback(() => {
     setContactMethod('whatsapp');
     setShowReview(true);
   }, []);
 
-  // Handle email auth success
   const handleEmailAuthSuccess = useCallback(() => {
     setContactMethod('email');
     setShowReview(true);
   }, []);
 
-  // Handle final form submission
   const handleFinalSubmit = useCallback(async () => {
     if (!contactMethod) return;
-    
+
     setIsSubmitting(true);
     try {
-      // Get user session token if logged in
       let authToken = null;
       if (user) {
         const { data: { session } } = await (await import('@/lib/supabase-client')).supabaseClient.auth.getSession();
@@ -143,7 +131,10 @@ const ZoroLanding = () => {
         contactMethod,
         additionalInfo,
         email: user?.email || contactEmail || null,
-        userId: user?.id || null
+        userId: user?.id || null,
+        advisorMode,
+        advisorRegistrationNo: selectedAdvisor?.registrationNo || null,
+        advisorName: selectedAdvisor?.name || null,
       };
 
       const headers: HeadersInit = {
@@ -164,9 +155,6 @@ const ZoroLanding = () => {
         throw new Error('Failed to submit form');
       }
 
-      const result = await response.json();
-
-      // If user is logged in, save communication preference
       if (user && authToken && contactMethod) {
         try {
           await fetch('/api/user/preference', {
@@ -176,12 +164,11 @@ const ZoroLanding = () => {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              preferred_communication_method: contactMethod
+              preferred_communication_method: contactMethod,
             }),
           });
         } catch (error) {
           console.error('Error saving communication preference:', error);
-          // Don't fail the form submission if preference save fails
         }
       }
 
@@ -192,21 +179,51 @@ const ZoroLanding = () => {
     } finally {
       setIsSubmitting(false);
     }
-  }, [selectedGoals, goalDetails, name, netWorth, phone, countryCode, contactMethod, additionalInfo, user]);
+  }, [
+    selectedGoals,
+    goalDetails,
+    name,
+    netWorth,
+    phone,
+    countryCode,
+    contactMethod,
+    additionalInfo,
+    user,
+    contactEmail,
+    advisorMode,
+    selectedAdvisor,
+  ]);
 
-  // Handle get started
   const handleGetStarted = useCallback(() => {
     setShowForm(true);
     setShowFormIntro(true);
     setShowPhilosophy(false);
+    setShowAdvisorChoice(true);
+    setAdvisorMode(null);
+    setSelectedAdvisor(null);
   }, []);
 
-  // Handle edit in review
   const handleEdit = useCallback(() => {
     setShowReview(false);
   }, []);
 
-  // Show loading animation during submission
+  const handleSelectSelfPath = useCallback(() => {
+    setAdvisorMode('self');
+    setSelectedAdvisor(null);
+    setShowAdvisorChoice(false);
+  }, []);
+
+  const handleAdvisorPick = useCallback((advisor: AdvisorRecord) => {
+    setAdvisorMode('advisor');
+    setSelectedAdvisor(advisor);
+  }, []);
+
+  const handleAdvisorContinue = useCallback(() => {
+    if (selectedAdvisor) {
+      setShowAdvisorChoice(false);
+    }
+  }, [selectedAdvisor]);
+
   if (submitted && !showSuccess) {
     return (
       <div className={`min-h-screen ${darkMode ? 'bg-slate-900' : 'bg-white'} flex items-center justify-center p-4 transition-colors duration-300`}>
@@ -223,7 +240,6 @@ const ZoroLanding = () => {
     );
   }
 
-  // Show animated logo intro before goal selection
   if (showForm && showFormIntro) {
     return (
       <div className={`min-h-screen ${darkMode ? 'bg-slate-900' : 'bg-white'} flex items-center justify-center p-4 transition-colors duration-300`}>
@@ -240,7 +256,6 @@ const ZoroLanding = () => {
     );
   }
 
-  // Show success message
   if (submitted && showSuccess && contactMethod) {
     return (
       <FormSuccess
@@ -253,7 +268,6 @@ const ZoroLanding = () => {
     );
   }
 
-  // Show review page
   if (showReview && contactMethod) {
     return (
       <FormReview
@@ -272,11 +286,13 @@ const ZoroLanding = () => {
           setShowReview(false);
         }}
         onSubmit={handleFinalSubmit}
+        advisorMode={advisorMode}
+        advisorName={selectedAdvisor?.name || null}
+        advisorRegistrationNo={selectedAdvisor?.registrationNo || null}
       />
     );
   }
 
-  // Show goal details page
   if (showForm && showGoalDetails && !showReview) {
     return (
       <GoalDetails
@@ -292,7 +308,6 @@ const ZoroLanding = () => {
     );
   }
 
-  // Show contact method selection (after goals are selected and Continue clicked)
   if (showForm && showContactMethod && selectedGoals.length > 0 && selectedGoals.length <= 3 && !showReview) {
     return (
       <ContactMethodSelection
@@ -305,6 +320,9 @@ const ZoroLanding = () => {
         email={contactEmail}
         selectedGoals={selectedGoals}
         goalDetails={goalDetails}
+        advisorMode={advisorMode}
+        advisorName={selectedAdvisor?.name || null}
+        advisorRegistrationNo={selectedAdvisor?.registrationNo || null}
         onNameChange={setName}
         onNetWorthChange={setNetWorth}
         onPhoneChange={setPhone}
@@ -333,20 +351,36 @@ const ZoroLanding = () => {
     );
   }
 
-  // Show goal selection
-  if (showForm && !showFormIntro && !showReview && !showGoalDetails && !showContactMethod) {
+  if (showForm && !showFormIntro && showAdvisorChoice) {
+    return (
+      <AdvisorChoice
+        darkMode={darkMode}
+        advisorMode={advisorMode}
+        selectedAdvisor={selectedAdvisor}
+        onSelectSelf={handleSelectSelfPath}
+        onSelectAdvisor={handleAdvisorPick}
+        onContinueAdvisor={handleAdvisorContinue}
+        onBackToHome={resetForm}
+      />
+    );
+  }
+
+  if (showForm && !showFormIntro && !showReview && !showGoalDetails && !showContactMethod && !showAdvisorChoice) {
     return (
       <GoalSelection
         selectedGoals={selectedGoals}
         onGoalToggle={handleGoalToggle}
         darkMode={darkMode}
         onNext={handleNext}
-        onBack={handleBack}
+        onBack={() => {
+          setShowAdvisorChoice(true);
+        }}
+        advisorMode={advisorMode}
+        advisorName={selectedAdvisor?.name || null}
       />
     );
   }
 
-  // Show philosophy page
   if (showPhilosophy) {
     return (
       <PhilosophyPage
@@ -361,7 +395,6 @@ const ZoroLanding = () => {
     );
   }
 
-  // Show main landing page
   return (
     <LandingPage
       darkMode={darkMode}

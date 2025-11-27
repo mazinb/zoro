@@ -1,12 +1,14 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Moon, Sun } from 'lucide-react';
+import { Moon, Sun, Search, ShieldCheck, UserPlus } from 'lucide-react';
 import { ZoroLogo } from '@/components/ZoroLogo';
 import { useDarkMode } from '@/hooks/useDarkMode';
 import { useThemeClasses } from '@/hooks/useThemeClasses';
 import { useAuth } from '@/hooks/useAuth';
+import { AdvisorRecord } from '@/types';
+import { useAdvisorDirectory } from '@/hooks/useAdvisorDirectory';
 
 type ProfileState = {
   fullName: string;
@@ -36,6 +38,19 @@ type ProfileState = {
   estateGuardianshipWishes: string;
   estateAssetDistributionInstructions: string;
   estateFuneralPreferences: string;
+};
+
+type AdvisorPreferenceState = {
+  advisorMode: 'self' | 'advisor' | 'pending';
+  advisor: {
+    id: string;
+    registrationNo: string;
+    name: string;
+    email?: string | null;
+    contactPerson?: string | null;
+    telephone?: string | null;
+    validity?: string | null;
+  } | null;
 };
 
 const emptyProfile: ProfileState = {
@@ -82,10 +97,129 @@ export default function ProfilePage() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [profileLoadError, setProfileLoadError] = useState<string | null>(null);
+  const [advisorPreference, setAdvisorPreference] = useState<AdvisorPreferenceState | null>(null);
+  const [advisorPrefLoading, setAdvisorPrefLoading] = useState(false);
+  const [advisorPrefError, setAdvisorPrefError] = useState<string | null>(null);
+  const [showAdvisorEditor, setShowAdvisorEditor] = useState(false);
+  const [editorMode, setEditorMode] = useState<'self' | 'advisor'>('self');
+  const [pendingAdvisor, setPendingAdvisor] = useState<AdvisorRecord | null>(null);
+  const [savingAdvisor, setSavingAdvisor] = useState(false);
+
+  const {
+    advisors: directoryAdvisors,
+    loading: directoryLoading,
+    error: directoryError,
+    searchTerm: directorySearchTerm,
+    setSearchTerm: setDirectorySearchTerm,
+    hasMore: directoryHasMore,
+    loadMore: directoryLoadMore,
+    refresh: directoryRefresh,
+  } = useAdvisorDirectory({
+    perPage: 6,
+    enabled: showAdvisorEditor && !!session?.access_token,
+  });
 
   const handleLogout = async () => {
     await signOut();
     router.push('/');
+  };
+
+  const loadAdvisorPreference = useCallback(async () => {
+    if (!session?.access_token) {
+      setAdvisorPreference(null);
+      return;
+    }
+    setAdvisorPrefLoading(true);
+    setAdvisorPrefError(null);
+    try {
+      const response = await fetch('/api/advisors/selection', {
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+      if (!response.ok) {
+        if (response.status === 404) {
+          setAdvisorPreference(null);
+        } else if (response.status === 401) {
+          setAdvisorPreference(null);
+        } else {
+          const err = await response.json().catch(() => ({}));
+          throw new Error(err.error || 'Failed to load advisor preference');
+        }
+      } else {
+        const payload = await response.json();
+        setAdvisorPreference(payload.preference || null);
+      }
+    } catch (error) {
+      setAdvisorPrefError(
+        error instanceof Error ? error.message : 'Failed to load advisor preference',
+      );
+    } finally {
+      setAdvisorPrefLoading(false);
+    }
+  }, [session?.access_token]);
+
+  useEffect(() => {
+    if (!session?.access_token) {
+      setAdvisorPreference(null);
+      return;
+    }
+    loadAdvisorPreference();
+  }, [loadAdvisorPreference, session?.access_token]);
+
+  const openAdvisorEditor = () => {
+    if (!isLoggedIn) return;
+    setShowAdvisorEditor(true);
+    setAdvisorPrefError(null);
+    setEditorMode(advisorPreference?.advisorMode === 'advisor' ? 'advisor' : 'self');
+    setPendingAdvisor(advisorPreference?.advisor ?? null);
+    directoryRefresh();
+  };
+
+  const closeAdvisorEditor = () => {
+    setShowAdvisorEditor(false);
+    setAdvisorPrefError(null);
+    setEditorMode(advisorPreference?.advisorMode === 'advisor' ? 'advisor' : 'self');
+    setPendingAdvisor(advisorPreference?.advisor ?? null);
+  };
+
+  const handleAdvisorPreferenceSave = async () => {
+    if (!session?.access_token) {
+      setAdvisorPrefError('Please sign in to update your advisor preference.');
+      return;
+    }
+    if (editorMode === 'advisor' && !pendingAdvisor) {
+      setAdvisorPrefError('Select an advisor to continue.');
+      return;
+    }
+    setSavingAdvisor(true);
+    setAdvisorPrefError(null);
+    try {
+      const response = await fetch('/api/advisors/selection', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          advisorMode: editorMode,
+          advisorId: editorMode === 'advisor' ? pendingAdvisor?.id : undefined,
+        }),
+      });
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to save advisor preference');
+      }
+      const payload = await response.json();
+      setAdvisorPreference(payload.preference || null);
+      setShowAdvisorEditor(false);
+    } catch (error) {
+      setAdvisorPrefError(
+        error instanceof Error ? error.message : 'Failed to save advisor preference',
+      );
+    } finally {
+      setSavingAdvisor(false);
+    }
   };
 
   useEffect(() => {
@@ -297,6 +431,194 @@ export default function ProfilePage() {
       <h1 className={`text-center text-2xl font-bold ${darkMode ? theme.textClass : 'text-slate-900'} mb-8 mt-8`}>
         Financial Profile & Estate Planner
       </h1>
+
+      <div className={`max-w-3xl mx-auto mt-8 mb-6 ${theme.cardBgClass} border ${theme.borderClass} rounded-lg p-6`}>
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <p className={`text-sm font-semibold ${darkMode ? theme.textClass : 'text-slate-900'}`}>
+              Advisor collaboration
+            </p>
+            {advisorPrefLoading ? (
+              <p className={`${theme.textSecondaryClass} text-sm mt-1`}>
+                Checking your advisor status…
+              </p>
+            ) : advisorPreference?.advisorMode === 'advisor' && advisorPreference.advisor ? (
+              <div className="mt-2">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className={darkMode ? 'text-blue-300' : 'text-blue-600'} />
+                  <span className={`font-medium ${theme.textClass}`}>
+                    {advisorPreference.advisor.name}
+                  </span>
+                </div>
+                <p className={`${theme.textSecondaryClass} text-sm`}>
+                  Reg. {advisorPreference.advisor.registrationNo}
+                </p>
+                {advisorPreference.advisor.email && (
+                  <p className={`${theme.textSecondaryClass} text-sm`}>
+                    {advisorPreference.advisor.email}
+                  </p>
+                )}
+              </div>
+            ) : (
+              <p className={`${theme.textSecondaryClass} text-sm mt-1`}>
+                You’re currently self-directed. Loop in a SEBI-registered advisor whenever you like.
+              </p>
+            )}
+          </div>
+          {isLoggedIn ? (
+            <button
+              onClick={showAdvisorEditor ? closeAdvisorEditor : openAdvisorEditor}
+              className={`px-4 py-2 rounded-lg text-sm font-medium border ${theme.borderClass} ${
+                darkMode ? 'text-white hover:bg-slate-800' : 'text-slate-900 hover:bg-slate-100'
+              }`}
+            >
+              {showAdvisorEditor
+                ? 'Close editor'
+                : advisorPreference?.advisor
+                ? 'Change advisor'
+                : 'Add an advisor'}
+            </button>
+          ) : (
+            <div className={`flex items-center gap-2 text-sm ${theme.textSecondaryClass}`}>
+              <UserPlus className="w-4 h-4" />
+              Login to manage advisors
+            </div>
+          )}
+        </div>
+        {advisorPrefError && (
+          <p className="text-sm text-red-500 mt-3" role="alert">
+            {advisorPrefError}
+          </p>
+        )}
+        {showAdvisorEditor && isLoggedIn && (
+          <div className={`mt-6 border-t ${theme.borderClass} pt-4 space-y-4`}>
+            <div className="space-y-3">
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="radio"
+                  className="accent-blue-600"
+                  checked={editorMode === 'self'}
+                  onChange={() => setEditorMode('self')}
+                />
+                <div>
+                  <p className={`text-sm font-medium ${theme.textClass}`}>Keep it self-directed</p>
+                  <p className={`text-xs ${theme.textSecondaryClass}`}>
+                    Stay in charge and invite an advisor later.
+                  </p>
+                </div>
+              </label>
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="radio"
+                  className="accent-blue-600"
+                  checked={editorMode === 'advisor'}
+                  onChange={() => setEditorMode('advisor')}
+                />
+                <div>
+                  <p className={`text-sm font-medium ${theme.textClass}`}>Work with an advisor</p>
+                  <p className={`text-xs ${theme.textSecondaryClass}`}>
+                    Pick from the SEBI registry and we’ll keep them in the loop.
+                  </p>
+                </div>
+              </label>
+            </div>
+
+            {editorMode === 'advisor' && (
+              <>
+                <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${theme.borderClass}`}>
+                  <Search className={darkMode ? 'text-slate-400' : 'text-slate-500'} />
+                  <input
+                    type="text"
+                    value={directorySearchTerm}
+                    onChange={(e) => setDirectorySearchTerm(e.target.value)}
+                    placeholder="Search by registration no. or name"
+                    className={`flex-1 bg-transparent focus:outline-none ${theme.textClass} placeholder:${theme.textSecondaryClass}`}
+                  />
+                </div>
+
+                <div className="max-h-56 overflow-y-auto space-y-2 pr-1">
+                  {directoryLoading && directoryAdvisors.length === 0 ? (
+                    <p className={`${theme.textSecondaryClass} text-sm`}>Loading advisors…</p>
+                  ) : directoryAdvisors.length === 0 ? (
+                    <p className={`${theme.textSecondaryClass} text-sm`}>
+                      No advisors found. Adjust your search.
+                    </p>
+                  ) : (
+                    directoryAdvisors.map((advisor) => {
+                      const isSelected = pendingAdvisor?.id === advisor.id;
+                      return (
+                        <button
+                          key={advisor.id}
+                          onClick={() => setPendingAdvisor(advisor)}
+                          className={`w-full text-left border rounded-lg p-3 transition ${
+                            isSelected
+                              ? darkMode
+                                ? 'border-blue-400 bg-blue-900/20'
+                                : 'border-blue-500 bg-blue-50'
+                              : theme.borderClass
+                          }`}
+                        >
+                          <p className={`font-semibold ${theme.textClass}`}>{advisor.name}</p>
+                          <p className={`text-xs ${theme.textSecondaryClass}`}>
+                            {advisor.registrationNo}
+                          </p>
+                          {advisor.contactPerson && (
+                            <p className={`text-xs ${theme.textSecondaryClass}`}>
+                              Contact: {advisor.contactPerson}
+                            </p>
+                          )}
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+
+                {directoryError && (
+                  <p className="text-sm text-red-500" role="alert">
+                    {directoryError}
+                  </p>
+                )}
+
+                {directoryHasMore && (
+                  <button
+                    onClick={directoryLoadMore}
+                    disabled={directoryLoading}
+                    className={`w-full text-sm px-4 py-2 rounded-lg border ${theme.borderClass} ${
+                      darkMode ? 'text-white hover:bg-slate-800' : 'text-slate-900 hover:bg-slate-100'
+                    }`}
+                  >
+                    {directoryLoading ? 'Loading…' : 'Load more advisors'}
+                  </button>
+                )}
+              </>
+            )}
+
+            <div className="flex justify-end gap-3 pt-2">
+              <button
+                onClick={closeAdvisorEditor}
+                className={`px-4 py-2 rounded-lg text-sm ${
+                  darkMode ? 'text-slate-300 hover:text-white' : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleAdvisorPreferenceSave}
+                disabled={
+                  savingAdvisor || (editorMode === 'advisor' && !pendingAdvisor)
+                }
+                className={`px-4 py-2 rounded-lg text-sm font-semibold ${
+                  savingAdvisor || (editorMode === 'advisor' && !pendingAdvisor)
+                    ? 'bg-slate-400 text-white cursor-not-allowed'
+                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                }`}
+              >
+                {savingAdvisor ? 'Saving…' : 'Save preference'}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
 
       {loadingProfile && (
         <div className="max-w-3xl mx-auto mb-6">

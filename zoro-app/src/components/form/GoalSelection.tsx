@@ -2,7 +2,6 @@
 
 import React from 'react';
 import { ZoroLogo } from '@/components/ZoroLogo';
-import { ProgressIndicator } from '@/components/ui/ProgressIndicator';
 import { Button } from '@/components/ui/Button';
 
 // Goal icons (same as checkin page)
@@ -71,6 +70,8 @@ interface GoalSelectionProps {
   darkMode: boolean;
   onNext: () => void;
   onBack: () => void;
+  advisorMode?: 'self' | 'advisor' | null;
+  advisorName?: string | null;
 }
 
 export const GoalSelection: React.FC<GoalSelectionProps> = ({
@@ -78,7 +79,9 @@ export const GoalSelection: React.FC<GoalSelectionProps> = ({
   onGoalToggle,
   darkMode,
   onNext,
-  onBack
+  onBack,
+  advisorMode,
+  advisorName
 }) => {
   const themeClasses = {
     bgClass: darkMode ? 'bg-slate-900' : 'bg-white',
@@ -107,6 +110,13 @@ export const GoalSelection: React.FC<GoalSelectionProps> = ({
             <p className={`mt-2 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>
               {selectedGoals.length} goal{selectedGoals.length !== 1 ? 's' : ''} selected
             </p>
+          )}
+          {advisorMode === 'advisor' && advisorName && (
+            <div className={`mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm ${
+              darkMode ? 'bg-blue-900/40 border border-blue-500 text-blue-100' : 'bg-blue-50 border border-blue-200 text-blue-700'
+            }`}>
+              Working with <span className="font-semibold">{advisorName}</span>
+            </div>
           )}
         </div>
 

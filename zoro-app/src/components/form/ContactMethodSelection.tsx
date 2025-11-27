@@ -20,6 +20,9 @@ interface ContactMethodSelectionProps {
   email?: string;
   selectedGoals?: string[];
   goalDetails?: Record<string, { main: string; extra?: string }>;
+  advisorMode?: 'self' | 'advisor' | null;
+  advisorName?: string | null;
+  advisorRegistrationNo?: string | null;
   onNameChange: (name: string) => void;
   onNetWorthChange: (value: string) => void;
   onEmailChange?: (email: string) => void;
@@ -45,6 +48,9 @@ export const ContactMethodSelection: React.FC<ContactMethodSelectionProps> = ({
   email = '',
   selectedGoals = [],
   goalDetails = {},
+  advisorMode = null,
+  advisorName = null,
+  advisorRegistrationNo = null,
   onNameChange,
   onNetWorthChange,
   onEmailChange,
@@ -162,6 +168,17 @@ export const ContactMethodSelection: React.FC<ContactMethodSelectionProps> = ({
           <p className={`text-sm ${themeClasses.textSecondaryClass} italic`}>
             We'll never share your data or spam you.
           </p>
+          {advisorMode === 'advisor' && advisorName && (
+            <div className="mt-4 inline-flex flex-col items-center gap-1">
+              <span className={`text-xs uppercase tracking-wide ${darkMode ? 'text-blue-300' : 'text-blue-700'}`}>
+                Advisor collaboration enabled
+              </span>
+              <p className={`text-sm ${themeClasses.textSecondaryClass}`}>
+                We'll keep <span className="font-semibold">{advisorName}</span>
+                {advisorRegistrationNo ? ` (Reg ${advisorRegistrationNo})` : ''} in the loop once you confirm.
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="space-y-4 mb-6">

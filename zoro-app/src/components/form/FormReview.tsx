@@ -30,6 +30,9 @@ interface FormReviewProps {
   onEdit: () => void;
   onBack: () => void;
   onSubmit: () => void;
+  advisorMode?: 'self' | 'advisor' | null;
+  advisorName?: string | null;
+  advisorRegistrationNo?: string | null;
 }
 
 export const FormReview: React.FC<FormReviewProps> = ({
@@ -45,7 +48,10 @@ export const FormReview: React.FC<FormReviewProps> = ({
   isSubmitting,
   onEdit,
   onBack,
-  onSubmit
+  onSubmit,
+  advisorMode,
+  advisorName,
+  advisorRegistrationNo
 }) => {
   const themeClasses = {
     textClass: darkMode ? 'text-white' : 'text-slate-900',
@@ -67,10 +73,28 @@ export const FormReview: React.FC<FormReviewProps> = ({
           <p className={themeClasses.textSecondaryClass}>
             Make sure everything looks good before we send your personalized plan
           </p>
+          {advisorMode === 'advisor' && advisorName && (
+            <p className={`mt-3 text-sm ${darkMode ? 'text-blue-300' : 'text-blue-700'}`}>
+              Advisor in loop: <span className="font-semibold">{advisorName}</span>
+              {advisorRegistrationNo ? ` (${advisorRegistrationNo})` : ''}
+            </p>
+          )}
         </div>
 
         <Card darkMode={darkMode} className="p-8 shadow-lg mb-6">
           <div className="space-y-6">
+            {advisorMode === 'advisor' && advisorName && (
+              <>
+                <div>
+                  <p className={`text-sm ${themeClasses.textSecondaryClass} mb-1`}>Advisor</p>
+                  <p className={`font-semibold ${themeClasses.textClass}`}>
+                    {advisorName}
+                    {advisorRegistrationNo ? ` • ${advisorRegistrationNo}` : ''}
+                  </p>
+                </div>
+                <div className={`h-px ${themeClasses.borderClass}`}></div>
+              </>
+            )}
             {/* Name & Net worth */}
             <div className="flex justify-between items-start">
               <div className="flex-1 space-y-2">

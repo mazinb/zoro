@@ -4,7 +4,6 @@ import React, { useRef, useEffect } from 'react';
 import { Moon, Sun, ChevronLeft, ChevronRight } from 'lucide-react';
 import { ZoroLogo } from '@/components/ZoroLogo';
 import { Button } from '@/components/ui/Button';
-import { Card } from '@/components/ui/Card';
 import { useThemeClasses } from '@/hooks/useThemeClasses';
 import ZoroLearningAnimation from '@/components/bloganimation';
 
@@ -232,6 +231,20 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 </p>
               </div>
             </div>
+
+            <div className="flex gap-6">
+              <div className={`flex-shrink-0 w-12 h-12 ${numberBgClass} rounded-lg flex items-center justify-center font-semibold`}>
+                4
+              </div>
+              <div>
+                <h3 className={`text-xl font-semibold ${theme.textClass} mb-2`}>
+                  Loop in your advisor (optional)
+                </h3>
+                <p className={theme.textSecondaryClass}>
+                  Prefer working with a SEBI-registered advisor? Search our roster or invite yours by registration number to keep them in sync without losing control.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -316,28 +329,51 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </div>
       </div>
 
-      {/* Final CTA - Contrasting section */}
+      {/* Advisor CTA */}
       <div className={`${darkMode ? 'bg-white' : 'bg-slate-900'} py-24 transition-colors duration-300`}>
-        <div className="max-w-4xl mx-auto px-6 text-center">
-          <h2 className={`text-4xl font-bold ${darkMode ? 'text-slate-900' : 'text-white'} mb-6`}>
-            Ready to get started?
-          </h2>
-          <p className={`text-xl ${darkMode ? 'text-slate-600' : 'text-slate-300'} mb-12`}>
-            Set your financial goals and start receiving personalized check-ins tailored to your needs
+        <div className="max-w-5xl mx-auto px-6 text-center">
+          <p className={`text-sm uppercase tracking-[0.3em] mb-4 ${darkMode ? 'text-blue-600' : 'text-blue-300'}`}>
+            For Advisors
           </p>
+          <h2 className={`text-4xl font-bold ${darkMode ? 'text-slate-900' : 'text-white'} mb-6`}>
+            Bring Zoro into your advisory practice
+          </h2>
+          <p className={`text-xl ${darkMode ? 'text-slate-600' : 'text-slate-300'} mb-10`}>
+            Verify your SEBI registration, collaborate with clients in real time, and deliver AI-powered check-ins without changing your existing stack.
+          </p>
+
+          <div className="grid md:grid-cols-3 gap-4 text-left text-sm mb-10">
+            {[
+              'Direct access to client insights once they opt you in',
+              'White-label ready: keep your branding, add Zoro automation',
+              'Launch in minutes — no sales calls, no contracts',
+            ].map((item, idx) => (
+              <div
+                key={item}
+                className={`${darkMode ? 'bg-slate-100 text-slate-800' : 'bg-slate-800 text-slate-100'} rounded-2xl p-4`}
+              >
+                <span className="font-semibold text-lg mr-2">{idx + 1}.</span>
+                {item}
+              </div>
+            ))}
+          </div>
 
           <Button
             variant="primary"
             darkMode={ctaInverted}
             showArrow
-            onClick={onGetStarted}
+            onClick={() => {
+              if (typeof window !== 'undefined') {
+                window.location.href = '/advisors';
+              }
+            }}
             className="px-8 py-4 text-lg transform hover:scale-105"
           >
-            Get Started
+            Set up your advisor account
           </Button>
 
           <p className={`text-sm ${darkMode ? 'text-slate-500' : 'text-slate-400'} mt-4`}>
-            Free for early adopters • Takes 10 minutes
+            Free while in beta • Verification takes under 2 minutes
           </p>
         </div>
       </div>

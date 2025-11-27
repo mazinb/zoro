@@ -76,6 +76,13 @@ export async function POST(request: NextRequest) {
         goals,
         goalDetails: body.goalDetails || null,
         additionalInfo: body.additionalInfo || null,
+        advisorMode: body.advisorMode || 'self',
+        advisor: body.advisorMode === 'advisor'
+          ? {
+              registrationNo: body.advisorRegistrationNo || null,
+              name: body.advisorName || null,
+            }
+          : null,
       };
 
       insertPayload = {
