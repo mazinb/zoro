@@ -584,7 +584,7 @@ function HowItWorks({ isLoggedIn }) {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: 32 }}>
         <div>
           <div style={{ width: 36, height: 36, borderRadius: "50%", background: "var(--text)", color: "var(--bg)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 600, marginBottom: 14 }}>1</div>
-          <div style={{ fontSize: 16, fontWeight: 500, marginBottom: 8 }}>Set up in 30 seconds</div>
+          <div style={{ fontSize: 16, fontWeight: 500, marginBottom: 8 }}>Set up in 2 mins</div>
           <div className="muted" style={{ fontSize: 14, lineHeight: 1.6 }}>Choose your frequency and pick 1-3 financial goals to focus on</div>
         </div>
         <div>
@@ -633,7 +633,7 @@ function CTA({ isLoggedIn, selectedGoals }) {
       <p className="muted" style={{ fontSize: 15, marginBottom: 24 }}>
         {selectedGoals.length > 0 
           ? `You've selected ${selectedGoals.length} goal${selectedGoals.length !== 1 ? 's' : ''}. Sign up to save your preferences.`
-          : "Set up your first check-in in less than a minute"
+          : "Set up your first check-in in 2 minutes"
         }
       </p>
       <button className="btn" onClick={() => alert("Redirect to onboarding flow")}>Get started</button>

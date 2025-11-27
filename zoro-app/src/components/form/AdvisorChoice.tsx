@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Handshake, UserCheck, Search, ArrowRight, RefreshCw } from 'lucide-react';
+import { Handshake, UserCheck, Search, ArrowRight, RefreshCw, Sparkles } from 'lucide-react';
 import { AdvisorRecord } from '@/types';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -103,6 +103,25 @@ export const AdvisorChoice: React.FC<AdvisorChoiceProps> = ({
                   Browse SEBI-registered firms and invite them into your check-ins.
                 </p>
               </div>
+            </div>
+
+            <Button
+              variant="primary"
+              darkMode={darkMode}
+              className="w-full py-3 text-base font-semibold"
+              onClick={() => {
+                // TODO: Implement goal-based advisor matching
+                alert('This feature will help you find advisors based on your financial goals. Coming soon!');
+              }}
+            >
+              <Sparkles className="w-5 h-5 mr-2" />
+              Help me find based on my goals
+            </Button>
+
+            <div className="flex items-center gap-3 my-2">
+              <div className={`flex-1 h-px ${themeClasses.borderClass}`}></div>
+              <span className={`text-xs font-medium ${themeClasses.textSecondaryClass}`}>OR</span>
+              <div className={`flex-1 h-px ${themeClasses.borderClass}`}></div>
             </div>
 
             <div className={`flex items-center gap-2 px-4 py-3 rounded-lg border ${themeClasses.borderClass}`}>

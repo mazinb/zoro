@@ -344,9 +344,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
           <div className="grid md:grid-cols-3 gap-4 text-left text-sm mb-10">
             {[
-              'Direct access to client insights once they opt you in',
-              'White-label ready: keep your branding, add Zoro automation',
-              'Launch in minutes — no sales calls, no contracts',
+              'Direct access to client insights',
+              'White-label ready: keep your branding',
+              'Launch in minutes — no sales calls',
             ].map((item, idx) => (
               <div
                 key={item}

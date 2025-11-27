@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Moon, Sun, Search, ShieldCheck, UserPlus } from 'lucide-react';
+import { Moon, Sun, Search, ShieldCheck, UserPlus, Sparkles } from 'lucide-react';
 import { ZoroLogo } from '@/components/ZoroLogo';
 import { useDarkMode } from '@/hooks/useDarkMode';
 import { useThemeClasses } from '@/hooks/useThemeClasses';
@@ -525,6 +525,27 @@ export default function ProfilePage() {
 
             {editorMode === 'advisor' && (
               <>
+                <button
+                  onClick={() => {
+                    // TODO: Implement goal-based advisor matching
+                    alert('This feature will help you find advisors based on your financial goals. Coming soon!');
+                  }}
+                  className={`w-full px-4 py-3 rounded-lg text-sm font-semibold mb-3 flex items-center justify-center gap-2 ${
+                    darkMode
+                      ? 'bg-blue-600 hover:bg-blue-700 text-white'
+                      : 'bg-blue-600 hover:bg-blue-700 text-white'
+                  }`}
+                >
+                  <Sparkles className="w-4 h-4" />
+                  Help me find based on my goals
+                </button>
+
+                <div className="flex items-center gap-3 my-2">
+                  <div className={`flex-1 h-px ${theme.borderClass}`}></div>
+                  <span className={`text-xs font-medium ${theme.textSecondaryClass}`}>OR</span>
+                  <div className={`flex-1 h-px ${theme.borderClass}`}></div>
+                </div>
+
                 <div className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${theme.borderClass}`}>
                   <Search className={darkMode ? 'text-slate-400' : 'text-slate-500'} />
                   <input
