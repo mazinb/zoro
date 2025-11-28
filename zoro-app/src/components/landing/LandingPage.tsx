@@ -118,12 +118,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
         <h1 className={`text-6xl font-bold ${theme.textClass} mb-6 tracking-tight`}>
           {process.env.NEXT_PUBLIC_ADVISOR_MODE === 'true'
-            ? 'Your AI-powered financial advisor platform'
+            ? 'AI powered platform that'
             : 'Your AI financial advisor'}
           <br />
           <span className={theme.textSecondaryClass}>
             {process.env.NEXT_PUBLIC_ADVISOR_MODE === 'true'
-              ? 'with your SEBI-registered advisor'
+              ? 'works with your advisor'
               : 'and estate planner'}
           </span>
         </h1>

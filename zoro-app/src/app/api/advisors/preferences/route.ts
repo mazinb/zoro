@@ -20,25 +20,28 @@ const getClient = (token: string) => {
 
 export async function POST(request: NextRequest) {
   try {
-    // For now, allow saving without auth (will add email verification later)
     const authHeader = request.headers.get('authorization');
-    let userId: string | null = null;
-
-    if (authHeader) {
-      const token = authHeader.replace('Bearer ', '');
-      const supabase = getClient(token);
-      const {
-        data: { user },
-        error: authError,
-      } = await supabase.auth.getUser();
-
-      if (!authError && user) {
-        userId = user.id;
-      }
+    if (!authHeader) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 },
+      );
     }
 
-    // Use service role for now to allow unauthenticated saves
-    const supabase = createClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY || supabaseAnonKey);
+    const token = authHeader.replace('Bearer ', '');
+    const supabase = getClient(token);
+
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser();
+
+    if (authError || !user) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 },
+      );
+    }
 
     const body = await request.json();
     const { advisorId, checkInFrequency, selectedGoals, expertiseExplanation } = body;
@@ -80,52 +83,22 @@ export async function POST(request: NextRequest) {
     }
 
     // Upsert advisor preferences
-    // For now, if no user_id, we'll insert/update based on advisor_id only
-    const payload: {
-      advisor_id: string;
-      user_id: string | null;
-      check_in_frequency: string;
-      selected_goals: string[];
-      expertise_explanation: string;
-    } = {
-      advisor_id: advisorId,
-      user_id: userId,
-      check_in_frequency: checkInFrequency,
-      selected_goals: selectedGoals,
-      expertise_explanation: expertiseExplanation.trim(),
-    };
-
-    // If no user_id, check if preferences already exist for this advisor
-    let data;
-    let error;
-    
-    if (!userId) {
-      // For unauthenticated saves, delete existing and insert new
-      await supabase
-        .from('advisor_preferences')
-        .delete()
-        .eq('advisor_id', advisorId)
-        .is('user_id', null);
-      
-      const result = await supabase
-        .from('advisor_preferences')
-        .insert(payload)
-        .select()
-        .single();
-      data = result.data;
-      error = result.error;
-    } else {
-      // For authenticated saves, use upsert
-      const result = await supabase
-        .from('advisor_preferences')
-        .upsert(payload, {
+    const { data, error } = await supabase
+      .from('advisor_preferences')
+      .upsert(
+        {
+          advisor_id: advisorId,
+          user_id: user.id,
+          check_in_frequency: checkInFrequency,
+          selected_goals: selectedGoals,
+          expertise_explanation: expertiseExplanation.trim(),
+        },
+        {
           onConflict: 'advisor_id,user_id',
-        })
-        .select()
-        .single();
-      data = result.data;
-      error = result.error;
-    }
+        },
+      )
+      .select()
+      .single();
 
     if (error) {
       console.error('Error saving advisor preferences:', error);

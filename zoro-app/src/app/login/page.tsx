@@ -30,16 +30,8 @@ function LoginContent() {
     if (!session?.access_token) return;
 
     try {
-      // First check if user is an advisor and needs to complete onboarding
-      const advisorPrefsResponse = await fetch('/api/advisors/preferences', {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      // Check if there's pending advisor onboarding data
+      // PRIORITY 1: Check if there's pending advisor onboarding data in sessionStorage
+      // This takes highest priority as it's from the email verification flow
       if (typeof window !== 'undefined') {
         const pendingAdvisor = sessionStorage.getItem('pendingAdvisorOnboarding');
         if (pendingAdvisor) {
@@ -54,7 +46,15 @@ function LoginContent() {
         }
       }
 
-      // If advisor preferences exist but are incomplete, redirect to completion
+      // PRIORITY 2: Check if user already has advisor preferences but incomplete
+      const advisorPrefsResponse = await fetch('/api/advisors/preferences', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
       if (advisorPrefsResponse.ok) {
         const advisorData = await advisorPrefsResponse.json();
         if (advisorData.preferences && !advisorData.preferences.expertise_explanation) {
@@ -187,8 +187,25 @@ function LoginContent() {
 
         const result = await signUp(email, password, name);
         
-        // If signup successful and we have pending form submission, submit it
+        // If signup successful, check for pending advisor onboarding first
         if (!result.error && typeof window !== 'undefined') {
+          // Check for pending advisor onboarding
+          const pendingAdvisor = sessionStorage.getItem('pendingAdvisorOnboarding');
+          if (pendingAdvisor) {
+            try {
+              const advisorData = JSON.parse(pendingAdvisor);
+              // Wait a bit for session to be available
+              await new Promise(resolve => setTimeout(resolve, 500));
+              // Redirect to advisor onboarding completion
+              router.push(`/advisors/complete?advisorId=${advisorData.advisorId || ''}`);
+              setLoading(false);
+              return result;
+            } catch (e) {
+              console.error('Error parsing pending advisor data:', e);
+            }
+          }
+
+          // If no advisor onboarding, check for pending form submission
           const pendingData = sessionStorage.getItem('pendingFormSubmission');
           if (pendingData) {
             try {
@@ -222,6 +239,7 @@ function LoginContent() {
                   
                   // Redirect to home with success message
                   router.push('/?submitted=true');
+                  setLoading(false);
                   return result;
                 }
               }

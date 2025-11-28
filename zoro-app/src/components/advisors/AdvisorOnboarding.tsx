@@ -1,94 +1,26 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Search, ShieldCheck, Calendar, CheckCircle2, ArrowRight, ArrowLeft } from 'lucide-react';
+import { Mail, Search, ShieldCheck } from 'lucide-react';
 import { AdvisorRecord } from '@/types';
 import { ZoroLogo } from '@/components/ZoroLogo';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 
-// Goal icons
-const SaveIcon = () => (
-  <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
-    <polyline points="17 21 17 13 7 13 7 21"/>
-    <polyline points="7 3 7 8 15 8"/>
-  </svg>
-);
-
-const InvestIcon = () => (
-  <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" strokeWidth="2">
-    <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
-    <polyline points="17 6 23 6 23 12"/>
-  </svg>
-);
-
-const HomeIcon = () => (
-  <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
-    <polyline points="9 22 9 12 15 12 15 22"/>
-  </svg>
-);
-
-const ShieldIcon = () => (
-  <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-  </svg>
-);
-
-const TaxIcon = () => (
-  <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" strokeWidth="2">
-    <rect x="2" y="3" width="20" height="14" rx="2"/>
-    <line x1="8" y1="21" x2="16" y2="21"/>
-    <line x1="12" y1="17" x2="12" y2="21"/>
-  </svg>
-);
-
-const RetirementIcon = () => (
-  <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" strokeWidth="2">
-    <circle cx="12" cy="12" r="10"/>
-    <polyline points="12 6 12 12 16 14"/>
-  </svg>
-);
-
-interface Goal {
-  id: string;
-  icon: React.ComponentType;
-  title: string;
-  desc: string;
-}
-
-const goals: Goal[] = [
-  { id: "save", icon: SaveIcon, title: "Save more consistently", desc: "Build emergency fund, reduce unnecessary spending" },
-  { id: "invest", icon: InvestIcon, title: "Invest smarter", desc: "Diversify portfolio, understand index funds, track returns" },
-  { id: "home", icon: HomeIcon, title: "Plan for big purchases", desc: "Home down payment, car, education funding" },
-  { id: "insurance", icon: ShieldIcon, title: "Review insurance", desc: "Health, life, and property coverage checkups" },
-  { id: "tax", icon: TaxIcon, title: "Tax optimization", desc: "Maximize deductions, plan for tax-saving investments" },
-  { id: "retirement", icon: RetirementIcon, title: "Retirement planning", desc: "Set goals, calculate needs, build sustainable strategy" },
-];
-
-type CheckInFrequency = 'weekly' | 'biweekly' | 'monthly' | 'quarterly';
+const emailRegex = /.+@.+\..+/;
 
 export const AdvisorOnboarding: React.FC = () => {
   const [registrationNo, setRegistrationNo] = useState('');
   const [lookupError, setLookupError] = useState('');
   const [advisor, setAdvisor] = useState<AdvisorRecord | null>(null);
+  const [email, setEmail] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
   const [isLookingUp, setIsLookingUp] = useState(false);
-  
-  // Form state
-  const [step, setStep] = useState<'lookup' | 1 | 2 | 3 | 'complete'>('lookup');
-  const [selectedGoals, setSelectedGoals] = useState<string[]>([]);
-  const [frequency, setFrequency] = useState<CheckInFrequency>('monthly');
-  const [expertiseExplanation, setExpertiseExplanation] = useState('');
-  const [explanationError, setExplanationError] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState('');
+  const [isSendingEmail, setIsSendingEmail] = useState(false);
 
   const handleLookup = async () => {
     setIsLookingUp(true);
     setStatusMessage('');
-    setLookupError('');
     const normalized = registrationNo.replace(/\s+/g, '').toUpperCase();
     try {
       const params = new URLSearchParams({ registration: normalized });
@@ -100,8 +32,8 @@ export const AdvisorOnboarding: React.FC = () => {
       const match: AdvisorRecord | undefined = payload.data?.[0];
       if (match) {
         setAdvisor(match);
+        setEmail(match.email || '');
         setLookupError('');
-        setStep(1); // Move to goal selection
       } else {
         setAdvisor(null);
         setLookupError('We could not find that registration number. Please double-check and try again.');
@@ -115,438 +47,191 @@ export const AdvisorOnboarding: React.FC = () => {
     }
   };
 
-  const handleGoalToggle = (goalId: string) => {
-    setSelectedGoals(prev => {
-      if (prev.includes(goalId)) {
-        return prev.filter(id => id !== goalId);
-      } else if (prev.length < 6) {
-        return [...prev, goalId];
-      }
-      return prev;
-    });
-  };
-
-  const handleNext = () => {
-    if (step === 1) {
-      if (selectedGoals.length === 0) {
-        return;
-      }
-      setStep(2);
-    } else if (step === 2) {
-      setStep(3);
-    }
-  };
-
-  const handleBack = () => {
-    if (step === 1) {
-      setStep('lookup');
-    } else if (step === 2) {
-      setStep(1);
-    } else if (step === 3) {
-      setStep(2);
-    }
-  };
-
-  const validateExplanation = (text: string): boolean => {
-    const trimmed = text.trim();
-    if (!trimmed) {
-      setExplanationError('Please explain why you are the right advisor for these goals');
-      return false;
-    }
-    const words = trimmed.split(/\s+/).filter(word => word.length > 0);
-    if (words.length < 20) {
-      setExplanationError('Please provide at least 20 words explaining your expertise');
-      return false;
-    }
-    setExplanationError('');
-    return true;
-  };
-
-  const handleSubmit = async () => {
+  const handleSendVerification = async () => {
     if (!advisor) return;
-    if (!validateExplanation(expertiseExplanation)) {
+    if (!emailRegex.test(email.trim())) {
+      setStatusMessage('Please enter a valid email address so we can verify you.');
       return;
     }
 
-    setIsSubmitting(true);
-    setSubmitError('');
+    setIsSendingEmail(true);
+    setStatusMessage('');
 
     try {
-      // Save preferences to DB (no auth required for now)
-      const response = await fetch('/api/advisors/preferences', {
+      const checkResponse = await fetch('/api/auth/check-email', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      const checkData = await checkResponse.json();
+
+      if (checkData.exists) {
+        setStatusMessage('This email already has access. Redirecting you to login...');
+        setTimeout(() => {
+          window.location.href = `/login?email=${encodeURIComponent(email)}&message=${encodeURIComponent('Welcome back! Please log in to continue.')}`;
+        }, 1500);
+        setIsSendingEmail(false);
+        return;
+      }
+
+      const token = checkData.token;
+      await fetch('/api/auth/send-verification-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          advisorId: advisor.id,
-          checkInFrequency: frequency,
-          selectedGoals,
-          expertiseExplanation: expertiseExplanation.trim(),
+          email,
+          token,
+          name: advisor.contactPerson || advisor.name,
+          goals: [],
+          context: 'advisor',
+          registrationNo: advisor.registrationNo,
         }),
       });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to save preferences');
-      }
+        const pendingData = {
+          advisorId: advisor.id,
+          registrationNo: advisor.registrationNo,
+          name: advisor.name,
+          email,
+          token,
+          expiresAt: checkData.expiresAt,
+        };
+        sessionStorage.setItem('pendingAdvisorOnboarding', JSON.stringify(pendingData));
 
-      setStep('complete');
-      setStatusMessage('Your advisor profile has been saved successfully!');
+        // Log for debugging (especially helpful in development)
+        console.log('Advisor onboarding data saved:', {
+          advisorId: advisor.id,
+          registrationNo: advisor.registrationNo,
+          email,
+          verificationLink: `${window.location.origin}/login?email=${encodeURIComponent(email)}&token=${token}&mode=signup`,
+        });
+
+      setStatusMessage('Verification email sent! Please check your inbox to finish setting up. You will complete your advisor profile after verifying your email.');
     } catch (error) {
-      console.error('Error saving advisor preferences:', error);
-      setSubmitError(error instanceof Error ? error.message : 'Failed to save preferences');
+      console.error('Advisor verification error:', error);
+      setStatusMessage('Something went wrong while sending your verification email. Please retry.');
     } finally {
-      setIsSubmitting(false);
+      setIsSendingEmail(false);
     }
   };
 
-
-  // Complete screen
-  if (step === 'complete') {
-    return (
-      <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white text-slate-900 py-16 px-4">
-        <div className="max-w-3xl mx-auto">
-          <Card darkMode={false} className="p-8 text-center">
-            <div className="mb-6">
-              <div className="bg-green-500 rounded-full p-4 w-20 h-20 mx-auto mb-4 flex items-center justify-center">
-                <CheckCircle2 className="w-10 h-10 text-white" />
-              </div>
-            </div>
-            <h2 className="text-2xl font-bold text-slate-900 mb-4">
-              Setup complete! 🎉
-            </h2>
-            <p className="text-slate-600 mb-6">
-              Your advisor profile has been saved. We&apos;ll set up email verification soon.
-            </p>
-            <div className="flex gap-4 justify-center">
-              <Button
-                variant="secondary"
-                darkMode={false}
-                onClick={() => {
-                  window.location.href = '/';
-                }}
-              >
-                ← Back to home
-              </Button>
-            </div>
-          </Card>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white text-slate-900 py-16 px-4">
-      <div className="max-w-4xl mx-auto">
-        <div className="text-center mb-8">
-          <ZoroLogo className="h-10 mx-auto mb-4" isDark={false} />
-          <p className="text-sm uppercase tracking-[0.3em] text-blue-600 mb-2">Advisors</p>
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">
-            {step === 'lookup' ? 'Bring Zoro into your practice' : 'Complete your advisor profile'}
+      <div className="max-w-3xl mx-auto space-y-10">
+        <div className="text-center space-y-4">
+          <ZoroLogo className="h-10 mx-auto" isDark={false} />
+          <p className="text-sm uppercase tracking-[0.3em] text-blue-600">Advisors</p>
+          <h1 className="text-4xl font-semibold">
+            Bring Zoro into your practice
           </h1>
           <p className="text-slate-600 max-w-2xl mx-auto">
-            {step === 'lookup' && 'Verify your SEBI registration and set up your advisor profile.'}
-            {step === 1 && 'Select the financial goals you can help clients with'}
-            {step === 2 && 'Choose how often you want to send check-in updates'}
-            {step === 3 && 'Explain why you are the right advisor for these goals'}
+            Verify your SEBI registration, confirm your contact email, and get instant access to client-ready
+            tools. No paperwork, no sales calls.
           </p>
-          {step !== 'lookup' && (
-            <div className="flex items-center justify-center gap-2 mt-4">
-              {[1, 2, 3].map((s) => (
-                <div
-                  key={s}
-                  className={`h-2 rounded-full transition-all ${
-                    s === step
-                      ? 'w-8 bg-blue-600'
-                      : s < step
-                      ? 'w-2 bg-blue-400'
-                      : 'w-2 bg-slate-400'
-                  }`}
-                />
-              ))}
-            </div>
-          )}
         </div>
 
-        {/* Step: Lookup */}
-        {step === 'lookup' && (
-          <Card darkMode={false} className="p-8 space-y-6 border border-slate-200 shadow-sm">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                SEBI Registration number
-              </label>
-              <div className="flex flex-col gap-3 sm:flex-row">
-                <div className="flex items-center gap-3 flex-1 border border-slate-200 rounded-lg px-4 py-3 bg-white">
-                  <Search className="w-5 h-5 text-slate-400" />
-                  <input
-                    type="text"
-                    value={registrationNo}
-                    onChange={(e) => setRegistrationNo(e.target.value.toUpperCase())}
-                    placeholder="e.g. INA000017523"
-                    className="flex-1 bg-transparent focus:outline-none text-slate-900"
-                  />
-                </div>
-                <Button
-                  variant="primary"
-                  darkMode={false}
-                  onClick={handleLookup}
-                  disabled={!registrationNo || isLookingUp}
-                  className="whitespace-nowrap"
-                >
-                  {isLookingUp ? 'Checking…' : 'Find my record'}
-                </Button>
+        <Card darkMode={false} className="p-8 space-y-6 border border-slate-200 shadow-sm">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-2">
+              SEBI Registration number
+            </label>
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <div className="flex items-center gap-3 flex-1 border border-slate-200 rounded-lg px-4 py-3 bg-white">
+                <Search className="w-5 h-5 text-slate-400" />
+                <input
+                  type="text"
+                  value={registrationNo}
+                  onChange={(e) => setRegistrationNo(e.target.value.toUpperCase())}
+                  placeholder="e.g. INA000017523"
+                  className="flex-1 bg-transparent focus:outline-none text-slate-900"
+                />
               </div>
-              {lookupError && <p className="text-sm text-red-500 mt-2">{lookupError}</p>}
-            </div>
-
-            {advisor && (
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 text-blue-600 text-sm font-medium">
-                  <ShieldCheck className="w-5 h-5" />
-                  Verified record found
-                </div>
-
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div className="border border-slate-200 rounded-lg p-4 bg-slate-50">
-                    <p className="text-xs uppercase tracking-wide text-slate-500 mb-1">Firm name</p>
-                    <p className="font-semibold text-slate-900">{advisor.name}</p>
-                    <p className="text-xs text-slate-500 mt-1">{advisor.registrationNo}</p>
-                  </div>
-                  <div className="border border-slate-200 rounded-lg p-4 bg-slate-50">
-                    <p className="text-xs uppercase tracking-wide text-slate-500 mb-1">Contact person</p>
-                    <p className="font-semibold text-slate-900">{advisor.contactPerson || 'Not provided yet'}</p>
-                    {advisor.validity && (
-                      <p className="text-xs text-slate-500 mt-1">Validity: {advisor.validity}</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {statusMessage && (
-              <p className="text-sm text-blue-700 bg-blue-50 border border-blue-100 rounded-lg px-4 py-3">
-                {statusMessage}
-              </p>
-            )}
-
-            <div className="text-center pt-4">
-              <Button
-                variant="secondary"
-                darkMode={false}
-                onClick={() => {
-                  window.location.href = '/';
-                }}
-              >
-                ← Back to home
-              </Button>
-            </div>
-          </Card>
-        )}
-
-        {/* Step 1: Goal Selection */}
-        {step === 1 && advisor && (
-          <Card darkMode={false} className="p-8">
-            <h2 className="text-xl font-semibold text-slate-900 mb-4">
-              Select your areas of expertise
-            </h2>
-            <p className="text-sm text-slate-600 mb-6">
-              Choose all the financial goals you can help clients achieve. This helps us match you with the right clients.
-            </p>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-              {goals.map((goal) => {
-                const Icon = goal.icon;
-                const isSelected = selectedGoals.includes(goal.id);
-                return (
-                  <div
-                    key={goal.id}
-                    onClick={() => handleGoalToggle(goal.id)}
-                    className={`bg-white border-2 rounded-lg p-6 cursor-pointer transition-all relative ${
-                      isSelected
-                        ? 'border-blue-600 bg-blue-50'
-                        : 'border-slate-200'
-                    } hover:border-blue-500`}
-                  >
-                    {isSelected && (
-                      <div className="absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold bg-blue-600 text-white">
-                        ✓
-                      </div>
-                    )}
-                    <div className={`mb-3 ${isSelected ? 'text-blue-600' : 'text-slate-600'}`}>
-                      <Icon />
-                    </div>
-                    <div className="font-semibold mb-2 text-slate-900">
-                      {goal.title}
-                    </div>
-                    <div className="text-sm text-slate-600">
-                      {goal.desc}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {selectedGoals.length > 0 && (
-              <p className="text-sm mb-6 text-blue-600">
-                {selectedGoals.length} area{selectedGoals.length !== 1 ? 's' : ''} selected
-              </p>
-            )}
-
-            <div className="flex gap-4">
-              <Button
-                variant="ghost"
-                darkMode={false}
-                onClick={handleBack}
-                className="flex-1"
-              >
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back
-              </Button>
               <Button
                 variant="primary"
                 darkMode={false}
-                onClick={handleNext}
-                disabled={selectedGoals.length === 0}
-                className="flex-1"
+                onClick={handleLookup}
+                disabled={!registrationNo || isLookingUp}
+                className="whitespace-nowrap"
               >
-                Continue
-                <ArrowRight className="w-4 h-4 ml-2" />
+                {isLookingUp ? 'Checking…' : 'Find my record'}
               </Button>
             </div>
-          </Card>
-        )}
+            {lookupError && <p className="text-sm text-red-500 mt-2">{lookupError}</p>}
+          </div>
 
-        {/* Step 2: Frequency Selection */}
-        {step === 2 && advisor && (
-          <Card darkMode={false} className="p-8">
-            <h2 className="text-xl font-semibold text-slate-900 mb-4">
-              Check-in frequency
-            </h2>
-            <p className="text-sm text-slate-600 mb-6">
-              How often would you like to send check-in updates to your clients?
-            </p>
+          {advisor && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 text-blue-600 text-sm font-medium">
+                <ShieldCheck className="w-5 h-5" />
+                Verified record found
+              </div>
 
-            <div className="space-y-3 mb-6">
-              {([
-                { value: 'weekly' as CheckInFrequency, label: 'Weekly', desc: 'Every week' },
-                { value: 'biweekly' as CheckInFrequency, label: 'Bi-weekly', desc: 'Every 2 weeks' },
-                { value: 'monthly' as CheckInFrequency, label: 'Monthly', desc: 'Once a month' },
-                { value: 'quarterly' as CheckInFrequency, label: 'Quarterly', desc: 'Every 3 months' },
-              ]).map((option) => (
-                <label
-                  key={option.value}
-                  className={`flex items-center gap-4 p-4 border-2 rounded-lg cursor-pointer transition-all ${
-                    frequency === option.value
-                      ? 'border-blue-600 bg-blue-50'
-                      : 'border-slate-200'
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="frequency"
-                    value={option.value}
-                    checked={frequency === option.value}
-                    onChange={(e) => setFrequency(e.target.value as CheckInFrequency)}
-                    className="accent-blue-600"
-                  />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <Calendar className={`w-5 h-5 ${frequency === option.value ? 'text-blue-600' : 'text-slate-600'}`} />
-                      <span className="font-semibold text-slate-900">{option.label}</span>
-                    </div>
-                    <p className="text-sm text-slate-600">{option.desc}</p>
-                  </div>
+              <div className="grid md:grid-cols-2 gap-4">
+                <div className="border border-slate-200 rounded-lg p-4 bg-slate-50">
+                  <p className="text-xs uppercase tracking-wide text-slate-500 mb-1">Firm name</p>
+                  <p className="font-semibold text-slate-900">{advisor.name}</p>
+                  <p className="text-xs text-slate-500 mt-1">{advisor.registrationNo}</p>
+                </div>
+                <div className="border border-slate-200 rounded-lg p-4 bg-slate-50">
+                  <p className="text-xs uppercase tracking-wide text-slate-500 mb-1">Contact person</p>
+                  <p className="font-semibold text-slate-900">{advisor.contactPerson || 'Not provided yet'}</p>
+                  {advisor.validity && (
+                    <p className="text-xs text-slate-500 mt-1">Validity: {advisor.validity}</p>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">
+                  Confirmation email
                 </label>
-              ))}
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <div className="flex items-center gap-3 flex-1 border border-slate-200 rounded-lg px-4 py-3 bg-white">
+                    <Mail className="w-5 h-5 text-slate-400" />
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="compliance@example.com"
+                      className="flex-1 bg-transparent focus:outline-none text-slate-900"
+                    />
+                  </div>
+                  <Button
+                    variant="primary"
+                    darkMode={false}
+                    onClick={handleSendVerification}
+                    disabled={isSendingEmail}
+                    className="whitespace-nowrap"
+                    showArrow
+                  >
+                    {isSendingEmail ? 'Sending…' : 'Send verification link'}
+                  </Button>
+                </div>
+                <p className="text-xs text-slate-500 mt-1">
+                  We’ll use this email for compliance notices and login. You can change it later.
+                </p>
+              </div>
             </div>
+          )}
 
-            <div className="flex gap-4">
-              <Button
-                variant="ghost"
-                darkMode={false}
-                onClick={handleBack}
-                className="flex-1"
-              >
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back
-              </Button>
-              <Button
-                variant="primary"
-                darkMode={false}
-                onClick={handleNext}
-                className="flex-1"
-              >
-                Continue
-                <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
-            </div>
-          </Card>
-        )}
-
-        {/* Step 3: Expertise Explanation */}
-        {step === 3 && advisor && (
-          <Card darkMode={false} className="p-8">
-            <h2 className="text-xl font-semibold text-slate-900 mb-4">
-              Why you are the right advisor
-            </h2>
-            <p className="text-sm text-slate-600 mb-2">
-              Explain why you are the right advisor for the goals you selected. This explanation will be used to match you with clients who need help with these areas.
+          {statusMessage && (
+            <p className="text-sm text-blue-700 bg-blue-50 border border-blue-100 rounded-lg px-4 py-3">
+              {statusMessage}
             </p>
-            <p className="text-xs text-slate-500 mb-6 italic">
-              Minimum 20 words. Be specific about your experience, qualifications, and approach.
-            </p>
+          )}
+        </Card>
 
-            <textarea
-              value={expertiseExplanation}
-              onChange={(e) => {
-                setExpertiseExplanation(e.target.value);
-                if (explanationError) {
-                  validateExplanation(e.target.value);
-                }
-              }}
-              onBlur={(e) => validateExplanation(e.target.value)}
-              placeholder="For example: 'I have over 10 years of experience helping clients with retirement planning and tax optimization. I specialize in creating comprehensive financial plans that align with long-term goals while maximizing tax efficiency. My approach combines traditional investment strategies with modern portfolio management techniques...'"
-              className={`w-full px-4 py-3 border rounded-lg bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base resize-none ${
-                explanationError ? 'border-red-500' : 'border-slate-200'
-              }`}
-              rows={8}
-            />
-            {explanationError && (
-              <p className="text-red-500 text-sm mt-2" role="alert">
-                {explanationError}
-              </p>
-            )}
-
-            {submitError && (
-              <p className="text-red-500 text-sm mt-2" role="alert">
-                {submitError}
-              </p>
-            )}
-
-            <div className="flex gap-4 mt-6">
-              <Button
-                variant="ghost"
-                darkMode={false}
-                onClick={handleBack}
-                className="flex-1"
-              >
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back
-              </Button>
-              <Button
-                variant="primary"
-                darkMode={false}
-                onClick={handleSubmit}
-                disabled={isSubmitting || !expertiseExplanation.trim()}
-                className="flex-1"
-              >
-                {isSubmitting ? 'Saving...' : 'Save profile'}
-                {!isSubmitting && <CheckCircle2 className="w-4 h-4 ml-2" />}
-              </Button>
-            </div>
-          </Card>
-        )}
+        <div className="text-center">
+          <Button
+            variant="secondary"
+            darkMode={false}
+            onClick={() => {
+              window.location.href = '/';
+            }}
+          >
+            ← Back to home
+          </Button>
+        </div>
       </div>
     </div>
   );

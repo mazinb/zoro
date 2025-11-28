@@ -16,9 +16,10 @@ function AdvisorCompleteContent() {
 
   useEffect(() => {
     const checkAdvisorId = async () => {
-      // First check URL param
+      // First check URL param (highest priority - allows manual testing)
       const urlAdvisorId = searchParams?.get('advisorId');
       if (urlAdvisorId) {
+        console.log('Advisor ID from URL param:', urlAdvisorId);
         setAdvisorId(urlAdvisorId);
         setLoading(false);
         return;
@@ -31,6 +32,7 @@ function AdvisorCompleteContent() {
           try {
             const data = JSON.parse(pending);
             if (data.advisorId) {
+              console.log('Advisor ID from sessionStorage:', data.advisorId);
               setAdvisorId(data.advisorId);
               setLoading(false);
               return;
@@ -38,10 +40,13 @@ function AdvisorCompleteContent() {
           } catch (e) {
             console.error('Error parsing pending advisor data:', e);
           }
+        } else {
+          console.log('No pending advisor onboarding data in sessionStorage');
         }
       }
 
       // If user is logged in, try to get advisor ID from preferences
+      // Check if preferences exist but are incomplete (expertise_explanation missing)
       if (user && session?.access_token) {
         try {
           const response = await fetch('/api/advisors/preferences', {
@@ -55,7 +60,14 @@ function AdvisorCompleteContent() {
           if (response.ok) {
             const data = await response.json();
             if (data.preferences?.advisor_id) {
-              setAdvisorId(data.preferences.advisor_id);
+              // If preferences exist but incomplete, allow completion
+              if (!data.preferences.expertise_explanation) {
+                setAdvisorId(data.preferences.advisor_id);
+                setLoading(false);
+                return;
+              }
+              // If already complete, redirect to profile
+              router.push('/profile');
               setLoading(false);
               return;
             }
