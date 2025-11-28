@@ -1,13 +1,12 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Search, ShieldCheck, Calendar, CheckCircle2, ArrowRight, ArrowLeft } from 'lucide-react';
-import { AdvisorRecord } from '@/types';
+import { Calendar, CheckCircle2, ArrowRight, ArrowLeft } from 'lucide-react';
 import { ZoroLogo } from '@/components/ZoroLogo';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 
-// Goal icons
+// Goal icons (same as user goal selection)
 const SaveIcon = () => (
   <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
@@ -69,50 +68,33 @@ const goals: Goal[] = [
 
 type CheckInFrequency = 'weekly' | 'biweekly' | 'monthly' | 'quarterly';
 
-export const AdvisorOnboarding: React.FC = () => {
-  const [registrationNo, setRegistrationNo] = useState('');
-  const [lookupError, setLookupError] = useState('');
-  const [advisor, setAdvisor] = useState<AdvisorRecord | null>(null);
-  const [statusMessage, setStatusMessage] = useState('');
-  const [isLookingUp, setIsLookingUp] = useState(false);
-  
-  // Form state
-  const [step, setStep] = useState<'lookup' | 1 | 2 | 3 | 'complete'>('lookup');
+interface AdvisorOnboardingCompleteProps {
+  advisorId: string;
+  darkMode?: boolean;
+  onComplete?: () => void;
+}
+
+export const AdvisorOnboardingComplete: React.FC<AdvisorOnboardingCompleteProps> = ({
+  advisorId,
+  darkMode = false,
+  onComplete,
+}) => {
+  const [step, setStep] = useState<1 | 2 | 3>(1);
   const [selectedGoals, setSelectedGoals] = useState<string[]>([]);
   const [frequency, setFrequency] = useState<CheckInFrequency>('monthly');
   const [expertiseExplanation, setExpertiseExplanation] = useState('');
   const [explanationError, setExplanationError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
+  const [isComplete, setIsComplete] = useState(false);
 
-  const handleLookup = async () => {
-    setIsLookingUp(true);
-    setStatusMessage('');
-    setLookupError('');
-    const normalized = registrationNo.replace(/\s+/g, '').toUpperCase();
-    try {
-      const params = new URLSearchParams({ registration: normalized });
-      const response = await fetch(`/api/advisors?${params.toString()}`);
-      if (!response.ok) {
-        throw new Error('Failed to search advisors');
-      }
-      const payload = await response.json();
-      const match: AdvisorRecord | undefined = payload.data?.[0];
-      if (match) {
-        setAdvisor(match);
-        setLookupError('');
-        setStep(1); // Move to goal selection
-      } else {
-        setAdvisor(null);
-        setLookupError('We could not find that registration number. Please double-check and try again.');
-      }
-    } catch (error) {
-      console.error('Advisor lookup error:', error);
-      setAdvisor(null);
-      setLookupError('Unable to search right now. Please try again.');
-    } finally {
-      setIsLookingUp(false);
-    }
+  const themeClasses = {
+    bgClass: darkMode ? 'bg-slate-900' : 'bg-white',
+    textClass: darkMode ? 'text-white' : 'text-slate-900',
+    textSecondaryClass: darkMode ? 'text-slate-400' : 'text-slate-600',
+    cardBgClass: darkMode ? 'bg-slate-800' : 'bg-white',
+    borderClass: darkMode ? 'border-slate-700' : 'border-slate-200',
+    inputBgClass: darkMode ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900',
   };
 
   const handleGoalToggle = (goalId: string) => {
@@ -138,13 +120,8 @@ export const AdvisorOnboarding: React.FC = () => {
   };
 
   const handleBack = () => {
-    if (step === 1) {
-      setStep('lookup');
-    } else if (step === 2) {
-      setStep(1);
-    } else if (step === 3) {
-      setStep(2);
-    }
+    if (step === 1) return;
+    setStep((step - 1) as 1 | 2 | 3);
   };
 
   const validateExplanation = (text: string): boolean => {
@@ -163,7 +140,6 @@ export const AdvisorOnboarding: React.FC = () => {
   };
 
   const handleSubmit = async () => {
-    if (!advisor) return;
     if (!validateExplanation(expertiseExplanation)) {
       return;
     }
@@ -172,14 +148,19 @@ export const AdvisorOnboarding: React.FC = () => {
     setSubmitError('');
 
     try {
-      // Save preferences to DB (no auth required for now)
+      const { data: { session } } = await (await import('@/lib/supabase-client')).supabaseClient.auth.getSession();
+      if (!session) {
+        throw new Error('Not authenticated');
+      }
+
       const response = await fetch('/api/advisors/preferences', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({
-          advisorId: advisor.id,
+          advisorId,
           checkInFrequency: frequency,
           selectedGoals,
           expertiseExplanation: expertiseExplanation.trim(),
@@ -191,8 +172,10 @@ export const AdvisorOnboarding: React.FC = () => {
         throw new Error(error.error || 'Failed to save preferences');
       }
 
-      setStep('complete');
-      setStatusMessage('Your advisor profile has been saved successfully!');
+      setIsComplete(true);
+      if (onComplete) {
+        setTimeout(() => onComplete(), 2000);
+      }
     } catch (error) {
       console.error('Error saving advisor preferences:', error);
       setSubmitError(error instanceof Error ? error.message : 'Failed to save preferences');
@@ -201,156 +184,62 @@ export const AdvisorOnboarding: React.FC = () => {
     }
   };
 
-
-  // Complete screen
-  if (step === 'complete') {
+  if (isComplete) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white text-slate-900 py-16 px-4">
-        <div className="max-w-3xl mx-auto">
-          <Card darkMode={false} className="p-8 text-center">
-            <div className="mb-6">
-              <div className="bg-green-500 rounded-full p-4 w-20 h-20 mx-auto mb-4 flex items-center justify-center">
-                <CheckCircle2 className="w-10 h-10 text-white" />
-              </div>
+      <div className={`min-h-screen ${themeClasses.bgClass} flex items-center justify-center p-4 transition-colors duration-300`}>
+        <Card darkMode={darkMode} className="p-8 max-w-md w-full text-center">
+          <div className="mb-6">
+            <div className="bg-green-500 rounded-full p-4 w-20 h-20 mx-auto mb-4 flex items-center justify-center">
+              <CheckCircle2 className="w-10 h-10 text-white" />
             </div>
-            <h2 className="text-2xl font-bold text-slate-900 mb-4">
-              Setup complete! 🎉
-            </h2>
-            <p className="text-slate-600 mb-6">
-              Your advisor profile has been saved. We&apos;ll set up email verification soon.
-            </p>
-            <div className="flex gap-4 justify-center">
-              <Button
-                variant="secondary"
-                darkMode={false}
-                onClick={() => {
-                  window.location.href = '/';
-                }}
-              >
-                ← Back to home
-              </Button>
-            </div>
-          </Card>
-        </div>
+          </div>
+          <h2 className={`text-2xl font-bold ${themeClasses.textClass} mb-4`}>
+            Setup complete! 🎉
+          </h2>
+          <p className={themeClasses.textSecondaryClass}>
+            Your advisor profile is now active. Clients can find you based on your expertise.
+          </p>
+        </Card>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white text-slate-900 py-16 px-4">
-      <div className="max-w-4xl mx-auto">
+    <div className={`min-h-screen ${themeClasses.bgClass} flex items-center justify-center p-4 transition-colors duration-300`}>
+      <div className="max-w-4xl w-full">
         <div className="text-center mb-8">
-          <ZoroLogo className="h-10 mx-auto mb-4" isDark={false} />
-          <p className="text-sm uppercase tracking-[0.3em] text-blue-600 mb-2">Advisors</p>
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">
-            {step === 'lookup' ? 'Bring Zoro into your practice' : 'Complete your advisor profile'}
+          <ZoroLogo className="h-10 mx-auto mb-4" isDark={darkMode} />
+          <h1 className={`text-3xl font-bold ${themeClasses.textClass} mb-2`}>
+            Complete your advisor profile
           </h1>
-          <p className="text-slate-600 max-w-2xl mx-auto">
-            {step === 'lookup' && 'Verify your SEBI registration and set up your advisor profile.'}
+          <p className={themeClasses.textSecondaryClass}>
             {step === 1 && 'Select the financial goals you can help clients with'}
             {step === 2 && 'Choose how often you want to send check-in updates'}
             {step === 3 && 'Explain why you are the right advisor for these goals'}
           </p>
-          {step !== 'lookup' && (
-            <div className="flex items-center justify-center gap-2 mt-4">
-              {[1, 2, 3].map((s) => (
-                <div
-                  key={s}
-                  className={`h-2 rounded-full transition-all ${
-                    s === step
-                      ? 'w-8 bg-blue-600'
-                      : s < step
-                      ? 'w-2 bg-blue-400'
-                      : 'w-2 bg-slate-400'
-                  }`}
-                />
-              ))}
-            </div>
-          )}
+          <div className="flex items-center justify-center gap-2 mt-4">
+            {[1, 2, 3].map((s) => (
+              <div
+                key={s}
+                className={`h-2 rounded-full transition-all ${
+                  s === step
+                    ? 'w-8 bg-blue-600'
+                    : s < step
+                    ? 'w-2 bg-blue-400'
+                    : 'w-2 bg-slate-400'
+                }`}
+              />
+            ))}
+          </div>
         </div>
 
-        {/* Step: Lookup */}
-        {step === 'lookup' && (
-          <Card darkMode={false} className="p-8 space-y-6 border border-slate-200 shadow-sm">
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-2">
-                SEBI Registration number
-              </label>
-              <div className="flex flex-col gap-3 sm:flex-row">
-                <div className="flex items-center gap-3 flex-1 border border-slate-200 rounded-lg px-4 py-3 bg-white">
-                  <Search className="w-5 h-5 text-slate-400" />
-                  <input
-                    type="text"
-                    value={registrationNo}
-                    onChange={(e) => setRegistrationNo(e.target.value.toUpperCase())}
-                    placeholder="e.g. INA000017523"
-                    className="flex-1 bg-transparent focus:outline-none text-slate-900"
-                  />
-                </div>
-                <Button
-                  variant="primary"
-                  darkMode={false}
-                  onClick={handleLookup}
-                  disabled={!registrationNo || isLookingUp}
-                  className="whitespace-nowrap"
-                >
-                  {isLookingUp ? 'Checking…' : 'Find my record'}
-                </Button>
-              </div>
-              {lookupError && <p className="text-sm text-red-500 mt-2">{lookupError}</p>}
-            </div>
-
-            {advisor && (
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 text-blue-600 text-sm font-medium">
-                  <ShieldCheck className="w-5 h-5" />
-                  Verified record found
-                </div>
-
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div className="border border-slate-200 rounded-lg p-4 bg-slate-50">
-                    <p className="text-xs uppercase tracking-wide text-slate-500 mb-1">Firm name</p>
-                    <p className="font-semibold text-slate-900">{advisor.name}</p>
-                    <p className="text-xs text-slate-500 mt-1">{advisor.registrationNo}</p>
-                  </div>
-                  <div className="border border-slate-200 rounded-lg p-4 bg-slate-50">
-                    <p className="text-xs uppercase tracking-wide text-slate-500 mb-1">Contact person</p>
-                    <p className="font-semibold text-slate-900">{advisor.contactPerson || 'Not provided yet'}</p>
-                    {advisor.validity && (
-                      <p className="text-xs text-slate-500 mt-1">Validity: {advisor.validity}</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {statusMessage && (
-              <p className="text-sm text-blue-700 bg-blue-50 border border-blue-100 rounded-lg px-4 py-3">
-                {statusMessage}
-              </p>
-            )}
-
-            <div className="text-center pt-4">
-              <Button
-                variant="secondary"
-                darkMode={false}
-                onClick={() => {
-                  window.location.href = '/';
-                }}
-              >
-                ← Back to home
-              </Button>
-            </div>
-          </Card>
-        )}
-
         {/* Step 1: Goal Selection */}
-        {step === 1 && advisor && (
-          <Card darkMode={false} className="p-8">
-            <h2 className="text-xl font-semibold text-slate-900 mb-4">
+        {step === 1 && (
+          <Card darkMode={darkMode} className="p-8">
+            <h2 className={`text-xl font-semibold ${themeClasses.textClass} mb-4`}>
               Select your areas of expertise
             </h2>
-            <p className="text-sm text-slate-600 mb-6">
+            <p className={`text-sm ${themeClasses.textSecondaryClass} mb-6`}>
               Choose all the financial goals you can help clients achieve. This helps us match you with the right clients.
             </p>
 
@@ -362,24 +251,28 @@ export const AdvisorOnboarding: React.FC = () => {
                   <div
                     key={goal.id}
                     onClick={() => handleGoalToggle(goal.id)}
-                    className={`bg-white border-2 rounded-lg p-6 cursor-pointer transition-all relative ${
+                    className={`${themeClasses.cardBgClass} border-2 rounded-lg p-6 cursor-pointer transition-all relative ${
                       isSelected
-                        ? 'border-blue-600 bg-blue-50'
-                        : 'border-slate-200'
+                        ? darkMode
+                          ? 'border-blue-500 bg-blue-900/20'
+                          : 'border-blue-600 bg-blue-50'
+                        : themeClasses.borderClass
                     } hover:border-blue-500`}
                   >
                     {isSelected && (
-                      <div className="absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold bg-blue-600 text-white">
+                      <div className={`absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
+                        darkMode ? 'bg-blue-500 text-white' : 'bg-blue-600 text-white'
+                      }`}>
                         ✓
                       </div>
                     )}
-                    <div className={`mb-3 ${isSelected ? 'text-blue-600' : 'text-slate-600'}`}>
+                    <div className={`mb-3 ${isSelected ? (darkMode ? 'text-blue-400' : 'text-blue-600') : (darkMode ? 'text-slate-400' : 'text-slate-600')}`}>
                       <Icon />
                     </div>
-                    <div className="font-semibold mb-2 text-slate-900">
+                    <div className={`font-semibold mb-2 ${themeClasses.textClass}`}>
                       {goal.title}
                     </div>
-                    <div className="text-sm text-slate-600">
+                    <div className={`text-sm ${themeClasses.textSecondaryClass}`}>
                       {goal.desc}
                     </div>
                   </div>
@@ -388,7 +281,7 @@ export const AdvisorOnboarding: React.FC = () => {
             </div>
 
             {selectedGoals.length > 0 && (
-              <p className="text-sm mb-6 text-blue-600">
+              <p className={`text-sm mb-6 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>
                 {selectedGoals.length} area{selectedGoals.length !== 1 ? 's' : ''} selected
               </p>
             )}
@@ -396,8 +289,9 @@ export const AdvisorOnboarding: React.FC = () => {
             <div className="flex gap-4">
               <Button
                 variant="ghost"
-                darkMode={false}
+                darkMode={darkMode}
                 onClick={handleBack}
+                disabled={step === 1}
                 className="flex-1"
               >
                 <ArrowLeft className="w-4 h-4 mr-2" />
@@ -405,7 +299,7 @@ export const AdvisorOnboarding: React.FC = () => {
               </Button>
               <Button
                 variant="primary"
-                darkMode={false}
+                darkMode={darkMode}
                 onClick={handleNext}
                 disabled={selectedGoals.length === 0}
                 className="flex-1"
@@ -418,12 +312,12 @@ export const AdvisorOnboarding: React.FC = () => {
         )}
 
         {/* Step 2: Frequency Selection */}
-        {step === 2 && advisor && (
-          <Card darkMode={false} className="p-8">
-            <h2 className="text-xl font-semibold text-slate-900 mb-4">
+        {step === 2 && (
+          <Card darkMode={darkMode} className="p-8">
+            <h2 className={`text-xl font-semibold ${themeClasses.textClass} mb-4`}>
               Check-in frequency
             </h2>
-            <p className="text-sm text-slate-600 mb-6">
+            <p className={`text-sm ${themeClasses.textSecondaryClass} mb-6`}>
               How often would you like to send check-in updates to your clients?
             </p>
 
@@ -438,8 +332,10 @@ export const AdvisorOnboarding: React.FC = () => {
                   key={option.value}
                   className={`flex items-center gap-4 p-4 border-2 rounded-lg cursor-pointer transition-all ${
                     frequency === option.value
-                      ? 'border-blue-600 bg-blue-50'
-                      : 'border-slate-200'
+                      ? darkMode
+                        ? 'border-blue-500 bg-blue-900/20'
+                        : 'border-blue-600 bg-blue-50'
+                      : themeClasses.borderClass
                   }`}
                 >
                   <input
@@ -452,10 +348,10 @@ export const AdvisorOnboarding: React.FC = () => {
                   />
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <Calendar className={`w-5 h-5 ${frequency === option.value ? 'text-blue-600' : 'text-slate-600'}`} />
-                      <span className="font-semibold text-slate-900">{option.label}</span>
+                      <Calendar className={`w-5 h-5 ${frequency === option.value ? (darkMode ? 'text-blue-400' : 'text-blue-600') : themeClasses.textSecondaryClass}`} />
+                      <span className={`font-semibold ${themeClasses.textClass}`}>{option.label}</span>
                     </div>
-                    <p className="text-sm text-slate-600">{option.desc}</p>
+                    <p className={`text-sm ${themeClasses.textSecondaryClass}`}>{option.desc}</p>
                   </div>
                 </label>
               ))}
@@ -464,7 +360,7 @@ export const AdvisorOnboarding: React.FC = () => {
             <div className="flex gap-4">
               <Button
                 variant="ghost"
-                darkMode={false}
+                darkMode={darkMode}
                 onClick={handleBack}
                 className="flex-1"
               >
@@ -473,7 +369,7 @@ export const AdvisorOnboarding: React.FC = () => {
               </Button>
               <Button
                 variant="primary"
-                darkMode={false}
+                darkMode={darkMode}
                 onClick={handleNext}
                 className="flex-1"
               >
@@ -485,15 +381,15 @@ export const AdvisorOnboarding: React.FC = () => {
         )}
 
         {/* Step 3: Expertise Explanation */}
-        {step === 3 && advisor && (
-          <Card darkMode={false} className="p-8">
-            <h2 className="text-xl font-semibold text-slate-900 mb-4">
+        {step === 3 && (
+          <Card darkMode={darkMode} className="p-8">
+            <h2 className={`text-xl font-semibold ${themeClasses.textClass} mb-4`}>
               Why you are the right advisor
             </h2>
-            <p className="text-sm text-slate-600 mb-2">
+            <p className={`text-sm ${themeClasses.textSecondaryClass} mb-2`}>
               Explain why you are the right advisor for the goals you selected. This explanation will be used to match you with clients who need help with these areas.
             </p>
-            <p className="text-xs text-slate-500 mb-6 italic">
+            <p className={`text-xs ${themeClasses.textSecondaryClass} mb-6 italic`}>
               Minimum 20 words. Be specific about your experience, qualifications, and approach.
             </p>
 
@@ -507,8 +403,8 @@ export const AdvisorOnboarding: React.FC = () => {
               }}
               onBlur={(e) => validateExplanation(e.target.value)}
               placeholder="For example: 'I have over 10 years of experience helping clients with retirement planning and tax optimization. I specialize in creating comprehensive financial plans that align with long-term goals while maximizing tax efficiency. My approach combines traditional investment strategies with modern portfolio management techniques...'"
-              className={`w-full px-4 py-3 border rounded-lg bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base resize-none ${
-                explanationError ? 'border-red-500' : 'border-slate-200'
+              className={`w-full px-4 py-3 border ${themeClasses.inputBgClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base resize-none ${
+                explanationError ? 'border-red-500' : ''
               }`}
               rows={8}
             />
@@ -527,7 +423,7 @@ export const AdvisorOnboarding: React.FC = () => {
             <div className="flex gap-4 mt-6">
               <Button
                 variant="ghost"
-                darkMode={false}
+                darkMode={darkMode}
                 onClick={handleBack}
                 className="flex-1"
               >
@@ -536,12 +432,12 @@ export const AdvisorOnboarding: React.FC = () => {
               </Button>
               <Button
                 variant="primary"
-                darkMode={false}
+                darkMode={darkMode}
                 onClick={handleSubmit}
                 disabled={isSubmitting || !expertiseExplanation.trim()}
                 className="flex-1"
               >
-                {isSubmitting ? 'Saving...' : 'Save profile'}
+                {isSubmitting ? 'Saving...' : 'Complete setup'}
                 {!isSubmitting && <CheckCircle2 className="w-4 h-4 ml-2" />}
               </Button>
             </div>

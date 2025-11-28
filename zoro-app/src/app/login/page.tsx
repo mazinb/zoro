@@ -30,6 +30,41 @@ function LoginContent() {
     if (!session?.access_token) return;
 
     try {
+      // First check if user is an advisor and needs to complete onboarding
+      const advisorPrefsResponse = await fetch('/api/advisors/preferences', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      // Check if there's pending advisor onboarding data
+      if (typeof window !== 'undefined') {
+        const pendingAdvisor = sessionStorage.getItem('pendingAdvisorOnboarding');
+        if (pendingAdvisor) {
+          try {
+            const advisorData = JSON.parse(pendingAdvisor);
+            // Redirect to advisor onboarding completion
+            router.push(`/advisors/complete?advisorId=${advisorData.advisorId || ''}`);
+            return;
+          } catch (e) {
+            console.error('Error parsing pending advisor data:', e);
+          }
+        }
+      }
+
+      // If advisor preferences exist but are incomplete, redirect to completion
+      if (advisorPrefsResponse.ok) {
+        const advisorData = await advisorPrefsResponse.json();
+        if (advisorData.preferences && !advisorData.preferences.expertise_explanation) {
+          // Incomplete onboarding - redirect to completion
+          router.push(`/advisors/complete?advisorId=${advisorData.preferences.advisor_id}`);
+          return;
+        }
+      }
+
+      // Check regular user preference
       const response = await fetch('/api/user/preference', {
         method: 'GET',
         headers: {
@@ -144,7 +179,7 @@ function LoginContent() {
               setLoading(false);
               return { error: new Error(errorData.error || 'Invalid verification token') };
             }
-          } catch (err) {
+          } catch {
             setLoading(false);
             return { error: new Error('Failed to verify token') };
           }
