@@ -208,6 +208,10 @@ const ZoroLanding = () => {
   }, []);
 
   const handleSelectSelfPath = useCallback(() => {
+    // Prevent self path if advisor mode is required
+    if (process.env.NEXT_PUBLIC_ADVISOR_MODE === 'true') {
+      return;
+    }
     setAdvisorMode('self');
     setSelectedAdvisor(null);
     setShowAdvisorChoice(false);

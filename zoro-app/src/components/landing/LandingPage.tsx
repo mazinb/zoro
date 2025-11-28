@@ -117,9 +117,15 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </div>
 
         <h1 className={`text-6xl font-bold ${theme.textClass} mb-6 tracking-tight`}>
-          Your AI financial advisor
+          {process.env.NEXT_PUBLIC_ADVISOR_MODE === 'true'
+            ? 'Your AI-powered financial advisor platform'
+            : 'Your AI financial advisor'}
           <br />
-          <span className={theme.textSecondaryClass}>and estate planner</span>
+          <span className={theme.textSecondaryClass}>
+            {process.env.NEXT_PUBLIC_ADVISOR_MODE === 'true'
+              ? 'with your SEBI-registered advisor'
+              : 'and estate planner'}
+          </span>
         </h1>
         
         <p className={`text-xl ${theme.textSecondaryClass} mb-12 max-w-2xl mx-auto leading-relaxed`}>
@@ -238,10 +244,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               </div>
               <div>
                 <h3 className={`text-xl font-semibold ${theme.textClass} mb-2`}>
-                  Loop in your advisor (optional)
+                  {process.env.NEXT_PUBLIC_ADVISOR_MODE === 'true'
+                    ? 'Work with your SEBI-registered advisor'
+                    : 'Loop in your advisor (optional)'}
                 </h3>
                 <p className={theme.textSecondaryClass}>
-                  Prefer working with a SEBI-registered advisor? Search our roster or invite yours by registration number to keep them in sync without losing control.
+                  {process.env.NEXT_PUBLIC_ADVISOR_MODE === 'true'
+                    ? 'Your SEBI-registered advisor will guide your financial journey. Search our roster or invite yours by registration number to keep them in sync while you stay in control.'
+                    : 'Prefer working with a SEBI-registered advisor? Search our roster or invite yours by registration number to keep them in sync without losing control.'}
                 </p>
               </div>
             </div>

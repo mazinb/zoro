@@ -38,6 +38,8 @@ export const AdvisorChoice: React.FC<AdvisorChoiceProps> = ({
     refresh,
   } = useAdvisorDirectory({ perPage: 12 });
 
+  const isAdvisorModeRequired = process.env.NEXT_PUBLIC_ADVISOR_MODE === 'true';
+
   const themeClasses = {
     bgClass: darkMode ? 'bg-slate-900' : 'bg-white',
     textClass: darkMode ? 'text-white' : 'text-slate-900',
@@ -53,40 +55,45 @@ export const AdvisorChoice: React.FC<AdvisorChoiceProps> = ({
         <div className="text-center">
           <ZoroLogo className="h-10 mx-auto mb-4" isDark={darkMode} />
           <h1 className={`text-3xl font-bold ${themeClasses.textClass} mb-3`}>
-            How would you like to set up Zoro?
+            {isAdvisorModeRequired 
+              ? 'Select your SEBI-registered advisor'
+              : 'How would you like to set up Zoro?'}
           </h1>
           <p className={`${themeClasses.textSecondaryClass} max-w-2xl mx-auto`}>
-            Choose between a guided journey with a SEBI-registered advisor or go hands-on yourself.
-            You can switch later—your data always belongs to you.
+            {isAdvisorModeRequired
+              ? 'To get started with Zoro, please select a SEBI-registered advisor from the directory below. Your advisor will help guide your financial journey.'
+              : 'Choose between a guided journey with a SEBI-registered advisor or go hands-on yourself. You can switch later—your data always belongs to you.'}
           </p>
         </div>
 
-        <div className="grid lg:grid-cols-2 gap-6">
-          {/* Self-directed card */}
-          <Card
-            darkMode={darkMode}
-            className={`p-8 border-2 transition-all ${
-              advisorMode === 'self' ? themeClasses.highlight : themeClasses.borderClass
-            }`}
-          >
-            <div className="flex items-center gap-3 mb-4">
-              <UserCheck className={`w-6 h-6 ${darkMode ? 'text-emerald-400' : 'text-emerald-600'}`} />
-              <h2 className={`text-xl font-semibold ${themeClasses.textClass}`}>Do it yourself</h2>
-            </div>
-            <ul className={`space-y-2 text-sm ${themeClasses.textSecondaryClass}`}>
-              <li>• Fastest path to get insights</li>
-              <li>• Ideal if you already have a plan</li>
-              <li>• Switch to an advisor any time</li>
-            </ul>
-            <Button
-              variant="primary"
+        <div className={`grid ${isAdvisorModeRequired ? 'lg:grid-cols-1' : 'lg:grid-cols-2'} gap-6`}>
+          {/* Self-directed card - only show if advisor mode is not required */}
+          {!isAdvisorModeRequired && (
+            <Card
               darkMode={darkMode}
-              className="w-full mt-6"
-              onClick={onSelectSelf}
+              className={`p-8 border-2 transition-all ${
+                advisorMode === 'self' ? themeClasses.highlight : themeClasses.borderClass
+              }`}
             >
-              Continue without an advisor
-            </Button>
-          </Card>
+              <div className="flex items-center gap-3 mb-4">
+                <UserCheck className={`w-6 h-6 ${darkMode ? 'text-emerald-400' : 'text-emerald-600'}`} />
+                <h2 className={`text-xl font-semibold ${themeClasses.textClass}`}>Do it yourself</h2>
+              </div>
+              <ul className={`space-y-2 text-sm ${themeClasses.textSecondaryClass}`}>
+                <li>• Fastest path to get insights</li>
+                <li>• Ideal if you already have a plan</li>
+                <li>• Switch to an advisor any time</li>
+              </ul>
+              <Button
+                variant="primary"
+                darkMode={darkMode}
+                className="w-full mt-6"
+                onClick={onSelectSelf}
+              >
+                Continue without an advisor
+              </Button>
+            </Card>
+          )}
 
           {/* Advisor card */}
           <Card
