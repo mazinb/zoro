@@ -30,37 +30,35 @@ function LoginContent() {
     if (!session?.access_token) return;
 
     try {
-      // PRIORITY 1: Check if there's pending advisor onboarding data in sessionStorage
-      // This takes highest priority as it's from the email verification flow
+      // Check if there's pending advisor signup data in sessionStorage
       if (typeof window !== 'undefined') {
         const pendingAdvisor = sessionStorage.getItem('pendingAdvisorOnboarding');
         if (pendingAdvisor) {
           try {
             const advisorData = JSON.parse(pendingAdvisor);
-            // Redirect to advisor onboarding completion
-            router.push(`/advisors/complete?advisorId=${advisorData.advisorId || ''}`);
-            return;
+            // Save advisor signup info
+            try {
+              await fetch('/api/advisors/signup', {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${session.access_token}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  advisorId: advisorData.advisorId,
+                  registrationNo: advisorData.registrationNo,
+                  name: advisorData.name,
+                  email: advisorData.email,
+                }),
+              });
+              // Clear pending data
+              sessionStorage.removeItem('pendingAdvisorOnboarding');
+            } catch (e) {
+              console.error('Error saving advisor signup:', e);
+            }
           } catch (e) {
             console.error('Error parsing pending advisor data:', e);
           }
-        }
-      }
-
-      // PRIORITY 2: Check if user already has advisor preferences but incomplete
-      const advisorPrefsResponse = await fetch('/api/advisors/preferences', {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (advisorPrefsResponse.ok) {
-        const advisorData = await advisorPrefsResponse.json();
-        if (advisorData.preferences && !advisorData.preferences.expertise_explanation) {
-          // Incomplete onboarding - redirect to completion
-          router.push(`/advisors/complete?advisorId=${advisorData.preferences.advisor_id}`);
-          return;
         }
       }
 
@@ -187,19 +185,39 @@ function LoginContent() {
 
         const result = await signUp(email, password, name);
         
-        // If signup successful, check for pending advisor onboarding first
+        // If signup successful, check for pending advisor signup first
         if (!result.error && typeof window !== 'undefined') {
-          // Check for pending advisor onboarding
+          // Check for pending advisor signup
           const pendingAdvisor = sessionStorage.getItem('pendingAdvisorOnboarding');
           if (pendingAdvisor) {
             try {
               const advisorData = JSON.parse(pendingAdvisor);
               // Wait a bit for session to be available
               await new Promise(resolve => setTimeout(resolve, 500));
-              // Redirect to advisor onboarding completion
-              router.push(`/advisors/complete?advisorId=${advisorData.advisorId || ''}`);
-              setLoading(false);
-              return result;
+              const { data: { session } } = await (await import('@/lib/supabase-client')).supabaseClient.auth.getSession();
+              
+              if (session?.access_token) {
+                // Save advisor signup info
+                try {
+                  await fetch('/api/advisors/signup', {
+                    method: 'POST',
+                    headers: {
+                      'Authorization': `Bearer ${session.access_token}`,
+                      'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                      advisorId: advisorData.advisorId,
+                      registrationNo: advisorData.registrationNo,
+                      name: advisorData.name,
+                      email: advisorData.email,
+                    }),
+                  });
+                  // Clear pending data
+                  sessionStorage.removeItem('pendingAdvisorOnboarding');
+                } catch (e) {
+                  console.error('Error saving advisor signup:', e);
+                }
+              }
             } catch (e) {
               console.error('Error parsing pending advisor data:', e);
             }

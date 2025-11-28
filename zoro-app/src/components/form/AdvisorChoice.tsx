@@ -15,6 +15,7 @@ interface AdvisorChoiceProps {
   onSelectSelf: () => void;
   onSelectAdvisor: (advisor: AdvisorRecord) => void;
   onContinueAdvisor: () => void;
+  onSelectGoalBased: () => void;
   onBackToHome: () => void;
 }
 
@@ -25,6 +26,7 @@ export const AdvisorChoice: React.FC<AdvisorChoiceProps> = ({
   onSelectSelf,
   onSelectAdvisor,
   onContinueAdvisor,
+  onSelectGoalBased,
   onBackToHome,
 }) => {
   const {
@@ -116,10 +118,7 @@ export const AdvisorChoice: React.FC<AdvisorChoiceProps> = ({
               variant="primary"
               darkMode={darkMode}
               className="w-full py-3 text-base font-semibold"
-              onClick={() => {
-                // TODO: Implement goal-based advisor matching
-                alert('This feature will help you find advisors based on your financial goals. Coming soon!');
-              }}
+              onClick={onSelectGoalBased}
             >
               <Sparkles className="w-5 h-5 mr-2" />
               Help me find based on my goals

@@ -83,6 +83,7 @@ export async function POST(request: NextRequest) {
               name: body.advisorName || null,
             }
           : null,
+        wantsGoalBasedMatching: body.wantsGoalBasedMatching || false,
       };
 
       insertPayload = {

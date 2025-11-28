@@ -23,6 +23,7 @@ const ZoroLanding = () => {
   const [showAdvisorChoice, setShowAdvisorChoice] = useState(false);
   const [advisorMode, setAdvisorMode] = useState<'self' | 'advisor' | null>(null);
   const [selectedAdvisor, setSelectedAdvisor] = useState<AdvisorRecord | null>(null);
+  const [wantsGoalBasedMatching, setWantsGoalBasedMatching] = useState(false);
 
   const [selectedGoals, setSelectedGoals] = useState<string[]>([]);
   const [goalDetails, setGoalDetails] = useState<GoalDetailsMap>({});
@@ -47,6 +48,7 @@ const ZoroLanding = () => {
     setShowAdvisorChoice(false);
     setAdvisorMode(null);
     setSelectedAdvisor(null);
+    setWantsGoalBasedMatching(false);
     setShowReview(false);
     setShowGoalDetails(false);
     setShowContactMethod(false);
@@ -135,6 +137,7 @@ const ZoroLanding = () => {
         advisorMode,
         advisorRegistrationNo: selectedAdvisor?.registrationNo || null,
         advisorName: selectedAdvisor?.name || null,
+        wantsGoalBasedMatching,
       };
 
       const headers: HeadersInit = {
@@ -192,6 +195,7 @@ const ZoroLanding = () => {
     contactEmail,
     advisorMode,
     selectedAdvisor,
+    wantsGoalBasedMatching,
   ]);
 
   const handleGetStarted = useCallback(() => {
@@ -201,6 +205,7 @@ const ZoroLanding = () => {
     setShowAdvisorChoice(true);
     setAdvisorMode(null);
     setSelectedAdvisor(null);
+    setWantsGoalBasedMatching(false);
   }, []);
 
   const handleEdit = useCallback(() => {
@@ -227,6 +232,13 @@ const ZoroLanding = () => {
       setShowAdvisorChoice(false);
     }
   }, [selectedAdvisor]);
+
+  const handleSelectGoalBased = useCallback(() => {
+    setWantsGoalBasedMatching(true);
+    setAdvisorMode('advisor'); // Set to advisor mode but without selecting a specific advisor
+    setSelectedAdvisor(null);
+    setShowAdvisorChoice(false); // Continue to next page (goal selection)
+  }, []);
 
   if (submitted && !showSuccess) {
     return (
@@ -364,6 +376,7 @@ const ZoroLanding = () => {
         onSelectSelf={handleSelectSelfPath}
         onSelectAdvisor={handleAdvisorPick}
         onContinueAdvisor={handleAdvisorContinue}
+        onSelectGoalBased={handleSelectGoalBased}
         onBackToHome={resetForm}
       />
     );

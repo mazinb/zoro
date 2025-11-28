@@ -106,7 +106,7 @@ export const AdvisorOnboarding: React.FC = () => {
           verificationLink: `${window.location.origin}/login?email=${encodeURIComponent(email)}&token=${token}&mode=signup`,
         });
 
-      setStatusMessage('Verification email sent! Please check your inbox to finish setting up. You will complete your advisor profile after verifying your email.');
+      setStatusMessage('Verification email sent! Please check your inbox. After you verify your email and sign up, we\'ll save your information and reach out to you shortly.');
     } catch (error) {
       console.error('Advisor verification error:', error);
       setStatusMessage('Something went wrong while sending your verification email. Please retry.');
