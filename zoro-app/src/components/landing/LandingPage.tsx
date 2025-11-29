@@ -19,21 +19,25 @@ const personas = [
     title: 'Busy professionals',
     description: 'Get quick financial insights and estate planning status without scheduling advisor meetings.',
     bgColor: '#3B82F6', // Blue
+    image: '/images/landing/1.JPG',
   },
   {
     title: 'Families planning ahead',
     description: 'Coordinate estate planning, beneficiaries, college savings, and retirement goals all in one place.',
     bgColor: '#10B981', // Green
+    image: '/images/landing/2.JPG',
   },
   {
     title: 'Retirees & seniors',
     description: 'Review estate documents, track healthcare directives, and ensure beneficiaries are aligned across accounts.',
     bgColor: '#F59E0B', // Orange
+    image: '/images/landing/3.JPG',
   },
   {
     title: 'High net worth individuals',
     description: 'Optimize estate tax exposure, manage trusts, and coordinate complex financial structures efficiently.',
     bgColor: '#8B5CF6', // Purple
+    image: '/images/landing/4.JPG',
   },
 ];
 
@@ -275,14 +279,23 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               {personas.map((persona, index) => (
                 <div
                   key={index}
-                  className="relative h-[400px] md:h-[500px] flex items-center justify-center flex-shrink-0"
+                  className="relative h-[400px] md:h-[500px] flex items-center justify-center flex-shrink-0 overflow-hidden"
                   style={{
                     width: `${100 / personas.length}%`,
                   }}
                 >
-                  {/* Blurred Background */}
+                  {/* Background Image */}
                   <div
-                    className="absolute inset-0 blur-3xl opacity-60"
+                    className="absolute inset-0 bg-cover"
+                    style={{
+                      backgroundImage: `url(${persona.image})`,
+                      backgroundPosition: (index === 0 || index === personas.length - 1) ? 'center top' : 'center center',
+                    }}
+                  />
+                  
+                  {/* Colored Overlay with 75% opacity */}
+                  <div
+                    className="absolute inset-0 opacity-75"
                     style={{
                       backgroundColor: persona.bgColor,
                     }}
