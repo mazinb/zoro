@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Handshake, UserCheck, Search, ArrowRight, RefreshCw, Sparkles } from 'lucide-react';
+import { Handshake, UserCheck, Search, ArrowRight, RefreshCw } from 'lucide-react';
 import { AdvisorRecord } from '@/types';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -120,8 +120,7 @@ export const AdvisorChoice: React.FC<AdvisorChoiceProps> = ({
               className="w-full py-3 text-base font-semibold"
               onClick={onSelectGoalBased}
             >
-              <Sparkles className="w-5 h-5 mr-2" />
-              Help me find based on my goals
+              Find based on my goals
             </Button>
 
             <div className="flex items-center gap-3 my-2">

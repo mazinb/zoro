@@ -21,8 +21,15 @@ const ZoroLanding = () => {
   const { user } = useAuth();
   const { trackClick } = useAnalytics();
 
-  const [showForm, setShowForm] = useState(false);
+  // Track Philosophy page view when it's shown
   const [showPhilosophy, setShowPhilosophy] = useState(false);
+  useEffect(() => {
+    if (showPhilosophy) {
+      trackPageView('philosophy');
+    }
+  }, [showPhilosophy]);
+
+  const [showForm, setShowForm] = useState(false);
   const [showAdvisorChoice, setShowAdvisorChoice] = useState(false);
   const [advisorMode, setAdvisorMode] = useState<'self' | 'advisor' | null>(null);
   const [selectedAdvisor, setSelectedAdvisor] = useState<AdvisorRecord | null>(null);
@@ -400,13 +407,6 @@ const ZoroLanding = () => {
       />
     );
   }
-
-  // Track Philosophy page view when it's shown
-  useEffect(() => {
-    if (showPhilosophy) {
-      trackPageView('philosophy');
-    }
-  }, [showPhilosophy]);
 
   if (showPhilosophy) {
     return (

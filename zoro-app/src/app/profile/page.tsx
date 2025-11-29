@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Moon, Sun, Search, ShieldCheck, UserPlus, Sparkles } from 'lucide-react';
+import { Moon, Sun, Search, ShieldCheck, UserPlus } from 'lucide-react';
 import { ZoroLogo } from '@/components/ZoroLogo';
 import { useDarkMode } from '@/hooks/useDarkMode';
 import { useThemeClasses } from '@/hooks/useThemeClasses';
@@ -536,8 +536,7 @@ export default function ProfilePage() {
                       : 'bg-blue-600 hover:bg-blue-700 text-white'
                   }`}
                 >
-                  <Sparkles className="w-4 h-4" />
-                  Help me find based on my goals
+                  Find based on my goals
                 </button>
 
                 <div className="flex items-center gap-3 my-2">

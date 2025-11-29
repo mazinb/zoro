@@ -343,11 +343,11 @@ function Hero({ frequency, setFrequency, isLoggedIn }) {
   return (
     <section>
       <h1 style={{ margin: 0, fontSize: 36, fontWeight: 600, letterSpacing: "-0.03em", lineHeight: 1.2 }}>
-        {isLoggedIn ? "Your check-in settings" : "Regular financial check-ins, delivered to your inbox"}
+        {isLoggedIn ? "Your check-in settings" : "Regular check-ins delivered to your inbox"}
       </h1>
       {!isLoggedIn && (
         <p className="muted" style={{ marginTop: 16, fontSize: 17, lineHeight: 1.6, maxWidth: 640 }}>
-          Choose how often you want reminders. Each email contains a snapshot of your finances and one actionable suggestion. Reply to update your goals — the system adapts to you.
+          Choose how often you want reminders. Each email contains a snapshot of your finances and one actionable suggestion. Reply to update your goals and the system adapts to you.
         </p>
       )}
 
