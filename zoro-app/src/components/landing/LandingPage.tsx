@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useRef, useEffect } from 'react';
+import Link from 'next/link';
 import { Moon, Sun, ChevronLeft, ChevronRight } from 'lucide-react';
 import { ZoroLogo } from '@/components/ZoroLogo';
 import { Button } from '@/components/ui/Button';
@@ -435,8 +436,20 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           <div className="flex items-center">
             <ZoroLogo className="h-8" isDark={darkMode} />
           </div>
-          <div className={`text-sm ${theme.textSecondaryClass}`}>
-            Terms of use | Privacy policy
+          <div className={`text-sm ${theme.textSecondaryClass} flex items-center gap-2`}>
+            <Link
+              href="/legal?tab=terms"
+              className="hover:underline transition-colors"
+            >
+              Terms of use
+            </Link>
+            <span>|</span>
+            <Link
+              href="/legal?tab=privacy"
+              className="hover:underline transition-colors"
+            >
+              Privacy policy
+            </Link>
           </div>
         </div>
       </div>

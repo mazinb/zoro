@@ -20,7 +20,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Zoro Your AI Financial Advisor",
+    default: "Zoro | Your AI Financial Advisor",
     template: "%s | Zoro"
   },
   description: "Zoro analyzes your finances, plans your estate, and gives you instant AI-powered insights. Always transparent. Always your decision.",

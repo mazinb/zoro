@@ -10,7 +10,7 @@
       width="32"
       height="5"
       rx="2.5"
-      fill="#0F172A"
+      fill="white"
     />
     <path 
       d="M 10 28 L 19 20 L 25 25 L 34 15"
@@ -34,7 +34,7 @@
       width="32"
       height="5"
       rx="2.5"
-      fill="#0F172A"
+      fill="white"
     />
   </g>
 </svg>
