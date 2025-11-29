@@ -1,6 +1,12 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { Analytics } from "@vercel/analytics/react";
+import { AnalyticsProvider } from "@/components/analytics/AnalyticsProvider";
 import "./globals.css";
+
+// Only enable analytics in production
+const isProduction = process.env.NODE_ENV === 'production' && 
+                     process.env.NEXT_PUBLIC_VERCEL_ENV === 'production';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -28,7 +34,10 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         suppressHydrationWarning
       >
-        {children}
+        <AnalyticsProvider>
+          {children}
+        </AnalyticsProvider>
+        {isProduction && <Analytics />}
       </body>
     </html>
   );

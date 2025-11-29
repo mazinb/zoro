@@ -5,6 +5,7 @@ import { Moon, Sun, ChevronLeft, ChevronRight } from 'lucide-react';
 import { ZoroLogo } from '@/components/ZoroLogo';
 import { Button } from '@/components/ui/Button';
 import { useThemeClasses } from '@/hooks/useThemeClasses';
+import { useAnalytics } from '@/hooks/useAnalytics';
 import ZoroLearningAnimation from '@/components/bloganimation';
 
 interface LandingPageProps {
@@ -48,6 +49,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   onGetStarted
 }) => {
   const theme = useThemeClasses(darkMode);
+  const { trackClick } = useAnalytics();
   const carouselRef = useRef<HTMLDivElement>(null);
   const [currentIndex, setCurrentIndex] = React.useState(0);
 
@@ -96,7 +98,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </div>
           <div className="flex items-center gap-6">
             <button
-              onClick={onShowPhilosophy}
+              onClick={() => {
+                trackClick('philosophy_nav_click', {
+                  category: 'navigation',
+                  label: 'Our Philosophy (Nav)',
+                  elementId: 'philosophy-nav-link',
+                });
+                onShowPhilosophy();
+              }}
               className={`text-sm ${theme.textSecondaryClass} hover:${theme.textClass} transition-colors`}
             >
               Our Philosophy
@@ -141,7 +150,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           variant="primary"
           darkMode={!darkMode}
           showArrow
-          onClick={onGetStarted}
+          onClick={() => {
+            trackClick('cta_get_started_hero', {
+              category: 'cta',
+              label: 'Get Started (Hero)',
+              elementId: 'cta-get-started-hero',
+            });
+            onGetStarted();
+          }}
           className="px-8 py-4 text-lg transform hover:scale-105"
         >
           Get Started
@@ -176,7 +192,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             <Button
               variant="primary"
               darkMode={!darkMode}
-              onClick={() => { if (typeof window !== 'undefined') window.location.href = '/checkin'; }}
+              onClick={() => {
+                trackClick('cta_check_in', {
+                  category: 'cta',
+                  label: 'Check In',
+                  elementId: 'cta-check-in',
+                });
+                if (typeof window !== 'undefined') window.location.href = '/checkin';
+              }}
               className="px-6"
               showArrow
             >
@@ -386,6 +409,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             darkMode={ctaInverted}
             showArrow
             onClick={() => {
+              trackClick('cta_advisor_setup', {
+                category: 'cta',
+                label: 'Set up advisor account',
+                elementId: 'cta-advisor-setup',
+              });
               if (typeof window !== 'undefined') {
                 window.location.href = '/advisors';
               }

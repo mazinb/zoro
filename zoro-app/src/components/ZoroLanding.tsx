@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { AnimatedZoroLogo } from '@/components/AnimatedZoroLogo';
 import { LandingPage } from '@/components/landing/LandingPage';
 import { PhilosophyPage } from '@/components/landing/PhilosophyPage';
@@ -12,11 +12,14 @@ import { FormSuccess } from '@/components/form/FormSuccess';
 import { AdvisorChoice } from '@/components/form/AdvisorChoice';
 import { useDarkMode } from '@/hooks/useDarkMode';
 import { useAuth } from '@/hooks/useAuth';
+import { useAnalytics } from '@/hooks/useAnalytics';
+import { trackPageView } from '@/lib/analytics';
 import { AdvisorRecord, ContactMethod } from '@/types';
 
 const ZoroLanding = () => {
   const { darkMode, toggleDarkMode } = useDarkMode();
   const { user } = useAuth();
+  const { trackClick } = useAnalytics();
 
   const [showForm, setShowForm] = useState(false);
   const [showPhilosophy, setShowPhilosophy] = useState(false);
@@ -397,6 +400,13 @@ const ZoroLanding = () => {
       />
     );
   }
+
+  // Track Philosophy page view when it's shown
+  useEffect(() => {
+    if (showPhilosophy) {
+      trackPageView('philosophy');
+    }
+  }, [showPhilosophy]);
 
   if (showPhilosophy) {
     return (
