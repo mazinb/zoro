@@ -100,7 +100,7 @@ export function getDeviceInfo(): {
   return { deviceType, browser, os, userAgent: ua };
 }
 
-// Track an event
+// Track an event (Vercel Analytics only - no custom tracking)
 export async function trackEvent(
   eventName: string,
   properties?: {
@@ -114,12 +114,7 @@ export async function trackEvent(
 ): Promise<void> {
   if (typeof window === 'undefined' || !isAnalyticsEnabled()) return;
   
-  const sessionId = getOrCreateSessionId();
-  const userId = getOrCreateUserId();
-  const pageUrl = window.location.href;
-  const pagePath = window.location.pathname;
-  
-  // Track with Vercel Analytics
+  // Track with Vercel Analytics only
   const vercelProps: Record<string, string | number | boolean> = {};
   if (properties?.category) vercelProps.category = properties.category;
   if (properties?.label) vercelProps.label = properties.label;
@@ -131,78 +126,16 @@ export async function trackEvent(
     });
   }
   track(eventName, vercelProps);
-  
-  // Track in our custom analytics
-  try {
-    await fetch('/api/analytics/event', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        sessionId,
-        userId,
-        eventType: 'interaction',
-        eventName,
-        eventCategory: properties?.category,
-        eventLabel: properties?.label,
-        elementId: properties?.elementId,
-        elementClass: properties?.elementClass,
-        elementText: properties?.elementText,
-        pageUrl,
-        pagePath,
-        metadata: properties?.metadata || {},
-      }),
-    });
-  } catch (error) {
-    // Silently fail in production, only log in development
-    if (process.env.NODE_ENV === 'development') {
-      console.error('Failed to track event:', error);
-    }
-  }
 }
 
-// Track a page view
+// Track a page view (Vercel Analytics only - automatic via AnalyticsProvider)
 export async function trackPageView(pageName?: string): Promise<void> {
   if (typeof window === 'undefined' || !isAnalyticsEnabled()) return;
   
-  const sessionId = getOrCreateSessionId();
-  const userId = getOrCreateUserId();
-  const utmParams = getUTMParams();
-  const deviceInfo = getDeviceInfo();
-  const pageUrl = window.location.href;
-  const pagePath = window.location.pathname;
-  const referrer = document.referrer || undefined;
-  
-  try {
-    await fetch('/api/analytics/pageview', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        sessionId,
-        userId,
-        campaignSource: utmParams.source,
-        campaignMedium: utmParams.medium,
-        campaignName: utmParams.campaign,
-        campaignTerm: utmParams.term,
-        campaignContent: utmParams.content,
-        referrer,
-        landingPage: pageName || pagePath,
-        userAgent: deviceInfo.userAgent,
-        deviceType: deviceInfo.deviceType,
-        browser: deviceInfo.browser,
-        os: deviceInfo.os,
-        pageUrl,
-        pagePath,
-      }),
-    });
-  } catch (error) {
-    // Silently fail in production, only log in development
-    if (process.env.NODE_ENV === 'development') {
-      console.error('Failed to track page view:', error);
-    }
+  // Vercel Analytics automatically tracks page views via AnalyticsProvider
+  // This function is kept for compatibility but doesn't do custom tracking
+  if (pageName) {
+    track('page_view', { page: pageName });
   }
 }
 

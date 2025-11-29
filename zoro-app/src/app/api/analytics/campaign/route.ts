@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+import { getSupabaseClient } from '@/lib/supabase-server';
 
 // Only track in production
 const isProduction = process.env.NODE_ENV === 'production' && 
@@ -38,69 +35,39 @@ export async function POST(request: NextRequest) {
     }
 
     // Get user if authenticated
-    let authenticatedUserId = null;
+    let authenticatedUserId: string | null = null;
     const authHeader = request.headers.get('authorization');
     if (authHeader) {
       const token = authHeader.replace('Bearer ', '');
-      const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
-        global: {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        },
-      });
-
+      const supabaseClient = getSupabaseClient(token);
       const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
       if (!authError && user) {
         authenticatedUserId = user.id;
       }
     }
 
-    const supabase = createClient(supabaseUrl, supabaseAnonKey);
-
-    // Track campaign click as an event
-    await supabase.from('analytics_events').insert({
-      session_id: sessionId,
-      user_id: authenticatedUserId || (userId?.startsWith('user_') ? null : userId) || null,
-      event_type: 'campaign_click',
-      event_name: 'campaign_click',
-      event_category: 'campaign',
-      event_label: campaignName,
-      page_url: pageUrl,
-      page_path: pagePath,
-      metadata: {
-        campaignName,
-        campaignSource,
-        campaignMedium,
-        campaignTerm,
-        campaignContent,
-        linkUrl,
-        linkText,
-      },
-    });
+    const supabase = getSupabaseClient();
+    const finalUserId = authenticatedUserId || (userId?.startsWith('user_') ? null : userId) || null;
 
     // Update or create campaign record
     const { data: existingCampaign } = await supabase
       .from('analytics_campaigns')
-      .select('id, unique_users, total_clicks')
+      .select('id, unique_users, total_clicks, user_ids')
       .eq('campaign_name', campaignName)
       .maybeSingle();
 
     if (existingCampaign) {
       // Check if this is a new unique user for this campaign
-      const { data: userEvents } = await supabase
-        .from('analytics_events')
-        .select('user_id')
-        .eq('event_label', campaignName)
-        .eq('event_type', 'campaign_click')
-        .eq('user_id', authenticatedUserId || userId)
-        .limit(1)
-        .maybeSingle();
-
-      const isNewUser = !userEvents;
+      const existingUserIds = (existingCampaign.user_ids as string[]) || [];
+      const isNewUser = finalUserId && !existingUserIds.includes(finalUserId);
+      
       const uniqueUsers = isNewUser
         ? (existingCampaign.unique_users || 0) + 1
         : existingCampaign.unique_users || 0;
+
+      const updatedUserIds = isNewUser && finalUserId
+        ? [...existingUserIds, finalUserId]
+        : existingUserIds;
 
       await supabase
         .from('analytics_campaigns')
@@ -108,6 +75,7 @@ export async function POST(request: NextRequest) {
           last_visit_at: new Date().toISOString(),
           unique_users: uniqueUsers,
           total_clicks: (existingCampaign.total_clicks || 0) + 1,
+          user_ids: updatedUserIds,
           updated_at: new Date().toISOString(),
         })
         .eq('id', existingCampaign.id);
@@ -119,9 +87,10 @@ export async function POST(request: NextRequest) {
         campaign_medium: campaignMedium || null,
         campaign_term: campaignTerm || null,
         campaign_content: campaignContent || null,
-        unique_users: 1,
+        unique_users: finalUserId ? 1 : 0,
         total_clicks: 1,
         total_sessions: 0,
+        user_ids: finalUserId ? [finalUserId] : [],
       });
     }
 
