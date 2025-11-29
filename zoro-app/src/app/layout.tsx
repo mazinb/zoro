@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Analytics } from "@vercel/analytics/react";
 import { AnalyticsProvider } from "@/components/analytics/AnalyticsProvider";
+import { ThemeFavicon } from "@/components/ThemeFavicon";
 import "./globals.css";
 
 // Only enable analytics in production
@@ -83,6 +84,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         suppressHydrationWarning
       >
+        <ThemeFavicon />
         <AnalyticsProvider>
           {children}
         </AnalyticsProvider>

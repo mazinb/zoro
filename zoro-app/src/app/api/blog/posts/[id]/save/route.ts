@@ -4,6 +4,8 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
+export const dynamic = 'force-dynamic';
+
 // POST /api/blog/posts/[id]/save - Toggle save (add or remove)
 export async function POST(
   request: NextRequest,

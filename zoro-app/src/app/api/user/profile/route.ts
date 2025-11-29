@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+import { getSupabaseClient } from '@/lib/supabase-server';
 
 type UserProfileRow = {
   email?: string | null;
@@ -36,24 +33,6 @@ type UserProfileRow = {
   estate_asset_distribution_instructions?: string | null;
   estate_funeral_preferences?: string | null;
 };
-
-function getSupabaseClient(token?: string) {
-  if (!supabaseUrl || !supabaseAnonKey) {
-    throw new Error('Missing Supabase environment variables');
-  }
-
-  if (token) {
-    return createClient(supabaseUrl, supabaseAnonKey, {
-      global: {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      },
-    });
-  }
-
-  return createClient(supabaseUrl, supabaseAnonKey);
-}
 
 export async function GET(request: NextRequest) {
   try {

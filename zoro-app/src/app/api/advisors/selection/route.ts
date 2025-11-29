@@ -110,15 +110,8 @@ const buildResponsePayload = (row: PreferenceRow | null) => {
 
 export async function GET(request: NextRequest) {
   try {
-    const token = request.headers.get('authorization')?.replace('Bearer ', '');
-    if (!token) {
-      return NextResponse.json(
-        { error: 'Unauthorized' },
-        { status: 401 },
-      );
-    }
-
-    const supabase = getClient(token);
+    const token = request.headers.get('authorization')?.replace('Bearer ', '') || undefined;
+    const supabase = getSupabaseClient(token);
     const {
       data: { user },
       error: authError,
@@ -172,7 +165,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const supabase = getClient(token);
+    const supabase = getSupabaseClient(token);
     const {
       data: { user },
       error: authError,

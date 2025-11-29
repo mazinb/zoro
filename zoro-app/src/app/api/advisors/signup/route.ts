@@ -1,13 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-
-const getClient = (token: string) => {
-  if (!supabaseUrl || !supabaseAnonKey) {
-    throw new Error('Missing Supabase configuration');
-  }
+import { getSupabaseClient } from '@/lib/supabase-server';
 
   return createClient(supabaseUrl, supabaseAnonKey, {
     global: {
@@ -29,7 +21,7 @@ export async function POST(request: NextRequest) {
     }
 
     const token = authHeader.replace('Bearer ', '');
-    const supabase = getClient(token);
+    const supabase = getSupabaseClient(token);
 
     const {
       data: { user },

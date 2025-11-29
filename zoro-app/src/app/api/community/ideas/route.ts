@@ -1,23 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseClient } from '@/lib/supabase-server';
 import { supabase } from '@/lib/supabase';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
-
-// Helper to get authenticated Supabase client
-function getSupabaseClient(token?: string) {
-  if (token) {
-    return createClient(supabaseUrl, supabaseAnonKey, {
-      global: {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      }
-    });
-  }
-  return createClient(supabaseUrl, supabaseAnonKey);
-}
 
 // GET /api/community/ideas - List all community ideas with vote status for user
 export async function GET(request: NextRequest) {

@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+import { getSupabaseClient } from '@/lib/supabase-server';
 
 export async function POST(request: NextRequest) {
   try {
@@ -32,13 +29,7 @@ export async function POST(request: NextRequest) {
     const authHeader = request.headers.get('authorization');
     if (authHeader) {
       const token = authHeader.replace('Bearer ', '');
-      const supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
-        global: {
-          headers: {
-            Authorization: `Bearer ${token}`
-          }
-        }
-      });
+      const supabaseClient = getSupabaseClient(token);
       
       const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
       if (!authError && user) {

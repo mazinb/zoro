@@ -99,6 +99,8 @@ async function fetchAdvisorsFromDB(
   };
 }
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(request: NextRequest) {
   try {
     const url = new URL(request.url);
