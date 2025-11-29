@@ -123,14 +123,9 @@ export async function POST(request: NextRequest) {
 
       if (goalDetailsInserts.length > 0) {
         // Use authenticated client if available, otherwise use service role
-        const clientForGoalDetails = userId && authHeader
-          ? createClient(supabaseUrl, supabaseAnonKey, {
-              global: {
-                headers: {
-                  Authorization: `Bearer ${authHeader.replace('Bearer ', '')}`
-                }
-              }
-            })
+        const token = authHeader?.replace('Bearer ', '');
+        const clientForGoalDetails = userId && token
+          ? getSupabaseClient(token)
           : supabase;
 
         const { error: goalDetailsError } = await clientForGoalDetails
