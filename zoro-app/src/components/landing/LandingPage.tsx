@@ -295,7 +295,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   
                   {/* Colored Overlay with 75% opacity */}
                   <div
-                    className="absolute inset-0 opacity-75"
+                    className="absolute inset-0 opacity-40"
                     style={{
                       backgroundColor: persona.bgColor,
                     }}
