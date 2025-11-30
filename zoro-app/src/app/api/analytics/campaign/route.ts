@@ -38,23 +38,43 @@ export async function POST(request: NextRequest) {
     let authenticatedUserId: string | null = null;
     const authHeader = request.headers.get('authorization');
     if (authHeader) {
-      const token = authHeader.replace('Bearer ', '');
-      const supabaseClient = getSupabaseClient(token);
-      const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
-      if (!authError && user) {
-        authenticatedUserId = user.id;
+      try {
+        const token = authHeader.replace('Bearer ', '');
+        const supabaseClient = getSupabaseClient(token);
+        const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
+        if (!authError && user) {
+          authenticatedUserId = user.id;
+        }
+      } catch (authErr) {
+        // Continue without authenticated user if auth fails
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Auth error in campaign tracking:', authErr);
+        }
       }
     }
 
     const supabase = getSupabaseClient();
-    const finalUserId = authenticatedUserId || (userId?.startsWith('user_') ? null : userId) || null;
+    // Handle userId - if it's an anonymous user ID (starts with 'user_'), set to null
+    // Otherwise, if it's a UUID, use it
+    const finalUserId = authenticatedUserId || 
+      (userId && !userId.startsWith('user_') && userId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) ? userId : null);
 
     // Update or create campaign record
-    const { data: existingCampaign } = await supabase
+    const { data: existingCampaign, error: selectError } = await supabase
       .from('analytics_campaigns')
       .select('id, unique_users, total_clicks, user_ids')
       .eq('campaign_name', campaignName)
       .maybeSingle();
+
+    if (selectError) {
+      if (process.env.NODE_ENV === 'development') {
+        console.error('Error selecting campaign:', selectError);
+      }
+      return NextResponse.json(
+        { error: 'Failed to query campaign', details: selectError.message },
+        { status: 500 }
+      );
+    }
 
     if (existingCampaign) {
       // Check if this is a new unique user for this campaign
@@ -69,7 +89,7 @@ export async function POST(request: NextRequest) {
         ? [...existingUserIds, finalUserId]
         : existingUserIds;
 
-      await supabase
+      const { error: updateError } = await supabase
         .from('analytics_campaigns')
         .update({
           last_visit_at: new Date().toISOString(),
@@ -79,9 +99,19 @@ export async function POST(request: NextRequest) {
           updated_at: new Date().toISOString(),
         })
         .eq('id', existingCampaign.id);
+
+      if (updateError) {
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Error updating campaign:', updateError);
+        }
+        return NextResponse.json(
+          { error: 'Failed to update campaign', details: updateError.message },
+          { status: 500 }
+        );
+      }
     } else {
       // Create new campaign
-      await supabase.from('analytics_campaigns').insert({
+      const { error: insertError } = await supabase.from('analytics_campaigns').insert({
         campaign_name: campaignName,
         campaign_source: campaignSource || null,
         campaign_medium: campaignMedium || null,
@@ -92,6 +122,16 @@ export async function POST(request: NextRequest) {
         total_sessions: 0,
         user_ids: finalUserId ? [finalUserId] : [],
       });
+
+      if (insertError) {
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Error inserting campaign:', insertError);
+        }
+        return NextResponse.json(
+          { error: 'Failed to create campaign', details: insertError.message },
+          { status: 500 }
+        );
+      }
     }
 
     return NextResponse.json({ success: true });

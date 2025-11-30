@@ -7,7 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "generate-favicon": "node scripts/generate-favicon.js"
+    "generate-favicon": "node scripts/generate-favicon.js",
+    "import-advisors": "node scripts/import-sebi-advisors.js",
+    "import-advisors:resume": "node scripts/import-sebi-advisors.js --resume",
+    "import-advisors:pages": "node scripts/import-sebi-advisors.js --max-pages="
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.78.0",
@@ -22,11 +25,13 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "dotenv": "^16.0.0",
     "eslint": "^9",
     "eslint-config-next": "16.0.1",
+    "puppeteer": "^24.31.0",
     "sharp": "^0.33.0",
-    "to-ico": "^1.1.1",
     "tailwindcss": "^4",
+    "to-ico": "^1.1.1",
     "typescript": "^5"
   }
 }

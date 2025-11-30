@@ -5,9 +5,10 @@ import { track } from '@vercel/analytics';
 // Check if analytics should be enabled (only in production)
 const isAnalyticsEnabled = () => {
   if (typeof window === 'undefined') return false;
-  // Only track in production on Vercel
-  return process.env.NODE_ENV === 'production' && 
-         process.env.NEXT_PUBLIC_VERCEL_ENV === 'production';
+  // Only track in production
+  // NODE_ENV is set correctly by Vercel in production
+  // NEXT_PUBLIC_VERCEL_ENV may not always be available, so we check NODE_ENV first
+  return process.env.NODE_ENV === 'production';
 };
 
 // Generate or retrieve a unique session ID
