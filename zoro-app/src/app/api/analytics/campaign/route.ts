@@ -1,16 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseClient } from '@/lib/supabase-server';
 
-// Only track in production
-const isProduction = process.env.NODE_ENV === 'production' && 
-                     process.env.NEXT_PUBLIC_VERCEL_ENV === 'production';
-
+// Track in all environments (for local testing), but only write to DB when UTM params are present
 export async function POST(request: NextRequest) {
-  // Skip tracking in development
-  if (!isProduction) {
-    return NextResponse.json({ success: true, skipped: true });
-  }
-
   try {
     const body = await request.json();
     const {
@@ -34,6 +26,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // If no UTM parameters were passed, skip saving to DB (but return success)
+    if (
+      !campaignSource &&
+      !campaignMedium &&
+      !campaignTerm &&
+      !campaignContent
+    ) {
+      return NextResponse.json({
+        success: true,
+        skipped: true,
+        reason: 'No UTM parameters provided',
+      });
+    }
+
     // Get user if authenticated
     let authenticatedUserId: string | null = null;
     const authHeader = request.headers.get('authorization');
@@ -41,12 +47,15 @@ export async function POST(request: NextRequest) {
       try {
         const token = authHeader.replace('Bearer ', '');
         const supabaseClient = getSupabaseClient(token);
-        const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
+        const {
+          data: { user },
+          error: authError,
+        } = await supabaseClient.auth.getUser();
         if (!authError && user) {
           authenticatedUserId = user.id;
         }
       } catch (authErr) {
-        // Continue without authenticated user if auth fails
+        // Continue without authenticated user if auth fails (use anonymous/userId fallback)
         if (process.env.NODE_ENV === 'development') {
           console.error('Auth error in campaign tracking:', authErr);
         }
@@ -54,10 +63,16 @@ export async function POST(request: NextRequest) {
     }
 
     const supabase = getSupabaseClient();
+
     // Handle userId - if it's an anonymous user ID (starts with 'user_'), set to null
     // Otherwise, if it's a UUID, use it
-    const finalUserId = authenticatedUserId || 
-      (userId && !userId.startsWith('user_') && userId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i) ? userId : null);
+    const finalUserId =
+      authenticatedUserId ||
+      (userId &&
+      !userId.startsWith('user_') &&
+      userId.match(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i)
+        ? userId
+        : null);
 
     // Update or create campaign record
     const { data: existingCampaign, error: selectError } = await supabase
@@ -80,14 +95,15 @@ export async function POST(request: NextRequest) {
       // Check if this is a new unique user for this campaign
       const existingUserIds = (existingCampaign.user_ids as string[]) || [];
       const isNewUser = finalUserId && !existingUserIds.includes(finalUserId);
-      
+
       const uniqueUsers = isNewUser
         ? (existingCampaign.unique_users || 0) + 1
         : existingCampaign.unique_users || 0;
 
-      const updatedUserIds = isNewUser && finalUserId
-        ? [...existingUserIds, finalUserId]
-        : existingUserIds;
+      const updatedUserIds =
+        isNewUser && finalUserId
+          ? [...existingUserIds, finalUserId]
+          : existingUserIds;
 
       const { error: updateError } = await supabase
         .from('analytics_campaigns')
@@ -111,17 +127,19 @@ export async function POST(request: NextRequest) {
       }
     } else {
       // Create new campaign
-      const { error: insertError } = await supabase.from('analytics_campaigns').insert({
-        campaign_name: campaignName,
-        campaign_source: campaignSource || null,
-        campaign_medium: campaignMedium || null,
-        campaign_term: campaignTerm || null,
-        campaign_content: campaignContent || null,
-        unique_users: finalUserId ? 1 : 0,
-        total_clicks: 1,
-        total_sessions: 0,
-        user_ids: finalUserId ? [finalUserId] : [],
-      });
+      const { error: insertError } = await supabase
+        .from('analytics_campaigns')
+        .insert({
+          campaign_name: campaignName,
+          campaign_source: campaignSource || null,
+          campaign_medium: campaignMedium || null,
+          campaign_term: campaignTerm || null,
+          campaign_content: campaignContent || null,
+          unique_users: finalUserId ? 1 : 0,
+          total_clicks: 1,
+          total_sessions: 0,
+          user_ids: finalUserId ? [finalUserId] : [],
+        });
 
       if (insertError) {
         if (process.env.NODE_ENV === 'development') {
