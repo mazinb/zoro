@@ -55,6 +55,7 @@ export default function RetirePage() {
               annualIncomeJob: data.plan.annual_income_job?.toString() || null,
               otherIncome: data.plan.other_income?.toString() || null,
               pension: data.plan.pension?.toString() || null,
+              liabilities: data.plan.liabilities?.toString() || null,
             },
             expenseBuckets: data.plan.expense_buckets,
           });
@@ -108,6 +109,7 @@ export default function RetirePage() {
         annual_income_job: data.answers.annualIncomeJob,
         other_income: data.answers.otherIncome,
         pension: data.answers.pension,
+        liabilities: data.answers.liabilities,
       }),
     });
 
@@ -196,6 +198,7 @@ export default function RetirePage() {
       <RetirementCalculator 
         initialData={retirementData}
         onSave={isLoggedIn ? handleSave : undefined}
+        darkMode={darkMode}
       />
     </div>
   );

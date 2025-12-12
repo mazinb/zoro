@@ -104,6 +104,7 @@ export async function POST(request: NextRequest) {
       annual_income_job: body.annual_income_job ? parseFloat(body.annual_income_job) : null,
       other_income: body.other_income ? parseFloat(body.other_income) : null,
       pension: body.pension ? parseFloat(body.pension) : null,
+      liabilities: body.liabilities ? parseFloat(body.liabilities) : null,
     };
 
     let result;
