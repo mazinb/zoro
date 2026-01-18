@@ -2,7 +2,7 @@
 
 import React, { useRef, useEffect } from 'react';
 import Link from 'next/link';
-import { Moon, Sun, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Moon, Sun, ChevronLeft, ChevronRight, Lock, Clock, Trophy } from 'lucide-react';
 import { ZoroLogo } from '@/components/ZoroLogo';
 import { Button } from '@/components/ui/Button';
 import { useThemeClasses } from '@/hooks/useThemeClasses';
@@ -25,7 +25,7 @@ const personas = [
   },
   {
     title: 'Families planning ahead',
-    description: 'Coordinate estate planning, beneficiaries, college savings, and retirement goals all in one place.',
+    description: 'Coordinate family finances, beneficiaries, college savings, and retirement goals all in one place.',
     bgColor: '#10B981', // Green
     image: '/images/landing/2.JPG',
   },
@@ -37,7 +37,7 @@ const personas = [
   },
   {
     title: 'High net worth individuals',
-    description: 'Optimize estate tax exposure, manage trusts, and coordinate complex financial structures efficiently.',
+    description: 'Optimize tax exposure, manage trusts, and coordinate complex financial structures efficiently.',
     bgColor: '#8B5CF6', // Purple
     image: '/images/landing/4.JPG',
   },
@@ -69,7 +69,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       const scrollContainer = carouselRef.current;
       const slideWidth = scrollContainer.offsetWidth;
       const scrollPosition = currentIndex * slideWidth;
-      
+
       scrollContainer.scrollTo({
         left: scrollPosition,
         behavior: 'smooth',
@@ -78,7 +78,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   }, [currentIndex]);
 
   const scrollCarousel = (direction: 'left' | 'right') => {
-    const newIndex = direction === 'left' 
+    const newIndex = direction === 'left'
       ? (currentIndex - 1 + personas.length) % personas.length
       : (currentIndex + 1) % personas.length;
     setCurrentIndex(newIndex);
@@ -87,7 +87,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   // Dark blue for light mode headers and buttons
   const headerTextClass = darkMode ? theme.textClass : 'text-slate-900';
   const numberBgClass = darkMode ? theme.buttonClass : 'bg-slate-900 text-white';
-  const ctaInverted = !darkMode; // Inverted for contrast
 
   return (
     <div className={`min-h-screen ${theme.bgClass} transition-colors duration-300`}>
@@ -98,6 +97,12 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             <ZoroLogo className="h-10" isDark={darkMode} />
           </div>
           <div className="flex items-center gap-6">
+            <Link
+              href="/timeline"
+              className={`text-sm ${theme.textSecondaryClass} hover:${theme.textClass} transition-colors`}
+            >
+              Timeline
+            </Link>
             <button
               onClick={() => {
                 trackClick('philosophy_nav_click', {
@@ -118,6 +123,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             >
               {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
             </button>
+            <Link href="/login" className={`text-sm font-medium ${theme.textClass}`}>
+              Sign In
+            </Link>
           </div>
         </div>
       </nav>
@@ -125,26 +133,23 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       {/* Hero Section */}
       <div className="max-w-4xl mx-auto px-6 pt-32 pb-24 text-center">
         <div className={`inline-block ${theme.accentBgClass} border ${theme.cardBorderClass} rounded-full px-4 py-2 mb-8`}>
-          <span className={`text-sm font-medium ${theme.textSecondaryClass}`}>
-            Your AI agent but you stay in control
+          <span className={`text-sm font-medium ${theme.textSecondaryClass} flex items-center gap-2`}>
+            <Clock className="w-4 h-4" />
+            Limited spots available for early access
           </span>
         </div>
 
         <h1 className={`text-6xl font-bold ${theme.textClass} mb-6 tracking-tight`}>
-          {process.env.NEXT_PUBLIC_ADVISOR_MODE === 'true'
-            ? 'Your AI financial advisor'
-            : 'Your AI financial advisor'}
+          Your personal AI
           <br />
-          <span className={theme.textSecondaryClass}>
-            {process.env.NEXT_PUBLIC_ADVISOR_MODE === 'true'
-              ? 'and estate planner'
-              : 'and estate planner'}
+          <span className="text-blue-600 dark:text-blue-400">
+            Financial Planner
           </span>
         </h1>
-        
+
         <p className={`text-xl ${theme.textSecondaryClass} mb-12 max-w-2xl mx-auto leading-relaxed`}>
-          Zoro analyzes your finances, plans your estate, and gives you regular AI-powered insights. 
-          Always transparent. Always your decision.
+          Zoro analyzes your finances, helps you plan for the future, and gives you regular AI-powered insights.
+          In your inbox but only when you need it.
         </p>
 
         <Button
@@ -152,20 +157,20 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           darkMode={!darkMode}
           showArrow
           onClick={() => {
-            trackClick('cta_get_started_hero', {
+            trackClick('cta_join_waitlist_hero', {
               category: 'cta',
-              label: 'Get Started (Hero)',
-              elementId: 'cta-get-started-hero',
+              label: 'Join Waitlist (Hero)',
+              elementId: 'cta-join-waitlist-hero',
             });
             onGetStarted();
           }}
-          className="px-8 py-4 text-lg transform hover:scale-105"
+          className="px-8 py-4 text-lg transform hover:scale-105 shadow-xl shadow-blue-500/20"
         >
-          Get Started
+          Join the Waitlist
         </Button>
 
         <p className={`text-sm ${theme.textSecondaryClass} mt-4`}>
-          Free for early adopters • 10 minutes to complete
+          Secure your spot • Free for early adopters
         </p>
       </div>
 
@@ -173,7 +178,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       <div className="max-w-6xl mx-auto px-6 py-24">
         {/* Mobile-first flow: title → animation → text → CTA */}
         <h3 className={`md:hidden text-3xl font-bold ${theme.textClass} mb-4`}>
-            Read, React, We Learn
+          Read, React, We Learn
         </h3>
 
         <div className="grid md:grid-cols-2 gap-12 items-center">
@@ -188,24 +193,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               Read, React, We Learn
             </h3>
             <p className={`${theme.textSecondaryClass} text-lg leading-relaxed mb-6`}>
-              Get timely reminders to stay on track and accomplish your goals, simply reply to gives us feedback or update your info
+              Get timely reminders to stay on track and accomplish your goals. Simply reply to our check-ins to give feedback or update your info.
             </p>
-            <Button
-              variant="primary"
-              darkMode={!darkMode}
-              onClick={() => {
-                trackClick('cta_check_in', {
-                  category: 'cta',
-                  label: 'Check In',
-                  elementId: 'cta-check-in',
-                });
-                if (typeof window !== 'undefined') window.location.href = '/checkin';
-              }}
-              className="px-6"
-              showArrow
-            >
-              Check In
-            </Button>
           </div>
 
           {/* Title (first on mobile only) */}
@@ -213,76 +202,82 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </div>
       </div>
 
-      {/* How it works */}
+      {/* Waitlist Milestones */}
       <div className={`${theme.accentBgClass} py-24`}>
         <div className="max-w-4xl mx-auto px-6">
-          <h2 className={`text-3xl font-bold ${headerTextClass} mb-16 text-center`}>
-            How it works
-          </h2>
-          
-          <div className="space-y-12">
-            <div className="flex gap-6">
-              <div className={`flex-shrink-0 w-12 h-12 ${numberBgClass} rounded-lg flex items-center justify-center font-semibold`}>
-                1
+          <div className="text-center mb-16">
+            <h2 className={`text-3xl font-bold ${headerTextClass} mb-4`}>
+              The Roadmap
+            </h2>
+            <p className={`${theme.textSecondaryClass} max-w-xl mx-auto`}>
+              We are rolling out access in stages to ensure the best experience for everyone.
+            </p>
+          </div>
+
+          <div className="space-y-8">
+            <div className={`flex gap-6 p-6 rounded-2xl border ${theme.borderClass} ${darkMode ? 'bg-slate-800/50' : 'bg-white'}`}>
+              <div className={`flex-shrink-0 w-12 h-12 ${numberBgClass} rounded-full flex items-center justify-center font-bold text-lg`}>
+                10
               </div>
               <div>
-                <h3 className={`text-xl font-semibold ${theme.textClass} mb-2`}>
-                  Set your goals
+                <h3 className={`text-xl font-bold ${theme.textClass} mb-2 flex items-center gap-2`}>
+                  First 10 Users
+                  <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">Complete</span>
                 </h3>
                 <p className={theme.textSecondaryClass}>
-                  Choose what matters most to you: saving, investing, home planning, 
-                  insurance, tax optimization, or retirement. You decide what Zoro focuses on.
+                  30-minute free portfolio review and planning meeting directly with our founder.
                 </p>
               </div>
             </div>
 
-            <div className="flex gap-6">
-              <div className={`flex-shrink-0 w-12 h-12 ${numberBgClass} rounded-lg flex items-center justify-center font-semibold`}>
-                2
+            <div className={`flex gap-6 p-6 rounded-2xl border ${theme.borderClass} ${darkMode ? 'bg-slate-800/50' : 'bg-white'}`}>
+              <div className={`flex-shrink-0 w-12 h-12 ${numberBgClass} rounded-full flex items-center justify-center font-bold text-lg`}>
+                100
               </div>
               <div>
-                <h3 className={`text-xl font-semibold ${theme.textClass} mb-2`}>
-                  Get regular check-ins
+                <h3 className={`text-xl font-bold ${theme.textClass} mb-2 flex items-center gap-2`}>
+                  First 100 Users
+                  <span className="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">Current Phase</span>
                 </h3>
                 <p className={theme.textSecondaryClass}>
-                  Receive personalized financial insights delivered to your inbox. 
-                  Each check-in includes a snapshot of your finances and actionable suggestions.
+                  Receive a personalized welcome email and early access to new features.
                 </p>
               </div>
             </div>
 
-            <div className="flex gap-6">
-              <div className={`flex-shrink-0 w-12 h-12 ${numberBgClass} rounded-lg flex items-center justify-center font-semibold`}>
-                3
+            <div className={`flex gap-6 p-6 rounded-2xl border ${theme.borderClass} ${darkMode ? 'bg-slate-800/50' : 'bg-white/50 opacity-75'}`}>
+              <div className={`flex-shrink-0 w-12 h-12 ${darkMode ? 'bg-slate-800' : 'bg-slate-200'} rounded-full flex items-center justify-center font-bold text-lg`}>
+                1k
               </div>
               <div>
-                <h3 className={`text-xl font-semibold ${theme.textClass} mb-2`}>
-                  Reply and Zoro learns
+                <h3 className={`text-xl font-bold ${theme.textClass} mb-2`}>
+                  First 1,000 Users
                 </h3>
                 <p className={theme.textSecondaryClass}>
-                  Simply reply to any check-in email with feedback or updates. 
-                  Zoro learns your preferences and adapts to your context over time.
+                  We take the RIA exam and build full AI automation for comprehensive financial management.
                 </p>
               </div>
             </div>
 
-            <div className="flex gap-6">
-              <div className={`flex-shrink-0 w-12 h-12 ${numberBgClass} rounded-lg flex items-center justify-center font-semibold`}>
-                4
+            <div className={`flex gap-6 p-6 rounded-2xl border ${theme.borderClass} ${darkMode ? 'bg-slate-800/50' : 'bg-white/50 opacity-75'}`}>
+              <div className={`flex-shrink-0 w-12 h-12 ${darkMode ? 'bg-slate-800' : 'bg-slate-200'} rounded-full flex items-center justify-center font-bold text-lg`}>
+                1M
               </div>
               <div>
-                <h3 className={`text-xl font-semibold ${theme.textClass} mb-2`}>
-                  {process.env.NEXT_PUBLIC_ADVISOR_MODE === 'true'
-                    ? 'Work with your SEBI-registered advisor'
-                    : 'Loop in your advisor (optional)'}
+                <h3 className={`text-xl font-bold ${theme.textClass} mb-2`}>
+                  First 10,000 Users
                 </h3>
                 <p className={theme.textSecondaryClass}>
-                  {process.env.NEXT_PUBLIC_ADVISOR_MODE === 'true'
-                    ? 'Your SEBI-registered advisor will guide your financial journey. Search our roster or invite yours by registration number to keep them in sync while you stay in control.'
-                    : 'Prefer working with a SEBI-registered advisor? Search our roster or invite yours by registration number to keep them in sync without losing control.'}
+                  Free for life before opening to the general public.
                 </p>
               </div>
             </div>
+          </div>
+
+          <div className="mt-12 text-center">
+            <Link href="/timeline" className={`text-blue-600 hover:text-blue-700 font-medium inline-flex items-center gap-1`}>
+              View full timeline details <ChevronRight className="w-4 h-4" />
+            </Link>
           </div>
         </div>
       </div>
@@ -295,7 +290,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
         <div className="relative">
           {/* Carousel Container */}
-          <div 
+          <div
             ref={carouselRef}
             className="overflow-x-scroll rounded-2xl scroll-smooth [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
           >
@@ -316,7 +311,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       backgroundPosition: (index === 0 || index === personas.length - 1) ? 'center top' : 'center center',
                     }}
                   />
-                  
+
                   {/* Colored Overlay with 75% opacity */}
                   <div
                     className="absolute inset-0 opacity-40"
@@ -324,10 +319,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                       backgroundColor: persona.bgColor,
                     }}
                   />
-                  
+
                   {/* Gradient Overlay for better text readability */}
                   <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-black/40 to-black/60" />
-                  
+
                   {/* Content */}
                   <div className="relative z-10 max-w-2xl px-8 text-center">
                     <h3 className={`text-3xl md:text-4xl font-bold text-white mb-4`}>
@@ -364,69 +359,14 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               <button
                 key={index}
                 onClick={() => setCurrentIndex(index)}
-                className={`h-2 rounded-full transition-all ${
-                  index === currentIndex
+                className={`h-2 rounded-full transition-all ${index === currentIndex
                     ? 'w-8 bg-blue-600 dark:bg-blue-400'
                     : 'w-2 bg-slate-400 dark:bg-slate-600'
-                }`}
+                  }`}
                 aria-label={`Go to slide ${index + 1}`}
               />
             ))}
           </div>
-        </div>
-      </div>
-
-      {/* Advisor CTA */}
-      <div className={`${darkMode ? 'bg-white' : 'bg-slate-900'} py-24 transition-colors duration-300`}>
-        <div className="max-w-5xl mx-auto px-6 text-center">
-          <p className={`text-sm uppercase tracking-[0.3em] mb-4 ${darkMode ? 'text-blue-600' : 'text-blue-300'}`}>
-            For Advisors
-          </p>
-          <h2 className={`text-4xl font-bold ${darkMode ? 'text-slate-900' : 'text-white'} mb-6`}>
-            Bring Zoro into your advisory practice
-          </h2>
-          <p className={`text-xl ${darkMode ? 'text-slate-600' : 'text-slate-300'} mb-10`}>
-            Verify your SEBI registration, collaborate with clients in real time, and deliver AI-powered check-ins without changing your existing stack.
-          </p>
-
-          <div className="grid md:grid-cols-3 gap-4 text-left text-sm mb-10">
-            {[
-              'Direct access to client insights',
-              'White-label ready: keep your branding',
-              'Launch in minutes — no sales calls',
-            ].map((item, idx) => (
-              <div
-                key={item}
-                className={`${darkMode ? 'bg-slate-100 text-slate-800' : 'bg-slate-800 text-slate-100'} rounded-2xl p-4`}
-              >
-                <span className="font-semibold text-lg mr-2">{idx + 1}.</span>
-                {item}
-              </div>
-            ))}
-          </div>
-
-          <Button
-            variant="primary"
-            darkMode={ctaInverted}
-            showArrow
-            onClick={() => {
-              trackClick('cta_advisor_setup', {
-                category: 'cta',
-                label: 'Set up advisor account',
-                elementId: 'cta-advisor-setup',
-              });
-              if (typeof window !== 'undefined') {
-                window.location.href = '/advisors';
-              }
-            }}
-            className="px-8 py-4 text-lg transform hover:scale-105"
-          >
-            Set up your advisor account
-          </Button>
-
-          <p className={`text-sm ${darkMode ? 'text-slate-500' : 'text-slate-400'} mt-4`}>
-            Free while in beta • Verification takes under 2 minutes
-          </p>
         </div>
       </div>
 

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { getSupabaseClient } from '@/lib/supabase-server';
 
@@ -24,16 +25,44 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+
+    if (!supabaseUrl) {
+      return NextResponse.json(
+        { error: 'Missing Supabase configuration' },
+        { status: 500 }
+      );
+    }
+
+    const adminClient = serviceRoleKey
+      ? createClient(supabaseUrl, serviceRoleKey, {
+          auth: {
+            autoRefreshToken: false,
+            persistSession: false
+          }
+        })
+      : null;
+    
+    if (!adminClient) {
+      return NextResponse.json(
+        { error: 'Waitlist service unavailable' },
+        { status: 503 }
+      );
+    }
+
     // Get user if authenticated
     let userId = null;
+    let userEmailConfirmed = false;
     const authHeader = request.headers.get('authorization');
     if (authHeader) {
       const token = authHeader.replace('Bearer ', '');
       const supabaseClient = getSupabaseClient(token);
-      
+
       const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
       if (!authError && user) {
         userId = user.id;
+        userEmailConfirmed = Boolean((user as any).email_confirmed_at || (user as any).confirmed_at);
       }
     }
 
@@ -41,8 +70,11 @@ export async function POST(request: NextRequest) {
     if (!userId && body.userId) {
       userId = body.userId;
     }
-    
+
     let insertPayload: Record<string, unknown>;
+    const normalizedEmail = body.email && String(body.email).trim()
+      ? String(body.email).trim().toLowerCase()
+      : null;
 
     if (hasLegacyShape) {
       // Original question-based flow
@@ -56,7 +88,7 @@ export async function POST(request: NextRequest) {
         contact_method: body.contactMethod,
         phone: body.phone && body.phone.trim() ? body.phone : null,
         additional_info: body.additionalInfo && body.additionalInfo.trim() ? body.additionalInfo : null,
-        email: body.email && body.email.trim() ? body.email.trim() : null
+        email: normalizedEmail
       };
     } else {
       // New landing/onboarding flow: goals + details
@@ -67,14 +99,6 @@ export async function POST(request: NextRequest) {
         goals,
         goalDetails: body.goalDetails || null,
         additionalInfo: body.additionalInfo || null,
-        advisorMode: body.advisorMode || 'self',
-        advisor: body.advisorMode === 'advisor'
-          ? {
-              registrationNo: body.advisorRegistrationNo || null,
-              name: body.advisorName || null,
-            }
-          : null,
-        wantsGoalBasedMatching: body.wantsGoalBasedMatching || false,
       };
 
       insertPayload = {
@@ -87,8 +111,53 @@ export async function POST(request: NextRequest) {
         contact_method: body.contactMethod,
         phone: body.phone && String(body.phone).trim() ? String(body.phone) : null,
         additional_info: JSON.stringify(enrichedAdditionalInfo),
-        email: body.email && String(body.email).trim() ? String(body.email).trim() : null
+        email: normalizedEmail
       };
+    }
+
+    if (!normalizedEmail) {
+      return NextResponse.json(
+        { error: 'Email is required to join the waitlist' },
+        { status: 400 }
+      );
+    }
+
+    const verificationClient = adminClient;
+
+    // Enforce verified email before saving to waitlist
+    let emailIsVerified = userEmailConfirmed;
+    if (!emailIsVerified) {
+      const { data: verificationRow } = await verificationClient
+        .from('email_verification_tokens')
+        .select('id, used_at')
+        .eq('email', normalizedEmail)
+        .not('used_at', 'is', null)
+        .limit(1)
+        .maybeSingle();
+
+      emailIsVerified = Boolean(verificationRow?.used_at);
+    }
+
+    if (!emailIsVerified) {
+      return NextResponse.json(
+        { error: 'Email must be verified before joining the waitlist' },
+        { status: 403 }
+      );
+    }
+
+    // Ensure only one entry per email
+    const { data: existingSubmission } = await verificationClient
+      .from('form_submissions')
+      .select('id')
+      .eq('email', normalizedEmail)
+      .limit(1)
+      .maybeSingle();
+
+    if (existingSubmission?.id) {
+      return NextResponse.json(
+        { error: 'An entry already exists for this email' },
+        { status: 409 }
+      );
     }
 
     // Insert form submission
@@ -97,7 +166,7 @@ export async function POST(request: NextRequest) {
       .insert(insertPayload)
       .select()
       .single();
-    
+
     if (submissionError) {
       console.error('Error saving form submission to database:', submissionError);
       return NextResponse.json(
@@ -110,7 +179,7 @@ export async function POST(request: NextRequest) {
     if (!hasLegacyShape && body.goalDetails && submissionData?.id) {
       const goalDetails = body.goalDetails as Record<string, { main: string; extra?: string }>;
       const goalsArray = Array.isArray(body.goals) ? body.goals : [];
-      
+
       const goalDetailsInserts = goalsArray
         .filter((goalId: string) => goalDetails[goalId]?.main)
         .map((goalId: string) => ({
@@ -141,8 +210,8 @@ export async function POST(request: NextRequest) {
 
     // Return success with the saved data
     return NextResponse.json(
-      { 
-        success: true, 
+      {
+        success: true,
         message: 'Form submitted successfully',
         data: submissionData
       },

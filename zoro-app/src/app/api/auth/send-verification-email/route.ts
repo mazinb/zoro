@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { Resend } from 'resend';
 
 const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 
   (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
@@ -68,14 +69,6 @@ Best regards,
 The Zoro Team
     `.trim();
 
-    // TODO: Send email using your email service
-    // For now, we'll just log it and return success
-    // In production, integrate with:
-    // - Resend (recommended)
-    // - SendGrid
-    // - AWS SES
-    // - Or Supabase Edge Function with a service like Resend
-
     console.log('Email to send:', {
       to: email,
       subject: emailSubject,
@@ -83,19 +76,18 @@ The Zoro Team
       verificationLink
     });
 
-    // For development, you can use a service like Resend
-    // Example with Resend (uncomment and add RESEND_API_KEY to .env):
-    /*
     if (process.env.RESEND_API_KEY) {
       const resend = new Resend(process.env.RESEND_API_KEY);
+      const fromAddress = process.env.RESEND_FROM || 'Zoro <noreply@zoro.app>';
       await resend.emails.send({
-        from: 'Zoro <noreply@yourdomain.com>',
+        from: fromAddress,
         to: email,
         subject: emailSubject,
         html: emailBody.replace(/\n/g, '<br>'),
       });
+    } else {
+      console.warn('RESEND_API_KEY not set; skipping email send');
     }
-    */
 
     return NextResponse.json(
       { 

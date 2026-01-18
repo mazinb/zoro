@@ -19,7 +19,7 @@ function LoginContent() {
   const [showPreference, setShowPreference] = useState(false);
 
   // Get redirect params from URL
-  const redirectPath = searchParams?.get('redirect') || '/checkin';
+  const redirectPath = searchParams?.get('redirect') || '/dashboard';
   const mode = searchParams?.get('mode');
   const skipPreference = searchParams?.get('skipPreference') === 'true';
   const emailParam = searchParams?.get('email');
@@ -30,37 +30,7 @@ function LoginContent() {
     if (!session?.access_token) return;
 
     try {
-      // Check if there's pending advisor signup data in sessionStorage
-      if (typeof window !== 'undefined') {
-        const pendingAdvisor = sessionStorage.getItem('pendingAdvisorOnboarding');
-        if (pendingAdvisor) {
-          try {
-            const advisorData = JSON.parse(pendingAdvisor);
-            // Save advisor signup info
-            try {
-              await fetch('/api/advisors/signup', {
-                method: 'POST',
-                headers: {
-                  'Authorization': `Bearer ${session.access_token}`,
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                  advisorId: advisorData.advisorId,
-                  registrationNo: advisorData.registrationNo,
-                  name: advisorData.name,
-                  email: advisorData.email,
-                }),
-              });
-              // Clear pending data
-              sessionStorage.removeItem('pendingAdvisorOnboarding');
-            } catch (e) {
-              console.error('Error saving advisor signup:', e);
-            }
-          } catch (e) {
-            console.error('Error parsing pending advisor data:', e);
-          }
-        }
-      }
+      // Check regular user preference
 
       // Check regular user preference
       const response = await fetch('/api/user/preference', {
@@ -129,8 +99,8 @@ function LoginContent() {
   };
 
   const handleSkipPreference = () => {
-      const finalPath = mode ? `${redirectPath}?mode=${mode}` : redirectPath;
-      router.push(finalPath);
+    const finalPath = mode ? `${redirectPath}?mode=${mode}` : redirectPath;
+    router.push(finalPath);
   };
 
   // Show communication preference if user is logged in and hasn't set one
@@ -162,7 +132,7 @@ function LoginContent() {
       message={messageParam || undefined}
       onSignup={async (email, password, name) => {
         setLoading(true);
-        
+
         // Verify token if present
         if (tokenParam) {
           try {
@@ -171,7 +141,7 @@ function LoginContent() {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ email, token: tokenParam }),
             });
-            
+
             if (!verifyResponse.ok) {
               const errorData = await verifyResponse.json();
               setLoading(false);
@@ -184,46 +154,10 @@ function LoginContent() {
         }
 
         const result = await signUp(email, password, name);
-        
-        // If signup successful, check for pending advisor signup first
-        if (!result.error && typeof window !== 'undefined') {
-          // Check for pending advisor signup
-          const pendingAdvisor = sessionStorage.getItem('pendingAdvisorOnboarding');
-          if (pendingAdvisor) {
-            try {
-              const advisorData = JSON.parse(pendingAdvisor);
-              // Wait a bit for session to be available
-              await new Promise(resolve => setTimeout(resolve, 500));
-              const { data: { session } } = await (await import('@/lib/supabase-client')).supabaseClient.auth.getSession();
-              
-              if (session?.access_token) {
-                // Save advisor signup info
-                try {
-                  await fetch('/api/advisors/signup', {
-                    method: 'POST',
-                    headers: {
-                      'Authorization': `Bearer ${session.access_token}`,
-                      'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                      advisorId: advisorData.advisorId,
-                      registrationNo: advisorData.registrationNo,
-                      name: advisorData.name,
-                      email: advisorData.email,
-                    }),
-                  });
-                  // Clear pending data
-                  sessionStorage.removeItem('pendingAdvisorOnboarding');
-                } catch (e) {
-                  console.error('Error saving advisor signup:', e);
-                }
-              }
-            } catch (e) {
-              console.error('Error parsing pending advisor data:', e);
-            }
-          }
 
-          // If no advisor onboarding, check for pending form submission
+        // If signup successful, check for pending form submission
+        if (!result.error && typeof window !== 'undefined') {
+          // Check for pending form submission
           const pendingData = sessionStorage.getItem('pendingFormSubmission');
           if (pendingData) {
             try {
@@ -231,7 +165,7 @@ function LoginContent() {
               // Wait a bit for session to be available
               await new Promise(resolve => setTimeout(resolve, 500));
               const { data: { session } } = await (await import('@/lib/supabase-client')).supabaseClient.auth.getSession();
-              
+
               if (session?.access_token) {
                 const submitResponse = await fetch('/api/submit', {
                   method: 'POST',
@@ -250,11 +184,11 @@ function LoginContent() {
                     userId: session.user.id
                   }),
                 });
-                
+
                 if (submitResponse.ok) {
                   // Clear pending submission
                   sessionStorage.removeItem('pendingFormSubmission');
-                  
+
                   // Redirect to home with success message
                   router.push('/?submitted=true');
                   setLoading(false);
@@ -267,7 +201,7 @@ function LoginContent() {
             }
           }
         }
-        
+
         setLoading(false);
         // Preference check will happen automatically via useEffect when session is available
         return result;

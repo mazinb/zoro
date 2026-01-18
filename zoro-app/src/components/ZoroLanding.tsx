@@ -9,12 +9,11 @@ import { GoalDetails, GoalDetailsMap } from '@/components/form/GoalDetails';
 import { ContactMethodSelection } from '@/components/form/ContactMethodSelection';
 import { FormReview } from '@/components/form/FormReview';
 import { FormSuccess } from '@/components/form/FormSuccess';
-import { AdvisorChoice } from '@/components/form/AdvisorChoice';
 import { useDarkMode } from '@/hooks/useDarkMode';
 import { useAuth } from '@/hooks/useAuth';
 import { useAnalytics } from '@/hooks/useAnalytics';
 import { trackPageView } from '@/lib/analytics';
-import { AdvisorRecord, ContactMethod } from '@/types';
+import { ContactMethod } from '@/types';
 
 const ZoroLanding = () => {
   const { darkMode, toggleDarkMode } = useDarkMode();
@@ -30,10 +29,6 @@ const ZoroLanding = () => {
   }, [showPhilosophy]);
 
   const [showForm, setShowForm] = useState(false);
-  const [showAdvisorChoice, setShowAdvisorChoice] = useState(false);
-  const [advisorMode, setAdvisorMode] = useState<'self' | 'advisor' | null>(null);
-  const [selectedAdvisor, setSelectedAdvisor] = useState<AdvisorRecord | null>(null);
-  const [wantsGoalBasedMatching, setWantsGoalBasedMatching] = useState(false);
 
   const [selectedGoals, setSelectedGoals] = useState<string[]>([]);
   const [goalDetails, setGoalDetails] = useState<GoalDetailsMap>({});
@@ -55,10 +50,6 @@ const ZoroLanding = () => {
   const resetForm = useCallback(() => {
     setShowForm(false);
     setShowFormIntro(false);
-    setShowAdvisorChoice(false);
-    setAdvisorMode(null);
-    setSelectedAdvisor(null);
-    setWantsGoalBasedMatching(false);
     setShowReview(false);
     setShowGoalDetails(false);
     setShowContactMethod(false);
@@ -144,10 +135,6 @@ const ZoroLanding = () => {
         additionalInfo,
         email: user?.email || contactEmail || null,
         userId: user?.id || null,
-        advisorMode,
-        advisorRegistrationNo: selectedAdvisor?.registrationNo || null,
-        advisorName: selectedAdvisor?.name || null,
-        wantsGoalBasedMatching,
       };
 
       const headers: HeadersInit = {
@@ -203,59 +190,24 @@ const ZoroLanding = () => {
     additionalInfo,
     user,
     contactEmail,
-    advisorMode,
-    selectedAdvisor,
-    wantsGoalBasedMatching,
   ]);
 
   const handleGetStarted = useCallback(() => {
     setShowForm(true);
     setShowFormIntro(true);
     setShowPhilosophy(false);
-    setShowAdvisorChoice(true);
-    setAdvisorMode(null);
-    setSelectedAdvisor(null);
-    setWantsGoalBasedMatching(false);
   }, []);
 
   const handleEdit = useCallback(() => {
     setShowReview(false);
   }, []);
 
-  const handleSelectSelfPath = useCallback(() => {
-    // Prevent self path if advisor mode is required
-    if (process.env.NEXT_PUBLIC_ADVISOR_MODE === 'true') {
-      return;
-    }
-    setAdvisorMode('self');
-    setSelectedAdvisor(null);
-    setShowAdvisorChoice(false);
-  }, []);
-
-  const handleAdvisorPick = useCallback((advisor: AdvisorRecord) => {
-    setAdvisorMode('advisor');
-    setSelectedAdvisor(advisor);
-  }, []);
-
-  const handleAdvisorContinue = useCallback(() => {
-    if (selectedAdvisor) {
-      setShowAdvisorChoice(false);
-    }
-  }, [selectedAdvisor]);
-
-  const handleSelectGoalBased = useCallback(() => {
-    setWantsGoalBasedMatching(true);
-    setAdvisorMode('advisor'); // Set to advisor mode but without selecting a specific advisor
-    setSelectedAdvisor(null);
-    setShowAdvisorChoice(false); // Continue to next page (goal selection)
-  }, []);
-
   if (submitted && !showSuccess) {
     return (
       <div className={`min-h-screen ${darkMode ? 'bg-slate-900' : 'bg-white'} flex items-center justify-center p-4 transition-colors duration-300`}>
         <div className="flex flex-col items-center justify-center">
-          <AnimatedZoroLogo 
-            className="h-32 md:h-48 lg:h-64" 
+          <AnimatedZoroLogo
+            className="h-32 md:h-48 lg:h-64"
             isDark={darkMode}
             onAnimationComplete={() => {
               setShowSuccess(true);
@@ -270,8 +222,8 @@ const ZoroLanding = () => {
     return (
       <div className={`min-h-screen ${darkMode ? 'bg-slate-900' : 'bg-white'} flex items-center justify-center p-4 transition-colors duration-300`}>
         <div className="flex flex-col items-center justify-center">
-          <AnimatedZoroLogo 
-            className="h-32 md:h-48 lg:h-64" 
+          <AnimatedZoroLogo
+            className="h-32 md:h-48 lg:h-64"
             isDark={darkMode}
             onAnimationComplete={() => {
               setShowFormIntro(false);
@@ -312,9 +264,6 @@ const ZoroLanding = () => {
           setShowReview(false);
         }}
         onSubmit={handleFinalSubmit}
-        advisorMode={advisorMode}
-        advisorName={selectedAdvisor?.name || null}
-        advisorRegistrationNo={selectedAdvisor?.registrationNo || null}
       />
     );
   }
@@ -346,9 +295,6 @@ const ZoroLanding = () => {
         email={contactEmail}
         selectedGoals={selectedGoals}
         goalDetails={goalDetails}
-        advisorMode={advisorMode}
-        advisorName={selectedAdvisor?.name || null}
-        advisorRegistrationNo={selectedAdvisor?.registrationNo || null}
         onNameChange={setName}
         onNetWorthChange={setNetWorth}
         onPhoneChange={setPhone}
@@ -377,22 +323,7 @@ const ZoroLanding = () => {
     );
   }
 
-  if (showForm && !showFormIntro && showAdvisorChoice) {
-    return (
-      <AdvisorChoice
-        darkMode={darkMode}
-        advisorMode={advisorMode}
-        selectedAdvisor={selectedAdvisor}
-        onSelectSelf={handleSelectSelfPath}
-        onSelectAdvisor={handleAdvisorPick}
-        onContinueAdvisor={handleAdvisorContinue}
-        onSelectGoalBased={handleSelectGoalBased}
-        onBackToHome={resetForm}
-      />
-    );
-  }
-
-  if (showForm && !showFormIntro && !showReview && !showGoalDetails && !showContactMethod && !showAdvisorChoice) {
+  if (showForm && !showFormIntro && !showReview && !showGoalDetails && !showContactMethod) {
     return (
       <GoalSelection
         selectedGoals={selectedGoals}
@@ -400,10 +331,8 @@ const ZoroLanding = () => {
         darkMode={darkMode}
         onNext={handleNext}
         onBack={() => {
-          setShowAdvisorChoice(true);
+          setShowForm(false);
         }}
-        advisorMode={advisorMode}
-        advisorName={selectedAdvisor?.name || null}
       />
     );
   }

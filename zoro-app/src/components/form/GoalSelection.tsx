@@ -7,44 +7,44 @@ import { Button } from '@/components/ui/Button';
 // Goal icons (same as checkin page)
 const SaveIcon = () => (
   <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
-    <polyline points="17 21 17 13 7 13 7 21"/>
-    <polyline points="7 3 7 8 15 8"/>
+    <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z" />
+    <polyline points="17 21 17 13 7 13 7 21" />
+    <polyline points="7 3 7 8 15 8" />
   </svg>
 );
 
 const InvestIcon = () => (
   <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" strokeWidth="2">
-    <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/>
-    <polyline points="17 6 23 6 23 12"/>
+    <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
+    <polyline points="17 6 23 6 23 12" />
   </svg>
 );
 
 const HomeIcon = () => (
   <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
-    <polyline points="9 22 9 12 15 12 15 22"/>
+    <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+    <polyline points="9 22 9 12 15 12 15 22" />
   </svg>
 );
 
 const ShieldIcon = () => (
   <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" strokeWidth="2">
-    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
   </svg>
 );
 
 const TaxIcon = () => (
   <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" strokeWidth="2">
-    <rect x="2" y="3" width="20" height="14" rx="2"/>
-    <line x1="8" y1="21" x2="16" y2="21"/>
-    <line x1="12" y1="17" x2="12" y2="21"/>
+    <rect x="2" y="3" width="20" height="14" rx="2" />
+    <line x1="8" y1="21" x2="16" y2="21" />
+    <line x1="12" y1="17" x2="12" y2="21" />
   </svg>
 );
 
 const RetirementIcon = () => (
   <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="currentColor" strokeWidth="2">
-    <circle cx="12" cy="12" r="10"/>
-    <polyline points="12 6 12 12 16 14"/>
+    <circle cx="12" cy="12" r="10" />
+    <polyline points="12 6 12 12 16 14" />
   </svg>
 );
 
@@ -70,8 +70,6 @@ interface GoalSelectionProps {
   darkMode: boolean;
   onNext: () => void;
   onBack: () => void;
-  advisorMode?: 'self' | 'advisor' | null;
-  advisorName?: string | null;
 }
 
 export const GoalSelection: React.FC<GoalSelectionProps> = ({
@@ -79,9 +77,7 @@ export const GoalSelection: React.FC<GoalSelectionProps> = ({
   onGoalToggle,
   darkMode,
   onNext,
-  onBack,
-  advisorMode,
-  advisorName
+  onBack
 }) => {
   const themeClasses = {
     bgClass: darkMode ? 'bg-slate-900' : 'bg-white',
@@ -99,7 +95,7 @@ export const GoalSelection: React.FC<GoalSelectionProps> = ({
           <div className="inline-flex items-center justify-center mb-6">
             <ZoroLogo className="h-10" isDark={darkMode} />
           </div>
-          
+
           <h2 className={`text-3xl font-bold ${themeClasses.textClass} mb-2`}>
             Pick your financial goals
           </h2>
@@ -110,13 +106,6 @@ export const GoalSelection: React.FC<GoalSelectionProps> = ({
             <p className={`mt-2 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>
               {selectedGoals.length} goal{selectedGoals.length !== 1 ? 's' : ''} selected
             </p>
-          )}
-          {advisorMode === 'advisor' && advisorName && (
-            <div className={`mt-4 inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm ${
-              darkMode ? 'bg-blue-900/40 border border-blue-500 text-blue-100' : 'bg-blue-50 border border-blue-200 text-blue-700'
-            }`}>
-              Working with <span className="font-semibold">{advisorName}</span>
-            </div>
           )}
         </div>
 
@@ -129,18 +118,16 @@ export const GoalSelection: React.FC<GoalSelectionProps> = ({
               <div
                 key={goal.id}
                 onClick={() => onGoalToggle(goal.id)}
-                className={`${themeClasses.cardBgClass} border-2 rounded-lg p-6 cursor-pointer transition-all relative ${
-                  isSelected
-                    ? darkMode 
-                      ? 'border-blue-500 bg-blue-900/20' 
+                className={`${themeClasses.cardBgClass} border-2 rounded-lg p-6 cursor-pointer transition-all relative ${isSelected
+                    ? darkMode
+                      ? 'border-blue-500 bg-blue-900/20'
                       : 'border-blue-600 bg-blue-50'
                     : themeClasses.borderClass
-                } hover:border-blue-500`}
+                  } hover:border-blue-500`}
               >
                 {isSelected && (
-                  <div className={`absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                    darkMode ? 'bg-blue-500 text-white' : 'bg-blue-600 text-white'
-                  }`}>
+                  <div className={`absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${darkMode ? 'bg-blue-500 text-white' : 'bg-blue-600 text-white'
+                    }`}>
                     ✓
                   </div>
                 )}

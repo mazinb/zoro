@@ -4,6 +4,8 @@ import { startScheduler } from './services/scheduler';
 import { verifyEmail } from './routes/verify';
 import { registerUser } from './services/verification';
 import { handleInboundEmail } from './routes/webhooks';
+import { realtimeService } from './services/realtime';
+import { adminRouter } from './routes/admin';
 
 dotenv.config();
 
@@ -19,11 +21,11 @@ app.get('/health', (req, res) => {
 app.post('/api/users/register', async (req, res) => {
   try {
     const { email, checkin_frequency } = req.body;
-    
+
     if (!email) {
       return res.status(400).json({ error: 'Email is required' });
     }
-    
+
     const user = await registerUser(email, checkin_frequency || 'weekly');
     res.json({ success: true, user });
   } catch (error: any) {
@@ -54,14 +56,22 @@ app.post('/webhooks/email', async (req, res) => {
     res.status(200).json({ received: true, reply: result });
   } catch (error: any) {
     console.error('Webhook error:', error);
-    res.status(400).json({ error: error.message || 'Webhook processing failed' });
   }
 });
 
+// Admin Routes for Human Review
+app.use('/api/admin', adminRouter);
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
   console.log(`Health check: http://localhost:${PORT}/health`);
   startScheduler();
+
+  // Initialize Realtime Listener
+  try {
+    realtimeService.initialize();
+  } catch (error) {
+    console.error('Failed to initialize Realtime Service:', error);
+  }
 });
 

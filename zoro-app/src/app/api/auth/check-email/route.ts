@@ -48,17 +48,16 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Also check form_submissions for existing email
+    // Also check form_submissions for existing email (enforce one entry per email)
     if (!userExists) {
       const supabase = createClient(supabaseUrl, supabaseAnonKey);
       const { data: submissions } = await supabase
         .from('form_submissions')
-        .select('email, user_id')
+        .select('email')
         .eq('email', normalizedEmail)
         .limit(1);
 
-      // If submission exists with a user_id, user likely exists
-      if (submissions && submissions.length > 0 && submissions[0].user_id) {
+      if (submissions && submissions.length > 0) {
         userExists = true;
       }
     }
@@ -73,14 +72,41 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      return NextResponse.json(
+        { error: 'Verification service unavailable' },
+        { status: 503 }
+      );
+    }
+
     // Generate verification token
     const token = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date();
     expiresAt.setHours(expiresAt.getHours() + 24); // Token expires in 24 hours
 
-    // Store token in database (we'll need a table for this)
-    // For now, we'll return the token and the client will store it temporarily
-    // In production, store this in a database table like email_verification_tokens
+    // Store token in database for verification
+    const tokenClient = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    });
+
+    const { error: tokenError } = await tokenClient
+      .from('email_verification_tokens')
+      .insert({
+        email: normalizedEmail,
+        token,
+        expires_at: expiresAt.toISOString()
+      });
+
+    if (tokenError) {
+      console.error('Error saving verification token:', tokenError);
+      return NextResponse.json(
+        { error: 'Failed to generate verification token' },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json(
       { 
