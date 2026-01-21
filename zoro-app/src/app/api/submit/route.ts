@@ -42,18 +42,14 @@ export async function POST(request: NextRequest) {
             persistSession: false
           }
         })
-      : null;
-    
-    if (!adminClient) {
-      return NextResponse.json(
-        { error: 'Waitlist service unavailable' },
-        { status: 503 }
-      );
+      : supabase;
+
+    if (!serviceRoleKey) {
+      console.warn('SUPABASE_SERVICE_ROLE_KEY not set; using anon client for submission checks');
     }
 
     // Get user if authenticated
     let userId = null;
-    let userEmailConfirmed = false;
     const authHeader = request.headers.get('authorization');
     if (authHeader) {
       const token = authHeader.replace('Bearer ', '');
@@ -62,7 +58,6 @@ export async function POST(request: NextRequest) {
       const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
       if (!authError && user) {
         userId = user.id;
-        userEmailConfirmed = Boolean((user as any).email_confirmed_at || (user as any).confirmed_at);
       }
     }
 
@@ -124,27 +119,6 @@ export async function POST(request: NextRequest) {
 
     const verificationClient = adminClient;
 
-    // Enforce verified email before saving to waitlist
-    let emailIsVerified = userEmailConfirmed;
-    if (!emailIsVerified) {
-      const { data: verificationRow } = await verificationClient
-        .from('email_verification_tokens')
-        .select('id, used_at')
-        .eq('email', normalizedEmail)
-        .not('used_at', 'is', null)
-        .limit(1)
-        .maybeSingle();
-
-      emailIsVerified = Boolean(verificationRow?.used_at);
-    }
-
-    if (!emailIsVerified) {
-      return NextResponse.json(
-        { error: 'Email must be verified before joining the waitlist' },
-        { status: 403 }
-      );
-    }
-
     // Ensure only one entry per email
     const { data: existingSubmission } = await verificationClient
       .from('form_submissions')
@@ -153,19 +127,31 @@ export async function POST(request: NextRequest) {
       .limit(1)
       .maybeSingle();
 
-    if (existingSubmission?.id) {
-      return NextResponse.json(
-        { error: 'An entry already exists for this email' },
-        { status: 409 }
-      );
-    }
+    let submissionData: any = null;
+    let submissionError: any = null;
 
-    // Insert form submission
-    const { data: submissionData, error: submissionError } = await supabase
-      .from('form_submissions')
-      .insert(insertPayload)
-      .select()
-      .single();
+    if (existingSubmission?.id) {
+      // Update existing submission for this email
+      const updateResult = await supabase
+        .from('form_submissions')
+        .update(insertPayload)
+        .eq('id', existingSubmission.id)
+        .select()
+        .single();
+
+      submissionData = updateResult.data;
+      submissionError = updateResult.error;
+    } else {
+      // Insert form submission
+      const insertResult = await supabase
+        .from('form_submissions')
+        .insert(insertPayload)
+        .select()
+        .single();
+
+      submissionData = insertResult.data;
+      submissionError = insertResult.error;
+    }
 
     if (submissionError) {
       console.error('Error saving form submission to database:', submissionError);
@@ -191,21 +177,79 @@ export async function POST(request: NextRequest) {
         }));
 
       if (goalDetailsInserts.length > 0) {
-        // Use authenticated client if available, otherwise use service role
         const token = authHeader?.replace('Bearer ', '');
-        const clientForGoalDetails = userId && token
-          ? getSupabaseClient(token)
-          : supabase;
+        const canInsertGoalDetails = Boolean(serviceRoleKey || (userId && token));
 
-        const { error: goalDetailsError } = await clientForGoalDetails
-          .from('goal_details')
-          .insert(goalDetailsInserts);
+        if (!canInsertGoalDetails) {
+          console.warn('Skipping goal_details insert without service role or auth');
+        } else {
+          // Use authenticated client if available, otherwise use service role
+          const clientForGoalDetails = userId && token
+            ? getSupabaseClient(token)
+            : adminClient;
 
-        if (goalDetailsError) {
-          console.error('Error saving goal details:', goalDetailsError);
-          // Don't fail the whole submission if goal details fail
+          const { error: goalDetailsError } = await clientForGoalDetails
+            .from('goal_details')
+            .insert(goalDetailsInserts);
+
+          if (goalDetailsError) {
+            console.error('Error saving goal details:', goalDetailsError);
+            // Don't fail the whole submission if goal details fail
+          }
         }
       }
+    }
+
+    // Send admin notification email
+    const resendApiKey = process.env.RESEND_API_KEY;
+    if (resendApiKey) {
+      const fromAddress = process.env.RESEND_FROM || 'Zoro <admin@getzoro.com>';
+      const adminEmail = process.env.SUBMISSION_NOTIFY_EMAIL || 'mazin.biviji1@gmail.com';
+      const submissionSummary = {
+        submissionId: submissionData?.id || null,
+        email: normalizedEmail,
+        name: body.name || null,
+        contactMethod: body.contactMethod || null,
+        phone: body.phone || null,
+        netWorth: body.netWorth || null,
+        primaryGoal: body.primaryGoal || null,
+        goals: body.goals || null,
+        goalDetails: body.goalDetails || null,
+        estateStatus: body.estateStatus || null,
+        timeHorizon: body.timeHorizon || null,
+        concernLevel: body.concernLevel || null,
+        additionalInfo: body.additionalInfo || null,
+        userId: userId || null,
+      };
+
+      const prettyJson = JSON.stringify(submissionSummary, null, 2);
+      const emailPayload = {
+        from: fromAddress,
+        to: adminEmail,
+        subject: `New form submission: ${normalizedEmail || 'unknown email'}`,
+        html: [
+          `<p><strong>New form submission received.</strong></p>`,
+          `<p><strong>Contact email:</strong> ${normalizedEmail || 'Not provided'}</p>`,
+          `<p><strong>Full form info:</strong></p>`,
+          `<pre style="background:#f6f8fa;border:1px solid #e1e4e8;padding:12px;border-radius:6px;white-space:pre-wrap;">${prettyJson}</pre>`,
+        ].join(''),
+      };
+
+      const resendResponse = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${resendApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(emailPayload),
+      });
+
+      if (!resendResponse.ok) {
+        const errorText = await resendResponse.text();
+        console.error('Resend email failed:', resendResponse.status, errorText);
+      }
+    } else {
+      console.warn('RESEND_API_KEY not set; skipping submission email');
     }
 
     // Return success with the saved data

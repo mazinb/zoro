@@ -2,12 +2,14 @@
 
 import React, { useRef, useEffect } from 'react';
 import Link from 'next/link';
-import { Moon, Sun, ChevronLeft, ChevronRight, Lock, Clock, Trophy } from 'lucide-react';
+import { Moon, Sun, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
 import { ZoroLogo } from '@/components/ZoroLogo';
 import { Button } from '@/components/ui/Button';
 import { useThemeClasses } from '@/hooks/useThemeClasses';
 import { useAnalytics } from '@/hooks/useAnalytics';
 import ZoroLearningAnimation from '@/components/bloganimation';
+import { useWaitlistCount } from '@/hooks/useWaitlistCount';
+import { buildTimelineMilestones } from '@/lib/timeline';
 
 interface LandingPageProps {
   darkMode: boolean;
@@ -52,7 +54,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const theme = useThemeClasses(darkMode);
   const { trackClick } = useAnalytics();
   const carouselRef = useRef<HTMLDivElement>(null);
+  const roadmapRef = useRef<HTMLDivElement>(null);
   const [currentIndex, setCurrentIndex] = React.useState(0);
+  const [isRoadmapVisible, setIsRoadmapVisible] = React.useState(false);
+  const signupCount = useWaitlistCount(isRoadmapVisible);
+  const timelineMilestones = buildTimelineMilestones(signupCount);
 
   // Auto-scroll carousel
   useEffect(() => {
@@ -76,6 +82,29 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       });
     }
   }, [currentIndex]);
+
+  useEffect(() => {
+    if (!roadmapRef.current || isRoadmapVisible) {
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const [entry] = entries;
+        if (entry?.isIntersecting) {
+          setIsRoadmapVisible(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: '200px' }
+    );
+
+    observer.observe(roadmapRef.current);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [isRoadmapVisible]);
 
   const scrollCarousel = (direction: 'left' | 'right') => {
     const newIndex = direction === 'left'
@@ -104,19 +133,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               Timeline
             </Link>
             <button
-              onClick={() => {
-                trackClick('philosophy_nav_click', {
-                  category: 'navigation',
-                  label: 'Our Philosophy (Nav)',
-                  elementId: 'philosophy-nav-link',
-                });
-                onShowPhilosophy();
-              }}
-              className={`text-sm ${theme.textSecondaryClass} hover:${theme.textClass} transition-colors`}
-            >
-              Our Philosophy
-            </button>
-            <button
               onClick={onToggleDarkMode}
               className={`p-2 rounded-lg ${theme.textSecondaryClass} hover:${theme.textClass} transition-colors`}
               aria-label="Toggle dark mode"
@@ -132,12 +148,26 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
       {/* Hero Section */}
       <div className="max-w-4xl mx-auto px-6 pt-32 pb-24 text-center">
-        <div className={`inline-block ${theme.accentBgClass} border ${theme.cardBorderClass} rounded-full px-4 py-2 mb-8`}>
-          <span className={`text-sm font-medium ${theme.textSecondaryClass} flex items-center gap-2`}>
+        <div className={`inline-block ${theme.accentBgClass} border ${theme.cardBorderClass} rounded-full px-4 py-2 mb-6`}>
+          <span className={`text-sm font-medium ${theme.textSecondaryClass} flex items-center gap-2 whitespace-nowrap truncate max-w-[260px] sm:max-w-none`}>
             <Clock className="w-4 h-4" />
             Limited spots available for early access
           </span>
         </div>
+
+        <button
+          onClick={() => {
+            trackClick('philosophy_hero_click', {
+              category: 'navigation',
+              label: 'Our Philosophy (Hero)',
+              elementId: 'philosophy-hero-link',
+            });
+            onShowPhilosophy();
+          }}
+          className={`block w-fit mx-auto text-sm font-medium ${theme.textSecondaryClass} hover:${theme.textClass} transition-colors mb-6`}
+        >
+          Our Philosophy
+        </button>
 
         <h1 className={`text-6xl font-bold ${theme.textClass} mb-6 tracking-tight`}>
           Your personal AI
@@ -203,7 +233,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       </div>
 
       {/* Waitlist Milestones */}
-      <div className={`${theme.accentBgClass} py-24`}>
+      <div className={`${theme.accentBgClass} py-24`} ref={roadmapRef}>
         <div className="max-w-4xl mx-auto px-6">
           <div className="text-center mb-16">
             <h2 className={`text-3xl font-bold ${headerTextClass} mb-4`}>
@@ -215,63 +245,50 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </div>
 
           <div className="space-y-8">
-            <div className={`flex gap-6 p-6 rounded-2xl border ${theme.borderClass} ${darkMode ? 'bg-slate-800/50' : 'bg-white'}`}>
-              <div className={`flex-shrink-0 w-12 h-12 ${numberBgClass} rounded-full flex items-center justify-center font-bold text-lg`}>
-                10
-              </div>
-              <div>
-                <h3 className={`text-xl font-bold ${theme.textClass} mb-2 flex items-center gap-2`}>
-                  First 10 Users
-                  <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">Complete</span>
-                </h3>
-                <p className={theme.textSecondaryClass}>
-                  30-minute free portfolio review and planning meeting directly with our founder.
-                </p>
-              </div>
-            </div>
+            {timelineMilestones.map((milestone) => {
+              const isComplete = milestone.status === 'complete';
+              const isCurrent = milestone.status === 'current';
+              const isUpcoming = milestone.status === 'upcoming';
+              const badgeClass = isComplete
+                ? 'bg-green-600 text-white'
+                : isCurrent
+                  ? 'bg-blue-600 text-white'
+                  : '';
 
-            <div className={`flex gap-6 p-6 rounded-2xl border ${theme.borderClass} ${darkMode ? 'bg-slate-800/50' : 'bg-white'}`}>
-              <div className={`flex-shrink-0 w-12 h-12 ${numberBgClass} rounded-full flex items-center justify-center font-bold text-lg`}>
-                100
-              </div>
-              <div>
-                <h3 className={`text-xl font-bold ${theme.textClass} mb-2 flex items-center gap-2`}>
-                  First 100 Users
-                  <span className="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">Current Phase</span>
-                </h3>
-                <p className={theme.textSecondaryClass}>
-                  Receive a personalized welcome email and early access to new features.
-                </p>
-              </div>
-            </div>
-
-            <div className={`flex gap-6 p-6 rounded-2xl border ${theme.borderClass} ${darkMode ? 'bg-slate-800/50' : 'bg-white/50 opacity-75'}`}>
-              <div className={`flex-shrink-0 w-12 h-12 ${darkMode ? 'bg-slate-800' : 'bg-slate-200'} rounded-full flex items-center justify-center font-bold text-lg`}>
-                1k
-              </div>
-              <div>
-                <h3 className={`text-xl font-bold ${theme.textClass} mb-2`}>
-                  First 1,000 Users
-                </h3>
-                <p className={theme.textSecondaryClass}>
-                  We take the RIA exam and build full AI automation for comprehensive financial management.
-                </p>
-              </div>
-            </div>
-
-            <div className={`flex gap-6 p-6 rounded-2xl border ${theme.borderClass} ${darkMode ? 'bg-slate-800/50' : 'bg-white/50 opacity-75'}`}>
-              <div className={`flex-shrink-0 w-12 h-12 ${darkMode ? 'bg-slate-800' : 'bg-slate-200'} rounded-full flex items-center justify-center font-bold text-lg`}>
-                1M
-              </div>
-              <div>
-                <h3 className={`text-xl font-bold ${theme.textClass} mb-2`}>
-                  First 10,000 Users
-                </h3>
-                <p className={theme.textSecondaryClass}>
-                  Free for life before opening to the general public.
-                </p>
-              </div>
-            </div>
+              return (
+                <div
+                  key={milestone.count}
+                  className={`flex gap-6 p-6 rounded-2xl border ${theme.borderClass} ${
+                    isUpcoming
+                      ? darkMode
+                        ? 'bg-slate-800/50 opacity-75'
+                        : 'bg-white/50 opacity-75'
+                      : darkMode
+                        ? 'bg-slate-800/50'
+                        : 'bg-white'
+                  }`}
+                >
+                  <div
+                    className={`flex-shrink-0 w-12 h-12 ${
+                      isUpcoming ? (darkMode ? 'bg-slate-800' : 'bg-slate-200') : numberBgClass
+                    } rounded-full flex items-center justify-center font-bold text-lg`}
+                  >
+                    {milestone.displayCount}
+                  </div>
+                  <div>
+                    <h3 className={`text-xl font-bold ${theme.textClass} mb-2 flex items-center gap-2`}>
+                      {milestone.title}
+                      {!isUpcoming && (
+                        <span className={`text-xs px-2 py-1 rounded-full ${badgeClass}`}>
+                          {isComplete ? 'Complete' : 'Current'}
+                        </span>
+                      )}
+                    </h3>
+                    <p className={theme.textSecondaryClass}>{milestone.description}</p>
+                  </div>
+                </div>
+              );
+            })}
           </div>
 
           <div className="mt-12 text-center">

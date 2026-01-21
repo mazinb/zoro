@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { Resend } from 'resend';
 
 const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 
   (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
@@ -77,14 +76,25 @@ The Zoro Team
     });
 
     if (process.env.RESEND_API_KEY) {
-      const resend = new Resend(process.env.RESEND_API_KEY);
-      const fromAddress = process.env.RESEND_FROM || 'Zoro <noreply@zoro.app>';
-      await resend.emails.send({
-        from: fromAddress,
-        to: email,
-        subject: emailSubject,
-        html: emailBody.replace(/\n/g, '<br>'),
+      const fromAddress = process.env.RESEND_FROM || 'Zoro <admin@getzoro.com>';
+      const resendResponse = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          from: fromAddress,
+          to: email,
+          subject: emailSubject,
+          html: emailBody.replace(/\n/g, '<br>'),
+        }),
       });
+
+      if (!resendResponse.ok) {
+        const errorText = await resendResponse.text();
+        console.error('Resend email failed:', resendResponse.status, errorText);
+      }
     } else {
       console.warn('RESEND_API_KEY not set; skipping email send');
     }

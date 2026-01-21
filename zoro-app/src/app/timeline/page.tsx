@@ -7,66 +7,18 @@ import { ZoroLogo } from '@/components/ZoroLogo';
 import { useThemeClasses } from '@/hooks/useThemeClasses';
 import { useDarkMode } from '@/hooks/useDarkMode';
 import { Sun, Moon } from 'lucide-react';
+import { useWaitlistCount } from '@/hooks/useWaitlistCount';
+import { buildTimelineMilestones } from '@/lib/timeline';
 
 export default function TimelinePage() {
     const { darkMode, toggleDarkMode } = useDarkMode();
     const theme = useThemeClasses(darkMode);
-    const [signupCount, setSignupCount] = React.useState<number | null>(null);
+    const signupCount = useWaitlistCount();
 
     const headerTextClass = darkMode ? theme.textClass : 'text-slate-900';
     const numberBgClass = darkMode ? theme.buttonClass : 'bg-slate-900 text-white';
 
-    React.useEffect(() => {
-        let isMounted = true;
-
-        fetch('/api/waitlist/count')
-            .then((res) => (res.ok ? res.json() : null))
-            .then((data) => {
-                if (isMounted && data?.count !== undefined) {
-                    setSignupCount(data.count);
-                }
-            })
-            .catch(() => {
-                if (isMounted) {
-                    setSignupCount(null);
-                }
-            });
-
-        return () => {
-            isMounted = false;
-        };
-    }, []);
-
-    const milestones = [
-        {
-            count: 10,
-            title: "First 10 Users",
-            description: "30-minute free portfolio review and planning meeting directly with our founder.",
-            status: "complete",
-            date: "Completed"
-        },
-        {
-            count: 100,
-            title: "First 100 Users",
-            description: "Receive a personalized welcome email and early access to new features.",
-            status: "current",
-            date: "In progress"
-        },
-        {
-            count: 1000,
-            title: "First 1,000 Users",
-            description: "We take the RIA exam and build full AI automation for comprehensive financial management.",
-            status: "upcoming",
-            date: "Coming soon"
-        },
-        {
-            count: 1000000,
-            title: "First 1,000,000 Users",
-            description: "Free for life before opening to the general public.",
-            status: "upcoming",
-            date: "Future goal"
-        }
-    ];
+    const milestones = buildTimelineMilestones(signupCount);
 
     return (
         <div className={`min-h-screen ${theme.bgClass} transition-colors duration-300`}>
@@ -112,6 +64,8 @@ export default function TimelinePage() {
                     {milestones.map((milestone, index) => {
                         const isComplete = milestone.status === 'complete';
                         const isCurrent = milestone.status === 'current';
+                        const isUpcoming = milestone.status === 'upcoming';
+                        const statusLabel = isComplete ? 'Complete' : isCurrent ? 'Current' : 'Upcoming';
 
                         return (
                             <div key={index} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
@@ -132,15 +86,17 @@ export default function TimelinePage() {
                                 <div className={`w-[calc(100%-4rem)] md:w-[calc(50%-3rem)] p-6 rounded-2xl border ${theme.borderClass} ${darkMode ? 'bg-slate-800/50' : 'bg-white'} shadow-sm`}>
                                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
                                         <span className={`font-bold text-lg ${isCurrent ? 'text-blue-600 dark:text-blue-400' : theme.textClass}`}>
-                                            First {milestone.count.toLocaleString()} Users
+                                            {milestone.title}
                                         </span>
-                                        <span className={`text-xs px-2 py-1 rounded-full w-fit ${isComplete
-                                                ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                                        <span
+                                            className={`text-xs px-2 py-1 rounded-full w-fit ${isComplete
+                                                ? 'bg-green-600 text-white'
                                                 : isCurrent
-                                                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
-                                                    : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400'
-                                            }`}>
-                                            {milestone.date}
+                                                    ? 'bg-blue-600 text-white'
+                                                    : 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200'
+                                                }`}
+                                        >
+                                            {statusLabel}
                                         </span>
                                     </div>
                                     <p className={`${theme.textSecondaryClass} leading-relaxed`}>

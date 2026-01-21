@@ -62,7 +62,6 @@ export const ContactMethodSelection: React.FC<ContactMethodSelectionProps> = ({
   const [phoneError, setPhoneError] = useState('');
   const [additionalInfoError, setAdditionalInfoError] = useState('');
   const [emailError, setEmailError] = useState('');
-  const [isCheckingEmail, setIsCheckingEmail] = useState(false);
   const { validatePhone } = usePhoneValidation(countryCode);
 
   // Validate additional info has at least 3 words
@@ -305,7 +304,7 @@ export const ContactMethodSelection: React.FC<ContactMethodSelectionProps> = ({
                 <Button
                   variant="primary"
                   darkMode={darkMode}
-                  onClick={async () => {
+                  onClick={() => {
                     const okName = validateName(name);
                     const okNetWorth = validateNetWorth(netWorth);
                     const okInfo = validateAdditionalInfo(additionalInfo);
@@ -315,75 +314,12 @@ export const ContactMethodSelection: React.FC<ContactMethodSelectionProps> = ({
                       return;
                     }
 
-                    // Check if email already exists
-                    setIsCheckingEmail(true);
-                    setEmailError('');
-
-                    try {
-                      const checkResponse = await fetch('/api/auth/check-email', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ email }),
-                      });
-
-                      const checkData = await checkResponse.json();
-
-                      if (checkData.exists) {
-                        setEmailError(checkData.message || 'This email is already registered. Please log in instead.');
-                        // Redirect to login page after a short delay
-                        setTimeout(() => {
-                          window.location.href = `/login?email=${encodeURIComponent(email)}&message=${encodeURIComponent(checkData.message || 'Please log in to continue')}`;
-                        }, 2000);
-                        setIsCheckingEmail(false);
-                        return;
-                      }
-
-                      // Email doesn't exist, proceed with email verification flow
-                      // Store form data temporarily and send verification email
-                      const token = checkData.token;
-
-                      // Send verification email
-                      const emailResponse = await fetch('/api/auth/send-verification-email', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                          email,
-                          token,
-                          name,
-                          goals: selectedGoals || []
-                        }),
-                      });
-
-                      if (!emailResponse.ok) {
-                        throw new Error('Failed to send verification email');
-                      }
-
-                      // Store form data in sessionStorage for after signup
-                      const formData = {
-                        name,
-                        netWorth,
-                        additionalInfo,
-                        email,
-                        token,
-                        expiresAt: checkData.expiresAt,
-                        selectedGoals,
-                        goalDetails
-                      };
-                      sessionStorage.setItem('pendingFormSubmission', JSON.stringify(formData));
-
-                      // Redirect to signup page with email and token
-                      window.location.href = `/login?email=${encodeURIComponent(email)}&token=${token}&mode=signup&message=${encodeURIComponent('Please check your email and complete your registration')}`;
-                    } catch (error) {
-                      console.error('Error checking email:', error);
-                      setEmailError('Failed to verify email. Please try again.');
-                      setIsCheckingEmail(false);
-                    }
+                    onEmailAuthSuccess();
                   }}
                   className="w-full"
                   showArrow
-                  disabled={isCheckingEmail}
                 >
-                  {isCheckingEmail ? 'Checking email...' : 'Continue with Email'}
+                  Continue with Email
                 </Button>
               </>
             )}
@@ -448,9 +384,16 @@ export const ContactMethodSelection: React.FC<ContactMethodSelectionProps> = ({
               darkMode={darkMode}
               showArrow
               onClick={() => {
-                if (validateAdditionalInfo(additionalInfo)) {
-                  handlePhoneSubmit();
-                }
+              const okName = validateName(name);
+              const okNetWorth = validateNetWorth(netWorth);
+              const okInfo = validateAdditionalInfo(additionalInfo);
+              const okEmail = validateEmail(email);
+
+              if (!okName || !okNetWorth || !okInfo || !okEmail) {
+                return;
+              }
+
+              handlePhoneSubmit();
               }}
               className="w-full"
             >
