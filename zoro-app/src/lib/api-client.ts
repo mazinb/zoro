@@ -14,26 +14,3 @@ export async function getAuthHeaders(): Promise<HeadersInit> {
   return headers;
 }
 
-// Helper to make authenticated API calls
-export async function apiCall<T>(
-  url: string,
-  options: RequestInit = {}
-): Promise<T> {
-  const headers = await getAuthHeaders();
-  
-  const response = await fetch(url, {
-    ...options,
-    headers: {
-      ...headers,
-      ...options.headers,
-    },
-  });
-  
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Unknown error' }));
-    throw new Error(error.error || `API call failed: ${response.statusText}`);
-  }
-  
-  return response.json();
-}
-

@@ -16,7 +16,7 @@ import { NewPostModal } from './NewPostModal';
 import { SavedArticlesPanel } from './SavedArticlesPanel';
 import { ZoroContextPanel } from './ZoroContextPanel';
 import { Button } from '@/components/ui/Button';
-import { apiCall, getAuthHeaders } from '@/lib/api-client';
+import { getAuthHeaders } from '@/lib/api-client';
 
 // Helper to convert DB post (snake_case) to BlogPost type (camelCase)
 function convertDbPostToBlogPost(dbPost: {
