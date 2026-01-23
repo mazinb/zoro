@@ -127,12 +127,19 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             <ZoroLogo className="h-10" isDark={darkMode} />
           </div>
           <div className="flex items-center gap-6">
-            <Link
-              href="/timeline"
+            <button
+              onClick={() => {
+                trackClick('philosophy_nav_click', {
+                  category: 'navigation',
+                  label: 'Our Philosophy (Nav)',
+                  elementId: 'philosophy-nav-link',
+                });
+                onShowPhilosophy();
+              }}
               className={`text-sm ${theme.textSecondaryClass} hover:${theme.textClass} transition-colors`}
             >
-              Timeline
-            </Link>
+              Our Philosophy
+            </button>
             <button
               onClick={onToggleDarkMode}
               className={`p-2 rounded-lg ${theme.textSecondaryClass} hover:${theme.textClass} transition-colors`}
@@ -154,7 +161,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </div>
 
         <h1 className={`text-6xl font-bold ${theme.textClass} mb-6 tracking-tight`}>
-          Your personal
+          Your Personal
           <br />
           <span className="text-blue-600 dark:text-blue-400">
             Financial Planner

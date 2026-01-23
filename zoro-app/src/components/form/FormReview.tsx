@@ -4,7 +4,6 @@ import React from 'react';
 import { Check } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
-import { ZoroLogo } from '@/components/ZoroLogo';
 import { ContactMethod } from '@/types';
 
 const goalLabels: Record<string, string> = {
@@ -58,9 +57,6 @@ export const FormReview: React.FC<FormReviewProps> = ({
     <div className={`min-h-screen ${darkMode ? 'bg-slate-900' : 'bg-white'} flex items-center justify-center p-4 transition-colors duration-300`}>
       <div className="max-w-2xl w-full">
         <div className="text-center mb-8">
-          <div className={`inline-flex items-center justify-center mb-4`}>
-            <ZoroLogo className="h-10" isDark={darkMode} />
-          </div>
           <h2 className={`text-2xl font-bold ${themeClasses.textClass} mb-2`}>
             Review your answers
           </h2>

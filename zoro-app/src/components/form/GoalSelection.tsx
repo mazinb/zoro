@@ -1,7 +1,6 @@
 'use client';
 
 import React from 'react';
-import { ZoroLogo } from '@/components/ZoroLogo';
 import { Button } from '@/components/ui/Button';
 
 // Goal icons (same as checkin page)
@@ -92,10 +91,6 @@ export const GoalSelection: React.FC<GoalSelectionProps> = ({
       <div className="max-w-4xl w-full">
         {/* Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center mb-6">
-            <ZoroLogo className="h-10" isDark={darkMode} />
-          </div>
-
           <h2 className={`text-3xl font-bold ${themeClasses.textClass} mb-2`}>
             Pick your financial goals
           </h2>

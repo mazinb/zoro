@@ -149,9 +149,6 @@ export const ContactMethodSelection: React.FC<ContactMethodSelectionProps> = ({
     <div className={`min-h-screen ${darkMode ? 'bg-slate-900' : 'bg-white'} flex items-center justify-center p-4 transition-colors duration-300`}>
       <div className="max-w-lg w-full">
         <div className="text-center mb-8">
-          <div className={`inline-flex items-center gap-2 mb-4`}>
-            <span className={`text-3xl font-bold ${themeClasses.textClass}`}>Zoro</span>
-          </div>
           <h2 className={`text-2xl font-bold ${themeClasses.textClass} mb-2`}>
             A few final details
           </h2>
@@ -213,9 +210,6 @@ export const ContactMethodSelection: React.FC<ContactMethodSelectionProps> = ({
                     <option value="1Cr-10Cr">₹1 Crore – ₹10 Crore</option>
                     <option value="over10Cr">Over ₹10 Crore</option>
                   </select>
-                  <p className={`text-xs mt-1 ${themeClasses.textSecondaryClass}`}>
-                    This helps Zoro calibrate examples and suggestions for your context.
-                  </p>
                   {netWorthError && (
                     <p className="text-red-500 text-sm mt-1" role="alert">
                       {netWorthError}

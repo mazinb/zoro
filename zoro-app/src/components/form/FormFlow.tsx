@@ -1,7 +1,6 @@
 'use client';
 
 import React from 'react';
-import { ZoroLogo } from '@/components/ZoroLogo';
 import { ProgressIndicator } from '@/components/ui/ProgressIndicator';
 import { QuestionCard } from './QuestionCard';
 import { Button } from '@/components/ui/Button';
@@ -41,10 +40,6 @@ export const FormFlow: React.FC<FormFlowProps> = ({
       <div className="max-w-2xl w-full">
         {/* Header */}
         <div className="text-center mb-8">
-          <div className={`inline-flex items-center justify-center mb-6`}>
-            <ZoroLogo className="h-10" isDark={darkMode} />
-          </div>
-          
           {/* Progress */}
           <ProgressIndicator currentStep={currentStep} totalSteps={questions.length} />
 

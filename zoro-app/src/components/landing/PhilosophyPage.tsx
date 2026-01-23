@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useRouter } from 'next/navigation';
-import { Moon, Sun } from 'lucide-react';
+import { ChevronLeft, Moon, Sun } from 'lucide-react';
 import { ZoroLogo } from '@/components/ZoroLogo';
 import { Button } from '@/components/ui/Button';
 import { useThemeClasses } from '@/hooks/useThemeClasses';
@@ -43,13 +43,21 @@ export const PhilosophyPage: React.FC<PhilosophyPageProps> = ({
             >
               <ZoroLogo className="h-8" isDark={darkMode} />
             </button>
-            <button
-              onClick={onToggleDarkMode}
-              className={`p-2 rounded-lg ${theme.textSecondaryClass} hover:${theme.textClass} transition-colors`}
-              aria-label="Toggle dark mode"
-            >
-              {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-            </button>
+            <div className="flex items-center gap-6">
+              <button
+                onClick={onBack}
+                className={`text-sm ${theme.textSecondaryClass} hover:${theme.textClass} transition-colors flex items-center gap-1`}
+              >
+                <ChevronLeft className="w-4 h-4" /> Back to Home
+              </button>
+              <button
+                onClick={onToggleDarkMode}
+                className={`p-2 rounded-lg ${theme.textSecondaryClass} hover:${theme.textClass} transition-colors`}
+                aria-label="Toggle dark mode"
+              >
+                {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+              </button>
+            </div>
           </div>
           <h1 className={`text-3xl font-bold ${theme.textClass} mb-2 mt-4`}>Our Philosophy</h1>
           <p className={theme.textSecondaryClass}>
@@ -119,7 +127,7 @@ export const PhilosophyPage: React.FC<PhilosophyPageProps> = ({
               variant="primary"
               darkMode={darkMode}
               onClick={handleRetireClick}
-              className="px-8 py-4 text-lg"
+              className={`px-8 py-4 text-lg shadow-sm hover:shadow-md ${darkMode ? 'shadow-blue-500/30' : 'shadow-slate-900/10'}`}
             >
               Start the retirement calculator
             </Button>

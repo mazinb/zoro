@@ -176,19 +176,12 @@ export default function RetirePage() {
             >
               {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
             </button>
-            {isLoggedIn ? (
+            {isLoggedIn && (
               <button 
                 onClick={handleLogout}
                 className={`text-sm ${theme.textSecondaryClass} hover:${theme.textClass} transition-colors`}
               >
                 Logout
-              </button>
-            ) : (
-              <button 
-                onClick={() => router.push('/login?redirect=/retire')}
-                className={`text-sm ${theme.textSecondaryClass} hover:${theme.textClass} transition-colors`}
-              >
-                Login
               </button>
             )}
           </div>
