@@ -342,7 +342,6 @@ const ZoroLanding = () => {
       <PhilosophyPage
         darkMode={darkMode}
         onToggleDarkMode={toggleDarkMode}
-        onGetStarted={handleGetStarted}
         onBack={() => {
           setShowPhilosophy(false);
           resetForm();

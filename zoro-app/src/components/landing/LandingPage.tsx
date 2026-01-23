@@ -116,6 +116,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   // Dark blue for light mode headers and buttons
   const headerTextClass = darkMode ? theme.textClass : 'text-slate-900';
   const numberBgClass = darkMode ? theme.buttonClass : 'bg-slate-900 text-white';
+  const upcomingNumberClass = darkMode ? 'bg-slate-800 text-slate-100' : 'bg-slate-200 text-slate-900';
 
   return (
     <div className={`min-h-screen ${theme.bgClass} transition-colors duration-300`}>
@@ -139,9 +140,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             >
               {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
             </button>
-            <Link href="/login" className={`text-sm font-medium ${theme.textClass}`}>
-              Sign In
-            </Link>
           </div>
         </div>
       </nav>
@@ -155,22 +153,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           </span>
         </div>
 
-        <button
-          onClick={() => {
-            trackClick('philosophy_hero_click', {
-              category: 'navigation',
-              label: 'Our Philosophy (Hero)',
-              elementId: 'philosophy-hero-link',
-            });
-            onShowPhilosophy();
-          }}
-          className={`block w-fit mx-auto text-sm font-medium ${theme.textSecondaryClass} hover:${theme.textClass} transition-colors mb-6`}
-        >
-          Our Philosophy
-        </button>
-
         <h1 className={`text-6xl font-bold ${theme.textClass} mb-6 tracking-tight`}>
-          Your personal AI
+          Your personal
           <br />
           <span className="text-blue-600 dark:text-blue-400">
             Financial Planner
@@ -223,8 +207,21 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               Read, React, We Learn
             </h3>
             <p className={`${theme.textSecondaryClass} text-lg leading-relaxed mb-6`}>
-              Get timely reminders to stay on track and accomplish your goals. Simply reply to our check-ins to give feedback or update your info.
+              Get timely reminders to stay on track and accomplish your goals. Simply reply to give us feedback or update your info.
             </p>
+            <button
+              onClick={() => {
+                trackClick('philosophy_read_react_click', {
+                  category: 'navigation',
+                  label: 'Our Philosophy (Read React)',
+                  elementId: 'philosophy-read-react-link',
+                });
+                onShowPhilosophy();
+              }}
+              className="text-blue-600 hover:text-blue-700 font-medium inline-flex items-center gap-1"
+            >
+              Our Philosophy <ChevronRight className="w-4 h-4" />
+            </button>
           </div>
 
           {/* Title (first on mobile only) */}
@@ -270,7 +267,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 >
                   <div
                     className={`flex-shrink-0 w-12 h-12 ${
-                      isUpcoming ? (darkMode ? 'bg-slate-800' : 'bg-slate-200') : numberBgClass
+                      isUpcoming ? upcomingNumberClass : numberBgClass
                     } rounded-full flex items-center justify-center font-bold text-lg`}
                   >
                     {milestone.displayCount}

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Home, Plane, Heart, Shield, TrendingUp } from 'lucide-react';
+import { Home, Plane, Heart, Shield, TrendingUp, Check } from 'lucide-react';
 import { useThemeClasses } from '@/hooks/useThemeClasses';
 import { useAuth } from '@/hooks/useAuth';
 import { RETIREMENT_CONFIG } from './retirementConfig';
@@ -54,7 +54,7 @@ export const RetirementCalculator: React.FC<RetirementCalculatorProps> = ({
   // Use darkMode from props if provided, otherwise default to false
   const darkMode = propDarkMode ?? false;
   const theme = useThemeClasses(darkMode);
-  const { user, session } = useAuth();
+  const { user } = useAuth();
   
   const [step, setStep] = useState(0);
   const [showResult, setShowResult] = useState(false);
@@ -425,8 +425,31 @@ export const RetirementCalculator: React.FC<RetirementCalculatorProps> = ({
     }, 2500);
   };
 
+  const submitRetirementLead = async (retirementResult: RetirementResult, submissionEmail: string) => {
+    const response = await fetch('/api/submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        goals: ['retirement'],
+        contactMethod: 'email',
+        email: submissionEmail,
+        netWorth: answers.liquidNetWorth ? String(answers.liquidNetWorth) : '',
+        additionalInfo: {
+          source: 'retirement_calculator',
+          answers,
+          result: retirementResult,
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to submit retirement request');
+    }
+  };
+
   const handleEmailSubmit = async () => {
-    if (!email) {
+    const submissionEmail = (email || user?.email || '').trim();
+    if (!submissionEmail) {
       setEmailError('Please enter your email');
       return;
     }
@@ -434,72 +457,27 @@ export const RetirementCalculator: React.FC<RetirementCalculatorProps> = ({
     setCheckingEmail(true);
     setEmailError('');
 
+    const retirementResult = calculateRetirement();
+
     try {
-      // Check if email exists
-      const checkResponse = await fetch('/api/auth/check-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email }),
-      });
-
-      const checkData = await checkResponse.json();
-
-      if (checkData.exists) {
-        setEmailError(checkData.message || 'This email is already registered. Please log in instead.');
-        // Redirect to login after a delay
-        setTimeout(() => {
-          window.location.href = `/login?email=${encodeURIComponent(email)}&redirect=/retire&message=${encodeURIComponent('Please log in to save your retirement plan')}`;
-        }, 2000);
-        return;
-      }
-
-      // Email doesn't exist, proceed with saving
-      if (onSave && customBuckets) {
+      if (onSave && customBuckets && user) {
         setSaving(true);
-        try {
-          const result = calculateRetirement();
-          await onSave({
-            answers,
-            expenseBuckets: customBuckets,
-            result,
-            email: email
-          });
-          setEmailSubmitted(true);
-        } catch (error) {
-          console.error('Error saving retirement plan:', error);
-          setEmailError('Failed to save. Please try again.');
-        } finally {
-          setSaving(false);
-        }
-      } else {
-        // Just submit email for non-logged in users
-        setEmailSubmitted(true);
+        await onSave({
+          answers,
+          expenseBuckets: customBuckets,
+          result: retirementResult,
+          email: submissionEmail
+        });
       }
-    } catch (error) {
-      console.error('Error checking email:', error);
-      setEmailError('Failed to verify email. Please try again.');
-    } finally {
-      setCheckingEmail(false);
-    }
-  };
 
-  const handleSave = async () => {
-    if (!onSave || !customBuckets) return;
-    
-    setSaving(true);
-    try {
-      const result = calculateRetirement();
-      await onSave({
-        answers,
-        expenseBuckets: customBuckets,
-        result,
-        email: email || undefined
-      });
+      await submitRetirementLead(retirementResult, submissionEmail);
       setEmailSubmitted(true);
     } catch (error) {
-      console.error('Error saving retirement plan:', error);
+      console.error('Error submitting retirement plan:', error);
+      setEmailError('Failed to submit. Please try again.');
     } finally {
       setSaving(false);
+      setCheckingEmail(false);
     }
   };
 
@@ -1907,8 +1885,8 @@ export const RetirementCalculator: React.FC<RetirementCalculatorProps> = ({
                 </h3>
                 <p className={`text-sm mb-4 ${theme.textSecondaryClass}`}>
                   {user 
-                    ? 'Save this plan to your profile to access and edit it later.'
-                    : 'Sign up for check-ins to save this plan and track your progress.'}
+                    ? 'Save this plan to your profile and get a copy by email.'
+                    : 'Enter your email to get a copy and stay in the loop.'}
                 </p>
                 {emailError && (
                   <div className={`mb-4 p-3 rounded-lg ${darkMode ? 'bg-red-900/30 border border-red-500/50' : 'bg-red-50 border border-red-200'}`}>
@@ -1933,17 +1911,17 @@ export const RetirementCalculator: React.FC<RetirementCalculatorProps> = ({
                 </div>
                 {(checkingEmail || saving) && (
                   <div className={`mb-4 space-y-1 ${theme.textSecondaryClass} text-sm`}>
-                    <p>• Checking if this email is already registered</p>
-                    <p>• Creating your account to save your plan</p>
-                    <p>• Setting up your profile for future access</p>
+                    <p>• Submitting your retirement plan details</p>
+                    <p>• Emailing you a personalized summary</p>
+                    <p>• Saving your preferences for future updates</p>
                   </div>
                 )}
                 <button
-                  onClick={user ? handleSave : handleEmailSubmit}
+                  onClick={handleEmailSubmit}
                   disabled={checkingEmail || saving || (!user && !email)}
                   className="w-full px-6 py-3 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg transition-colors font-medium"
                 >
-                  {checkingEmail ? 'Verifying email address...' : saving ? (user ? 'Saving...' : 'Creating your account...') : (user ? 'Save Plan' : 'Save & Continue')}
+                  {checkingEmail || saving ? 'Submitting...' : (user ? 'Save & Email Me' : 'Email me the plan')}
                 </button>
               </div>
 
@@ -1996,15 +1974,14 @@ export const RetirementCalculator: React.FC<RetirementCalculatorProps> = ({
 
           {emailSubmitted && (
             <div className="text-center py-12 animate-fade-in">
-              <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
+              <div className="bg-green-500 rounded-full p-4 w-20 h-20 mx-auto mb-4 flex items-center justify-center animate-bounce">
+                <Check className="w-10 h-10 text-white" aria-hidden="true" />
               </div>
-              <h3 className={`text-2xl font-light mb-2 ${theme.textClass}`}>Thank you!</h3>
+              <h3 className={`text-2xl font-light mb-2 ${theme.textClass}`}>You're all set! 🎉</h3>
               <p className={theme.textSecondaryClass}>
-                {user ? 'Your retirement plan has been saved to your profile.' : 'Sign up for check-ins to save this plan and track your progress.'}
+                We'll email you shortly with your personalized financial plan.
               </p>
+              <p className={`text-sm ${theme.textSecondaryClass} mt-2`}>Check your Gmail inbox for updates</p>
             </div>
           )}
         </div>
