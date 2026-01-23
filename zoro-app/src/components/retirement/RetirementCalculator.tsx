@@ -443,7 +443,8 @@ export const RetirementCalculator: React.FC<RetirementCalculatorProps> = ({
     });
 
     if (!response.ok) {
-      throw new Error('Failed to submit retirement request');
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || 'Failed to submit retirement request');
     }
   };
 
@@ -474,7 +475,7 @@ export const RetirementCalculator: React.FC<RetirementCalculatorProps> = ({
       setEmailSubmitted(true);
     } catch (error) {
       console.error('Error submitting retirement plan:', error);
-      setEmailError('Failed to submit. Please try again.');
+      setEmailError(error instanceof Error ? error.message : 'Failed to submit. Please try again.');
     } finally {
       setSaving(false);
       setCheckingEmail(false);

@@ -152,7 +152,8 @@ const ZoroLanding = () => {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to submit form');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to submit form');
       }
 
       if (user && authToken && contactMethod) {
@@ -175,7 +176,7 @@ const ZoroLanding = () => {
       setSubmitted(true);
     } catch (error) {
       console.error('Error submitting form:', error);
-      alert('There was an error submitting your form. Please try again.');
+      alert(error instanceof Error ? error.message : 'There was an error submitting your form. Please try again.');
     } finally {
       setIsSubmitting(false);
     }

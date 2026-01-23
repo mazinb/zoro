@@ -155,6 +155,17 @@ export async function POST(request: NextRequest) {
 
     if (submissionError) {
       console.error('Error saving form submission to database:', submissionError);
+      const isDuplicateEmail =
+        submissionError.code === '23505' ||
+        /duplicate key/i.test(submissionError.message || '') ||
+        /form_submissions_email_key/i.test(submissionError.message || '');
+
+      if (isDuplicateEmail) {
+        return NextResponse.json(
+          { error: 'This email is already on the waitlist. Try a different email or log in.' },
+          { status: 409 }
+        );
+      }
       return NextResponse.json(
         { error: 'Failed to save form submission', details: submissionError.message },
         { status: 500 }
