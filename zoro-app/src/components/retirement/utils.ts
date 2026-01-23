@@ -15,8 +15,31 @@ export const formatInputValue = (value: string | null, currency: string): string
 };
 
 export const parseInputValue = (value: string): string => {
-  // Remove all non-digit characters except decimal point
-  return value.replace(/[^\d.]/g, '');
+  const trimmed = value.trim().toLowerCase();
+  if (!trimmed) return '';
+
+  const hasCrore = /cr|crore/.test(trimmed);
+  const hasLakh = /l\b|lac|lakh/.test(trimmed);
+  const hasMillion = /\bm\b/.test(trimmed);
+  const hasThousand = /\bk\b/.test(trimmed);
+
+  const numeric = parseFloat(trimmed.replace(/[^\d.]/g, ''));
+  if (Number.isNaN(numeric)) {
+    return '';
+  }
+
+  let multiplier = 1;
+  if (hasCrore) {
+    multiplier = 10000000;
+  } else if (hasLakh) {
+    multiplier = 100000;
+  } else if (hasMillion) {
+    multiplier = 1000000;
+  } else if (hasThousand) {
+    multiplier = 1000;
+  }
+
+  return String(numeric * multiplier);
 };
 
 export const formatCurrency = (amount: number, currency: string): string => {

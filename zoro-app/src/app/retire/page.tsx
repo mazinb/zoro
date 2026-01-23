@@ -68,60 +68,6 @@ export default function RetirePage() {
     }
   };
 
-  const handleSave = async (data: {
-    answers: any;
-    expenseBuckets: any;
-    result: any;
-    email?: string;
-  }) => {
-    if (!session?.access_token) {
-      // If not logged in but email provided, create user account
-      if (data.email) {
-        // Redirect to signup with email pre-filled
-        router.push(`/login?email=${encodeURIComponent(data.email)}&redirect=/retire&mode=signup`);
-        return;
-      }
-      throw new Error('Please log in or provide an email to save your plan');
-    }
-
-    const response = await fetch('/api/retirement/plan', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${session.access_token}`,
-      },
-      body: JSON.stringify({
-        lifestyle: data.answers.lifestyle,
-        country: data.answers.country,
-        housing: data.answers.housing,
-        healthcare: data.answers.healthcare,
-        travel: data.answers.travel,
-        safety: data.answers.safety,
-        expense_buckets: data.expenseBuckets,
-        annual_spend: data.result.annualSpend,
-        required_amount: data.result.required,
-        aggressive_amount: data.result.aggressive,
-        balanced_amount: data.result.balanced,
-        conservative_amount: data.result.conservative,
-        currency: data.result.currency,
-        email_for_breakdown: data.email,
-        liquid_net_worth: data.answers.liquidNetWorth,
-        annual_income_job: data.answers.annualIncomeJob,
-        other_income: data.answers.otherIncome,
-        pension: data.answers.pension,
-        liabilities: data.answers.liabilities,
-      }),
-    });
-
-    if (!response.ok) {
-      const error = await response.json().catch(() => ({}));
-      throw new Error(error.error || 'Failed to save retirement plan');
-    }
-
-    // Reload the plan after saving
-    await loadRetirementPlan();
-  };
-
   const handleLogout = async () => {
     await signOut();
     router.push('/');
@@ -190,7 +136,6 @@ export default function RetirePage() {
 
       <RetirementCalculator 
         initialData={retirementData}
-        onSave={isLoggedIn ? handleSave : undefined}
         darkMode={darkMode}
       />
     </div>

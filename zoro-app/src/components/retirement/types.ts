@@ -51,26 +51,21 @@ export interface SavingsPlan {
   futureValueNeeded: number;
   futureValueOfCurrentSavings: number;
   shortfall: number;
+  surplus: number;
   monthlySavingsNeeded: number;
   totalAnnualIncome: number;
+  monthlyIncome: number;
+  monthlyBuffer: number;
   savingsRate: number;
+  hasDetails: boolean;
   hasIncomeData: boolean;
 }
 
 export interface Assumptions {
   preRetirementReturn: number;
-  postRetirementReturn: number;
   inflation: number;
   currentAge: number;
   retirementAge: number;
-  showAdvanced: boolean;
-  equityReturn: number;
-  debtReturn: number;
-  equityAllocation: number;
-  debtAllocation: number;
-  postRetEquityReturn: number;
-  postRetDebtReturn: number;
-  postRetEquityAllocation: number;
-  postRetDebtAllocation: number;
+  yearsToRetirement: number;
 }
 
