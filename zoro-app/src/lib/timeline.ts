@@ -22,13 +22,13 @@ export const TIMELINE_MILESTONES: TimelineMilestone[] = [
     count: 100,
     displayCount: '100',
     title: 'First 100',
-    description: 'Receive human reviewed email and early access to new features. Free for life',
+    description: 'Receive human reviewed email and early access to new features for free for 1 year',
   },
   {
     count: 1000,
     displayCount: '1k',
     title: 'First 1,000',
-    description: 'We take the RIA exam and offer comprehensive planning for free for 2 years',
+    description: 'We take the RIA exam and offer comprehensive planning free for 2 years',
   },
   {
     count: 10000,
