@@ -53,7 +53,7 @@ export default function TimelinePage() {
                     Project Roadmap & Milestones
                 </h1>
                 <p className={`${theme.textSecondaryClass} text-center mb-6 max-w-xl mx-auto text-lg`}>
-                    We are building Zoro in public. Here is our plan to scale and what our early adopters get in return for their trust.
+                    We are building in public with early adopters.
                 </p>
                 <p className={`${theme.textSecondaryClass} text-center mb-16 max-w-xl mx-auto`}>
                     Current signups: {signupCount !== null ? signupCount.toLocaleString() : 'Loading...'}

@@ -244,7 +244,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               The Roadmap
             </h2>
             <p className={`${theme.textSecondaryClass} max-w-xl mx-auto`}>
-              We are rolling out access in stages to ensure the best experience for everyone.
+              We are building in public with early adopters.
             </p>
           </div>
 
