@@ -2,6 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { getSupabaseClient } from '@/lib/supabase-server';
+import { buildDraftResponseEmail } from '@/lib/email-drafting';
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -234,6 +244,17 @@ export async function POST(request: NextRequest) {
       };
 
       const prettyJson = JSON.stringify(submissionSummary, null, 2);
+      let draftEmail: string | null = null;
+
+      try {
+        draftEmail = await buildDraftResponseEmail({
+          ...body,
+          email: normalizedEmail
+        });
+      } catch (error) {
+        console.error('Failed to build draft response email:', error);
+      }
+
       const emailPayload = {
         from: fromAddress,
         to: adminEmail,
@@ -241,6 +262,9 @@ export async function POST(request: NextRequest) {
         html: [
           `<p><strong>New form submission received.</strong></p>`,
           `<p><strong>Contact email:</strong> ${normalizedEmail || 'Not provided'}</p>`,
+          draftEmail
+            ? `<p><strong>Draft response to user:</strong></p><pre style="background:#f6f8fa;border:1px solid #e1e4e8;padding:12px;border-radius:6px;white-space:pre-wrap;">${escapeHtml(draftEmail)}</pre>`
+            : '',
           `<p><strong>Full form info:</strong></p>`,
           `<pre style="background:#f6f8fa;border:1px solid #e1e4e8;padding:12px;border-radius:6px;white-space:pre-wrap;">${prettyJson}</pre>`,
         ].join(''),

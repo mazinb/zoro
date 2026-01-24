@@ -1,0 +1,16 @@
+Hi {name}
+
+Welcome to Zoro, your personal financial planner. You are interested in {interests}.
+
+{aiContent}
+
+{interestLinks}
+
+Simply reply to this email with yours answers the more details you provide the better.
+
+You can also attach documents or say things like I prefer bullet points and we'll keep your preferences in mind.
+
+Thanks,
+
+Mazin
+
