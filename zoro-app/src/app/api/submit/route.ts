@@ -189,9 +189,16 @@ export async function POST(request: NextRequest) {
         { selections?: string[]; other?: string; main?: string; extra?: string }
       >;
       const goalsArray = Array.isArray(body.goals) ? body.goals : [];
+      type GoalDetailsInsert = {
+        form_submission_id: string;
+        user_id: string | null;
+        goal_id: string;
+        main_context: string;
+        extra_context: string | null;
+      };
 
       const goalDetailsInserts = goalsArray
-        .map((goalId: string) => {
+        .map((goalId: string): GoalDetailsInsert | null => {
           const detail = goalDetails[goalId];
           if (!detail) return null;
           const selections = Array.isArray(detail.selections)
@@ -220,13 +227,10 @@ export async function POST(request: NextRequest) {
             extra_context: otherText || null,
           };
         })
-        .filter((item): item is {
-          form_submission_id: string;
-          user_id: string | null;
-          goal_id: string;
-          main_context: string;
-          extra_context: string | null;
-        } => Boolean(item));
+        .filter(
+          (item: GoalDetailsInsert | null): item is GoalDetailsInsert =>
+            Boolean(item),
+        );
 
       if (goalDetailsInserts.length > 0) {
         const token = authHeader?.replace('Bearer ', '');
