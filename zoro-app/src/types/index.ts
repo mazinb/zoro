@@ -78,17 +78,3 @@ export interface AuthSession {
   loading: boolean;
 }
 
-export interface AdvisorRecord {
-  id: string;
-  registrationNo: string;
-  name: string;
-  email?: string | null;
-  telephone?: string | null;
-  fax?: string | null;
-  address?: string | null;
-  contactPerson?: string | null;
-  correspondenceAddress?: string | null;
-  validity?: string | null;
-  metadata?: Record<string, unknown> | null;
-}
-

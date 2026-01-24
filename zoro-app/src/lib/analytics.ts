@@ -165,32 +165,5 @@ export async function trackCampaignClick(
   if (properties?.medium) vercelProps.medium = properties.medium;
   track('campaign_click', vercelProps);
   
-  // Track in our custom analytics
-  try {
-    await fetch('/api/analytics/campaign', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        sessionId,
-        userId,
-        campaignName,
-        campaignSource: properties?.source,
-        campaignMedium: properties?.medium,
-        campaignTerm: properties?.term,
-        campaignContent: properties?.content,
-        linkUrl: properties?.linkUrl,
-        linkText: properties?.linkText,
-        pageUrl,
-        pagePath,
-      }),
-    });
-  } catch (error) {
-    // Silently fail in production, only log in development
-    if (process.env.NODE_ENV === 'development') {
-      console.error('Failed to track campaign click:', error);
-    }
-  }
 }
 

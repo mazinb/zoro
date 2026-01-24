@@ -18,7 +18,7 @@ interface Submission {
     public_name: string;
     joinedAt: string;
     net_worth: string;
-    primary_goal: string;
+    primary_goal?: string | null;
     full_info: any;
 }
 
@@ -201,7 +201,7 @@ export default function AdminPage() {
                                             {sub.net_worth}
                                         </td>
                                         <td className={`p-4 ${theme.textSecondaryClass}`}>
-                                            {sub.primary_goal}
+                                            {sub.primary_goal || '—'}
                                         </td>
                                         <td className="p-4">
                                             {editingId === sub.id ? (

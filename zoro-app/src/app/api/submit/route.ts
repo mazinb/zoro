@@ -81,15 +81,56 @@ export async function POST(request: NextRequest) {
       ? String(body.email).trim().toLowerCase()
       : null;
 
+    if (!normalizedEmail) {
+      return NextResponse.json(
+        { error: 'Email is required to join the waitlist' },
+        { status: 400 }
+      );
+    }
+
+    const verificationClient = adminClient;
+
+    if (!userId && normalizedEmail && serviceRoleKey) {
+      const { data: existingUser, error: existingUserError } = await verificationClient
+        .from('users')
+        .select('id')
+        .eq('email', normalizedEmail)
+        .limit(1)
+        .maybeSingle();
+
+      if (!existingUserError && existingUser?.id) {
+        userId = existingUser.id;
+      } else if (!existingUserError) {
+        const nextCheckinDue = new Date();
+        nextCheckinDue.setDate(nextCheckinDue.getDate() + 15);
+
+        const { data: newUser, error: newUserError } = await verificationClient
+          .from('users')
+          .insert({
+            email: normalizedEmail,
+            checkin_frequency: 'monthly',
+            next_checkin_due: nextCheckinDue.toISOString(),
+          })
+          .select('id')
+          .single();
+
+        if (newUserError) {
+          console.error('Error creating user from form submission:', newUserError);
+        } else if (newUser?.id) {
+          userId = newUser.id;
+        }
+      } else {
+        console.error('Error checking existing user:', existingUserError);
+      }
+    }
+
     if (hasLegacyShape) {
       // Original question-based flow
       insertPayload = {
         user_id: userId || null,
-        primary_goal: body.primaryGoal,
+        name: body.name && String(body.name).trim() ? String(body.name).trim() : null,
+        // primary_goal removed from schema
         net_worth: body.netWorth,
-        estate_status: body.estateStatus,
-        time_horizon: body.timeHorizon,
-        concern_level: body.concernLevel,
         contact_method: body.contactMethod,
         phone: body.phone && body.phone.trim() ? body.phone : null,
         additional_info: body.additionalInfo && body.additionalInfo.trim() ? body.additionalInfo : null,
@@ -108,26 +149,15 @@ export async function POST(request: NextRequest) {
 
       insertPayload = {
         user_id: userId || null,
-        primary_goal: primaryGoal,
+        name: body.name && String(body.name).trim() ? String(body.name).trim() : null,
+        // primary_goal removed from schema
         net_worth: body.netWorth || '',
-        estate_status: 'not_provided_v2',
-        time_horizon: 'not_provided_v2',
-        concern_level: 'not_provided_v2',
         contact_method: body.contactMethod,
         phone: body.phone && String(body.phone).trim() ? String(body.phone) : null,
         additional_info: JSON.stringify(enrichedAdditionalInfo),
         email: normalizedEmail
       };
     }
-
-    if (!normalizedEmail) {
-      return NextResponse.json(
-        { error: 'Email is required to join the waitlist' },
-        { status: 400 }
-      );
-    }
-
-    const verificationClient = adminClient;
 
     // Ensure only one entry per email
     const { data: existingSubmission } = await verificationClient
@@ -180,80 +210,6 @@ export async function POST(request: NextRequest) {
         { error: 'Failed to save form submission', details: submissionError.message },
         { status: 500 }
       );
-    }
-
-    // If we have goal details in the new flow, save them to goal_details table
-    if (!hasLegacyShape && body.goalDetails && submissionData?.id) {
-      const goalDetails = body.goalDetails as Record<
-        string,
-        { selections?: string[]; other?: string; main?: string; extra?: string }
-      >;
-      const goalsArray = Array.isArray(body.goals) ? body.goals : [];
-      type GoalDetailsInsert = {
-        form_submission_id: string;
-        user_id: string | null;
-        goal_id: string;
-        main_context: string;
-        extra_context: string | null;
-      };
-
-      const goalDetailsInserts = goalsArray
-        .map((goalId: string): GoalDetailsInsert | null => {
-          const detail = goalDetails[goalId];
-          if (!detail) return null;
-          const selections = Array.isArray(detail.selections)
-            ? detail.selections
-            : detail.main
-              ? [detail.main]
-              : [];
-          const otherText = typeof detail.other === 'string'
-            ? detail.other
-            : detail.extra || '';
-          const mainContext = selections.length > 0
-            ? selections.join(', ')
-            : otherText
-              ? 'Other'
-              : '';
-
-          if (!mainContext && !otherText) {
-            return null;
-          }
-
-          return {
-            form_submission_id: submissionData.id,
-            user_id: userId || null,
-            goal_id: goalId,
-            main_context: mainContext,
-            extra_context: otherText || null,
-          };
-        })
-        .filter(
-          (item: GoalDetailsInsert | null): item is GoalDetailsInsert =>
-            Boolean(item),
-        );
-
-      if (goalDetailsInserts.length > 0) {
-        const token = authHeader?.replace('Bearer ', '');
-        const canInsertGoalDetails = Boolean(serviceRoleKey || (userId && token));
-
-        if (!canInsertGoalDetails) {
-          console.warn('Skipping goal_details insert without service role or auth');
-        } else {
-          // Use authenticated client if available, otherwise use service role
-          const clientForGoalDetails = userId && token
-            ? getSupabaseClient(token)
-            : adminClient;
-
-          const { error: goalDetailsError } = await clientForGoalDetails
-            .from('goal_details')
-            .insert(goalDetailsInserts);
-
-          if (goalDetailsError) {
-            console.error('Error saving goal details:', goalDetailsError);
-            // Don't fail the whole submission if goal details fail
-          }
-        }
-      }
     }
 
     // Send admin notification email

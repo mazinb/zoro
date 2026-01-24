@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
         // Fetch all submissions
         const { data: submissions, error: fetchError } = await supabase
             .from('form_submissions')
-            .select('id, user_id, email, created_at, additional_info, net_worth, primary_goal')
+            .select('id, user_id, email, created_at, additional_info, net_worth')
             .order('created_at', { ascending: false });
 
         if (fetchError) {
@@ -48,7 +48,7 @@ export async function GET(request: NextRequest) {
                 user_id: entry.user_id,
                 email: entry.email,
                 net_worth: entry.net_worth,
-                primary_goal: entry.primary_goal,
+                primary_goal: null,
                 joinedAt: entry.created_at,
                 public_name: info?.public_name || '',
                 full_info: info

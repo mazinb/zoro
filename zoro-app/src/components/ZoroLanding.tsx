@@ -166,23 +166,6 @@ const ZoroLanding = () => {
         throw new Error(errorData.error || 'Failed to submit form');
       }
 
-      if (user && authToken && contactMethod) {
-        try {
-          await fetch('/api/user/preference', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${authToken}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              preferred_communication_method: contactMethod,
-            }),
-          });
-        } catch (error) {
-          console.error('Error saving communication preference:', error);
-        }
-      }
-
       setSubmitted(true);
     } catch (error) {
       console.error('Error submitting form:', error);
