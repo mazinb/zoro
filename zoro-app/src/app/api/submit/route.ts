@@ -184,18 +184,49 @@ export async function POST(request: NextRequest) {
 
     // If we have goal details in the new flow, save them to goal_details table
     if (!hasLegacyShape && body.goalDetails && submissionData?.id) {
-      const goalDetails = body.goalDetails as Record<string, { main: string; extra?: string }>;
+      const goalDetails = body.goalDetails as Record<
+        string,
+        { selections?: string[]; other?: string; main?: string; extra?: string }
+      >;
       const goalsArray = Array.isArray(body.goals) ? body.goals : [];
 
       const goalDetailsInserts = goalsArray
-        .filter((goalId: string) => goalDetails[goalId]?.main)
-        .map((goalId: string) => ({
-          form_submission_id: submissionData.id,
-          user_id: userId || null,
-          goal_id: goalId,
-          main_context: goalDetails[goalId].main,
-          extra_context: goalDetails[goalId].extra || null,
-        }));
+        .map((goalId: string) => {
+          const detail = goalDetails[goalId];
+          if (!detail) return null;
+          const selections = Array.isArray(detail.selections)
+            ? detail.selections
+            : detail.main
+              ? [detail.main]
+              : [];
+          const otherText = typeof detail.other === 'string'
+            ? detail.other
+            : detail.extra || '';
+          const mainContext = selections.length > 0
+            ? selections.join(', ')
+            : otherText
+              ? 'Other'
+              : '';
+
+          if (!mainContext && !otherText) {
+            return null;
+          }
+
+          return {
+            form_submission_id: submissionData.id,
+            user_id: userId || null,
+            goal_id: goalId,
+            main_context: mainContext,
+            extra_context: otherText || null,
+          };
+        })
+        .filter((item): item is {
+          form_submission_id: string;
+          user_id: string | null;
+          goal_id: string;
+          main_context: string;
+          extra_context: string | null;
+        } => Boolean(item));
 
       if (goalDetailsInserts.length > 0) {
         const token = authHeader?.replace('Bearer ', '');

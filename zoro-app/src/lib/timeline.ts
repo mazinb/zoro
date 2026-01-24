@@ -28,13 +28,13 @@ export const TIMELINE_MILESTONES: TimelineMilestone[] = [
     count: 1000,
     displayCount: '1k',
     title: 'First 1,000 Users',
-    description: 'We take the RIA exam and build full AI automation for comprehensive financial management.',
+    description: 'We take the RIA exam and offer comprehensive planning.',
   },
   {
     count: 10000,
     displayCount: '10k',
     title: 'First 10,000 Users',
-    description: 'Free for life before opening to the general public.',
+    description: 'Launch in the app and play stores.',
   },
 ];
 

@@ -19,7 +19,7 @@ interface ContactMethodSelectionProps {
   isLoggedIn?: boolean;
   email?: string;
   selectedGoals?: string[];
-  goalDetails?: Record<string, { main: string; extra?: string }>;
+  goalDetails?: Record<string, { selections: string[]; other?: string }>;
   onNameChange: (name: string) => void;
   onNetWorthChange: (value: string) => void;
   onEmailChange?: (email: string) => void;

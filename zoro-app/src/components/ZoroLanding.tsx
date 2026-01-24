@@ -85,12 +85,22 @@ const ZoroLanding = () => {
   }, [selectedGoals]);
 
   const handleGoalDetailsChange = useCallback(
-    (goalId: string, field: 'main' | 'extra', value: string) => {
+    (
+      goalId: string,
+      field: 'selections' | 'other',
+      value: string[] | string,
+    ) => {
       setGoalDetails((prev) => ({
         ...prev,
         [goalId]: {
-          main: field === 'main' ? value : prev[goalId]?.main || '',
-          extra: field === 'extra' ? value : prev[goalId]?.extra || '',
+          selections:
+            field === 'selections'
+              ? (value as string[])
+              : prev[goalId]?.selections || [],
+          other:
+            field === 'other'
+              ? (value as string)
+              : prev[goalId]?.other || '',
         },
       }));
     },

@@ -391,6 +391,34 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         </div>
       </div>
 
+      {/* Bottom CTA */}
+      <div className={`${theme.accentBgClass} border-t ${theme.borderClass} py-20`}>
+        <div className="max-w-4xl mx-auto px-6 text-center">
+          <h2 className={`text-3xl font-bold ${headerTextClass} mb-4`}>
+            Ready to get started?
+          </h2>
+          <p className={`${theme.textSecondaryClass} mb-8`}>
+            Join the waitlist to receive early access.
+          </p>
+          <Button
+            variant="primary"
+            darkMode={!darkMode}
+            showArrow
+            onClick={() => {
+              trackClick('cta_join_waitlist_footer', {
+                category: 'cta',
+                label: 'Join Waitlist (Footer)',
+                elementId: 'cta-join-waitlist-footer',
+              });
+              onGetStarted();
+            }}
+            className="px-8 py-4 text-lg transform hover:scale-105 shadow-xl shadow-blue-500/20"
+          >
+            Join the Waitlist
+          </Button>
+        </div>
+      </div>
+
       {/* Footer */}
       <div className={`border-t ${theme.borderClass} py-12`}>
         <div className="max-w-6xl mx-auto px-6 flex items-center justify-between">

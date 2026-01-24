@@ -49,51 +49,61 @@ const RetirementIcon = () => (
 
 const GOAL_CONFIG: Record<
   string,
-  { title: string; desc: string; Icon: React.ComponentType }
+  { title: string; desc: string; Icon: React.ComponentType; options: string[] }
 > = {
   save: {
     title: 'Save more consistently',
-    desc: 'Build emergency fund, reduce unnecessary spending',
+    desc: 'Build savings habits',
     Icon: SaveIcon,
+    options: ['Emergency fund', 'Spending habits', 'Debt payoff', 'Other'],
   },
   invest: {
     title: 'Invest smarter',
-    desc: 'Diversify portfolio, understand index funds, track returns',
+    desc: 'Smarter portfolio choices',
     Icon: InvestIcon,
+    options: ['Index funds', 'Portfolio allocation', 'Risk strategy', 'Other'],
   },
   home: {
     title: 'Plan for big purchases',
-    desc: 'Home down payment, car, education funding',
+    desc: 'Plan big purchases',
     Icon: HomeIcon,
+    options: ['Down payment', 'Education fund', 'Major purchase', 'Other'],
   },
   insurance: {
     title: 'Review insurance',
-    desc: 'Health, life, and property coverage checkups',
+    desc: 'Review coverage needs',
     Icon: ShieldIcon,
+    options: ['Life', 'Health', 'Property', 'Other'],
   },
   tax: {
     title: 'Tax optimization',
-    desc: 'Maximize deductions, plan for tax-saving investments',
+    desc: 'Lower tax burden',
     Icon: TaxIcon,
+    options: ['Deductions', 'Tax-saving funds', 'Income structure', 'Other'],
   },
   retirement: {
     title: 'Retirement planning',
-    desc: 'Set goals, calculate needs, build sustainable strategy',
+    desc: 'Plan retirement roadmap',
     Icon: RetirementIcon,
+    options: ['Target age', 'Savings rate', 'Income plan', 'Other'],
   },
 };
 
 export interface GoalDetailsMap {
   [goalId: string]: {
-    main: string;
-    extra: string;
+    selections: string[];
+    other?: string;
   };
 }
 
 interface GoalDetailsProps {
   selectedGoals: string[];
   goalDetails: GoalDetailsMap;
-  onChange: (goalId: string, field: 'main' | 'extra', value: string) => void;
+  onChange: (
+    goalId: string,
+    field: 'selections' | 'other',
+    value: string[] | string
+  ) => void;
   darkMode: boolean;
   onNext: () => void;
   onBack: () => void;
@@ -117,9 +127,13 @@ export const GoalDetails: React.FC<GoalDetailsProps> = ({
 
   const allRequiredFilled =
     selectedGoals.length > 0 &&
-    selectedGoals.every(
-      (id) => (goalDetails[id]?.main || '').trim().length > 0,
-    );
+    selectedGoals.every((id) => {
+      const selections = goalDetails[id]?.selections || [];
+      const hasSelections = selections.length > 0;
+      const needsOtherText = selections.includes('Other');
+      const otherText = goalDetails[id]?.other || '';
+      return hasSelections && (!needsOtherText || otherText.trim().length > 0);
+    });
 
   return (
     <div
@@ -131,18 +145,16 @@ export const GoalDetails: React.FC<GoalDetailsProps> = ({
           <h2 className={`text-3xl font-bold ${themeClasses.textClass} mb-2`}>
             Add a bit more context
           </h2>
-          <p className={themeClasses.textSecondaryClass}>
-            For each goal, tell Zoro what matters most (required) and anything
-            else we should know (optional).
-          </p>
         </div>
 
         <div className="space-y-6 mb-6">
           {selectedGoals.map((goalId) => {
             const config = GOAL_CONFIG[goalId];
             if (!config) return null;
-            const { Icon, title, desc } = config;
-            const detail = goalDetails[goalId] || { main: '', extra: '' };
+            const { Icon, title, desc, options } = config;
+            const detail = goalDetails[goalId] || { selections: [], other: '' };
+            const selections = detail.selections || [];
+            const hasOtherSelected = selections.includes('Other');
 
             return (
               <div
@@ -169,57 +181,62 @@ export const GoalDetails: React.FC<GoalDetailsProps> = ({
                   </div>
                 </div>
 
-                {/* Required field */}
                 <div className="mb-4">
-                  <label className="flex flex-col">
-                    <span
-                      className={`text-sm ${themeClasses.textClass} mb-1`}
-                    >
-                      What do you want Zoro to help you with here?{' '}
-                      <span className="text-red-500">*</span>
-                    </span>
-                    <textarea
-                      value={detail.main}
-                      onChange={(e) =>
-                        onChange(goalId, 'main', e.target.value)
-                      }
-                      rows={3}
-                      className={`w-full px-3 py-2 rounded-lg border text-sm ${
-                        darkMode
-                          ? 'bg-slate-900 border-slate-700 text-white'
-                          : 'bg-white border-slate-200 text-slate-900'
-                      }`}
-                      placeholder="e.g., Build a 6-month emergency fund in the next 18 months"
-                    />
-                  </label>
+                  <p className={`text-sm ${themeClasses.textClass} mb-2`}>
+                    What do you want help with? <span className="text-red-500">*</span>
+                  </p>
+                  <div className="flex flex-wrap gap-3">
+                    {options.map((option) => {
+                      const isSelected = selections.includes(option);
+                      return (
+                        <button
+                          key={option}
+                          type="button"
+                          onClick={() => {
+                            const nextSelections = isSelected
+                              ? selections.filter((item) => item !== option)
+                              : [...selections, option];
+                            onChange(goalId, 'selections', nextSelections);
+                            if (option === 'Other' && isSelected) {
+                              onChange(goalId, 'other', '');
+                            }
+                          }}
+                          aria-pressed={isSelected}
+                          className={`px-4 py-2 rounded-full border text-sm font-medium transition-colors ${
+                            isSelected
+                              ? darkMode
+                                ? 'bg-blue-600 text-white border-blue-500'
+                                : 'bg-blue-600 text-white border-blue-600'
+                              : darkMode
+                                ? 'bg-slate-900 text-slate-200 border-slate-700 hover:border-blue-500'
+                                : 'bg-white text-slate-700 border-slate-200 hover:border-blue-600'
+                          }`}
+                        >
+                          {option}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
-                {/* Optional field */}
-                <div>
-                  <label className="flex flex-col">
-                    <span
-                      className={`text-sm ${themeClasses.textClass} mb-1`}
-                    >
-                      Any extra context or constraints?{' '}
-                      <span className={themeClasses.textSecondaryClass}>
-                        (optional)
-                      </span>
-                    </span>
-                    <textarea
-                      value={detail.extra}
-                      onChange={(e) =>
-                        onChange(goalId, 'extra', e.target.value)
-                      }
-                      rows={3}
-                      className={`w-full px-3 py-2 rounded-lg border text-sm ${
-                        darkMode
-                          ? 'bg-slate-900 border-slate-700 text-white'
-                          : 'bg-white border-slate-200 text-slate-900'
-                      }`}
-                      placeholder="e.g., I have irregular income; prefer conservative assumptions"
-                    />
-                  </label>
-                </div>
+                {hasOtherSelected && (
+                  <div>
+                    <label className="flex flex-col">
+                      <span className="sr-only">Other details</span>
+                      <textarea
+                        value={detail.other || ''}
+                        onChange={(e) => onChange(goalId, 'other', e.target.value)}
+                        rows={3}
+                        className={`w-full px-3 py-2 rounded-lg border text-sm resize-none overflow-y-auto ${
+                          darkMode
+                            ? 'bg-slate-900 border-slate-700 text-white'
+                            : 'bg-white border-slate-200 text-slate-900'
+                        }`}
+                        placeholder="Tell us more"
+                      />
+                    </label>
+                  </div>
+                )}
               </div>
             );
           })}

@@ -1,6 +1,9 @@
 import { loadEmailTemplate, renderTemplate } from '@/lib/email-templates';
 
-type GoalDetails = Record<string, { main: string; extra?: string }>;
+type GoalDetails = Record<
+  string,
+  { selections?: string[]; other?: string; main?: string; extra?: string }
+>;
 
 const goalLabelById: Record<string, string> = {
   save: 'Save more consistently',
@@ -37,13 +40,23 @@ function normalizeInterests(body: Record<string, any>) {
 function formatGoalDetails(details: GoalDetails | null | undefined) {
   if (!details || typeof details !== 'object') return null;
   const entries = Object.entries(details)
-    .filter(([, value]) => value?.main)
     .map(([goalId, value]) => {
       const label = goalLabelById[goalId] || goalId;
-      const extra = value.extra ? ` (extra: ${value.extra})` : '';
-      return `${label}: ${value.main}${extra}`;
+      const selections = Array.isArray(value?.selections)
+        ? value.selections
+        : value?.main
+          ? [value.main]
+          : [];
+      const otherText = value?.other || value?.extra || '';
+      const base = selections.length > 0 ? selections.join(', ') : '';
+      if (!base && !otherText) return null;
+      const withOther = otherText
+        ? `${base || 'Other'} (Other: ${otherText})`
+        : base;
+      return `${label}: ${withOther}`;
     });
-  return entries.length > 0 ? entries.join('\n') : null;
+  const filtered = entries.filter((entry): entry is string => Boolean(entry));
+  return filtered.length > 0 ? filtered.join('\n') : null;
 }
 
 async function generateAiContent(context: string) {
