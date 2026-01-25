@@ -216,7 +216,13 @@ export async function POST(request: NextRequest) {
     const resendApiKey = process.env.RESEND_API_KEY;
     if (resendApiKey) {
       const fromAddress = process.env.RESEND_FROM || 'Zoro <admin@getzoro.com>';
-      const userFromAddress = 'Zoro <name@getzoro.com>';
+      const senderName = body.name && String(body.name).trim() ? String(body.name).trim() : 'Zoro';
+      const senderLocalPart =
+        senderName
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '.')
+          .replace(/^\.+|\.+$/g, '') || 'user';
+      const userFromAddress = `${senderName} <${senderLocalPart}@getzoro.com>`;
       const adminEmail = process.env.SUBMISSION_NOTIFY_EMAIL || 'mazin.biviji1@gmail.com';
       const submissionSummary = {
         submissionId: submissionData?.id || null,

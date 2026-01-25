@@ -23,10 +23,7 @@ const fallbackAiContent =
   "Thanks for sharing a bit about your goals. I'd love to learn more about your priorities, timeline, and any current financial routines so we can tailor a plan that fits you.";
 
 function getBaseUrl() {
-  return (
-    process.env.NEXT_PUBLIC_BASE_URL ||
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
-  );
+  return 'https://www.getzoro.com';
 }
 
 function normalizeInterests(body: Record<string, any>) {
