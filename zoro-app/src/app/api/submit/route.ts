@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { getSupabaseClient } from '@/lib/supabase-server';
 import { buildDraftResponseEmail } from '@/lib/email-drafting';
@@ -35,28 +34,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-    if (!supabaseUrl) {
+    if (!supabaseUrl || !anonKey) {
       return NextResponse.json(
         { error: 'Missing Supabase configuration' },
         { status: 500 }
       );
     }
 
-    const adminClient = serviceRoleKey
-      ? createClient(supabaseUrl, serviceRoleKey, {
-          auth: {
-            autoRefreshToken: false,
-            persistSession: false
-          }
-        })
-      : supabase;
-
-    if (!serviceRoleKey) {
-      console.warn('SUPABASE_SERVICE_ROLE_KEY not set; using anon client for submission checks');
-    }
+    const anonClient = supabase;
 
     // Get user if authenticated
     let userId = null;
@@ -88,9 +76,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const verificationClient = adminClient;
+    const verificationClient = anonClient;
 
-    if (!userId && normalizedEmail && serviceRoleKey) {
+    if (!userId && normalizedEmail) {
       const { data: existingUser, error: existingUserError } = await verificationClient
         .from('users')
         .select('id')
