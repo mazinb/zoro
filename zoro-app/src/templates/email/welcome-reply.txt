@@ -1,6 +1,7 @@
 Hi {name}
 
 Welcome to Zoro, your personal financial planner. You are interested in {interests}.
+Your waitlist position is {waitlistPosition}.
 
 {aiContent}
 

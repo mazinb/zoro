@@ -144,12 +144,16 @@ export async function buildDraftResponseEmail(body: Record<string, any>) {
   const aiContext = buildAiContext(body, goalLabels);
   const aiContent = await generateAiContent(aiContext);
   const template = await loadEmailTemplate('welcome-reply');
-
+  const waitlistPosition =
+    body.waitlistPosition !== null && body.waitlistPosition !== undefined
+      ? String(body.waitlistPosition)
+      : 'TBD';
   const rendered = renderTemplate(template, {
     name: body.name || 'there',
     interests: goalLabels.length > 0 ? goalLabels.join(', ') : 'your goals',
     aiContent,
-    interestLinks: interestLines
+    interestLinks: interestLines,
+    waitlistPosition
   });
 
   return rendered

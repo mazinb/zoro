@@ -212,10 +212,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    let waitlistPosition: number | null = null;
+
+    const { count: totalCount, error: totalError } = await verificationClient
+      .from('form_submissions')
+      .select('*', { count: 'exact', head: true });
+
+    if (totalError) {
+      console.error('Failed to calculate waitlist position:', totalError);
+    } else {
+      waitlistPosition = totalCount || 0;
+    }
+
     // Send admin notification email
     const resendApiKey = process.env.RESEND_API_KEY;
     if (resendApiKey) {
       const fromAddress = process.env.RESEND_FROM || 'Zoro <admin@getzoro.com>';
+      const userFromAddress = 'Zoro <name@getzoro.com>';
       const adminEmail = process.env.SUBMISSION_NOTIFY_EMAIL || 'mazin.biviji1@gmail.com';
       const submissionSummary = {
         submissionId: submissionData?.id || null,
@@ -240,10 +253,14 @@ export async function POST(request: NextRequest) {
       try {
         draftEmail = await buildDraftResponseEmail({
           ...body,
-          email: normalizedEmail
+          email: normalizedEmail,
+          waitlistPosition
         });
       } catch (error) {
         console.error('Failed to build draft response email:', error);
+      }
+      if (!draftEmail) {
+        draftEmail = `Hi ${body.name || 'there'}\n\nThanks for joining the Zoro waitlist. We'll be in touch soon.\n\nThanks,\n\nMazin`;
       }
 
       const emailPayload = {
@@ -261,19 +278,33 @@ export async function POST(request: NextRequest) {
         ].join(''),
       };
 
-      const resendResponse = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${resendApiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(emailPayload),
-      });
+      const userEmailPayload = {
+        from: userFromAddress,
+        to: normalizedEmail,
+        subject: 'Welcome to Zoro',
+        text: draftEmail
+      };
 
-      if (!resendResponse.ok) {
-        const errorText = await resendResponse.text();
-        console.error('Resend email failed:', resendResponse.status, errorText);
-      }
+      const sendResendEmail = async (payload: Record<string, unknown>, label: string) => {
+        const resendResponse = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${resendApiKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(payload),
+        });
+
+        if (!resendResponse.ok) {
+          const errorText = await resendResponse.text();
+          console.error(`Resend ${label} email failed:`, resendResponse.status, errorText);
+        }
+      };
+
+      await Promise.all([
+        sendResendEmail(emailPayload, 'admin'),
+        sendResendEmail(userEmailPayload, 'user')
+      ]);
     } else {
       console.warn('RESEND_API_KEY not set; skipping submission email');
     }
