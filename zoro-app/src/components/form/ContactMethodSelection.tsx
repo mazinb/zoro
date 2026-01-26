@@ -97,6 +97,14 @@ export const ContactMethodSelection: React.FC<ContactMethodSelectionProps> = ({
       setNameError('Please tell us your name');
       return false;
     }
+    if (trimmed.length < 3) {
+      setNameError('Name must be at least 3 characters');
+      return false;
+    }
+    if (!/^[a-zA-Z0-9]+$/.test(trimmed)) {
+      setNameError('Name can only include letters and numbers');
+      return false;
+    }
     setNameError('');
     return true;
   };
@@ -187,6 +195,9 @@ export const ContactMethodSelection: React.FC<ContactMethodSelectionProps> = ({
                     className={`w-full px-4 py-3 border ${themeClasses.inputBgClass} rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-base ${nameError ? 'border-red-500' : ''}`}
                     placeholder="Your name"
                   />
+                  <p className={`text-xs ${themeClasses.textSecondaryClass} mt-2`}>
+                    Used to generate your personal email address. Letters and numbers only.
+                  </p>
                   {nameError && (
                     <p className="text-red-500 text-sm mt-1" role="alert">
                       {nameError}

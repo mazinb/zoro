@@ -4,7 +4,7 @@ import path from 'path';
 export type EmailTemplateKey = 'welcome-reply';
 
 const templateFileByKey: Record<EmailTemplateKey, string> = {
-  'welcome-reply': 'welcome-reply.txt'
+  'welcome-reply': 'welcome-reply.html'
 };
 
 const templateDirectory = path.join(process.cwd(), 'src', 'templates', 'email');

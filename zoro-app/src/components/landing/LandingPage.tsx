@@ -6,7 +6,6 @@ import { Moon, Sun, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
 import { ZoroLogo } from '@/components/ZoroLogo';
 import { Button } from '@/components/ui/Button';
 import { useThemeClasses } from '@/hooks/useThemeClasses';
-import { useAnalytics } from '@/hooks/useAnalytics';
 import ZoroLearningAnimation from '@/components/bloganimation';
 import { useWaitlistCount } from '@/hooks/useWaitlistCount';
 import { buildTimelineMilestones } from '@/lib/timeline';
@@ -52,7 +51,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   onGetStarted
 }) => {
   const theme = useThemeClasses(darkMode);
-  const { trackClick } = useAnalytics();
   const carouselRef = useRef<HTMLDivElement>(null);
   const roadmapRef = useRef<HTMLDivElement>(null);
   const [currentIndex, setCurrentIndex] = React.useState(0);
@@ -129,11 +127,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           <div className="flex items-center gap-6">
             <button
               onClick={() => {
-                trackClick('philosophy_nav_click', {
-                  category: 'navigation',
-                  label: 'Our Philosophy (Nav)',
-                  elementId: 'philosophy-nav-link',
-                });
                 onShowPhilosophy();
               }}
               className={`text-sm ${theme.textSecondaryClass} hover:${theme.textClass} transition-colors`}
@@ -178,11 +171,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           darkMode={!darkMode}
           showArrow
           onClick={() => {
-            trackClick('cta_join_waitlist_hero', {
-              category: 'cta',
-              label: 'Join Waitlist (Hero)',
-              elementId: 'cta-join-waitlist-hero',
-            });
             onGetStarted();
           }}
           className="px-8 py-4 text-lg transform hover:scale-105 shadow-xl shadow-blue-500/20"
@@ -218,11 +206,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </p>
             <button
               onClick={() => {
-                trackClick('philosophy_read_react_click', {
-                  category: 'navigation',
-                  label: 'Our Philosophy (Read React)',
-                  elementId: 'philosophy-read-react-link',
-                });
                 onShowPhilosophy();
               }}
               className="text-blue-600 hover:text-blue-700 font-medium inline-flex items-center gap-1"
@@ -405,11 +388,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             darkMode={!darkMode}
             showArrow
             onClick={() => {
-              trackClick('cta_join_waitlist_footer', {
-                category: 'cta',
-                label: 'Join Waitlist (Footer)',
-                elementId: 'cta-join-waitlist-footer',
-              });
               onGetStarted();
             }}
             className="px-8 py-4 text-lg transform hover:scale-105 shadow-xl shadow-blue-500/20"

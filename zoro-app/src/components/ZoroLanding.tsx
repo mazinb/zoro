@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { AnimatedZoroLogo } from '@/components/AnimatedZoroLogo';
 import { LandingPage } from '@/components/landing/LandingPage';
 import { PhilosophyPage } from '@/components/landing/PhilosophyPage';
@@ -10,23 +10,11 @@ import { ContactMethodSelection } from '@/components/form/ContactMethodSelection
 import { FormReview } from '@/components/form/FormReview';
 import { FormSuccess } from '@/components/form/FormSuccess';
 import { useDarkMode } from '@/hooks/useDarkMode';
-import { useAuth } from '@/hooks/useAuth';
-import { useAnalytics } from '@/hooks/useAnalytics';
-import { trackPageView } from '@/lib/analytics';
 import { ContactMethod } from '@/types';
 
 const ZoroLanding = () => {
   const { darkMode, toggleDarkMode } = useDarkMode();
-  const { user } = useAuth();
-  const { trackClick } = useAnalytics();
-
-  // Track Philosophy page view when it's shown
   const [showPhilosophy, setShowPhilosophy] = useState(false);
-  useEffect(() => {
-    if (showPhilosophy) {
-      trackPageView('philosophy');
-    }
-  }, [showPhilosophy]);
 
   const [showForm, setShowForm] = useState(false);
 
@@ -129,12 +117,6 @@ const ZoroLanding = () => {
 
     setIsSubmitting(true);
     try {
-      let authToken = null;
-      if (user) {
-        const { data: { session } } = await (await import('@/lib/supabase-client')).supabaseClient.auth.getSession();
-        authToken = session?.access_token || null;
-      }
-
       const formData = {
         goals: selectedGoals,
         goalDetails,
@@ -143,21 +125,15 @@ const ZoroLanding = () => {
         phone: contactMethod === 'whatsapp' ? countryCode + phone : null,
         contactMethod,
         additionalInfo,
-        email: user?.email || contactEmail || null,
-        userId: user?.id || null,
+        email: contactEmail || null,
+        userId: null,
       };
-
-      const headers: HeadersInit = {
-        'Content-Type': 'application/json',
-      };
-
-      if (authToken) {
-        headers['Authorization'] = `Bearer ${authToken}`;
-      }
 
       const response = await fetch('/api/submit', {
         method: 'POST',
-        headers,
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify(formData),
       });
 
@@ -182,7 +158,6 @@ const ZoroLanding = () => {
     countryCode,
     contactMethod,
     additionalInfo,
-    user,
     contactEmail,
   ]);
 
@@ -298,8 +273,6 @@ const ZoroLanding = () => {
         onAdditionalInfoChange={setAdditionalInfo}
         onWhatsAppSubmit={handlePhoneSubmit}
         onEmailAuthSuccess={handleEmailAuthSuccess}
-        userEmail={user?.email}
-        isLoggedIn={!!user}
         onEmailChange={setContactEmail}
         onBack={() => {
           setShowContactMethod(false);

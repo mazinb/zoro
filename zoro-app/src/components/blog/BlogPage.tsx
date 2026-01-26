@@ -1,22 +1,13 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Plus } from 'lucide-react';
-import { useRouter } from 'next/navigation';
 import { useDarkMode } from '@/hooks/useDarkMode';
-import { useAuth } from '@/hooks/useAuth';
 import { useThemeClasses } from '@/hooks/useThemeClasses';
-import { BlogPost, ViewMode, SearchExpanded } from '@/types';
+import { BlogPost, SearchExpanded } from '@/types';
 import { BlogNavigation } from './BlogNavigation';
-import { BlogAnalytics } from './BlogAnalytics';
 import { BlogSearchFilter } from './BlogSearchFilter';
 import { BlogPostCard } from './BlogPostCard';
 import { BlogPostDetail } from './BlogPostDetail';
-import { NewPostModal } from './NewPostModal';
-import { SavedArticlesPanel } from './SavedArticlesPanel';
-import { ZoroContextPanel } from './ZoroContextPanel';
-import { Button } from '@/components/ui/Button';
-import { getAuthHeaders } from '@/lib/api-client';
 
 // Helper to convert DB post (snake_case) to BlogPost type (camelCase)
 function convertDbPostToBlogPost(dbPost: {
@@ -146,36 +137,23 @@ const BLOG_POSTS_LEGACY: BlogPost[] = [
 ];
 
 export const BlogPage: React.FC = () => {
-  const router = useRouter();
   const { darkMode, toggleDarkMode } = useDarkMode();
-  const { user, signOut, session } = useAuth();
   const theme = useThemeClasses(darkMode);
-  const [viewMode, setViewMode] = useState<ViewMode>('user');
   const [selectedTag, setSelectedTag] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchExpanded, setSearchExpanded] = useState<SearchExpanded>('');
-  const [readTime, setReadTime] = useState<Record<string, number>>({});
-  const [viewCounts, setViewCounts] = useState<Record<string, number>>({});
   const [blogPosts, setBlogPosts] = useState<BlogPost[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedArticle, setSelectedArticle] = useState<BlogPost | null>(null);
-  const [savedArticles, setSavedArticles] = useState<Set<string>>(new Set());
-  const [zoroArticles, setZoroArticles] = useState<Set<string>>(new Set());
   const [metadataExpanded, setMetadataExpanded] = useState(false);
   const [authorFilter, setAuthorFilter] = useState('all');
-  const [showNewPostModal, setShowNewPostModal] = useState(false);
-  const [showSavedPanel, setShowSavedPanel] = useState(false);
-  const [showZoroPanel, setShowZoroPanel] = useState(false);
 
   // Fetch blog posts from API
   useEffect(() => {
     async function fetchPosts() {
       try {
         setLoading(true);
-        const headers = await getAuthHeaders();
-        const response = await fetch('/api/blog/posts', {
-          headers
-        });
+        const response = await fetch('/api/blog/posts');
         
         if (!response.ok) {
           throw new Error('Failed to fetch posts');
@@ -184,16 +162,6 @@ export const BlogPage: React.FC = () => {
         const data = await response.json();
         const posts: BlogPost[] = (data.posts || []).map(convertDbPostToBlogPost);
         setBlogPosts(posts);
-        
-        // Initialize view counts and read time from DB or defaults
-        const initialViews: Record<string, number> = {};
-        const initialReadTime: Record<string, number> = {};
-        posts.forEach(post => {
-          initialViews[post.id] = 0;
-          initialReadTime[post.id] = 0;
-        });
-        setViewCounts(initialViews);
-        setReadTime(initialReadTime);
       } catch (error) {
         console.error('Error fetching blog posts:', error);
         // Fallback to legacy data if API fails
@@ -206,108 +174,6 @@ export const BlogPage: React.FC = () => {
     fetchPosts();
   }, []);
 
-  // Fetch saved articles and zoro context when posts are loaded (optimized - single API call)
-  useEffect(() => {
-    if (!user || blogPosts.length === 0) {
-      if (!user) {
-        setSavedArticles(new Set());
-        setZoroArticles(new Set());
-      }
-      return;
-    }
-    
-    async function fetchSavedArticles() {
-      try {
-        const headers = await getAuthHeaders();
-        // Fetch posts with saves data in one call
-        const response = await fetch('/api/blog/posts', {
-          headers
-        });
-        
-        if (response.ok) {
-          const { saves }: { saves?: Record<string, { saved: boolean; zoroContext: boolean }> } = await response.json();
-          
-          if (saves) {
-            const savedSet = new Set<string>();
-            const zoroSet = new Set<string>();
-            
-            // Process saves data efficiently
-            Object.entries(saves).forEach(([postId, saveData]) => {
-              if (saveData.saved) {
-                savedSet.add(postId);
-              }
-              if (saveData.zoroContext) {
-                zoroSet.add(postId);
-              }
-            });
-            
-            setSavedArticles(savedSet);
-            setZoroArticles(zoroSet);
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching saved articles:', error);
-      }
-    }
-    
-    fetchSavedArticles();
-  }, [user, blogPosts.length]);
-
-  // Track read time when article is opened
-  useEffect(() => {
-    if (selectedArticle) {
-      // Track view on open
-      trackView(selectedArticle.id);
-      
-      const interval = setInterval(() => {
-        const currentReadTime = (readTime[selectedArticle.id] || 0) + 1;
-        setReadTime(prev => ({
-          ...prev,
-          [selectedArticle.id]: currentReadTime
-        }));
-        
-        // Update read time in DB every 10 seconds
-        if (currentReadTime % 10 === 0) {
-          updateReadTime(selectedArticle.id, currentReadTime);
-        }
-      }, 1000);
-      return () => clearInterval(interval);
-    }
-  }, [selectedArticle]);
-  
-  // Track view in database
-  async function trackView(postId: string) {
-    try {
-      const headers = await getAuthHeaders();
-      await fetch(`/api/blog/posts/${postId}/view`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ readTimeSeconds: readTime[postId] || 0 })
-      });
-      
-      // Update local view count
-      setViewCounts(prev => ({
-        ...prev,
-        [postId]: (prev[postId] || 0) + 1
-      }));
-    } catch (error) {
-      console.error('Error tracking view:', error);
-    }
-  }
-  
-  // Update read time in database
-  async function updateReadTime(postId: string, readTimeSeconds: number) {
-    try {
-      const headers = await getAuthHeaders();
-      await fetch(`/api/blog/posts/${postId}/view`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ readTimeSeconds })
-      });
-    } catch (error) {
-      console.error('Error updating read time:', error);
-    }
-  }
 
   // Get all unique tags and authors
   const { allTags, allAuthors } = useMemo(() => {
@@ -329,137 +195,14 @@ export const BlogPage: React.FC = () => {
     });
   }, [blogPosts, selectedTag, authorFilter, searchQuery]);
 
-  // Calculate engagement metrics
-  const totalViews = useMemo(() => {
-    return Object.values(viewCounts).reduce((a, b) => a + b, 0);
-  }, [viewCounts]);
-
-  const avgEngagement = useMemo(() => {
-    if (blogPosts.length === 0) return 0;
-    return blogPosts.reduce((a, b) => a + b.engagementScore, 0) / blogPosts.length;
-  }, [blogPosts]);
-
-  const toggleSaveArticle = async (postId: string) => {
-    if (!user) {
-      router.push('/login?redirect=/blog');
-      return;
-    }
-    
-    try {
-      const headers = await getAuthHeaders();
-      const response = await fetch(`/api/blog/posts/${postId}/save?type=save`, {
-        method: 'POST',
-        headers
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to toggle save');
-      }
-      
-      const { saved } = await response.json();
-      setSavedArticles(prev => {
-        const newSet = new Set(prev);
-        if (saved) {
-          newSet.add(postId);
-        } else {
-          newSet.delete(postId);
-        }
-        return newSet;
-      });
-    } catch (error) {
-      console.error('Error toggling save:', error);
-      // Still update UI optimistically
-      setSavedArticles(prev => {
-        const newSet = new Set(prev);
-        if (newSet.has(postId)) {
-          newSet.delete(postId);
-        } else {
-          newSet.add(postId);
-        }
-        return newSet;
-      });
-    }
-  };
-
-  const toggleZoroArticle = async (postId: string) => {
-    if (!user) {
-      router.push('/login?redirect=/blog');
-      return;
-    }
-    
-    try {
-      const headers = await getAuthHeaders();
-      const response = await fetch(`/api/blog/posts/${postId}/save?type=zoro_context`, {
-        method: 'POST',
-        headers
-      });
-      
-      if (!response.ok) {
-        throw new Error('Failed to toggle zoro context');
-      }
-      
-      const { saved } = await response.json();
-      setZoroArticles(prev => {
-        const newSet = new Set(prev);
-        if (saved) {
-          newSet.add(postId);
-        } else {
-          newSet.delete(postId);
-        }
-        return newSet;
-      });
-    } catch (error) {
-      console.error('Error toggling zoro context:', error);
-      // Still update UI optimistically
-      setZoroArticles(prev => {
-        const newSet = new Set(prev);
-        if (newSet.has(postId)) {
-          newSet.delete(postId);
-        } else {
-          newSet.add(postId);
-        }
-        return newSet;
-      });
-    }
-  };
-
-  // Handle view mode toggle with auth check for planner
-  const handleToggleViewMode = () => {
-    const newMode = viewMode === 'user' ? 'planner' : 'user';
-    
-    if (newMode === 'planner') {
-      // Require authentication for planner view
-      if (!user) {
-        router.push('/login?redirect=/blog&mode=planner');
-        return;
-      }
-      
-      // Check if user has planner role
-      const userRole = user.role || 'user';
-      if (userRole !== 'planner' && userRole !== 'admin') {
-        alert('Planner view is only available to authorized planners and administrators.');
-        return;
-      }
-    }
-    
-    setViewMode(newMode);
-  };
-
   // Show article detail view
   if (selectedArticle) {
     return (
       <BlogPostDetail
         post={selectedArticle}
-        viewMode={viewMode}
         darkMode={darkMode}
-        isSaved={savedArticles.has(selectedArticle.id)}
-        isInZoroContext={zoroArticles.has(selectedArticle.id)}
-        viewCount={viewCounts[selectedArticle.id] || 0}
-        readTime={readTime[selectedArticle.id] || 0}
         metadataExpanded={metadataExpanded}
         onBack={() => setSelectedArticle(null)}
-        onToggleSave={() => toggleSaveArticle(selectedArticle.id)}
-        onToggleZoro={() => toggleZoroArticle(selectedArticle.id)}
         onToggleMetadata={() => setMetadataExpanded(!metadataExpanded)}
       />
     );
@@ -469,49 +212,13 @@ export const BlogPage: React.FC = () => {
     <div className={`min-h-screen transition-colors duration-300 ${darkMode ? 'bg-gradient-to-br from-slate-900 to-slate-800' : 'bg-gradient-to-br from-slate-50 to-blue-50'}`}>
       <BlogNavigation
         darkMode={darkMode}
-        viewMode={viewMode}
-        user={user}
-        savedArticlesCount={savedArticles.size}
-        zoroArticlesCount={zoroArticles.size}
         onToggleDarkMode={toggleDarkMode}
-        onToggleViewMode={handleToggleViewMode}
-        onShowSavedPanel={() => setShowSavedPanel(true)}
-        onShowZoroPanel={() => setShowZoroPanel(true)}
-        onSignOut={async () => {
-          await signOut();
-          router.push('/');
-        }}
       />
 
       <div className="max-w-7xl mx-auto px-6 py-8">
-        {/* Analytics Dashboard - Only for Planners */}
-        {viewMode === 'planner' && (
-          <BlogAnalytics
-            blogPosts={blogPosts}
-            totalViews={totalViews}
-            avgEngagement={avgEngagement}
-            darkMode={darkMode}
-          />
-        )}
-        
         {loading && (
           <div className="text-center py-12">
             <p className={theme.textSecondaryClass}>Loading posts...</p>
-          </div>
-        )}
-
-        {/* Add New Post Button - Only for Planners */}
-        {viewMode === 'planner' && (
-          <div className="mb-6">
-            <Button
-              variant="primary"
-              darkMode={darkMode}
-              onClick={() => setShowNewPostModal(true)}
-              className="px-6 py-3 shadow-lg flex items-center gap-2"
-            >
-              <Plus className="w-5 h-5" />
-              Add New Article
-            </Button>
           </div>
         )}
 
@@ -536,22 +243,9 @@ export const BlogPage: React.FC = () => {
             <BlogPostCard
               key={post.id}
               post={post}
-              viewMode={viewMode}
               darkMode={darkMode}
-              isSaved={savedArticles.has(post.id)}
-              isInZoroContext={zoroArticles.has(post.id)}
-              viewCount={viewCounts[post.id] || 0}
               onSelect={() => {
                 setSelectedArticle(post);
-                trackView(post.id);
-              }}
-              onToggleSave={(e) => {
-                e.stopPropagation();
-                toggleSaveArticle(post.id);
-              }}
-              onToggleZoro={(e) => {
-                e.stopPropagation();
-                toggleZoroArticle(post.id);
               }}
             />
           ))}
@@ -564,41 +258,6 @@ export const BlogPage: React.FC = () => {
         )}
       </div>
 
-      {/* Modals and Panels */}
-      {showNewPostModal && (
-        <NewPostModal
-          darkMode={darkMode}
-          onClose={() => setShowNewPostModal(false)}
-        />
-      )}
-      
-      {showSavedPanel && (
-        <SavedArticlesPanel
-          blogPosts={blogPosts.filter(post => savedArticles.has(post.id))}
-          savedArticles={savedArticles}
-          darkMode={darkMode}
-          onClose={() => setShowSavedPanel(false)}
-          onRemove={toggleSaveArticle}
-          onSelectArticle={(post) => {
-            setSelectedArticle(post);
-            setShowSavedPanel(false);
-          }}
-        />
-      )}
-      
-      {showZoroPanel && (
-        <ZoroContextPanel
-          blogPosts={blogPosts.filter(post => zoroArticles.has(post.id))}
-          zoroArticles={zoroArticles}
-          darkMode={darkMode}
-          onClose={() => setShowZoroPanel(false)}
-          onRemove={toggleZoroArticle}
-          onSelectArticle={(post) => {
-            setSelectedArticle(post);
-            setShowZoroPanel(false);
-          }}
-        />
-      )}
     </div>
   );
 };

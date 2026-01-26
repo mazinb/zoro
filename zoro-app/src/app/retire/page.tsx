@@ -6,21 +6,12 @@ import { Moon, Sun } from 'lucide-react';
 import { ZoroLogo } from '@/components/ZoroLogo';
 import { useDarkMode } from '@/hooks/useDarkMode';
 import { useThemeClasses } from '@/hooks/useThemeClasses';
-import { useAuth } from '@/hooks/useAuth';
 import { RetirementCalculator } from '@/components/retirement/RetirementCalculator';
 
 export default function RetirePage() {
   const router = useRouter();
   const { darkMode, toggleDarkMode } = useDarkMode();
   const theme = useThemeClasses(darkMode);
-  const { user, signOut } = useAuth();
-  const isLoggedIn = !!user;
-
-  const handleLogout = async () => {
-    await signOut();
-    router.push('/');
-  };
-
   return (
     <div className={`min-h-screen ${theme.bgClass} transition-colors duration-300`}>
       {/* Navigation - matching checkin/profile pages */}
@@ -34,14 +25,6 @@ export default function RetirePage() {
             <ZoroLogo className="h-10" isDark={darkMode} />
           </button>
           <div className="flex items-center gap-6">
-            {isLoggedIn && (
-              <button
-                onClick={() => router.push('/dashboard')}
-                className={`text-sm ${theme.textSecondaryClass} hover:${theme.textClass} transition-colors`}
-              >
-                Dashboard
-              </button>
-            )}
             <button
               onClick={toggleDarkMode}
               className={`p-2 rounded-lg ${theme.textSecondaryClass} hover:${theme.textClass} transition-colors`}
@@ -49,14 +32,6 @@ export default function RetirePage() {
             >
               {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
             </button>
-            {isLoggedIn && (
-              <button 
-                onClick={handleLogout}
-                className={`text-sm ${theme.textSecondaryClass} hover:${theme.textClass} transition-colors`}
-              >
-                Logout
-              </button>
-            )}
           </div>
         </div>
       </nav>

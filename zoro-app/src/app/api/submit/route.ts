@@ -68,6 +68,12 @@ export async function POST(request: NextRequest) {
     const normalizedEmail = body.email && String(body.email).trim()
       ? String(body.email).trim().toLowerCase()
       : null;
+    const normalizedName = body.name && String(body.name).trim()
+      ? String(body.name)
+          .trim()
+          .toLowerCase()
+          .replace(/[^a-z0-9]/g, '')
+      : null;
 
     if (!normalizedEmail) {
       return NextResponse.json(
@@ -116,7 +122,7 @@ export async function POST(request: NextRequest) {
       // Original question-based flow
       insertPayload = {
         user_id: userId || null,
-        name: body.name && String(body.name).trim() ? String(body.name).trim() : null,
+        name: normalizedName,
         // primary_goal removed from schema
         net_worth: body.netWorth,
         contact_method: body.contactMethod,
@@ -137,7 +143,7 @@ export async function POST(request: NextRequest) {
 
       insertPayload = {
         user_id: userId || null,
-        name: body.name && String(body.name).trim() ? String(body.name).trim() : null,
+        name: normalizedName,
         // primary_goal removed from schema
         net_worth: body.netWorth || '',
         contact_method: body.contactMethod,
@@ -216,18 +222,14 @@ export async function POST(request: NextRequest) {
     const resendApiKey = process.env.RESEND_API_KEY;
     if (resendApiKey) {
       const fromAddress = process.env.RESEND_FROM || 'Zoro <admin@getzoro.com>';
-      const senderName = body.name && String(body.name).trim() ? String(body.name).trim() : 'Zoro';
-      const senderLocalPart =
-        senderName
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, '.')
-          .replace(/^\.+|\.+$/g, '') || 'user';
+      const senderName = normalizedName || 'zoro';
+      const senderLocalPart = normalizedName || 'user';
       const userFromAddress = `${senderName} <${senderLocalPart}@getzoro.com>`;
       const adminEmail = process.env.SUBMISSION_NOTIFY_EMAIL || 'mazin.biviji1@gmail.com';
       const submissionSummary = {
         submissionId: submissionData?.id || null,
         email: normalizedEmail,
-        name: body.name || null,
+        name: normalizedName,
         contactMethod: body.contactMethod || null,
         phone: body.phone || null,
         netWorth: body.netWorth || null,
@@ -242,7 +244,7 @@ export async function POST(request: NextRequest) {
       };
 
       const prettyJson = JSON.stringify(submissionSummary, null, 2);
-      let draftEmail: string | null = null;
+      let draftEmail: { text: string; html: string } | null = null;
 
       try {
         draftEmail = await buildDraftResponseEmail({
@@ -254,7 +256,11 @@ export async function POST(request: NextRequest) {
         console.error('Failed to build draft response email:', error);
       }
       if (!draftEmail) {
-        draftEmail = `Hi ${body.name || 'there'}\n\nThanks for joining the Zoro waitlist. We'll be in touch soon.\n\nThanks,\n\nMazin`;
+        const fallbackText = `Hi ${body.name || 'there'}\n\nThanks for joining the Zoro waitlist. We'll be in touch soon.\n\nThanks,\n\nMazin`;
+        draftEmail = {
+          text: fallbackText,
+          html: fallbackText.replace(/\n/g, '<br>'),
+        };
       }
 
       const emailPayload = {
@@ -265,7 +271,7 @@ export async function POST(request: NextRequest) {
           `<p><strong>New form submission received.</strong></p>`,
           `<p><strong>Contact email:</strong> ${normalizedEmail || 'Not provided'}</p>`,
           draftEmail
-            ? `<p><strong>Draft response to user:</strong></p><pre style="background:#f6f8fa;border:1px solid #e1e4e8;padding:12px;border-radius:6px;white-space:pre-wrap;">${escapeHtml(draftEmail)}</pre>`
+            ? `<p><strong>Draft response to user:</strong></p><pre style="background:#f6f8fa;border:1px solid #e1e4e8;padding:12px;border-radius:6px;white-space:pre-wrap;">${escapeHtml(draftEmail.text)}</pre>`
             : '',
           `<p><strong>Full form info:</strong></p>`,
           `<pre style="background:#f6f8fa;border:1px solid #e1e4e8;padding:12px;border-radius:6px;white-space:pre-wrap;">${prettyJson}</pre>`,
@@ -276,7 +282,8 @@ export async function POST(request: NextRequest) {
         from: userFromAddress,
         to: normalizedEmail,
         subject: 'Welcome to Zoro',
-        text: draftEmail
+        text: draftEmail.text,
+        html: draftEmail.html,
       };
 
       const sendResendEmail = async (payload: Record<string, unknown>, label: string) => {

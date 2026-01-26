@@ -1,9 +1,9 @@
 import { loadEmailTemplate, renderTemplate } from '@/lib/email-templates';
 
-type GoalDetails = Record<
-  string,
-  { selections?: string[]; other?: string; main?: string; extra?: string }
->;
+type AiDraftResult = {
+  draft: string;
+  focusGoalId: string | null;
+};
 
 const goalLabelById: Record<string, string> = {
   save: 'Save more consistently',
@@ -14,9 +14,46 @@ const goalLabelById: Record<string, string> = {
   retirement: 'Retirement planning'
 };
 
-const interestLineById: Record<string, (baseUrl: string) => string> = {
-  retirement: (baseUrl: string) =>
-    `You can start with our retirement planner here: ${baseUrl}/retire`
+const goalLinkById: Record<string, { label: string; path: string }> = {
+  save: { label: 'Save more consistently', path: '/save' },
+  invest: { label: 'Invest smarter', path: '/invest' },
+  home: { label: 'Plan for big purchases', path: '/home' },
+  insurance: { label: 'Review insurance', path: '/insurance' },
+  tax: { label: 'Tax optimization', path: '/tax' },
+  retirement: { label: 'Retirement planning', path: '/retire' },
+};
+
+const documentRequestsByGoalId: Record<string, string[]> = {
+  save: [
+    'Recent bank statements (last 3 months)',
+    'Monthly expense breakdown or budget',
+    'Outstanding debt details (if any)',
+  ],
+  invest: [
+    'Current investment statements or holdings',
+    'Asset allocation snapshot (if available)',
+    'Any risk profile or investment policy notes',
+  ],
+  home: [
+    'Target purchase estimate or budget',
+    'Savings balance earmarked for the purchase',
+    'Existing loan obligations or pre-approval details',
+  ],
+  insurance: [
+    'Existing insurance policy documents',
+    'Coverage amounts and premium details',
+    'Riders or add-ons you currently have',
+  ],
+  tax: [
+    'Most recent Form 16 / ITR',
+    'Investment proof summaries',
+    'Capital gains or interest statements',
+  ],
+  retirement: [
+    'Retirement account statements',
+    'Current savings and contribution amounts',
+    'Any pension or employer benefit details',
+  ],
 };
 
 const fallbackAiContent =
@@ -30,40 +67,55 @@ function normalizeInterests(body: Record<string, any>) {
   const rawGoals = Array.isArray(body.goals) ? body.goals : [];
   const fallbackGoal = typeof body.primaryGoal === 'string' ? body.primaryGoal : '';
   const goalIds = rawGoals.length > 0 ? rawGoals : fallbackGoal ? [fallbackGoal] : [];
-  const goalLabels = goalIds.map((id) => goalLabelById[id] || id);
-  return { goalIds, goalLabels };
+  return { goalIds };
 }
 
-function formatGoalDetails(details: GoalDetails | null | undefined) {
-  if (!details || typeof details !== 'object') return null;
-  const entries = Object.entries(details)
-    .map(([goalId, value]) => {
-      const label = goalLabelById[goalId] || goalId;
-      const selections = Array.isArray(value?.selections)
-        ? value.selections
-        : value?.main
-          ? [value.main]
-          : [];
-      const otherText = value?.other || value?.extra || '';
-      const base = selections.length > 0 ? selections.join(', ') : '';
-      if (!base && !otherText) return null;
-      const withOther = otherText
-        ? `${base || 'Other'} (Other: ${otherText})`
-        : base;
-      return `${label}: ${withOther}`;
-    });
-  const filtered = entries.filter((entry): entry is string => Boolean(entry));
-  return filtered.length > 0 ? filtered.join('\n') : null;
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
-async function generateAiContent(context: string) {
+function buildAiContext(body: Record<string, any>, goalIds: string[]) {
+  const selectedGoals =
+    goalIds.length > 0 ? goalIds.map((id) => goalLabelById[id] || id).join(', ') : 'none';
+  const rawSubmission = JSON.stringify(body, null, 2);
+
+  return [
+    'Selected goals:',
+    selectedGoals,
+    '',
+    'Raw form submission (include any free text input exactly as provided):',
+    rawSubmission,
+  ].join('\n');
+}
+
+function extractJsonObject(value: string) {
+  const start = value.indexOf('{');
+  const end = value.lastIndexOf('}');
+  if (start === -1 || end === -1 || end <= start) return null;
+  return value.slice(start, end + 1);
+}
+
+function normalizeFocusGoalId(value: string | null | undefined, goalIds: string[]) {
+  const cleaned = typeof value === 'string' ? value.trim().toLowerCase() : '';
+  if (cleaned && goalLabelById[cleaned]) return cleaned;
+  const fallback = goalIds.find((goalId) => goalLabelById[goalId]);
+  return fallback || 'retirement';
+}
+
+async function generateAiContent(body: Record<string, any>, goalIds: string[]): Promise<AiDraftResult> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     console.warn('OpenAI draft skipped: OPENAI_API_KEY not set');
-    return fallbackAiContent;
+    return { draft: fallbackAiContent, focusGoalId: normalizeFocusGoalId('', goalIds) };
   }
 
   try {
+    const context = buildAiContext(body, goalIds);
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -73,12 +125,18 @@ async function generateAiContent(context: string) {
       body: JSON.stringify({
         model: 'gpt-4o-mini',
         temperature: 0.6,
-        max_tokens: 220,
+        max_tokens: 260,
         messages: [
           {
             role: 'system',
             content:
-              'You draft short, warm, professional email content for a financial planning onboarding reply. Return only the body content (2-4 short paragraphs). No greeting, no sign-off, no bullet list unless requested.'
+              [
+                'You draft short, warm, professional onboarding email content for a financial planning reply.',
+                'Focus on India-based planning for NRIs.',
+                'Return ONLY valid JSON with keys: draft, focusGoalId.',
+                'draft: 2-4 short paragraphs, no greeting, no sign-off, no bullet list unless requested.',
+                `focusGoalId: pick ONE of ${Object.keys(goalLabelById).join(', ')}.`
+              ].join(' ')
           },
           {
             role: 'user',
@@ -96,65 +154,108 @@ async function generateAiContent(context: string) {
         requestId,
         error: errorText.slice(0, 500)
       });
-      return fallbackAiContent;
+      return { draft: fallbackAiContent, focusGoalId: normalizeFocusGoalId('', goalIds) };
     }
 
     const data = await response.json();
-    const content = data?.choices?.[0]?.message?.content?.trim();
-    return content || fallbackAiContent;
+    const content = data?.choices?.[0]?.message?.content?.trim() || '';
+    const jsonBlock = extractJsonObject(content);
+    if (!jsonBlock) {
+      return { draft: fallbackAiContent, focusGoalId: normalizeFocusGoalId('', goalIds) };
+    }
+    const parsed = JSON.parse(jsonBlock) as { draft?: string; focusGoalId?: string };
+    const draft = parsed?.draft?.trim() || fallbackAiContent;
+    const focusGoalId = normalizeFocusGoalId(parsed?.focusGoalId, goalIds);
+    return { draft, focusGoalId };
   } catch (error) {
     console.error('OpenAI draft generation failed:', error);
-    return fallbackAiContent;
+    return { draft: fallbackAiContent, focusGoalId: normalizeFocusGoalId('', goalIds) };
   }
 }
 
-function buildInterestLines(goalIds: string[], baseUrl: string) {
-  const lines = goalIds
-    .map((goalId) => interestLineById[goalId]?.(baseUrl))
-    .filter((line): line is string => Boolean(line));
-  return lines;
+function buildFocusGoalLink(goalId: string, baseUrl: string) {
+  const link = goalLinkById[goalId] || goalLinkById.retirement;
+  return {
+    label: link.label,
+    url: `${baseUrl}${link.path}`,
+  };
 }
 
-function buildAiContext(body: Record<string, any>, goalLabels: string[]) {
-  const formattedGoalDetails = formatGoalDetails(body.goalDetails);
-  const details = [
-    `Name: ${body.name || 'not provided'}`,
-    `Email: ${body.email || 'not provided'}`,
-    `Interests: ${goalLabels.length > 0 ? goalLabels.join(', ') : 'not provided'}`,
-    body.netWorth ? `Net worth: ${body.netWorth}` : null,
-    body.timeHorizon ? `Time horizon: ${body.timeHorizon}` : null,
-    body.contactMethod ? `Preferred contact method: ${body.contactMethod}` : null,
-    body.additionalInfo ? `Additional info: ${body.additionalInfo}` : null,
-    formattedGoalDetails ? `Goal details:\n${formattedGoalDetails}` : null
-  ].filter(Boolean);
+function buildDocumentRequests(goalIds: string[]) {
+  const requests = goalIds.flatMap((goalId) => documentRequestsByGoalId[goalId] || []);
+  const fallback = [
+    'Recent bank statements (last 3 months)',
+    'Current investment or retirement statements (if applicable)',
+    'Any existing insurance policy documents',
+  ];
+  const combined = requests.length > 0 ? requests : fallback;
+  return Array.from(new Set(combined));
+}
 
-  return [
-    'Write the email body content for the user based on these details:',
-    ...details
-  ].join('\n');
+function formatAiHtml(content: string) {
+  return escapeHtml(content).replace(/\n/g, '<br>');
 }
 
 export async function buildDraftResponseEmail(body: Record<string, any>) {
-  const { goalIds, goalLabels } = normalizeInterests(body);
+  const { goalIds } = normalizeInterests(body);
   const baseUrl = getBaseUrl();
-  const interestLines = buildInterestLines(goalIds, baseUrl).join('\n');
-  const aiContext = buildAiContext(body, goalLabels);
-  const aiContent = await generateAiContent(aiContext);
+  const { draft, focusGoalId } = await generateAiContent(body, goalIds);
+  const focusGoalLink = buildFocusGoalLink(focusGoalId || 'retirement', baseUrl);
+  const documentRequests = buildDocumentRequests(goalIds);
   const template = await loadEmailTemplate('welcome-reply');
   const waitlistPosition =
     body.waitlistPosition !== null && body.waitlistPosition !== undefined
       ? String(body.waitlistPosition)
       : 'TBD';
+  const waitlistNumber =
+    typeof body.waitlistPosition === 'number' ? body.waitlistPosition : Number(waitlistPosition);
+  const scheduleCallUrl = 'https://calendly.com/getzoro/intro';
+  const scheduleLine =
+    Number.isFinite(waitlistNumber) && waitlistNumber < 100
+      ? `<br><br><u>Schedule a call</u><br><a href="${scheduleCallUrl}">Book a quick intro call</a>`
+      : '';
+  const documentRequestHtml = documentRequests
+    .map((item) => `<li>${escapeHtml(item)}</li>`)
+    .join('');
   const rendered = renderTemplate(template, {
     name: body.name || 'there',
-    interests: goalLabels.length > 0 ? goalLabels.join(', ') : 'your goals',
-    aiContent,
-    interestLinks: interestLines,
-    waitlistPosition
+    aiContent: formatAiHtml(draft),
+    documentRequests: documentRequestHtml,
+    focusGoalLink: `<a href="${focusGoalLink.url}">Start with ${escapeHtml(
+      focusGoalLink.label
+    )}</a>`,
+    scheduleLine,
+    waitlistPosition,
   });
 
-  return rendered
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
+  const textLines = [
+    `Hi ${body.name || 'there'},`,
+    '',
+    draft,
+    '',
+    'Documents to share:',
+    ...documentRequests.map((item) => `- ${item}`),
+  ];
+  if (Number.isFinite(waitlistNumber) && waitlistNumber < 100) {
+    textLines.push('', 'Schedule a call:', scheduleCallUrl);
+  }
+  textLines.push(
+    '',
+    'Start here:',
+    `Start with ${focusGoalLink.label}: ${focusGoalLink.url}`,
+    '',
+    'Simply reply to this email with your answers. The more detail you share, the better we can tailor your plan.',
+    '',
+    "You can also attach documents or tell us if you prefer bullet points and we'll keep your preferences in mind.",
+    '',
+    'Thanks,',
+    'Mazin'
+  );
+
+  return {
+    text: textLines.join('\n'),
+    html: rendered.replace(/\n{3,}/g, '\n\n').trim(),
+    focusGoalId: focusGoalId || null,
+  };
 }
 
