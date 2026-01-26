@@ -225,7 +225,7 @@ const ZoroLanding = () => {
         countryCode={countryCode}
         contactMethod={contactMethod as ContactMethod}
         additionalInfo={additionalInfo}
-        userEmail={user?.email || contactEmail}
+        userEmail={contactEmail}
         darkMode={darkMode}
         isSubmitting={isSubmitting}
         onEdit={handleEdit}
