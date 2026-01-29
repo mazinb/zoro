@@ -18,8 +18,9 @@ export const parseInputValue = (value: string): string => {
   const trimmed = value.trim().toLowerCase();
   if (!trimmed) return '';
 
-  const hasCrore = /cr|crore/.test(trimmed);
-  const hasLakh = /l\b|lac|lakh/.test(trimmed);
+  // Check for crore - match "c", "cr", or "crore" (case insensitive)
+  const hasCrore = /\bc\b|\bcr\b|crore/.test(trimmed);
+  const hasLakh = /\bl\b|lac|lakh/.test(trimmed);
   const hasMillion = /\bm\b/.test(trimmed);
   const hasThousand = /\bk\b/.test(trimmed);
 

@@ -6,9 +6,13 @@ import { Moon, Sun } from 'lucide-react';
 import { ZoroLogo } from '@/components/ZoroLogo';
 import { useDarkMode } from '@/hooks/useDarkMode';
 import { useThemeClasses } from '@/hooks/useThemeClasses';
-import { BigPurchaseForm } from '@/components/forms/BigPurchaseForm';
 
-export default function HomePage() {
+interface BaseFormWrapperProps {
+  children: React.ReactNode;
+  formType: 'save_more' | 'invest' | 'big_purchase' | 'insurance' | 'tax';
+}
+
+export const BaseFormWrapper: React.FC<BaseFormWrapperProps> = ({ children, formType }) => {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { darkMode, toggleDarkMode } = useDarkMode();
@@ -26,8 +30,9 @@ export default function HomePage() {
           const result = await response.json();
           
           if (result.data) {
+            const formDataField = `${formType}_answers`;
             setInitialData({
-              answers: result.data.big_purchase_answers,
+              answers: result.data[formDataField],
               sharedData: result.data.shared_data,
             });
           }
@@ -39,7 +44,7 @@ export default function HomePage() {
     };
 
     loadUserData();
-  }, [searchParams]);
+  }, [searchParams, formType]);
 
   if (loading) {
     return (
@@ -72,13 +77,13 @@ export default function HomePage() {
         </div>
       </nav>
 
-      <BigPurchaseForm 
-        darkMode={darkMode} 
-        initialData={initialData || undefined}
-        userToken={searchParams.get('token') || undefined}
-        userName={searchParams.get('name') || undefined}
-      />
+      {React.cloneElement(children as React.ReactElement, {
+        darkMode,
+        initialData: initialData || undefined,
+        userToken: searchParams.get('token') || undefined,
+        userName: searchParams.get('name') || undefined,
+      })}
     </div>
   );
-}
+};
 

@@ -20,11 +20,15 @@ interface RetirementCalculatorProps {
     expenseBuckets?: Record<string, ExpenseBucket>;
   };
   darkMode?: boolean;
+  userToken?: string;
+  userName?: string;
 }
 
 export const RetirementCalculator: React.FC<RetirementCalculatorProps> = ({
   initialData,
-  darkMode: propDarkMode
+  darkMode: propDarkMode,
+  userToken: propUserToken,
+  userName: propUserName
 }) => {
   const darkMode = propDarkMode ?? false;
   const theme = useThemeClasses(darkMode);
@@ -42,6 +46,8 @@ export const RetirementCalculator: React.FC<RetirementCalculatorProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [userToken, setUserToken] = useState<string | undefined>(propUserToken);
+  const [userName, setUserName] = useState<string | undefined>(propUserName);
 
   const totalSteps = 8;
 
@@ -64,6 +70,70 @@ export const RetirementCalculator: React.FC<RetirementCalculatorProps> = ({
       setCustomBuckets(initialData.expenseBuckets);
     }
   }, [initialData]);
+
+  // Auto-save function
+  const saveProgress = async (answersToSave: Answers, bucketsToSave: Record<string, ExpenseBucket> | null) => {
+    if (!userToken && !email) return; // Don't save if no identifier
+    
+    try {
+      await fetch('/api/user-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: userToken,
+          email: email || undefined,
+          name: userName,
+          formType: 'retirement',
+          formData: answersToSave,
+          expenseBuckets: bucketsToSave,
+          sharedData: {
+            // Cross-populate shared data
+            liquidNetWorth: answersToSave.liquidNetWorth,
+            annualIncomeJob: answersToSave.annualIncomeJob,
+            otherIncome: answersToSave.otherIncome,
+            country: answersToSave.country,
+          },
+        }),
+      });
+    } catch (error) {
+      // Silently fail - don't interrupt user flow
+      console.error('Failed to save progress:', error);
+    }
+  };
+
+  // Save expense buckets separately when they change
+  useEffect(() => {
+    if (customBuckets && (userToken || email)) {
+      const saveBuckets = async () => {
+        try {
+          await fetch('/api/user-data', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              token: userToken,
+              email: email || undefined,
+              name: userName,
+              formType: 'retirement',
+              formData: answers,
+              expenseBuckets: customBuckets,
+              sharedData: {
+                liquidNetWorth: answers.liquidNetWorth,
+                annualIncomeJob: answers.annualIncomeJob,
+                otherIncome: answers.otherIncome,
+                country: answers.country,
+              },
+            }),
+          });
+        } catch (error) {
+          console.error('Failed to save buckets:', error);
+        }
+      };
+      
+      // Debounce bucket saves
+      const timeoutId = setTimeout(saveBuckets, 1000);
+      return () => clearTimeout(timeoutId);
+    }
+  }, [customBuckets, userToken, email, userName, answers]);
 
   const validateLiquidNetWorth = (): boolean => {
     const value = parseFloat(answers.liquidNetWorth || '0') || 0;
@@ -93,6 +163,30 @@ export const RetirementCalculator: React.FC<RetirementCalculatorProps> = ({
 
     setIsSubmitting(true);
     try {
+      // Save to user_data table
+      const userDataResponse = await fetch('/api/user-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: userToken,
+          email,
+          name: userName,
+          formType: 'retirement',
+          formData: answers,
+          expenseBuckets: customBuckets,
+          sharedData: {
+            liquidNetWorth: answers.liquidNetWorth,
+            annualIncomeJob: answers.annualIncomeJob,
+            otherIncome: answers.otherIncome,
+            country: answers.country,
+          },
+        }),
+      });
+
+      const userDataResult = await userDataResponse.json();
+      const finalToken = userDataResult.token || userToken;
+
+      // Also save to retirement_leads for backward compatibility
       const response = await fetch('/api/retirement/lead', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -107,6 +201,18 @@ export const RetirementCalculator: React.FC<RetirementCalculatorProps> = ({
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.error || 'Failed to submit');
+      }
+
+      // Update token if we got a new one
+      if (finalToken && finalToken !== userToken) {
+        setUserToken(finalToken);
+        // Update URL with token for sharing
+        if (typeof window !== 'undefined') {
+          const url = new URL(window.location.href);
+          url.searchParams.set('token', finalToken);
+          if (userName) url.searchParams.set('name', userName);
+          window.history.replaceState({}, '', url.toString());
+        }
       }
 
       setSubmitted(true);
@@ -154,6 +260,12 @@ export const RetirementCalculator: React.FC<RetirementCalculatorProps> = ({
           updated.housing = defaultHousing;
         }
       }
+      
+      // Auto-save after update
+      setTimeout(() => {
+        saveProgress(updated, customBuckets);
+      }, 500);
+      
       return updated;
     });
 

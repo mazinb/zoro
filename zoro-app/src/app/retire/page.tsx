@@ -1,17 +1,64 @@
 'use client';
 
-import React from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Moon, Sun } from 'lucide-react';
 import { ZoroLogo } from '@/components/ZoroLogo';
 import { useDarkMode } from '@/hooks/useDarkMode';
 import { useThemeClasses } from '@/hooks/useThemeClasses';
 import { RetirementCalculator } from '@/components/retirement/RetirementCalculator';
+import { ExpenseBucket, Answers } from '@/components/retirement/types';
 
 export default function RetirePage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { darkMode, toggleDarkMode } = useDarkMode();
   const theme = useThemeClasses(darkMode);
+  const [initialData, setInitialData] = useState<{
+    answers?: Partial<Answers>;
+    expenseBuckets?: Record<string, ExpenseBucket>;
+  } | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadUserData = async () => {
+      const token = searchParams.get('token');
+      const name = searchParams.get('name');
+      
+      if (token) {
+        try {
+          const response = await fetch(`/api/user-data?token=${token}`);
+          const result = await response.json();
+          
+          if (result.data) {
+            const retirementAnswers = result.data.retirement_answers;
+            const expenseBuckets = result.data.retirement_expense_buckets;
+            
+            if (retirementAnswers || expenseBuckets) {
+              setInitialData({
+                answers: retirementAnswers || undefined,
+                expenseBuckets: expenseBuckets || undefined,
+              });
+            }
+          }
+        } catch (error) {
+          console.error('Failed to load user data:', error);
+        }
+      }
+      setLoading(false);
+    };
+
+    loadUserData();
+  }, [searchParams]);
+
+  if (loading) {
+    return (
+      <div className={`min-h-screen ${theme.bgClass} transition-colors duration-300 flex items-center justify-center`}>
+        <div className={`${theme.textClass}`}>Loading...</div>
+      </div>
+    );
+  }
+
   return (
     <div className={`min-h-screen ${theme.bgClass} transition-colors duration-300`}>
       {/* Navigation - matching checkin/profile pages */}
@@ -36,7 +83,12 @@ export default function RetirePage() {
         </div>
       </nav>
 
-      <RetirementCalculator darkMode={darkMode} />
+      <RetirementCalculator 
+        darkMode={darkMode} 
+        initialData={initialData || undefined}
+        userToken={searchParams.get('token') || undefined}
+        userName={searchParams.get('name') || undefined}
+      />
     </div>
   );
 }
