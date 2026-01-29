@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Moon, Sun } from 'lucide-react';
 import { ZoroLogo } from '@/components/ZoroLogo';
@@ -8,7 +8,7 @@ import { useDarkMode } from '@/hooks/useDarkMode';
 import { useThemeClasses } from '@/hooks/useThemeClasses';
 import { BigPurchaseForm } from '@/components/forms/BigPurchaseForm';
 
-export default function HomePage() {
+function HomePageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { darkMode, toggleDarkMode } = useDarkMode();
@@ -79,6 +79,18 @@ export default function HomePage() {
         userName={searchParams.get('name') || undefined}
       />
     </div>
+  );
+}
+
+export default function HomePage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-white dark:bg-gray-900 transition-colors duration-300 flex items-center justify-center">
+        <div className="text-gray-900 dark:text-gray-100">Loading...</div>
+      </div>
+    }>
+      <HomePageContent />
+    </Suspense>
   );
 }
 

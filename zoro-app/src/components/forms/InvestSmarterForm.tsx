@@ -4,7 +4,8 @@ import React, { useState } from 'react';
 import { useThemeClasses } from '@/hooks/useThemeClasses';
 import { AnimatedZoroLogo } from '@/components/AnimatedZoroLogo';
 import { Check } from 'lucide-react';
-import { formatInputValue, parseInputValue } from '@/components/retirement/utils';
+import { CurrencySelector } from './CurrencySelector';
+import { NumberInput } from './NumberInput';
 
 interface InvestAnswers {
   currency: string | null;
@@ -48,10 +49,10 @@ export const InvestSmarterForm: React.FC<InvestSmarterFormProps> = ({
   const [userName, setUserName] = useState<string | undefined>(propUserName);
   const [hasHoldings, setHasHoldings] = useState<string | null>(null);
 
-  const totalSteps = 10; // Added currency step and additional notes
+  const totalSteps = 9; // Removed currency step
 
   const [answers, setAnswers] = useState<InvestAnswers>({
-    currency: initialData?.answers?.currency || initialData?.sharedData?.currency || null,
+    currency: initialData?.answers?.currency || initialData?.sharedData?.currency || '₹', // Default to INR
     investmentGoal: initialData?.answers?.investmentGoal || null,
     experienceLevel: initialData?.answers?.experienceLevel || null,
     riskTolerance: initialData?.answers?.riskTolerance || null,
@@ -110,12 +111,21 @@ export const InvestSmarterForm: React.FC<InvestSmarterFormProps> = ({
   const handleAnswer = (question: keyof InvestAnswers, value: string) => {
     setAnswers((prev) => {
       const updated = { ...prev, [question]: value } as InvestAnswers;
+      if (question === 'activeHoldings') {
+        setHasHoldings(value);
+      }
       setTimeout(() => {
         saveProgress(updated);
       }, 500);
       return updated;
     });
-    setTimeout(() => setStep(step + 1), 300);
+    
+    // Skip holdings listing step if user says "No"
+    if (question === 'activeHoldings' && value === 'No') {
+      setTimeout(() => setStep(step + 2), 300); // Skip one step
+    } else {
+      setTimeout(() => setStep(step + 1), 300);
+    }
   };
 
   const handleSubmit = async () => {
@@ -201,39 +211,6 @@ export const InvestSmarterForm: React.FC<InvestSmarterFormProps> = ({
         return (
           <div className="animate-fade-in">
             <h2 className={`text-3xl font-light mb-6 ${theme.textClass}`}>
-              What currency are you using?
-            </h2>
-            <div className="space-y-3">
-              {[
-                { code: '₹', name: 'Indian Rupee (₹)', flag: '🇮🇳' },
-                { code: '$', name: 'US Dollar ($)', flag: '🇺🇸' },
-                { code: '€', name: 'Euro (€)', flag: '🇪🇺' },
-                { code: 'AED', name: 'UAE Dirham (AED)', flag: '🇦🇪' },
-                { code: '฿', name: 'Thai Baht (฿)', flag: '🇹🇭' },
-              ].map((option) => (
-                <button
-                  key={option.code}
-                  onClick={() => handleAnswer('currency', option.code)}
-                  className={`w-full p-5 rounded-lg text-left transition-all transform hover:scale-102 ${
-                    darkMode
-                      ? 'bg-slate-800 hover:bg-slate-750 border border-slate-700'
-                      : 'bg-white hover:bg-gray-50 border border-gray-200 shadow-sm'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">{option.flag}</span>
-                    <span className={`font-medium text-lg ${theme.textClass}`}>{option.name}</span>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-        );
-
-      case 1:
-        return (
-          <div className="animate-fade-in">
-            <h2 className={`text-3xl font-light mb-6 ${theme.textClass}`}>
               What is the primary purpose of this money?
             </h2>
             <div className="space-y-3">
@@ -254,7 +231,7 @@ export const InvestSmarterForm: React.FC<InvestSmarterFormProps> = ({
           </div>
         );
 
-      case 2:
+      case 1:
         return (
           <div className="animate-fade-in">
             <h2 className={`text-3xl font-light mb-6 ${theme.textClass}`}>
@@ -278,7 +255,7 @@ export const InvestSmarterForm: React.FC<InvestSmarterFormProps> = ({
           </div>
         );
 
-      case 3:
+      case 2:
         return (
           <div className="animate-fade-in">
             <h2 className={`text-3xl font-light mb-6 ${theme.textClass}`}>
@@ -302,7 +279,7 @@ export const InvestSmarterForm: React.FC<InvestSmarterFormProps> = ({
           </div>
         );
 
-      case 4:
+      case 3:
         return (
           <div className="animate-fade-in">
             <h2 className={`text-3xl font-light mb-6 ${theme.textClass}`}>
@@ -312,10 +289,7 @@ export const InvestSmarterForm: React.FC<InvestSmarterFormProps> = ({
               {['Yes', 'No'].map((option) => (
                 <button
                   key={option}
-                  onClick={() => {
-                    setHasHoldings(option);
-                    handleAnswer('activeHoldings', option);
-                  }}
+                  onClick={() => handleAnswer('activeHoldings', option)}
                   className={`w-full p-5 rounded-lg text-left transition-all transform hover:scale-102 ${
                     darkMode
                       ? 'bg-slate-800 hover:bg-slate-750 border border-slate-700'
@@ -329,7 +303,7 @@ export const InvestSmarterForm: React.FC<InvestSmarterFormProps> = ({
           </div>
         );
 
-      case 5:
+      case 4:
         if (hasHoldings === 'Yes') {
           return (
             <div className="animate-fade-in">
@@ -368,7 +342,7 @@ export const InvestSmarterForm: React.FC<InvestSmarterFormProps> = ({
         }
         return null;
 
-      case 6:
+      case 5:
         return (
           <div className="animate-fade-in">
             <h2 className={`text-3xl font-light mb-6 ${theme.textClass}`}>
@@ -392,7 +366,7 @@ export const InvestSmarterForm: React.FC<InvestSmarterFormProps> = ({
           </div>
         );
 
-      case 7:
+      case 6:
         return (
           <div className="animate-fade-in">
             <h2 className={`text-3xl font-light mb-6 ${theme.textClass}`}>
@@ -416,32 +390,20 @@ export const InvestSmarterForm: React.FC<InvestSmarterFormProps> = ({
           </div>
         );
 
-      case 8:
+      case 7:
         return (
           <div className="animate-fade-in">
             <h2 className={`text-3xl font-light mb-4 ${theme.textClass}`}>
               How much can you 'fire and forget' into your investments monthly?
             </h2>
             <div className="space-y-4">
-              <div className="relative">
-                <span className={`absolute left-4 top-1/2 -translate-y-1/2 ${theme.textClass}`}>
-                  {answers.currency || '₹'}
-                </span>
-                <input
-                  type="text"
-                  value={answers.contribution ? formatInputValue(answers.contribution, answers.currency || '₹') : ''}
-                  onChange={(e) => {
-                    const parsed = parseInputValue(e.target.value);
-                    setAnswers((prev) => ({ ...prev, contribution: parsed }));
-                  }}
-                  placeholder={answers.currency === '₹' ? 'e.g., 50,000 or 5L' : 'e.g., 5,000 or 5K'}
-                  className={`w-full pl-8 pr-4 py-3 rounded-lg ${
-                    darkMode
-                      ? 'bg-slate-800 border border-slate-700 text-gray-100'
-                      : 'bg-white border border-gray-300 text-gray-900'
-                  } focus:outline-none focus:ring-2 focus:ring-blue-500`}
-                />
-              </div>
+              <NumberInput
+                value={answers.contribution}
+                onChange={(val) => setAnswers((prev) => ({ ...prev, contribution: val }))}
+                currency={answers.currency || '₹'}
+                placeholder={answers.currency === '₹' ? 'e.g., 50,000 or 5L or 1C' : 'e.g., 5,000 or 5K'}
+                darkMode={darkMode}
+              />
               <button
                 onClick={() => {
                   if (answers.contribution) {
@@ -457,7 +419,7 @@ export const InvestSmarterForm: React.FC<InvestSmarterFormProps> = ({
           </div>
         );
 
-      case 9:
+      case 8:
         return (
           <div className="animate-fade-in">
             <h2 className={`text-3xl font-light mb-4 ${theme.textClass}`}>
@@ -559,14 +521,33 @@ export const InvestSmarterForm: React.FC<InvestSmarterFormProps> = ({
     }
   };
 
-  // Adjust step if we skip holdings question
-  const currentStep = hasHoldings === 'No' && step === 5 ? step + 1 : step;
+  // Adjust step if we skip holdings listing question (case 4)
+  // If hasHoldings is 'No', we skip case 4, so adjust display
+  const currentStep = hasHoldings === 'No' && step > 4 ? step - 1 : step;
   const adjustedTotalSteps = hasHoldings === 'No' ? totalSteps - 1 : totalSteps;
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
-      <div className="mb-12">
+      <div className="mb-8 flex items-center justify-between">
         <h1 className={`text-2xl font-light tracking-tight ${theme.textClass}`}>Invest Smarter</h1>
+        {!userToken && (
+          <CurrencySelector
+            value={answers.currency}
+            onChange={(currency) => {
+              setAnswers((prev) => ({ ...prev, currency }));
+              saveProgress({ ...answers, currency });
+            }}
+            darkMode={darkMode}
+          />
+        )}
+        {userToken && (
+          <CurrencySelector
+            value={answers.currency}
+            onChange={() => {}}
+            darkMode={darkMode}
+            disabled={true}
+          />
+        )}
       </div>
 
       <div className="mb-12">

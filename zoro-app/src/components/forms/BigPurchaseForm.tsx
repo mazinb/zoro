@@ -4,7 +4,8 @@ import React, { useState } from 'react';
 import { useThemeClasses } from '@/hooks/useThemeClasses';
 import { AnimatedZoroLogo } from '@/components/AnimatedZoroLogo';
 import { Check } from 'lucide-react';
-import { formatInputValue, parseInputValue } from '@/components/retirement/utils';
+import { CurrencySelector } from './CurrencySelector';
+import { NumberInput } from './NumberInput';
 
 interface BigPurchaseAnswers {
   currency: string | null;
@@ -46,10 +47,10 @@ export const BigPurchaseForm: React.FC<BigPurchaseFormProps> = ({
   const [userToken, setUserToken] = useState<string | undefined>(propUserToken);
   const [userName, setUserName] = useState<string | undefined>(propUserName);
 
-  const totalSteps = 9; // Added currency step
+  const totalSteps = 8; // Removed currency step
 
   const [answers, setAnswers] = useState<BigPurchaseAnswers>({
-    currency: initialData?.answers?.currency || initialData?.sharedData?.currency || null,
+    currency: initialData?.answers?.currency || initialData?.sharedData?.currency || '₹', // Default to INR
     purchase: initialData?.answers?.purchase || null,
     priceTag: initialData?.answers?.priceTag || null,
     deadline: initialData?.answers?.deadline || null,
@@ -197,39 +198,6 @@ export const BigPurchaseForm: React.FC<BigPurchaseFormProps> = ({
         return (
           <div className="animate-fade-in">
             <h2 className={`text-3xl font-light mb-6 ${theme.textClass}`}>
-              What currency are you using?
-            </h2>
-            <div className="space-y-3">
-              {[
-                { code: '₹', name: 'Indian Rupee (₹)', flag: '🇮🇳' },
-                { code: '$', name: 'US Dollar ($)', flag: '🇺🇸' },
-                { code: '€', name: 'Euro (€)', flag: '🇪🇺' },
-                { code: 'AED', name: 'UAE Dirham (AED)', flag: '🇦🇪' },
-                { code: '฿', name: 'Thai Baht (฿)', flag: '🇹🇭' },
-              ].map((option) => (
-                <button
-                  key={option.code}
-                  onClick={() => handleAnswer('currency', option.code)}
-                  className={`w-full p-5 rounded-lg text-left transition-all transform hover:scale-102 ${
-                    darkMode
-                      ? 'bg-slate-800 hover:bg-slate-750 border border-slate-700'
-                      : 'bg-white hover:bg-gray-50 border border-gray-200 shadow-sm'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl">{option.flag}</span>
-                    <span className={`font-medium text-lg ${theme.textClass}`}>{option.name}</span>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-        );
-
-      case 1:
-        return (
-          <div className="animate-fade-in">
-            <h2 className={`text-3xl font-light mb-6 ${theme.textClass}`}>
               What are we buying?
             </h2>
             <div className="space-y-3">
@@ -250,32 +218,20 @@ export const BigPurchaseForm: React.FC<BigPurchaseFormProps> = ({
           </div>
         );
 
-      case 2:
+      case 1:
         return (
           <div className="animate-fade-in">
             <h2 className={`text-3xl font-light mb-4 ${theme.textClass}`}>
               What is the total estimated cost?
             </h2>
             <div className="space-y-4">
-              <div className="relative">
-                <span className={`absolute left-4 top-1/2 -translate-y-1/2 ${theme.textClass}`}>
-                  {answers.currency || '₹'}
-                </span>
-                <input
-                  type="text"
-                  value={answers.priceTag ? formatInputValue(answers.priceTag, answers.currency || '₹') : ''}
-                  onChange={(e) => {
-                    const parsed = parseInputValue(e.target.value);
-                    setAnswers((prev) => ({ ...prev, priceTag: parsed }));
-                  }}
-                  placeholder={answers.currency === '₹' ? 'e.g., 50,00,000 or 50L or 5Cr' : 'e.g., 500,000 or 500K'}
-                  className={`w-full pl-8 pr-4 py-3 rounded-lg ${
-                    darkMode
-                      ? 'bg-slate-800 border border-slate-700 text-gray-100'
-                      : 'bg-white border border-gray-300 text-gray-900'
-                  } focus:outline-none focus:ring-2 focus:ring-blue-500`}
-                />
-              </div>
+              <NumberInput
+                value={answers.priceTag}
+                onChange={(val) => setAnswers((prev) => ({ ...prev, priceTag: val }))}
+                currency={answers.currency || '₹'}
+                placeholder={answers.currency === '₹' ? 'e.g., 50,00,000 or 50L or 1C' : 'e.g., 500,000 or 500K'}
+                darkMode={darkMode}
+              />
               <button
                 onClick={() => {
                   if (answers.priceTag) {
@@ -291,7 +247,7 @@ export const BigPurchaseForm: React.FC<BigPurchaseFormProps> = ({
           </div>
         );
 
-      case 3:
+      case 2:
         return (
           <div className="animate-fade-in">
             <h2 className={`text-3xl font-light mb-4 ${theme.textClass}`}>
@@ -326,32 +282,20 @@ export const BigPurchaseForm: React.FC<BigPurchaseFormProps> = ({
           </div>
         );
 
-      case 4:
+      case 3:
         return (
           <div className="animate-fade-in">
             <h2 className={`text-3xl font-light mb-4 ${theme.textClass}`}>
               How much have you already set aside for this specifically?
             </h2>
             <div className="space-y-4">
-              <div className="relative">
-                <span className={`absolute left-4 top-1/2 -translate-y-1/2 ${theme.textClass}`}>
-                  {answers.currency || '₹'}
-                </span>
-                <input
-                  type="text"
-                  value={answers.currentProgress ? formatInputValue(answers.currentProgress, answers.currency || '₹') : ''}
-                  onChange={(e) => {
-                    const parsed = parseInputValue(e.target.value);
-                    setAnswers((prev) => ({ ...prev, currentProgress: parsed }));
-                  }}
-                  placeholder={answers.currency === '₹' ? 'e.g., 10,00,000 or 10L' : 'e.g., 100,000 or 100K'}
-                  className={`w-full pl-8 pr-4 py-3 rounded-lg ${
-                    darkMode
-                      ? 'bg-slate-800 border border-slate-700 text-gray-100'
-                      : 'bg-white border border-gray-300 text-gray-900'
-                  } focus:outline-none focus:ring-2 focus:ring-blue-500`}
-                />
-              </div>
+              <NumberInput
+                value={answers.currentProgress}
+                onChange={(val) => setAnswers((prev) => ({ ...prev, currentProgress: val }))}
+                currency={answers.currency || '₹'}
+                placeholder={answers.currency === '₹' ? 'e.g., 10,00,000 or 10L or 1C' : 'e.g., 100,000 or 100K'}
+                darkMode={darkMode}
+              />
               <button
                 onClick={() => {
                   if (answers.currentProgress !== null) {
@@ -366,7 +310,7 @@ export const BigPurchaseForm: React.FC<BigPurchaseFormProps> = ({
           </div>
         );
 
-      case 5:
+      case 4:
         return (
           <div className="animate-fade-in">
             <h2 className={`text-3xl font-light mb-6 ${theme.textClass}`}>
@@ -390,32 +334,20 @@ export const BigPurchaseForm: React.FC<BigPurchaseFormProps> = ({
           </div>
         );
 
-      case 6:
+      case 5:
         return (
           <div className="animate-fade-in">
             <h2 className={`text-3xl font-light mb-4 ${theme.textClass}`}>
               Will this purchase add new monthly expenses? (e.g., Gas, Insurance, Maintenance)
             </h2>
             <div className="space-y-4">
-              <div className="relative">
-                <span className={`absolute left-4 top-1/2 -translate-y-1/2 ${theme.textClass}`}>
-                  {answers.currency || '₹'}
-                </span>
-                <input
-                  type="text"
-                  value={answers.recurringCost ? formatInputValue(answers.recurringCost, answers.currency || '₹') : ''}
-                  onChange={(e) => {
-                    const parsed = parseInputValue(e.target.value);
-                    setAnswers((prev) => ({ ...prev, recurringCost: parsed }));
-                  }}
-                  placeholder={answers.currency === '₹' ? 'e.g., 10,000 or 10K (0 if none)' : 'e.g., 1,000 or 1K (0 if none)'}
-                  className={`w-full pl-8 pr-4 py-3 rounded-lg ${
-                    darkMode
-                      ? 'bg-slate-800 border border-slate-700 text-gray-100'
-                      : 'bg-white border border-gray-300 text-gray-900'
-                  } focus:outline-none focus:ring-2 focus:ring-blue-500`}
-                />
-              </div>
+              <NumberInput
+                value={answers.recurringCost}
+                onChange={(val) => setAnswers((prev) => ({ ...prev, recurringCost: val }))}
+                currency={answers.currency || '₹'}
+                placeholder={answers.currency === '₹' ? 'e.g., 10,000 or 10K or 1C (0 if none)' : 'e.g., 1,000 or 1K (0 if none)'}
+                darkMode={darkMode}
+              />
               <button
                 onClick={() => {
                   if (answers.recurringCost !== null) {
@@ -430,7 +362,7 @@ export const BigPurchaseForm: React.FC<BigPurchaseFormProps> = ({
           </div>
         );
 
-      case 7:
+      case 6:
         return (
           <div className="animate-fade-in">
             <h2 className={`text-3xl font-light mb-4 ${theme.textClass}`}>
@@ -463,7 +395,7 @@ export const BigPurchaseForm: React.FC<BigPurchaseFormProps> = ({
           </div>
         );
 
-      case 8:
+      case 7:
         return (
           <div className="animate-fade-in">
             <h2 className={`text-3xl font-light mb-4 ${theme.textClass}`}>
@@ -531,8 +463,26 @@ export const BigPurchaseForm: React.FC<BigPurchaseFormProps> = ({
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
-      <div className="mb-12">
+      <div className="mb-8 flex items-center justify-between">
         <h1 className={`text-2xl font-light tracking-tight ${theme.textClass}`}>Plan for Big Purchases</h1>
+        {!userToken && (
+          <CurrencySelector
+            value={answers.currency}
+            onChange={(currency) => {
+              setAnswers((prev) => ({ ...prev, currency }));
+              saveProgress({ ...answers, currency });
+            }}
+            darkMode={darkMode}
+          />
+        )}
+        {userToken && (
+          <CurrencySelector
+            value={answers.currency}
+            onChange={() => {}}
+            darkMode={darkMode}
+            disabled={true}
+          />
+        )}
       </div>
 
       <div className="mb-12">

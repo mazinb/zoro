@@ -19,10 +19,14 @@ export const parseInputValue = (value: string): string => {
   if (!trimmed) return '';
 
   // Check for crore - match "c", "cr", or "crore" (case insensitive)
-  const hasCrore = /\bc\b|\bcr\b|crore/.test(trimmed);
-  const hasLakh = /\bl\b|lac|lakh/.test(trimmed);
-  const hasMillion = /\bm\b/.test(trimmed);
-  const hasThousand = /\bk\b/.test(trimmed);
+  // Match: "5c", "5cr", "5 crore", "crore", or standalone "c"/"cr" with word boundaries
+  const hasCrore = /^[0-9.]+c$|^[0-9.]+cr$|crore|\bc\b|\bcr\b/.test(trimmed);
+  // Match: "5l", "5lac", "5lakh", "lakh", or standalone "l"/"lac"/"lakh" with word boundaries
+  const hasLakh = /^[0-9.]+l$|^[0-9.]+lac$|^[0-9.]+lakh$|lac|lakh|\bl\b/.test(trimmed);
+  // Match: "5m", "5million", "million", or standalone "m" with word boundaries
+  const hasMillion = /^[0-9.]+m$|million|\bm\b/.test(trimmed);
+  // Match: "5k", "5thousand", "thousand", or standalone "k" with word boundaries
+  const hasThousand = /^[0-9.]+k$|thousand|\bk\b/.test(trimmed);
 
   const numeric = parseFloat(trimmed.replace(/[^\d.]/g, ''));
   if (Number.isNaN(numeric)) {
