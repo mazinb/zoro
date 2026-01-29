@@ -107,11 +107,11 @@ function normalizeFocusGoalId(value: string | null | undefined, goalIds: string[
   return fallback || 'retirement';
 }
 
-async function generateAiContent(body: Record<string, any>, goalIds: string[]): Promise<AiDraftResult> {
+async function generateAiContent(body: Record<string, any>, goalIds: string[]): Promise<AiDraftResult & { insights?: string }> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
     console.warn('OpenAI draft skipped: OPENAI_API_KEY not set');
-    return { draft: fallbackAiContent, focusGoalId: normalizeFocusGoalId('', goalIds) };
+    return { draft: fallbackAiContent, focusGoalId: normalizeFocusGoalId('', goalIds), insights: undefined };
   }
 
   try {
@@ -125,17 +125,18 @@ async function generateAiContent(body: Record<string, any>, goalIds: string[]): 
       body: JSON.stringify({
         model: 'gpt-4o-mini',
         temperature: 0.6,
-        max_tokens: 260,
+        max_tokens: 400,
         messages: [
           {
             role: 'system',
             content:
               [
-                'You draft short, warm, professional onboarding email content for a financial planning reply.',
-                'Focus on India-based planning for NRIs.',
-                'Return ONLY valid JSON with keys: draft, focusGoalId.',
-                'draft: 2-4 short paragraphs, no greeting, no sign-off, no bullet list unless requested.',
-                `focusGoalId: pick ONE of ${Object.keys(goalLabelById).join(', ')}.`
+                'You draft personalized, warm, professional onboarding email content for a financial planning service.',
+                'Focus on India-based planning for NRIs and Indian residents.',
+                'Return ONLY valid JSON with keys: draft, focusGoalId, insights.',
+                'draft: 2-3 short paragraphs welcoming them, acknowledging their goals, and setting expectations. No greeting, no sign-off, no bullet lists unless specifically requested.',
+                `focusGoalId: pick ONE primary goal from ${Object.keys(goalLabelById).join(', ')} based on their submission.`,
+                'insights: Optional 1-2 sentence personalized insight or observation based on their submission. Can be empty string if no meaningful insight. Keep it brief and relevant.'
               ].join(' ')
           },
           {
@@ -161,15 +162,16 @@ async function generateAiContent(body: Record<string, any>, goalIds: string[]): 
     const content = data?.choices?.[0]?.message?.content?.trim() || '';
     const jsonBlock = extractJsonObject(content);
     if (!jsonBlock) {
-      return { draft: fallbackAiContent, focusGoalId: normalizeFocusGoalId('', goalIds) };
+      return { draft: fallbackAiContent, focusGoalId: normalizeFocusGoalId('', goalIds), insights: undefined };
     }
-    const parsed = JSON.parse(jsonBlock) as { draft?: string; focusGoalId?: string };
+    const parsed = JSON.parse(jsonBlock) as { draft?: string; focusGoalId?: string; insights?: string };
     const draft = parsed?.draft?.trim() || fallbackAiContent;
     const focusGoalId = normalizeFocusGoalId(parsed?.focusGoalId, goalIds);
-    return { draft, focusGoalId };
+    const insights = parsed?.insights?.trim() || undefined;
+    return { draft, focusGoalId, insights };
   } catch (error) {
     console.error('OpenAI draft generation failed:', error);
-    return { draft: fallbackAiContent, focusGoalId: normalizeFocusGoalId('', goalIds) };
+    return { draft: fallbackAiContent, focusGoalId: normalizeFocusGoalId('', goalIds), insights: undefined };
   }
 }
 
@@ -199,7 +201,7 @@ function formatAiHtml(content: string) {
 export async function buildDraftResponseEmail(body: Record<string, any>) {
   const { goalIds } = normalizeInterests(body);
   const baseUrl = getBaseUrl();
-  const { draft, focusGoalId } = await generateAiContent(body, goalIds);
+  const { draft, focusGoalId, insights } = await generateAiContent(body, goalIds);
   const focusGoalLink = buildFocusGoalLink(focusGoalId || 'retirement', baseUrl);
   const documentRequests = buildDocumentRequests(goalIds);
   const template = await loadEmailTemplate('welcome-reply');
@@ -209,11 +211,22 @@ export async function buildDraftResponseEmail(body: Record<string, any>) {
       : 'TBD';
   const waitlistNumber =
     typeof body.waitlistPosition === 'number' ? body.waitlistPosition : Number(waitlistPosition);
+  
+  // Explain why they got a call (only top 10)
+  const waitlistExplanation = Number.isFinite(waitlistNumber) && waitlistNumber <= 10
+    ? `Great news! You're in our top 10, which means we'd love to schedule a quick intro call to better understand your needs and tailor a plan specifically for you.`
+    : `We're excited to have you on board! As we work through the waitlist, we'll be in touch soon. In the meantime, please fill out the form below and share any relevant documents so we can get started on your personalized plan.`;
+  
   const scheduleCallUrl = 'https://calendly.com/getzoro/intro';
   const scheduleLine =
-    Number.isFinite(waitlistNumber) && waitlistNumber < 100
-      ? `<br><br><u>Schedule a call</u><br><a href="${scheduleCallUrl}">Book a quick intro call</a>`
+    Number.isFinite(waitlistNumber) && waitlistNumber <= 10
+      ? `<br>3. <u>Schedule a call</u><br><a href="${scheduleCallUrl}">Book a quick intro call</a>`
       : '';
+  
+  const insightsSection = insights
+    ? `<strong>Quick insight:</strong><br>${formatAiHtml(insights)}`
+    : '';
+  
   const documentRequestHtml = documentRequests
     .map((item) => `<li>${escapeHtml(item)}</li>`)
     .join('');
@@ -226,23 +239,40 @@ export async function buildDraftResponseEmail(body: Record<string, any>) {
     )}</a>`,
     scheduleLine,
     waitlistPosition,
+    waitlistExplanation: formatAiHtml(waitlistExplanation),
+    insightsSection,
   });
 
   const textLines = [
     `Hi ${body.name || 'there'},`,
     '',
-    draft,
+    `Your waitlist position: #${waitlistPosition}`,
     '',
-    'Documents to share:',
-    ...documentRequests.map((item) => `- ${item}`),
+    waitlistExplanation,
+    '',
+    draft,
   ];
-  if (Number.isFinite(waitlistNumber) && waitlistNumber < 100) {
-    textLines.push('', 'Schedule a call:', scheduleCallUrl);
+  
+  if (insights) {
+    textLines.push('', `Quick insight:`, insights);
   }
+  
   textLines.push(
     '',
-    'Start here:',
+    'Next steps:',
+    '',
+    '1. Fill out the form:',
     `Start with ${focusGoalLink.label}: ${focusGoalLink.url}`,
+    '',
+    '2. Share documents:',
+    ...documentRequests.map((item) => `- ${item}`),
+  );
+  
+  if (Number.isFinite(waitlistNumber) && waitlistNumber <= 10) {
+    textLines.push('', '3. Schedule a call:', scheduleCallUrl);
+  }
+  
+  textLines.push(
     '',
     'Simply reply to this email with your answers. The more detail you share, the better we can tailor your plan.',
     '',

@@ -65,8 +65,7 @@ export const InvestSmarterForm: React.FC<InvestSmarterFormProps> = ({
   });
 
   const saveProgress = async (answersToSave: InvestAnswers) => {
-    if (!userToken && !email) return;
-    
+    // Allow saving even without email initially - token will be generated on first save
     try {
       const response = await fetch('/api/user-data', {
         method: 'POST',
@@ -88,6 +87,13 @@ export const InvestSmarterForm: React.FC<InvestSmarterFormProps> = ({
       const result = await response.json();
       if (result.token && result.token !== userToken) {
         setUserToken(result.token);
+        // Update URL with token
+        if (typeof window !== 'undefined') {
+          const url = new URL(window.location.href);
+          url.searchParams.set('token', result.token);
+          if (userName) url.searchParams.set('name', userName);
+          window.history.replaceState({}, '', url.toString());
+        }
       }
     } catch (error) {
       console.error('Failed to save progress:', error);
@@ -528,26 +534,28 @@ export const InvestSmarterForm: React.FC<InvestSmarterFormProps> = ({
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
-      <div className="mb-8 flex items-center justify-between">
+      <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <h1 className={`text-2xl font-light tracking-tight ${theme.textClass}`}>Invest Smarter</h1>
-        {!userToken && (
-          <CurrencySelector
-            value={answers.currency}
-            onChange={(currency) => {
-              setAnswers((prev) => ({ ...prev, currency }));
-              saveProgress({ ...answers, currency });
-            }}
-            darkMode={darkMode}
-          />
-        )}
-        {userToken && (
-          <CurrencySelector
-            value={answers.currency}
-            onChange={() => {}}
-            darkMode={darkMode}
-            disabled={true}
-          />
-        )}
+        <div className="flex-shrink-0">
+          {!userToken && (
+            <CurrencySelector
+              value={answers.currency}
+              onChange={(currency) => {
+                setAnswers((prev) => ({ ...prev, currency }));
+                saveProgress({ ...answers, currency });
+              }}
+              darkMode={darkMode}
+            />
+          )}
+          {userToken && (
+            <CurrencySelector
+              value={answers.currency}
+              onChange={() => {}}
+              darkMode={darkMode}
+              disabled={true}
+            />
+          )}
+        </div>
       </div>
 
       <div className="mb-12">
