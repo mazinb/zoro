@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { randomBytes } from 'crypto';
 
 export async function POST(request: NextRequest) {
   try {
@@ -28,43 +29,51 @@ export async function POST(request: NextRequest) {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    const { data: existing } = await supabase
-      .from('retirement_leads')
-      .select('id')
+    // Check if user_data already exists for this email
+    const { data: existingUserData } = await supabase
+      .from('user_data')
+      .select('id, retirement_answers, retirement_expense_buckets')
       .eq('email', email)
       .limit(1)
       .maybeSingle();
 
-    if (existing?.id) {
-      return NextResponse.json(
-        { error: 'This email already submitted a retirement request.' },
-        { status: 409 }
-      );
-    }
+    // Update or insert retirement data in user_data table
+    if (existingUserData?.id) {
+      // Update existing record
+      const { error: updateError } = await supabase
+        .from('user_data')
+        .update({
+          retirement_answers: answers,
+          retirement_expense_buckets: expenseBuckets,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', existingUserData.id);
 
-    const { error: insertError } = await supabase
-      .from('retirement_leads')
-      .insert({
-        email,
-        additional_info: additionalInfo,
-        answers,
-        expense_buckets: expenseBuckets,
-      });
-
-    if (insertError) {
-      const isDuplicate =
-        insertError.code === '23505' ||
-        /duplicate key/i.test(insertError.message || '');
-      if (isDuplicate) {
+      if (updateError) {
         return NextResponse.json(
-          { error: 'This email already submitted a retirement request.' },
-          { status: 409 }
+          { error: 'Failed to update retirement data', details: updateError.message },
+          { status: 500 }
         );
       }
-      return NextResponse.json(
-        { error: 'Failed to save retirement request', details: insertError.message },
-        { status: 500 }
-      );
+    } else {
+      // Create new record - need to generate user_token
+      const userToken = randomBytes(16).toString('hex');
+
+      const { error: insertError } = await supabase
+        .from('user_data')
+        .insert({
+          user_token: userToken,
+          email,
+          retirement_answers: answers,
+          retirement_expense_buckets: expenseBuckets,
+        });
+
+      if (insertError) {
+        return NextResponse.json(
+          { error: 'Failed to save retirement request', details: insertError.message },
+          { status: 500 }
+        );
+      }
     }
 
     const fromAddress = process.env.RESEND_FROM || 'Zoro <admin@getzoro.com>';

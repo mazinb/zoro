@@ -186,7 +186,7 @@ export const RetirementCalculator: React.FC<RetirementCalculatorProps> = ({
       const userDataResult = await userDataResponse.json();
       const finalToken = userDataResult.token || userToken;
 
-      // Also save to retirement_leads for backward compatibility
+      // Send admin notification email (using unified user_data format)
       const response = await fetch('/api/retirement/lead', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -200,7 +200,8 @@ export const RetirementCalculator: React.FC<RetirementCalculatorProps> = ({
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || 'Failed to submit');
+        // Don't fail the submission if admin email fails
+        console.warn('Failed to send admin notification:', errorData.error);
       }
 
       // Update token if we got a new one
