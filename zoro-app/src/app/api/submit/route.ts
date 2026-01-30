@@ -247,10 +247,15 @@ export async function POST(request: NextRequest) {
       let draftEmail: { text: string; html: string } | null = null;
 
       try {
+        // Extract sender email from userFromAddress for mailto links
+        const senderEmailMatch = userFromAddress.match(/<(.+)>/);
+        const senderEmail = senderEmailMatch ? senderEmailMatch[1] : (userFromAddress.includes('@') ? userFromAddress : 'admin@getzoro.com');
+        
         draftEmail = await buildDraftResponseEmail({
           ...body,
           email: normalizedEmail,
-          waitlistPosition
+          waitlistPosition,
+          senderEmail: senderEmail
         });
       } catch (error) {
         console.error('Failed to build draft response email:', error);
@@ -281,6 +286,7 @@ export async function POST(request: NextRequest) {
       const userEmailPayload = {
         from: userFromAddress,
         to: normalizedEmail,
+        reply_to: normalizedEmail,
         subject: 'Welcome to Zoro',
         text: draftEmail.text,
         html: draftEmail.html,
