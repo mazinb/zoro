@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { AnimatedZoroLogo } from '@/components/AnimatedZoroLogo';
+import { TypingLoader } from '@/components/TypingLoader';
 import { LandingPage } from '@/components/landing/LandingPage';
 import { PhilosophyPage } from '@/components/landing/PhilosophyPage';
 import { GoalSelection } from '@/components/form/GoalSelection';
@@ -171,19 +171,14 @@ const ZoroLanding = () => {
     setShowReview(false);
   }, []);
 
-  if (submitted && !showSuccess) {
+  if (isSubmitting || (submitted && !showSuccess)) {
     return (
-      <div className={`min-h-screen ${darkMode ? 'bg-slate-900' : 'bg-white'} flex items-center justify-center p-4 transition-colors duration-300`}>
-        <div className="flex flex-col items-center justify-center">
-          <AnimatedZoroLogo
-            className="h-32 md:h-48 lg:h-64"
-            isDark={darkMode}
-            onAnimationComplete={() => {
-              setShowSuccess(true);
-            }}
-          />
-        </div>
-      </div>
+      <TypingLoader
+        darkMode={darkMode}
+        onComplete={() => {
+          setShowSuccess(true);
+        }}
+      />
     );
   }
 
