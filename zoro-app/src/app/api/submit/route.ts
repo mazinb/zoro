@@ -268,6 +268,10 @@ export async function POST(request: NextRequest) {
         };
       }
 
+      // Extract reply-to email from fromAddress (the @getzoro.com sender)
+      const replyToEmailMatch = fromAddress.match(/<(.+)>/);
+      const replyToEmail = replyToEmailMatch ? replyToEmailMatch[1] : (fromAddress.includes('@') ? fromAddress : 'admin@getzoro.com');
+
       const emailPayload = {
         from: fromAddress,
         to: adminEmail,
@@ -286,7 +290,7 @@ export async function POST(request: NextRequest) {
       const userEmailPayload = {
         from: userFromAddress,
         to: normalizedEmail,
-        reply_to: normalizedEmail,
+        reply_to: replyToEmail,
         subject: 'Welcome to Zoro',
         text: draftEmail.text,
         html: draftEmail.html,
