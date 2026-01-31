@@ -6,6 +6,7 @@ import { AnimatedZoroLogo } from '@/components/AnimatedZoroLogo';
 import { Check } from 'lucide-react';
 import { CurrencySelector } from './CurrencySelector';
 import { NumberInput } from './NumberInput';
+import { useFormSave } from '@/hooks/useFormSave';
 
 interface InvestAnswers {
   currency: string | null;
@@ -40,14 +41,32 @@ export const InvestSmarterForm: React.FC<InvestSmarterFormProps> = ({
   const theme = useThemeClasses(darkMode);
 
   const [step, setStep] = useState(0);
-  const [email, setEmail] = useState('');
-  const [emailError, setEmailError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
-  const [userToken, setUserToken] = useState<string | undefined>(propUserToken);
-  const [userName, setUserName] = useState<string | undefined>(propUserName);
   const [hasHoldings, setHasHoldings] = useState<string | null>(null);
+
+  // Use shared form save hook
+  const {
+    email,
+    setEmail,
+    emailError,
+    setEmailError,
+    userToken,
+    setUserToken,
+    userName,
+    saveProgress: saveProgressHook,
+    validateEmail,
+  } = useFormSave<InvestAnswers>({
+    formType: 'invest',
+    initialData,
+    userToken: propUserToken,
+    userName: propUserName,
+    getSharedData: (answers) => ({
+      ...initialData?.sharedData,
+      currency: answers.currency,
+    }),
+  });
 
   const totalSteps = 9; // Removed currency step
 
@@ -64,54 +83,9 @@ export const InvestSmarterForm: React.FC<InvestSmarterFormProps> = ({
     additionalNotes: initialData?.answers?.additionalNotes || null,
   });
 
+  // Auto-save function (wraps the hook's saveProgress)
   const saveProgress = async (answersToSave: InvestAnswers) => {
-    // Allow saving even without email initially - token will be generated on first save
-    try {
-      const response = await fetch('/api/user-data', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          token: userToken,
-          email: email || undefined,
-          name: userName,
-          formType: 'invest',
-          formData: answersToSave,
-          sharedData: {
-            // Cross-populate from retirement or save_more
-            ...initialData?.sharedData,
-            currency: answersToSave.currency,
-          },
-        }),
-      });
-      
-      const result = await response.json();
-      if (result.token && result.token !== userToken) {
-        setUserToken(result.token);
-        // Update URL with token
-        if (typeof window !== 'undefined') {
-          const url = new URL(window.location.href);
-          url.searchParams.set('token', result.token);
-          if (userName) url.searchParams.set('name', userName);
-          window.history.replaceState({}, '', url.toString());
-        }
-      }
-    } catch (error) {
-      console.error('Failed to save progress:', error);
-    }
-  };
-
-  const validateEmail = (): boolean => {
-    if (userToken) {
-      return true;
-    }
-    const trimmed = email.trim();
-    const ok = /.+@.+\..+/.test(trimmed);
-    if (!ok) {
-      setEmailError('Please enter a valid email address');
-      return false;
-    }
-    setEmailError('');
-    return true;
+    await saveProgressHook(answersToSave);
   };
 
   const handleAnswer = (question: keyof InvestAnswers, value: string) => {
@@ -146,7 +120,7 @@ export const InvestSmarterForm: React.FC<InvestSmarterFormProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           token: userToken,
-          email: userToken ? undefined : email,
+          email: email || undefined,
           name: userName,
           formType: 'invest',
           formData: answers,

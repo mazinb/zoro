@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useFormSave } from '@/hooks/useFormSave';
 import { Shield, TrendingUp, Check } from 'lucide-react';
 import { useThemeClasses } from '@/hooks/useThemeClasses';
 import { RETIREMENT_CONFIG } from './retirementConfig';
@@ -18,6 +19,7 @@ interface RetirementCalculatorProps {
   initialData?: {
     answers?: Partial<Answers>;
     expenseBuckets?: Record<string, ExpenseBucket>;
+    email?: string;
   };
   darkMode?: boolean;
   userToken?: string;
@@ -39,15 +41,36 @@ export const RetirementCalculator: React.FC<RetirementCalculatorProps> = ({
     initialData?.expenseBuckets || null
   );
   const [showExpenses, setShowExpenses] = useState(false);
-  const [email, setEmail] = useState('');
-  const [emailError, setEmailError] = useState('');
   const [liquidNetWorthError, setLiquidNetWorthError] = useState('');
   const [finalNotes, setFinalNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
-  const [userToken, setUserToken] = useState<string | undefined>(propUserToken);
-  const [userName, setUserName] = useState<string | undefined>(propUserName);
+
+  // Use shared form save hook
+  const {
+    email,
+    setEmail,
+    emailError,
+    setEmailError,
+    userToken,
+    setUserToken,
+    userName,
+    saveProgress: saveProgressHook,
+    validateEmail: validateEmailHook,
+  } = useFormSave<Answers>({
+    formType: 'retirement',
+    initialData,
+    userToken: propUserToken,
+    userName: propUserName,
+    getSharedData: (answers) => ({
+      liquidNetWorth: answers.liquidNetWorth,
+      annualIncomeJob: answers.annualIncomeJob,
+      otherIncome: answers.otherIncome,
+      country: answers.country,
+    }),
+    expenseBuckets: customBuckets,
+  });
 
   const totalSteps = 8;
 
@@ -71,69 +94,29 @@ export const RetirementCalculator: React.FC<RetirementCalculatorProps> = ({
     }
   }, [initialData]);
 
-  // Auto-save function
+  // Auto-save function (wraps the hook's saveProgress)
+  // Note: customBuckets are handled by the hook via expenseBuckets prop
   const saveProgress = async (answersToSave: Answers, bucketsToSave: Record<string, ExpenseBucket> | null) => {
-    if (!userToken && !email) return; // Don't save if no identifier
-    
-    try {
-      await fetch('/api/user-data', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          token: userToken,
-          email: email || undefined,
-          name: userName,
-          formType: 'retirement',
-          formData: answersToSave,
-          expenseBuckets: bucketsToSave,
-          sharedData: {
-            // Cross-populate shared data
-            liquidNetWorth: answersToSave.liquidNetWorth,
-            annualIncomeJob: answersToSave.annualIncomeJob,
-            otherIncome: answersToSave.otherIncome,
-            country: answersToSave.country,
-          },
-        }),
-      });
-    } catch (error) {
-      // Silently fail - don't interrupt user flow
-      console.error('Failed to save progress:', error);
+    // Update customBuckets state so hook can use it
+    if (bucketsToSave) {
+      setCustomBuckets(bucketsToSave);
     }
+    await saveProgressHook(answersToSave);
   };
 
   // Save expense buckets separately when they change
+  // Update customBuckets and trigger save via hook
   useEffect(() => {
-    if (customBuckets && (userToken || email)) {
+    if (customBuckets && (userToken || email) && answers.liquidNetWorth) {
       const saveBuckets = async () => {
-        try {
-          await fetch('/api/user-data', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              token: userToken,
-              email: email || undefined,
-              name: userName,
-              formType: 'retirement',
-              formData: answers,
-              expenseBuckets: customBuckets,
-              sharedData: {
-                liquidNetWorth: answers.liquidNetWorth,
-                annualIncomeJob: answers.annualIncomeJob,
-                otherIncome: answers.otherIncome,
-                country: answers.country,
-              },
-            }),
-          });
-        } catch (error) {
-          console.error('Failed to save buckets:', error);
-        }
+        await saveProgressHook(answers);
       };
       
       // Debounce bucket saves
       const timeoutId = setTimeout(saveBuckets, 1000);
       return () => clearTimeout(timeoutId);
     }
-  }, [customBuckets, userToken, email, userName, answers]);
+  }, [customBuckets, userToken, email, answers, saveProgressHook]);
 
   const validateLiquidNetWorth = (): boolean => {
     const value = parseFloat(answers.liquidNetWorth || '0') || 0;
@@ -145,16 +128,8 @@ export const RetirementCalculator: React.FC<RetirementCalculatorProps> = ({
     return true;
   };
 
-  const validateEmail = (): boolean => {
-    const trimmed = email.trim();
-    const ok = /.+@.+\..+/.test(trimmed);
-    if (!ok) {
-      setEmailError('Please enter a valid email address');
-      return false;
-    }
-    setEmailError('');
-    return true;
-  };
+  // Use hook's validateEmail but keep custom validation for liquidNetWorth
+  const validateEmail = () => validateEmailHook();
 
   const handleSubmit = async () => {
     if (!validateLiquidNetWorth() || !validateEmail()) {
@@ -169,7 +144,7 @@ export const RetirementCalculator: React.FC<RetirementCalculatorProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           token: userToken,
-          email,
+          email: email || undefined,
           name: userName,
           formType: 'retirement',
           formData: answers,

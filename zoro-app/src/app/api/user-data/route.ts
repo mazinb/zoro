@@ -17,7 +17,7 @@ function generateUserToken(): string {
   return randomBytes(16).toString('hex');
 }
 
-// GET - Load user data by token
+// GET - Load user data by token (users.verification_token) or email
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
@@ -31,15 +31,45 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    let query = supabase.from('user_data').select('*');
+    let userId: string | null = null;
 
+    // Step 1: Find user in users table by verification_token or email
     if (token) {
-      query = query.eq('user_token', token);
-    } else if (email) {
-      query = query.eq('email', email.toLowerCase().trim());
+      const { data: tokenUser } = await supabase
+        .from('users')
+        .select('id, email')
+        .eq('verification_token', token)
+        .maybeSingle();
+      
+      if (tokenUser?.id) {
+        userId = tokenUser.id;
+      }
     }
 
-    const { data, error } = await query.maybeSingle();
+    // If not found by token, try email
+    if (!userId && email) {
+      const normalizedEmail = email.toLowerCase().trim();
+      const { data: emailUser } = await supabase
+        .from('users')
+        .select('id, email')
+        .eq('email', normalizedEmail)
+        .maybeSingle();
+      
+      if (emailUser?.id) {
+        userId = emailUser.id;
+      }
+    }
+
+    if (!userId) {
+      return NextResponse.json({ data: null });
+    }
+
+    // Step 2: Load user_data by user_id
+    const { data: userData, error } = await supabase
+      .from('user_data')
+      .select('*')
+      .eq('user_id', userId)
+      .maybeSingle();
 
     if (error) {
       return NextResponse.json(
@@ -48,11 +78,23 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    if (!data) {
-      return NextResponse.json({ data: null });
+    // If no user_data record exists, return user info from users table
+    if (!userData) {
+      const { data: user } = await supabase
+        .from('users')
+        .select('id, email, verification_token')
+        .eq('id', userId)
+        .single();
+      
+      return NextResponse.json({ 
+        data: {
+          email: user?.email || null,
+          verification_token: user?.verification_token || null,
+        }
+      });
     }
 
-    return NextResponse.json({ data });
+    return NextResponse.json({ data: userData });
   } catch (error: any) {
     return NextResponse.json(
       { error: 'Failed to fetch user data', details: error?.message },
@@ -62,6 +104,7 @@ export async function GET(request: NextRequest) {
 }
 
 // POST - Create or update user data
+// Uses users.verification_token as primary identifier
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -84,42 +127,120 @@ export async function POST(request: NextRequest) {
 
     const normalizedEmail = email ? String(email).trim().toLowerCase() : null;
 
-    // Determine user token
-    let userToken = token;
-    if (!userToken) {
-      // Try to find existing user by email
-      if (normalizedEmail) {
-        const { data: existing } = await supabase
-          .from('user_data')
-          .select('user_token')
-          .eq('email', normalizedEmail)
-          .maybeSingle();
+    // Step 1: Find or create user in users table
+    let userId: string | null = null;
+    let userToken: string | null = token || null;
 
-        if (existing?.user_token) {
-          userToken = existing.user_token;
+    // Try to find user by verification_token
+    if (userToken) {
+      const { data: tokenUser } = await supabase
+        .from('users')
+        .select('id, email, verification_token')
+        .eq('verification_token', userToken)
+        .maybeSingle();
+      
+      if (tokenUser?.id) {
+        userId = tokenUser.id;
+        // If email was provided and different, update it
+        if (normalizedEmail && tokenUser.email !== normalizedEmail) {
+          await supabase
+            .from('users')
+            .update({ email: normalizedEmail })
+            .eq('id', userId);
         }
-      }
-
-      // Generate new token if still no token
-      if (!userToken) {
-        userToken = generateUserToken();
       }
     }
 
-    // Check if user exists
+    // If not found by token, try email
+    if (!userId && normalizedEmail) {
+      const { data: emailUser } = await supabase
+        .from('users')
+        .select('id, email, verification_token')
+        .eq('email', normalizedEmail)
+        .maybeSingle();
+      
+      if (emailUser?.id) {
+        userId = emailUser.id;
+        userToken = emailUser.verification_token || userToken;
+        
+        // If user exists but has no verification_token, generate one
+        if (!emailUser.verification_token && userToken) {
+          await supabase
+            .from('users')
+            .update({ verification_token: userToken })
+            .eq('id', userId);
+        }
+      }
+    }
+
+    // Create new user if doesn't exist
+    if (!userId) {
+      // Generate token if not provided
+      if (!userToken) {
+        userToken = generateUserToken();
+      }
+
+      const nextCheckinDue = new Date();
+      nextCheckinDue.setDate(nextCheckinDue.getDate() + 15);
+
+      const { data: newUser, error: createError } = await supabase
+        .from('users')
+        .insert({
+          email: normalizedEmail,
+          verification_token: userToken,
+          checkin_frequency: 'monthly',
+          next_checkin_due: nextCheckinDue.toISOString(),
+        })
+        .select('id')
+        .single();
+
+      if (createError) {
+        // If insert failed (e.g., duplicate email), try to find again
+        if (normalizedEmail) {
+          const { data: existingUser } = await supabase
+            .from('users')
+            .select('id, verification_token')
+            .eq('email', normalizedEmail)
+            .maybeSingle();
+          
+          if (existingUser?.id) {
+            userId = existingUser.id;
+            userToken = existingUser.verification_token || userToken;
+            
+            // Update token if missing
+            if (!existingUser.verification_token && userToken) {
+              await supabase
+                .from('users')
+                .update({ verification_token: userToken })
+                .eq('id', userId);
+            }
+          }
+        }
+      } else if (newUser?.id) {
+        userId = newUser.id;
+      }
+    }
+
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'Failed to create or find user' },
+        { status: 500 }
+      );
+    }
+
+    // Step 2: Check if user_data record exists for this user
     const { data: existing } = await supabase
       .from('user_data')
       .select('*')
-      .eq('user_token', userToken)
+      .eq('user_id', userId)
       .maybeSingle();
 
-    const formDataField = `${formType}_answers` as keyof typeof existing;
     const sharedDataUpdate = sharedData
       ? { shared_data: sharedData }
       : {};
 
     const updateData: Record<string, any> = {
-      user_token: userToken,
+      user_id: userId, // Link to users table
       updated_at: new Date().toISOString(),
       ...sharedDataUpdate,
     };
@@ -147,7 +268,7 @@ export async function POST(request: NextRequest) {
       const { data: updated, error } = await supabase
         .from('user_data')
         .update(updateData)
-        .eq('user_token', userToken)
+        .eq('user_id', userId)
         .select()
         .single();
 
@@ -166,7 +287,7 @@ export async function POST(request: NextRequest) {
     } else {
       // Create new record
       const insertData: Record<string, any> = {
-        user_token: userToken,
+        user_id: userId, // Link to users table
         email: normalizedEmail,
         name: name ? String(name).trim() : null,
         [`${formType}_answers`]: formData || null,

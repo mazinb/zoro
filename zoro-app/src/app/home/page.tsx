@@ -29,6 +29,7 @@ function HomePageContent() {
             setInitialData({
               answers: result.data.big_purchase_answers,
               sharedData: result.data.shared_data,
+              email: result.data.email, // Include email so form can use it
             });
           }
         } catch (error) {

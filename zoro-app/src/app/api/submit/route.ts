@@ -16,7 +16,6 @@ function escapeHtml(value: string) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    console.log('Form submission received:', body);
 
     const hasLegacyShape =
       body.primaryGoal &&
@@ -248,37 +247,74 @@ export async function POST(request: NextRequest) {
       let draftEmail: { text: string; html: string } | null = null;
 
       try {
-        // Get or generate user token from user_data table by email
+        // Get or generate user token from users table by email
+        // Uses users.verification_token as the primary identifier
         let userToken = null;
         if (normalizedEmail) {
-          const { data: userData } = await anonClient
-            .from('user_data')
-            .select('user_token')
+          // Find user in users table
+          const { data: user } = await anonClient
+            .from('users')
+            .select('id, email, verification_token')
             .eq('email', normalizedEmail)
             .maybeSingle();
-          userToken = userData?.user_token || null;
+          
+          if (user?.verification_token) {
+            userToken = user.verification_token;
+          } else if (user?.id) {
+            // User exists but has no verification_token, generate one
+            userToken = randomBytes(16).toString('hex');
+            await anonClient
+              .from('users')
+              .update({ verification_token: userToken })
+              .eq('id', user.id);
+          }
         }
         
-        // Generate a token if one doesn't exist (for new users)
-        // This ensures links work even if user_data record doesn't exist yet
+        // Generate a token and create user in users table if user doesn't exist yet
+        // This ensures links work and the token is saved to the database
         if (!userToken) {
           userToken = randomBytes(16).toString('hex');
+          const nextCheckinDue = new Date();
+          nextCheckinDue.setDate(nextCheckinDue.getDate() + 15);
+          
+          // Create user in users table with the token
+          const { data: newUser, error: createError } = await anonClient
+            .from('users')
+            .insert({
+              email: normalizedEmail,
+              verification_token: userToken,
+              checkin_frequency: 'monthly',
+              next_checkin_due: nextCheckinDue.toISOString(),
+            })
+            .select('id')
+            .maybeSingle();
+          
+          // If insert failed (e.g., duplicate email), try to find again
+          if (createError && normalizedEmail) {
+            const { data: existingUser } = await anonClient
+              .from('users')
+              .select('id, verification_token')
+              .eq('email', normalizedEmail)
+              .maybeSingle();
+            
+            if (existingUser?.verification_token) {
+              userToken = existingUser.verification_token;
+            } else if (existingUser?.id) {
+              // Update with token
+              await anonClient
+                .from('users')
+                .update({ verification_token: userToken })
+                .eq('id', existingUser.id);
+            }
+          }
         }
         
-        const emailBody = {
+        draftEmail = await buildDraftResponseEmail({
           ...body,
           email: normalizedEmail,
           waitlistPosition,
           userToken: userToken
-        };
-        
-        console.log('Building email with:', {
-          userToken: userToken ? `${userToken.substring(0, 8)}...` : 'null',
-          goals: body.goals,
-          name: body.name
         });
-        
-        draftEmail = await buildDraftResponseEmail(emailBody);
       } catch (error) {
         console.error('Failed to build draft response email:', error);
       }
@@ -290,9 +326,10 @@ export async function POST(request: NextRequest) {
         };
       }
 
-      // Extract reply-to email from fromAddress (the @getzoro.com sender)
-      const replyToEmailMatch = fromAddress.match(/<(.+)>/);
-      const replyToEmail = replyToEmailMatch ? replyToEmailMatch[1] : (fromAddress.includes('@') ? fromAddress : 'admin@getzoro.com');
+      // Extract reply-to email from userFromAddress (the @getzoro.com sender)
+      // This should be the same as the sender email (e.g., mazinb@getzoro.com)
+      const replyToEmailMatch = userFromAddress.match(/<(.+)>/);
+      const replyToEmail = replyToEmailMatch ? replyToEmailMatch[1] : (userFromAddress.includes('@') ? userFromAddress : 'admin@getzoro.com');
 
       const emailPayload = {
         from: fromAddress,
@@ -311,8 +348,8 @@ export async function POST(request: NextRequest) {
 
       const userEmailPayload = {
         from: userFromAddress,
-        to: normalizedEmail,
-        reply_to: replyToEmail,
+        to: normalizedEmail, // Send to the user
+        reply_to: replyToEmail, // Reply-to is the same as sender (e.g., mazinb@getzoro.com)
         subject: 'Welcome to Zoro',
         // text: draftEmail.text, // Commented out - only sending HTML
         html: draftEmail.html,

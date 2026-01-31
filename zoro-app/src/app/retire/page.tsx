@@ -38,6 +38,7 @@ function RetirePageContent() {
               setInitialData({
                 answers: retirementAnswers || undefined,
                 expenseBuckets: expenseBuckets || undefined,
+                email: result.data.email, // Include email so form can use it
               });
             }
           }

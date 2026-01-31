@@ -29,6 +29,7 @@ function InvestPageContent() {
             setInitialData({
               answers: result.data.invest_answers,
               sharedData: result.data.shared_data,
+              email: result.data.email, // Include email so form can use it
             });
           }
         } catch (error) {

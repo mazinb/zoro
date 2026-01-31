@@ -29,6 +29,7 @@ function SavePageContent() {
             setInitialData({
               answers: result.data.save_more_answers,
               sharedData: result.data.shared_data,
+              email: result.data.email, // Include email so form can use it
             });
           }
         } catch (error) {

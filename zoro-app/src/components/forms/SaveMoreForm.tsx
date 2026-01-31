@@ -6,6 +6,7 @@ import { AnimatedZoroLogo } from '@/components/AnimatedZoroLogo';
 import { Check } from 'lucide-react';
 import { CurrencySelector } from './CurrencySelector';
 import { NumberInput } from './NumberInput';
+import { useFormSave } from '@/hooks/useFormSave';
 
 interface SaveMoreAnswers {
   currency: string | null;
@@ -39,13 +40,32 @@ export const SaveMoreForm: React.FC<SaveMoreFormProps> = ({
   const theme = useThemeClasses(darkMode);
 
   const [step, setStep] = useState(0);
-  const [email, setEmail] = useState('');
-  const [emailError, setEmailError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
-  const [userToken, setUserToken] = useState<string | undefined>(propUserToken);
-  const [userName, setUserName] = useState<string | undefined>(propUserName);
+
+  // Use shared form save hook
+  const {
+    email,
+    setEmail,
+    emailError,
+    setEmailError,
+    userToken,
+    setUserToken,
+    userName,
+    saveProgress: saveProgressHook,
+    validateEmail,
+  } = useFormSave<SaveMoreAnswers>({
+    formType: 'save_more',
+    initialData,
+    userToken: propUserToken,
+    userName: propUserName,
+    getSharedData: (answers) => ({
+      existingCash: answers.existingCash,
+      currentSurplus: answers.currentSurplus,
+      currency: answers.currency,
+    }),
+  });
 
   const totalSteps = 9; // Steps 0-8: currentSurplus, savings challenge, spendingLeakage, emergencyBuffer, existingCash, savingFriction, why, commitment, additionalNotes
 
@@ -61,57 +81,9 @@ export const SaveMoreForm: React.FC<SaveMoreFormProps> = ({
     additionalNotes: initialData?.answers?.additionalNotes || null,
   });
 
-  // Auto-save function
+  // Auto-save function (wraps the hook's saveProgress)
   const saveProgress = async (answersToSave: SaveMoreAnswers) => {
-    // Allow saving even without email initially - token will be generated on first save
-    try {
-      const response = await fetch('/api/user-data', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          token: userToken,
-          email: email || undefined,
-          name: userName,
-          formType: 'save_more',
-          formData: answersToSave,
-          sharedData: {
-            // Cross-populate: existingCash can be used in other forms
-            existingCash: answersToSave.existingCash,
-            currentSurplus: answersToSave.currentSurplus,
-            currency: answersToSave.currency,
-          },
-        }),
-      });
-      
-      const result = await response.json();
-      if (result.token && result.token !== userToken) {
-        setUserToken(result.token);
-        // Update URL with token
-        if (typeof window !== 'undefined') {
-          const url = new URL(window.location.href);
-          url.searchParams.set('token', result.token);
-          if (userName) url.searchParams.set('name', userName);
-          window.history.replaceState({}, '', url.toString());
-        }
-      }
-    } catch (error) {
-      console.error('Failed to save progress:', error);
-    }
-  };
-
-  const validateEmail = (): boolean => {
-    // Only validate email if no token (new user)
-    if (userToken) {
-      return true;
-    }
-    const trimmed = email.trim();
-    const ok = /.+@.+\..+/.test(trimmed);
-    if (!ok) {
-      setEmailError('Please enter a valid email address');
-      return false;
-    }
-    setEmailError('');
-    return true;
+    await saveProgressHook(answersToSave);
   };
 
   const handleAnswer = (question: keyof SaveMoreAnswers, value: string) => {
@@ -137,7 +109,7 @@ export const SaveMoreForm: React.FC<SaveMoreFormProps> = ({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           token: userToken,
-          email: userToken ? undefined : email, // Only send email if no token
+          email: email || undefined, // Always send email if available (for lookup if token doesn't exist)
           name: userName,
           formType: 'save_more',
           formData: answers,

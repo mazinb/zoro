@@ -54,33 +54,42 @@ function extractGoals(body: Record<string, any>): string[] {
 
 function formatGoalsList(goalIds: string[], userToken: string | null): { html: string; text: string } {
   if (goalIds.length === 0) {
-    return { html: '<li>Financial planning</li>', text: 'Financial planning' };
+    return { html: 'Financial planning', text: 'Financial planning' };
   }
   
   const baseUrl = getBaseUrl();
-  const html = goalIds.map(id => {
+  const htmlParts: string[] = [];
+  const textParts: string[] = [];
+  
+  goalIds.forEach((id, index) => {
     const goalName = goalLabels[id] || id;
     const path = goalPaths[id] || '';
-    // Check if we have both path and a valid (non-empty) token
     const hasValidToken = userToken && typeof userToken === 'string' && userToken.trim().length > 0;
-    console.log(`Formatting goal ${id}: path="${path}", userToken=${hasValidToken ? `exists (${userToken.substring(0, 8)}...)` : 'missing/invalid'}`);
+    
     if (path && hasValidToken) {
       const url = `${baseUrl}${path}?token=${encodeURIComponent(userToken)}`;
-      return `<li><a href="${url}" style="color: #0066cc; text-decoration: underline;">${escapeHtml(goalName)}</a></li>`;
+      htmlParts.push(`<a href="${url}" style="color: #0066cc; text-decoration: underline;">${escapeHtml(goalName)}</a>`);
+      textParts.push(`${goalName} - ${url}`);
+    } else {
+      htmlParts.push(escapeHtml(goalName));
+      textParts.push(goalName);
     }
-    console.log(`Skipping link for ${id} - path: ${path ? 'yes' : 'no'}, token: ${hasValidToken ? 'yes' : 'no'}`);
-    return `<li>${escapeHtml(goalName)}</li>`;
-  }).join('\n');
+  });
   
-  const text = goalIds.map((id, i) => {
-    const goalName = goalLabels[id] || id;
-    const path = goalPaths[id] || '';
-    if (path && userToken) {
-      const url = `${baseUrl}${path}?token=${encodeURIComponent(userToken)}`;
-      return `${i + 1}. ${goalName} - ${url}`;
-    }
-    return `${i + 1}. ${goalName}`;
-  }).join('\n');
+  // Join with commas and "and" for the last item
+  let html = '';
+  let text = '';
+  
+  if (htmlParts.length === 1) {
+    html = htmlParts[0];
+    text = textParts[0];
+  } else if (htmlParts.length === 2) {
+    html = `${htmlParts[0]} and ${htmlParts[1]}`;
+    text = `${textParts[0]} and ${textParts[1]}`;
+  } else {
+    html = htmlParts.slice(0, -1).join(', ') + ', and ' + htmlParts[htmlParts.length - 1];
+    text = textParts.slice(0, -1).join(', ') + ', and ' + textParts[textParts.length - 1];
+  }
   
   return { html, text };
 }
@@ -102,14 +111,10 @@ export async function buildDraftResponseEmail(body: Record<string, any>) {
   const htmlContent = `
     <div style="color: #000000; font-family: Arial, sans-serif; line-height: 1.6;">
       <p style="color: #000000; margin: 0 0 12px 0;">Hi ${escapeHtml(userName)},</p>
-      <p style="color: #000000; margin: 0 0 12px 0;">Thanks for sharing your goals with us! I see you're interested in:</p>
-      <ul style="color: #000000; margin: 0 0 12px 0; padding-left: 24px;">
-        ${goalsList.html}
-      </ul>
-      <p style="color: #000000; margin: 0 0 12px 0;">Using the links above to share more details before our call will help us make the most of our time together.</p>
-      <p style="color: #000000; margin: 0 0 12px 0;">Whenever you are ready, let's grab 15 minutes to talk through your goals. I will take the notes and send them to you.</p>
+      <p style="color: #000000; margin: 0 0 12px 0;">Thanks for sharing your goals with us! I see you're interested in ${goalsList.html}.</p>
+      <p style="color: #000000; margin: 0 0 12px 0;">Use the links above to share more details. When you are ready, let's talk about your goals. I will take the notes and send them to you.</p>
       <p style="color: #000000; margin: 0 0 12px 0;">Schedule your call here: <a href="https://calendly.com/mazinb/15min" style="color: #0066cc; text-decoration: underline;">https://calendly.com/mazinb/15min</a></p>
-      <p style="color: #000000; margin: 0 0 12px 0;">Feel free to share any documents by replying to this email or anything else that might be relevant. Will read it before we meet.</p>
+      <p style="color: #000000; margin: 0 0 12px 0;">Share any documents, links or anything else that might be relevant by replying to this email. Will read it before we meet.</p>
       <p style="color: #000000; margin: 0 0 12px 0;">${waitlistText}We're only offering onboarding calls for a limited time, so I'd love to connect soon.</p>
       <p style="color: #000000; margin: 0;">Thanks,<br>Zoro</p>
     </div>
@@ -117,15 +122,13 @@ export async function buildDraftResponseEmail(body: Record<string, any>) {
 
   const textContent = `Hi ${userName},
 
-Thanks for sharing your goals with us! I see you're interested in: ${goalsList.text}.
+Thanks for sharing your goals with us! I see you're interested in ${goalsList.text}.
 
-Using the links above to share more details before our call will help us make the most of our time together.
-
-Whenever you are ready, let's grab 15 minutes to talk through your goals. I will take the notes and send them to you.
+Use the links above to share more details. When you are ready, let's talk about your goals. I will take the notes and send them to you.
 
 Schedule your call here: https://calendly.com/mazinb/15min
 
-Feel free to share any documents by replying to this email or anything else that might be relevant. Will read it before we meet.
+Share any documents, links or anything else that might be relevant by replying to this email. Will read it before we meet.
 
 ${waitlistText}We're only offering onboarding calls for a limited time, so I'd love to connect soon.
 
