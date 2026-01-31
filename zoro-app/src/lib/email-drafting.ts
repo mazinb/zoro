@@ -54,18 +54,21 @@ function extractGoals(body: Record<string, any>): string[] {
 
 function formatGoalsList(goalIds: string[], userToken: string | null): { html: string; text: string } {
   if (goalIds.length === 0) {
-    return { html: '<li>Financial planning</li>', text: 'Financial planning' };
+    return { html: '<p style="color: #000000; margin: 0 0 6px 0;">- Financial planning</p>', text: 'Financial planning' };
   }
   
   const baseUrl = getBaseUrl();
+  // Use paragraph-based structure instead of list items for better email client compatibility
+  // Many email clients strip links from inside <li> tags, but handle them fine in <p> tags
   const html = goalIds.map(id => {
     const goalName = goalLabels[id] || id;
     const path = goalPaths[id] || '';
     if (path && userToken) {
       const url = `${baseUrl}${path}?token=${encodeURIComponent(userToken)}`;
-      return `<li><a href="${url}" style="color: #0066cc; text-decoration: underline;">${escapeHtml(goalName)}</a></li>`;
+      // Use paragraph with dash - email clients handle links in paragraphs better than in list items
+      return `<p style="color: #000000; margin: 0 0 6px 0; padding-left: 0;">- <a href="${url}" style="color: #0066cc; text-decoration: underline;">${escapeHtml(goalName)}</a></p>`;
     }
-    return `<li>${escapeHtml(goalName)}</li>`;
+    return `<p style="color: #000000; margin: 0 0 6px 0; padding-left: 0;">- ${escapeHtml(goalName)}</p>`;
   }).join('\n');
   
   const text = goalIds.map((id, i) => {
@@ -99,9 +102,9 @@ export async function buildDraftResponseEmail(body: Record<string, any>) {
     <div style="color: #000000; font-family: Arial, sans-serif; line-height: 1.6;">
       <p style="color: #000000; margin: 0 0 12px 0;">Hi ${escapeHtml(userName)},</p>
       <p style="color: #000000; margin: 0 0 12px 0;">Thanks for sharing your goals with us! I see you're interested in:</p>
-      <ul style="color: #000000; margin: 0 0 12px 0; padding-left: 24px;">
+      <div style="color: #000000; margin: 0 0 12px 0;">
         ${goalsList.html}
-      </ul>
+      </div>
       <p style="color: #000000; margin: 0 0 12px 0;">Using the links above to share more details before our call will help us make the most of our time together.</p>
       <p style="color: #000000; margin: 0 0 12px 0;">Whenever you are ready, let's grab 15 minutes to talk through your goals. I will take the notes and send them to you.</p>
       <p style="color: #000000; margin: 0 0 12px 0;">Schedule your call here: <a href="https://calendly.com/mazinb/15min" style="color: #0066cc; text-decoration: underline;">https://calendly.com/mazinb/15min</a></p>

@@ -308,6 +308,9 @@ export async function POST(request: NextRequest) {
         html: draftEmail.html,
       };
 
+      // Debug: Log the HTML being sent (first 500 chars)
+      console.log('User email HTML preview:', draftEmail.html.substring(0, 500));
+
       const sendResendEmail = async (payload: Record<string, unknown>, label: string) => {
         const resendResponse = await fetch('https://api.resend.com/emails', {
           method: 'POST',
