@@ -224,6 +224,7 @@ export const ContactMethodSelection: React.FC<ContactMethodSelectionProps> = ({
                     <option value="50L-1Cr">₹50L – ₹1 Crore</option>
                     <option value="1Cr-10Cr">₹1 Crore – ₹10 Crore</option>
                     <option value="over10Cr">Over ₹10 Crore</option>
+                    <option value="do_not_know">Do not know</option>
                   </select>
                   {netWorthError && (
                     <p className="text-red-500 text-sm mt-1" role="alert">
