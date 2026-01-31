@@ -165,7 +165,7 @@ export const ContactMethodSelection: React.FC<ContactMethodSelectionProps> = ({
             A few final details
           </h2>
           <p className={`${themeClasses.textSecondaryClass} mb-1`}>
-            We use this information to personalize your check-in emails.
+            We use this information to personalize your emails.
           </p>
           <p className={`text-sm ${themeClasses.textSecondaryClass} italic`}>
             We'll never share your data or spam you.

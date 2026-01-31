@@ -8,12 +8,12 @@ function escapeHtml(value: string) {
 }
 
 const goalLabels: Record<string, string> = {
-  save: 'Save more consistently',
-  invest: 'Invest smarter',
-  home: 'Plan for big purchases',
-  insurance: 'Review insurance',
-  tax: 'Tax optimization',
-  retirement: 'Retirement planning',
+  save: 'Saving more consistently',
+  invest: 'Investing smarter',
+  home: 'Planning for big purchases',
+  insurance: 'Reviewing insurance',
+  tax: 'Optimizing taxes',
+  retirement: 'Planning for retirement',
 };
 
 const goalPaths: Record<string, string> = {
@@ -63,9 +63,9 @@ function formatGoalsList(goalIds: string[], userToken: string | null): { html: s
     const path = goalPaths[id] || '';
     if (path && userToken) {
       const url = `${baseUrl}${path}?token=${encodeURIComponent(userToken)}`;
-      return `<li><a href="${url}" style="color: #3b82f6; text-decoration: underline;">${escapeHtml(goalName)}</a></li>`;
+      return `<li style="margin-bottom: 8px;"><a href="${url}" style="color: #3b82f6; text-decoration: none; display: block; padding: 4px 0;">${escapeHtml(goalName)}</a></li>`;
     }
-    return `<li>${escapeHtml(goalName)}</li>`;
+    return `<li style="margin-bottom: 8px;">${escapeHtml(goalName)}</li>`;
   }).join('\n');
   
   const text = goalIds.map((id, i) => {

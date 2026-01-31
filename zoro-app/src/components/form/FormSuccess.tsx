@@ -50,7 +50,7 @@ export const FormSuccess: React.FC<FormSuccessProps> = ({
           <p className={`text-sm ${themeClasses.textSecondaryClass} mb-8`}>
             {contactMethod === 'whatsapp' 
               ? `Check ${countryCode} ${phone} for updates` 
-              : 'Check your Gmail inbox for updates'}
+              : 'Check your email inbox for updates'}
           </p>
           
           <Button

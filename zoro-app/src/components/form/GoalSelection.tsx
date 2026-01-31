@@ -95,7 +95,7 @@ export const GoalSelection: React.FC<GoalSelectionProps> = ({
             Pick your financial goals
           </h2>
           <p className={themeClasses.textSecondaryClass}>
-            Select 1-3 goals. Your check-ins will focus on these priorities.
+            Select 1-3 goals. Your updates will focus on these priorities.
           </p>
           {selectedGoals.length > 0 && (
             <p className={`mt-2 ${darkMode ? 'text-blue-400' : 'text-blue-600'}`}>
