@@ -247,10 +247,6 @@ export async function POST(request: NextRequest) {
       let draftEmail: { text: string; html: string } | null = null;
 
       try {
-        // Extract sender email from userFromAddress for mailto links
-        const senderEmailMatch = userFromAddress.match(/<(.+)>/);
-        const senderEmail = senderEmailMatch ? senderEmailMatch[1] : (userFromAddress.includes('@') ? userFromAddress : 'admin@getzoro.com');
-        
         // Get user token from user_data table by email
         let userToken = null;
         if (normalizedEmail) {
@@ -266,7 +262,6 @@ export async function POST(request: NextRequest) {
           ...body,
           email: normalizedEmail,
           waitlistPosition,
-          senderEmail: senderEmail,
           userToken: userToken
         });
       } catch (error) {
@@ -304,12 +299,9 @@ export async function POST(request: NextRequest) {
         to: normalizedEmail,
         reply_to: replyToEmail,
         subject: 'Welcome to Zoro',
-        text: draftEmail.text,
+        // text: draftEmail.text, // Commented out - only sending HTML
         html: draftEmail.html,
       };
-
-      // Debug: Log the HTML being sent (first 500 chars)
-      console.log('User email HTML preview:', draftEmail.html.substring(0, 500));
 
       const sendResendEmail = async (payload: Record<string, unknown>, label: string) => {
         const resendResponse = await fetch('https://api.resend.com/emails', {
