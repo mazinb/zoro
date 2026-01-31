@@ -16,6 +16,19 @@ const goalLabels: Record<string, string> = {
   retirement: 'Retirement planning',
 };
 
+const goalPaths: Record<string, string> = {
+  save: '/save',
+  invest: '/invest',
+  home: '/home',
+  insurance: '/insurance',
+  tax: '/tax',
+  retirement: '/retire',
+};
+
+function getBaseUrl() {
+  return process.env.NEXT_PUBLIC_BASE_URL || 'https://www.getzoro.com';
+}
+
 function extractGoals(body: Record<string, any>): string[] {
   // Try to get goals from body.goals (array)
   if (Array.isArray(body.goals) && body.goals.length > 0) {
@@ -39,14 +52,31 @@ function extractGoals(body: Record<string, any>): string[] {
   return [];
 }
 
-function formatGoalsList(goalIds: string[]): { html: string; text: string } {
+function formatGoalsList(goalIds: string[], userToken: string | null): { html: string; text: string } {
   if (goalIds.length === 0) {
     return { html: '<li>Financial planning</li>', text: 'Financial planning' };
   }
   
-  const goalNames = goalIds.map(id => goalLabels[id] || id);
-  const html = goalNames.map(goal => `<li>${escapeHtml(goal)}</li>`).join('\n');
-  const text = goalNames.map((goal, i) => `${i + 1}. ${goal}`).join('\n');
+  const baseUrl = getBaseUrl();
+  const html = goalIds.map(id => {
+    const goalName = goalLabels[id] || id;
+    const path = goalPaths[id] || '';
+    if (path && userToken) {
+      const url = `${baseUrl}${path}?token=${encodeURIComponent(userToken)}`;
+      return `<li><a href="${url}" style="color: #3b82f6; text-decoration: underline;">${escapeHtml(goalName)}</a></li>`;
+    }
+    return `<li>${escapeHtml(goalName)}</li>`;
+  }).join('\n');
+  
+  const text = goalIds.map((id, i) => {
+    const goalName = goalLabels[id] || id;
+    const path = goalPaths[id] || '';
+    if (path && userToken) {
+      const url = `${baseUrl}${path}?token=${encodeURIComponent(userToken)}`;
+      return `${i + 1}. ${goalName} - ${url}`;
+    }
+    return `${i + 1}. ${goalName}`;
+  }).join('\n');
   
   return { html, text };
 }
@@ -54,10 +84,11 @@ function formatGoalsList(goalIds: string[]): { html: string; text: string } {
 export async function buildDraftResponseEmail(body: Record<string, any>) {
   const userName = body.name || 'there';
   const waitlistPosition = body.waitlistPosition || null;
+  const userToken = body.userToken || null;
   
   // Extract goals
   const goalIds = extractGoals(body);
-  const goalsList = formatGoalsList(goalIds);
+  const goalsList = formatGoalsList(goalIds, userToken);
   
   // Build waitlist text
   const waitlistText = waitlistPosition 
@@ -70,11 +101,12 @@ export async function buildDraftResponseEmail(body: Record<string, any>) {
     <ul style="list-style: disc; padding-left: 24px; margin: 12px 0;">
       ${goalsList.html}
     </ul>
-    <p>Let's grab 15 minutes to talk through your goals. I will take the notes so you do not have to.</p>
+    <p>Using the links above to share more details before our call will help us make the most of our time together.</p>
+    <p>Whenever you are ready, let's grab 15 minutes to talk through your goals. I will take the notes and send them to you.</p>
     <p style="margin: 20px 0;">
       <a href="https://calendly.com/mazinb/15min" style="display: inline-block; padding: 12px 24px; background-color: #3b82f6; color: white; text-decoration: none; border-radius: 6px; font-weight: 500;">Schedule Your 15-Minute Call</a>
     </p>
-    <p>Feel free to share anything relevant to your goals before our call. It will help us make the most of our time together.</p>
+    <p>Feel free to share any documents by replying to this email or anything else that might be relevant. Will read it before we meet.</p>
     <p>${waitlistText}We're only offering onboarding calls for a limited time, so I'd love to connect soon.</p>
     <p>Thanks,<br>Zoro</p>
   `;
@@ -85,11 +117,13 @@ Thanks for sharing your goals with us! I see you're interested in:
 
 ${goalsList.text}
 
-Let's grab 15 minutes to talk through your goals. I will take the notes so you do not have to.
+Using the links above to share more details before our call will help us make the most of our time together.
+
+Whenever you are ready, let's grab 15 minutes to talk through your goals. I will take the notes and send them to you.
 
 Schedule your call here: https://calendly.com/mazinb/15min
 
-Feel free to share anything relevant to your goals before our call. It will help us make the most of our time together.
+Feel free to share any documents by replying to this email or anything else that might be relevant. Will read it before we meet.
 
 ${waitlistText}We're only offering onboarding calls for a limited time, so I'd love to connect soon.
 

@@ -47,7 +47,7 @@ export const SaveMoreForm: React.FC<SaveMoreFormProps> = ({
   const [userToken, setUserToken] = useState<string | undefined>(propUserToken);
   const [userName, setUserName] = useState<string | undefined>(propUserName);
 
-  const totalSteps = 8; // Removed currency step, added additional notes
+  const totalSteps = 9; // Steps 0-8: currentSurplus, savings challenge, spendingLeakage, emergencyBuffer, existingCash, savingFriction, why, commitment, additionalNotes
 
   const [answers, setAnswers] = useState<SaveMoreAnswers>({
     currency: initialData?.answers?.currency || initialData?.sharedData?.currency || '₹', // Default to INR
@@ -279,6 +279,32 @@ export const SaveMoreForm: React.FC<SaveMoreFormProps> = ({
               >
                 Continue
               </button>
+            </div>
+          </div>
+        )}
+
+        {step === 1 && (
+          <div className="animate-fade-in">
+            <h2 className={`text-3xl font-light mb-6 ${theme.textClass}`}>
+              What is your biggest savings challenge right now?
+            </h2>
+            <div className="space-y-3">
+              {['Not saving consistently', 'Unexpected expenses', 'Not sure where to start', 'Lifestyle expenses'].map((option) => (
+                <button
+                  key={option}
+                  onClick={() => {
+                    // This step doesn't save to a field, just moves forward
+                    setTimeout(() => setStep(step + 1), 300);
+                  }}
+                  className={`w-full p-5 rounded-lg text-left transition-all transform hover:scale-102 ${
+                    darkMode
+                      ? 'bg-slate-800 hover:bg-slate-750 border border-slate-700'
+                      : 'bg-white hover:bg-gray-50 border border-gray-200 shadow-sm'
+                  }`}
+                >
+                  <div className={`font-medium text-lg ${theme.textClass}`}>{option}</div>
+                </button>
+              ))}
             </div>
           </div>
         )}

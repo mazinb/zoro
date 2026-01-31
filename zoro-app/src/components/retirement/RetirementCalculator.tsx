@@ -616,7 +616,7 @@ export const RetirementCalculator: React.FC<RetirementCalculatorProps> = ({
                         setLiquidNetWorthError('');
                       }
                     }}
-                    placeholder={countryData[answers.country].currency === '₹' ? '5,00,000' : countryData[answers.country].currency === '฿' ? '500,000' : '50,000'}
+                    placeholder={countryData[answers.country].currency === '₹' ? 'e.g., 5,00,000' : countryData[answers.country].currency === '฿' ? 'e.g., 500,000' : 'e.g., 50,000'}
                     className={`w-full pl-8 pr-4 py-3 rounded-lg ${
                       darkMode
                         ? 'bg-slate-800 border border-slate-700 text-gray-100'
@@ -646,7 +646,7 @@ export const RetirementCalculator: React.FC<RetirementCalculatorProps> = ({
                       const parsed = parseInputValue(e.target.value);
                       setAnswers((prev) => ({ ...prev, annualIncomeJob: parsed }));
                     }}
-                    placeholder={countryData[answers.country].currency === '₹' ? '10,00,000' : countryData[answers.country].currency === '฿' ? '1,000,000' : '100,000'}
+                    placeholder={countryData[answers.country].currency === '₹' ? 'e.g., 10,00,000' : countryData[answers.country].currency === '฿' ? 'e.g., 1,000,000' : 'e.g., 100,000'}
                     className={`w-full pl-8 pr-4 py-3 rounded-lg ${
                       darkMode
                         ? 'bg-slate-800 border border-slate-700 text-gray-100'
@@ -671,7 +671,7 @@ export const RetirementCalculator: React.FC<RetirementCalculatorProps> = ({
                       const parsed = parseInputValue(e.target.value);
                       setAnswers((prev) => ({ ...prev, otherIncome: parsed }));
                     }}
-                    placeholder={countryData[answers.country].currency === '₹' ? '2,00,000' : countryData[answers.country].currency === '฿' ? '200,000' : '20,000'}
+                    placeholder={countryData[answers.country].currency === '₹' ? 'e.g., 2,00,000' : countryData[answers.country].currency === '฿' ? 'e.g., 200,000' : 'e.g., 20,000'}
                     className={`w-full pl-8 pr-4 py-3 rounded-lg ${
                       darkMode
                         ? 'bg-slate-800 border border-slate-700 text-gray-100'
@@ -696,7 +696,7 @@ export const RetirementCalculator: React.FC<RetirementCalculatorProps> = ({
                       const parsed = parseInputValue(e.target.value);
                       setAnswers((prev) => ({ ...prev, pension: parsed }));
                     }}
-                    placeholder={countryData[answers.country].currency === '₹' ? '3,00,000' : countryData[answers.country].currency === '฿' ? '300,000' : '30,000'}
+                    placeholder={countryData[answers.country].currency === '₹' ? 'e.g., 3,00,000' : countryData[answers.country].currency === '฿' ? 'e.g., 300,000' : 'e.g., 30,000'}
                     className={`w-full pl-8 pr-4 py-3 rounded-lg ${
                       darkMode
                         ? 'bg-slate-800 border border-slate-700 text-gray-100'
@@ -721,7 +721,7 @@ export const RetirementCalculator: React.FC<RetirementCalculatorProps> = ({
                       const parsed = parseInputValue(e.target.value);
                       setAnswers((prev) => ({ ...prev, liabilities: parsed }));
                     }}
-                    placeholder={countryData[answers.country].currency === '₹' ? '50,000' : countryData[answers.country].currency === '฿' ? '50,000' : '5,000'}
+                    placeholder={countryData[answers.country].currency === '₹' ? 'e.g., 50,000' : countryData[answers.country].currency === '฿' ? 'e.g., 50,000' : 'e.g., 5,000'}
                     className={`w-full pl-8 pr-4 py-3 rounded-lg ${
                       darkMode
                         ? 'bg-slate-800 border border-slate-700 text-gray-100'
@@ -787,27 +787,34 @@ export const RetirementCalculator: React.FC<RetirementCalculatorProps> = ({
             <p className={`text-sm mb-6 ${theme.textSecondaryClass}`}>
               We'll review the full details and reply manually.
             </p>
-            <div className="mb-4">
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => {
-                  setEmail(e.target.value);
-                  if (emailError) setEmailError('');
-                }}
-                placeholder="you@email.com"
-                className={`w-full px-4 py-3 rounded-lg ${
-                  darkMode
-                    ? 'bg-slate-800 border border-slate-700 text-gray-100'
-                    : 'bg-white border border-gray-300 text-gray-900'
-                } focus:outline-none focus:ring-2 focus:ring-blue-500 ${emailError ? 'border-red-500' : ''}`}
-              />
-              {emailError && (
-                <p className="text-sm text-red-500 mt-2" role="alert">
-                  {emailError}
-                </p>
-              )}
-            </div>
+            {!userToken && (
+              <div className="mb-4">
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    if (emailError) setEmailError('');
+                  }}
+                  placeholder="you@email.com"
+                  className={`w-full px-4 py-3 rounded-lg ${
+                    darkMode
+                      ? 'bg-slate-800 border border-slate-700 text-gray-100'
+                      : 'bg-white border border-gray-300 text-gray-900'
+                  } focus:outline-none focus:ring-2 focus:ring-blue-500 ${emailError ? 'border-red-500' : ''}`}
+                />
+                {emailError && (
+                  <p className="text-sm text-red-500 mt-2" role="alert">
+                    {emailError}
+                  </p>
+                )}
+              </div>
+            )}
+            {userToken && (
+              <p className={`text-sm mb-6 ${theme.textSecondaryClass}`}>
+                Your data will be saved automatically.
+              </p>
+            )}
             <div className="mb-6">
               <label className={`block text-sm font-medium mb-2 ${theme.textClass}`}>
                 Anything else we should know?

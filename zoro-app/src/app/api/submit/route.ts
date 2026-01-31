@@ -251,11 +251,23 @@ export async function POST(request: NextRequest) {
         const senderEmailMatch = userFromAddress.match(/<(.+)>/);
         const senderEmail = senderEmailMatch ? senderEmailMatch[1] : (userFromAddress.includes('@') ? userFromAddress : 'admin@getzoro.com');
         
+        // Get user token from user_data table by email
+        let userToken = null;
+        if (normalizedEmail) {
+          const { data: userData } = await anonClient
+            .from('user_data')
+            .select('user_token')
+            .eq('email', normalizedEmail)
+            .maybeSingle();
+          userToken = userData?.user_token || null;
+        }
+        
         draftEmail = await buildDraftResponseEmail({
           ...body,
           email: normalizedEmail,
           waitlistPosition,
-          senderEmail: senderEmail
+          senderEmail: senderEmail,
+          userToken: userToken
         });
       } catch (error) {
         console.error('Failed to build draft response email:', error);
