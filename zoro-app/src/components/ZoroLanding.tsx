@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { TypingLoader } from '@/components/TypingLoader';
+import { AnimatedZoroLogo } from '@/components/AnimatedZoroLogo';
 import { LandingPage } from '@/components/landing/LandingPage';
 import { PhilosophyPage } from '@/components/landing/PhilosophyPage';
 import { GoalSelection } from '@/components/form/GoalSelection';
