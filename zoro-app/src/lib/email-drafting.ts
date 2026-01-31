@@ -61,10 +61,14 @@ function formatGoalsList(goalIds: string[], userToken: string | null): { html: s
   const html = goalIds.map(id => {
     const goalName = goalLabels[id] || id;
     const path = goalPaths[id] || '';
-    if (path && userToken) {
+    // Check if we have both path and a valid (non-empty) token
+    const hasValidToken = userToken && typeof userToken === 'string' && userToken.trim().length > 0;
+    console.log(`Formatting goal ${id}: path="${path}", userToken=${hasValidToken ? `exists (${userToken.substring(0, 8)}...)` : 'missing/invalid'}`);
+    if (path && hasValidToken) {
       const url = `${baseUrl}${path}?token=${encodeURIComponent(userToken)}`;
       return `<li><a href="${url}" style="color: #0066cc; text-decoration: underline;">${escapeHtml(goalName)}</a></li>`;
     }
+    console.log(`Skipping link for ${id} - path: ${path ? 'yes' : 'no'}, token: ${hasValidToken ? 'yes' : 'no'}`);
     return `<li>${escapeHtml(goalName)}</li>`;
   }).join('\n');
   

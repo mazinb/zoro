@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { randomBytes } from 'crypto';
 import { supabase } from '@/lib/supabase';
 import { getSupabaseClient } from '@/lib/supabase-server';
 import { buildDraftResponseEmail } from '@/lib/email-drafting';
@@ -247,7 +248,7 @@ export async function POST(request: NextRequest) {
       let draftEmail: { text: string; html: string } | null = null;
 
       try {
-        // Get user token from user_data table by email
+        // Get or generate user token from user_data table by email
         let userToken = null;
         if (normalizedEmail) {
           const { data: userData } = await anonClient
@@ -258,12 +259,26 @@ export async function POST(request: NextRequest) {
           userToken = userData?.user_token || null;
         }
         
-        draftEmail = await buildDraftResponseEmail({
+        // Generate a token if one doesn't exist (for new users)
+        // This ensures links work even if user_data record doesn't exist yet
+        if (!userToken) {
+          userToken = randomBytes(16).toString('hex');
+        }
+        
+        const emailBody = {
           ...body,
           email: normalizedEmail,
           waitlistPosition,
           userToken: userToken
+        };
+        
+        console.log('Building email with:', {
+          userToken: userToken ? `${userToken.substring(0, 8)}...` : 'null',
+          goals: body.goals,
+          name: body.name
         });
+        
+        draftEmail = await buildDraftResponseEmail(emailBody);
       } catch (error) {
         console.error('Failed to build draft response email:', error);
       }
