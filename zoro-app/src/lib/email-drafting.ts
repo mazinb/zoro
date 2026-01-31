@@ -64,7 +64,9 @@ function formatGoalsList(goalIds: string[], userToken: string | null): { html: s
     const path = goalPaths[id] || '';
     if (path && userToken) {
       const url = `${baseUrl}${path}?token=${encodeURIComponent(userToken)}`;
-      return `<a href="${url}" style="color: #0066cc; text-decoration: underline;">${escapeHtml(goalName)}</a>`;
+      // Use absolute URL and proper attributes for Gmail compatibility
+      // Gmail requires explicit href with absolute URLs and proper link attributes
+      return `<a href="${url}" target="_blank" rel="noopener noreferrer" style="color: #0066cc; text-decoration: underline;">${escapeHtml(goalName)}</a>`;
     }
     return escapeHtml(goalName);
   });
@@ -115,17 +117,26 @@ export async function buildDraftResponseEmail(body: Record<string, any>) {
     ? `You're #${waitlistPosition} on our waitlist. `
     : '';
 
+  // Simplified HTML structure for better Gmail compatibility
+  // Gmail can strip links from complex nested structures
   const htmlContent = `
-    <div style="color: #000000; font-family: Arial, sans-serif; line-height: 1.6;">
-      <p style="color: #000000; margin: 0 0 12px 0;">Hi ${escapeHtml(userName)},</p>
-      <p style="color: #000000; margin: 0 0 12px 0;">Thanks for sharing your goals with us! I see you're interested in ${goalsList.html}.</p>
-      <p style="color: #000000; margin: 0 0 12px 0;">Use the links above to share more details before our call. Once you are ready, let us talk through your goals. I will take the notes and send them to you.</p>
-      <p style="color: #000000; margin: 0 0 12px 0;">Schedule your call here: <a href="https://calendly.com/mazinb/15min" style="color: #0066cc; text-decoration: underline;">https://calendly.com/mazinb/15min</a></p>
-      <p style="color: #000000; margin: 0 0 12px 0;">Share any documents, links or anything else that might be relevant by replying to this email. Will read it before we meet.</p>
-      <p style="color: #000000; margin: 0 0 12px 0;">${waitlistText}We're only offering onboarding calls for a limited time, so I'd love to connect soon.</p>
-      <p style="color: #000000; margin: 0;">Thanks,<br>Zoro</p>
-    </div>
-  `;
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="color: #000000; font-family: Arial, sans-serif; line-height: 1.6; margin: 0; padding: 0;">
+  <p style="color: #000000; margin: 0 0 12px 0;">Hi ${escapeHtml(userName)},</p>
+  <p style="color: #000000; margin: 0 0 12px 0;">Thanks for sharing your goals with us! I see you're interested in ${goalsList.html}.</p>
+  <p style="color: #000000; margin: 0 0 12px 0;">Use the links above to share more details before our call. Once you are ready, let us talk through your goals. I will take the notes and send them to you.</p>
+  <p style="color: #000000; margin: 0 0 12px 0;">Schedule your call here: <a href="https://calendly.com/mazinb/15min" target="_blank" rel="noopener noreferrer" style="color: #0066cc; text-decoration: underline;">https://calendly.com/mazinb/15min</a></p>
+  <p style="color: #000000; margin: 0 0 12px 0;">Share any documents, links or anything else that might be relevant by replying to this email. Will read it before we meet.</p>
+  <p style="color: #000000; margin: 0 0 12px 0;">${waitlistText}We're only offering onboarding calls for a limited time, so I'd love to connect soon.</p>
+  <p style="color: #000000; margin: 0;">Thanks,<br>Zoro</p>
+</body>
+</html>
+  `.trim();
 
   const textContent = `Hi ${userName},
 
