@@ -17,6 +17,7 @@ function RetirePageContent() {
   const [initialData, setInitialData] = useState<{
     answers?: Partial<Answers>;
     expenseBuckets?: Record<string, ExpenseBucket>;
+    email?: string;
   } | null>(null);
   const [loading, setLoading] = useState(true);
 
