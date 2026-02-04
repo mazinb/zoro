@@ -92,8 +92,8 @@ export function useFormSave<T extends Record<string, any>>({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      
       const result = await response.json();
+
       if (result.token && result.token !== userToken) {
         setUserToken(result.token);
         // Update URL with token

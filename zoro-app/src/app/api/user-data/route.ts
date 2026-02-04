@@ -35,11 +35,18 @@ export async function GET(request: NextRequest) {
 
     // Step 1: Find user in users table by verification_token or email
     if (token) {
-      const { data: tokenUser } = await supabase
+      const { data: tokenUser, error: tokenError } = await supabase
         .from('users')
-        .select('id, email')
+        .select('id, email, verification_token')
         .eq('verification_token', token)
         .maybeSingle();
+
+      if (tokenError) {
+        return NextResponse.json(
+          { error: 'Failed to fetch user data', details: tokenError.message },
+          { status: 500 }
+        );
+      }
       
       if (tokenUser?.id) {
         userId = tokenUser.id;
@@ -49,11 +56,18 @@ export async function GET(request: NextRequest) {
     // If not found by token, try email
     if (!userId && email) {
       const normalizedEmail = email.toLowerCase().trim();
-      const { data: emailUser } = await supabase
+      const { data: emailUser, error: emailError } = await supabase
         .from('users')
-        .select('id, email')
+        .select('id, email, verification_token')
         .eq('email', normalizedEmail)
         .maybeSingle();
+
+      if (emailError) {
+        return NextResponse.json(
+          { error: 'Failed to fetch user data', details: emailError.message },
+          { status: 500 }
+        );
+      }
       
       if (emailUser?.id) {
         userId = emailUser.id;
@@ -80,12 +94,19 @@ export async function GET(request: NextRequest) {
 
     // If no user_data record exists, return user info from users table
     if (!userData) {
-      const { data: user } = await supabase
+      const { data: user, error: userError } = await supabase
         .from('users')
         .select('id, email, verification_token')
         .eq('id', userId)
         .single();
-      
+
+      if (userError) {
+        return NextResponse.json(
+          { error: 'Failed to fetch user data', details: userError.message },
+          { status: 500 }
+        );
+      }
+
       return NextResponse.json({ 
         data: {
           email: user?.email || null,
@@ -133,31 +154,51 @@ export async function POST(request: NextRequest) {
 
     // Try to find user by verification_token
     if (userToken) {
-      const { data: tokenUser } = await supabase
+      const { data: tokenUser, error: tokenError } = await supabase
         .from('users')
         .select('id, email, verification_token')
         .eq('verification_token', userToken)
         .maybeSingle();
+
+      if (tokenError) {
+        return NextResponse.json(
+          { error: 'Failed to save user data', details: tokenError.message },
+          { status: 500 }
+        );
+      }
       
       if (tokenUser?.id) {
         userId = tokenUser.id;
         // If email was provided and different, update it
         if (normalizedEmail && tokenUser.email !== normalizedEmail) {
-          await supabase
+          const { error: updateEmailError } = await supabase
             .from('users')
             .update({ email: normalizedEmail })
             .eq('id', userId);
+          if (updateEmailError) {
+            return NextResponse.json(
+              { error: 'Failed to save user data', details: updateEmailError.message },
+              { status: 500 }
+            );
+          }
         }
       }
     }
 
     // If not found by token, try email
     if (!userId && normalizedEmail) {
-      const { data: emailUser } = await supabase
+      const { data: emailUser, error: emailError } = await supabase
         .from('users')
         .select('id, email, verification_token')
         .eq('email', normalizedEmail)
         .maybeSingle();
+
+      if (emailError) {
+        return NextResponse.json(
+          { error: 'Failed to save user data', details: emailError.message },
+          { status: 500 }
+        );
+      }
       
       if (emailUser?.id) {
         userId = emailUser.id;
@@ -165,10 +206,16 @@ export async function POST(request: NextRequest) {
         
         // If user exists but has no verification_token, generate one
         if (!emailUser.verification_token && userToken) {
-          await supabase
+          const { error: updateTokenError } = await supabase
             .from('users')
             .update({ verification_token: userToken })
             .eq('id', userId);
+          if (updateTokenError) {
+            return NextResponse.json(
+              { error: 'Failed to save user data', details: updateTokenError.message },
+              { status: 500 }
+            );
+          }
         }
       }
     }
@@ -197,11 +244,18 @@ export async function POST(request: NextRequest) {
       if (createError) {
         // If insert failed (e.g., duplicate email), try to find again
         if (normalizedEmail) {
-          const { data: existingUser } = await supabase
+          const { data: existingUser, error: relookupError } = await supabase
             .from('users')
             .select('id, verification_token')
             .eq('email', normalizedEmail)
             .maybeSingle();
+
+          if (relookupError) {
+            return NextResponse.json(
+              { error: 'Failed to save user data', details: relookupError.message },
+              { status: 500 }
+            );
+          }
           
           if (existingUser?.id) {
             userId = existingUser.id;
@@ -209,10 +263,16 @@ export async function POST(request: NextRequest) {
             
             // Update token if missing
             if (!existingUser.verification_token && userToken) {
-              await supabase
+              const { error: updateExistingTokenError } = await supabase
                 .from('users')
                 .update({ verification_token: userToken })
                 .eq('id', userId);
+              if (updateExistingTokenError) {
+                return NextResponse.json(
+                  { error: 'Failed to save user data', details: updateExistingTokenError.message },
+                  { status: 500 }
+                );
+              }
             }
           }
         }
@@ -228,19 +288,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Step 2: Check if user_data record exists for this user
-    const { data: existing } = await supabase
-      .from('user_data')
-      .select('*')
-      .eq('user_id', userId)
-      .maybeSingle();
-
     const sharedDataUpdate = sharedData
       ? { shared_data: sharedData }
       : {};
 
     const updateData: Record<string, any> = {
       user_id: userId, // Link to users table
+      user_token: userToken, // Keep legacy column in sync for compatibility
       updated_at: new Date().toISOString(),
       ...sharedDataUpdate,
     };
@@ -263,62 +317,40 @@ export async function POST(request: NextRequest) {
       updateData.retirement_expense_buckets = expenseBuckets;
     }
 
-    if (existing) {
-      // Update existing record
-      const { data: updated, error } = await supabase
-        .from('user_data')
-        .update(updateData)
-        .eq('user_id', userId)
-        .select()
-        .single();
+    // Upsert by user_token so we always have a single row per verification token
+    const upsertData: Record<string, any> = {
+      user_id: userId,
+      user_token: userToken,
+      email: normalizedEmail,
+      name: name ? String(name).trim() : null,
+      [`${formType}_answers`]: formData || null,
+      shared_data: sharedData || {},
+      ...updateData,
+    };
 
-      if (error) {
-        return NextResponse.json(
-          { error: 'Failed to update user data', details: error.message },
-          { status: 500 }
-        );
-      }
-
-      return NextResponse.json({
-        success: true,
-        token: userToken,
-        data: updated,
-      });
-    } else {
-      // Create new record
-      const insertData: Record<string, any> = {
-        user_id: userId, // Link to users table
-        email: normalizedEmail,
-        name: name ? String(name).trim() : null,
-        [`${formType}_answers`]: formData || null,
-        shared_data: sharedData || {},
-        ...updateData,
-      };
-
-      // Add expense buckets for retirement form
-      if (formType === 'retirement' && expenseBuckets) {
-        insertData.retirement_expense_buckets = expenseBuckets;
-      }
-
-      const { data: created, error } = await supabase
-        .from('user_data')
-        .insert(insertData)
-        .select()
-        .single();
-
-      if (error) {
-        return NextResponse.json(
-          { error: 'Failed to create user data', details: error.message },
-          { status: 500 }
-        );
-      }
-
-      return NextResponse.json({
-        success: true,
-        token: userToken,
-        data: created,
-      });
+    // Add expense buckets for retirement form
+    if (formType === 'retirement' && expenseBuckets) {
+      upsertData.retirement_expense_buckets = expenseBuckets;
     }
+
+    const { data: upserted, error: upsertError } = await supabase
+      .from('user_data')
+      .upsert(upsertData, { onConflict: 'user_token' })
+      .select()
+      .single();
+
+    if (upsertError) {
+      return NextResponse.json(
+        { error: 'Failed to save user data', details: upsertError.message },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      token: userToken,
+      data: upserted,
+    });
   } catch (error: any) {
     return NextResponse.json(
       { error: 'Failed to save user data', details: error?.message },
