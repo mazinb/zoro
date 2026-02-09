@@ -8,9 +8,6 @@
     "start": "next start",
     "lint": "eslint",
     "generate-favicon": "node scripts/generate-favicon.js",
-    "import-advisors": "node scripts/import-sebi-advisors.js",
-    "import-advisors:resume": "node scripts/import-sebi-advisors.js --resume",
-    "import-advisors:pages": "node scripts/import-sebi-advisors.js --max-pages=",
     "test": "jest"
   },
   "dependencies": {

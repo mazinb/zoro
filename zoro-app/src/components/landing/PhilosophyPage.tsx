@@ -61,7 +61,7 @@ export const PhilosophyPage: React.FC<PhilosophyPageProps> = ({
           </div>
           <h1 className={`text-3xl font-bold ${theme.textClass} mb-2 mt-4`}>Our Philosophy</h1>
           <p className={theme.textSecondaryClass}>
-            Built for clarity, accountability, and compounding outcomes.
+            Master your behavior to own your time.
           </p>
         </div>
       </header>
@@ -73,7 +73,7 @@ export const PhilosophyPage: React.FC<PhilosophyPageProps> = ({
             A calmer, clearer way to build wealth
           </h2>
           <p className={`text-xl ${theme.textSecondaryClass} max-w-3xl mx-auto`}>
-            Our founder reached financial freedom and retired at 37. We turned that playbook into a platform focused on clear goals, consistent habits, and compounding progress.
+            Master your behavior to own your time.
           </p>
         </div>
 
@@ -82,34 +82,53 @@ export const PhilosophyPage: React.FC<PhilosophyPageProps> = ({
           <div className="space-y-4">
             <h3 className={`text-2xl font-bold ${theme.textClass}`}>Clarity beats complexity</h3>
             <p className={`text-lg ${theme.textSecondaryClass}`}>
-              We focus on the 3 numbers that drive 90% of outcomes: your income, your monthly spend, and your net worth.
-              When those move in the right direction, your goals follow.
+              We focus on the three numbers that drive 90% of outcomes: your income, your monthly spend, and your net worth. When these move in the right direction, your goals follow.
             </p>
             <p className={`text-lg ${theme.textSecondaryClass}`}>
-              A simple plan you review every 90 days beats a perfect plan you never open.
-              We make it easy to track 3–5 priority goals, build a 6–12 month emergency runway,
-              and target a retirement corpus of 25x–30x annual expenses.
+              A simple plan you actually review every 90 days is far more effective than a &quot;perfect&quot; plan that gathers dust. We make it easy to track a few priority goals, build a 6–12 month emergency runway, and target a retirement corpus of 25x–30x your annual expenses.
             </p>
           </div>
 
           <div className="space-y-4">
-            <h3 className={`text-2xl font-bold ${theme.textClass}`}>Advisory models in India</h3>
+            <h3 className={`text-2xl font-bold ${theme.textClass}`}>The math of freedom</h3>
             <p className={`text-lg ${theme.textSecondaryClass}`}>
-              India has multiple advisory models. You will see fee-only SEBI-registered advisers who charge a flat annual fee,
-              AUM-based advisers who charge a percentage of assets (often around 0.5%–1.5% per year),
-              and commission-led distributors or bank relationship managers whose compensation comes from product trails.
+              The &quot;25x Rule&quot; is a practical way to calculate when work becomes optional. In a market like India, the key is understanding your Real Return.
             </p>
             <p className={`text-lg ${theme.textSecondaryClass}`}>
-              Each model can work, but incentives vary. We help you ask the right questions, compare fees in plain numbers,
-              and keep your plan simple enough to follow without constant hand-holding.
+              If your portfolio earns 10% but inflation is 6%, your real gain is 4%. To live comfortably without touching your principal, you need a corpus large enough that this 4% gap covers your lifestyle. For most people, that means saving 25 to 30 times what they spend in a year. We help you find your specific &quot;X&quot; so you can stop guessing and start building.
+            </p>
+          </div>
+
+          <div className="space-y-4">
+            <h3 className={`text-2xl font-bold ${theme.textClass}`}>Advisory models and incentives</h3>
+            <p className={`text-lg ${theme.textSecondaryClass}`}>
+              Financial success is often more about endurance than intensity. To stay in the game, you need to understand how the advice you receive is funded.
+            </p>
+            <p className={`text-lg ${theme.textSecondaryClass}`}>
+              The US market has largely moved toward a &quot;Fiduciary&quot; standard where advisors are required to put your interests first. India is currently making this transition. As the market matures, it is vital to know how your advisor is compensated.
+            </p>
+            <ul className={`text-lg ${theme.textSecondaryClass} space-y-3 list-disc pl-6`}>
+              <li><strong className={theme.textClass}>Fee-Only Advisors:</strong> You pay a flat annual fee for a roadmap. Their only incentive is your long-term clarity and success.</li>
+              <li><strong className={theme.textClass}>AUM-Based Advisors:</strong> They charge a percentage of your total assets, usually between 0.5% and 1.5%. They grow when you grow, which aligns your interests, though they may prefer you keep your money invested rather than spending it on major life goals.</li>
+              <li><strong className={theme.textClass}>Commission-Led Distributors:</strong> The advice is often free because they earn commissions from the products you buy. This is the most common model in India, but it can create an incentive for constant movement or complexity.</li>
+            </ul>
+            <p className={`text-lg ${theme.textSecondaryClass}`}>
+              We help you compare these models in plain numbers so you can choose a path that lets you sleep at night.
             </p>
           </div>
 
           <div className="space-y-4">
             <h3 className={`text-2xl font-bold ${theme.textClass}`}>Where Zoro fits</h3>
             <p className={`text-lg ${theme.textSecondaryClass}`}>
-              Zoro is your personal system for consistency. It keeps your information in one place, sends timely check-ins,
-              and turns complex decisions into a few small, trackable actions each month.
+              Zoro is your personal system for consistency. We don&apos;t sell products or take commissions. We simply provide the framework to turn complex financial decisions into small, trackable actions.
+            </p>
+            <ul className={`text-lg ${theme.textSecondaryClass} space-y-3 list-disc pl-6`}>
+              <li><strong className={theme.textClass}>Survival First:</strong> We prioritize your emergency runway so you never have to sell your long-term investments during a market dip.</li>
+              <li><strong className={theme.textClass}>Quarterly Pulse:</strong> We move your focus away from daily market noise and toward meaningful 90-day progress.</li>
+              <li><strong className={theme.textClass}>Behavioral Support:</strong> We act as the neutral ground where you can see your entire financial life in one place.</li>
+            </ul>
+            <p className={`text-lg ${theme.textSecondaryClass}`}>
+              The goal is not just to be wealthy. The goal is to build a life where you are in control of your own time.
             </p>
           </div>
         </div>

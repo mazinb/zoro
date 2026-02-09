@@ -6,7 +6,6 @@ import { Moon, Sun, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
 import { ZoroLogo } from '@/components/ZoroLogo';
 import { Button } from '@/components/ui/Button';
 import { useThemeClasses } from '@/hooks/useThemeClasses';
-import ZoroLearningAnimation from '@/components/bloganimation';
 import { useWaitlistCount } from '@/hooks/useWaitlistCount';
 import { buildTimelineMilestones } from '@/lib/timeline';
 
@@ -181,42 +180,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
         <p className={`text-sm ${theme.textSecondaryClass} mt-4`}>
           Secure your spot • Free for early adopters
         </p>
-      </div>
-
-      {/* Blog Interaction Section */}
-      <div className="max-w-6xl mx-auto px-6 py-24">
-        {/* Mobile-first flow: title → animation → text → CTA */}
-        <h3 className={`md:hidden text-3xl font-bold ${theme.textClass} mb-4`}>
-          Read, React, We Learn
-        </h3>
-
-        <div className="grid md:grid-cols-2 gap-12 items-center">
-          {/* Animation (left on desktop, second on mobile) */}
-          <div className="order-2 md:order-1 flex justify-center md:justify-start">
-            <ZoroLearningAnimation width={380} height={260} darkMode={darkMode} />
-          </div>
-
-          {/* Copy (right on desktop, third on mobile) */}
-          <div className="order-3 md:order-2">
-            <h3 className={`hidden md:block text-4xl font-bold ${theme.textClass} mb-4`}>
-              Read, React, We Learn
-            </h3>
-            <p className={`${theme.textSecondaryClass} text-lg leading-relaxed mb-6`}>
-              Get timely reminders to stay on track and accomplish your goals. Simply reply to give us feedback or update your info.
-            </p>
-            <button
-              onClick={() => {
-                onShowPhilosophy();
-              }}
-              className="text-blue-600 hover:text-blue-700 font-medium inline-flex items-center gap-1"
-            >
-              Our Philosophy <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
-
-          {/* Title (first on mobile only) */}
-          <div className="order-1 md:order-3 hidden" />
-        </div>
       </div>
 
       {/* Waitlist Milestones */}
