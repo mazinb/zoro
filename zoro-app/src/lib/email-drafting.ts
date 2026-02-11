@@ -94,50 +94,36 @@ function formatGoalsList(goalIds: string[], userToken: string | null): { html: s
   return { html, text };
 }
 
+const ONBOARDING_MEETING_LINK = 'https://calendly.com/mazinb/15min';
+
 export async function buildDraftResponseEmail(body: Record<string, any>) {
   const userName = body.name || 'there';
-  const waitlistPosition = body.waitlistPosition || null;
-  const userToken = body.userToken || null;
-  
-  // Extract goals
-  const goalIds = extractGoals(body);
-  const goalsList = formatGoalsList(goalIds, userToken);
-  
-  // Build waitlist text
-  const waitlistText = waitlistPosition 
-    ? `You're #${waitlistPosition} on our waitlist. `
-    : '';
-
-  const htmlContent = `
-    <div style="color: #000000; font-family: Arial, sans-serif; line-height: 1.6;">
-      <p style="color: #000000; margin: 0 0 12px 0;">Hi ${escapeHtml(userName)},</p>
-      <p style="color: #000000; margin: 0 0 12px 0;">Thanks for sharing your goals with us! I see you're interested in ${goalsList.html}.</p>
-      <p style="color: #000000; margin: 0 0 12px 0;">Use the links above to share more details. When you are ready, let's talk about your goals. I will take the notes and send them to you.</p>
-      <p style="color: #000000; margin: 0 0 12px 0;">Schedule your call here: <a href="https://calendly.com/mazinb/15min" style="color: #0066cc; text-decoration: underline;">https://calendly.com/mazinb/15min</a></p>
-      <p style="color: #000000; margin: 0 0 12px 0;">Share any documents, links or anything else that might be relevant by replying to this email. Will read it before we meet.</p>
-      <p style="color: #000000; margin: 0 0 12px 0;">${waitlistText}We're only offering onboarding calls for a limited time, so I'd love to connect soon.</p>
-      <p style="color: #000000; margin: 0;">Thanks,<br>Zoro</p>
-    </div>
-  `;
+  const waitlistPosition = body.waitlistPosition ?? 0;
 
   const textContent = `Hi ${userName},
 
-Thanks for sharing your goals with us! I see you're interested in ${goalsList.text}.
+Thanks for sharing your goals!
 
-Use the links above to share more details. When you are ready, let's talk about your goals. I will take the notes and send them to you.
+You're #${waitlistPosition} on our waitlist. We are still building Zoro.
 
-Schedule your call here: https://calendly.com/mazinb/15min
+While we do, I'd be happy to schedule a 15 min call to get you set up and schedule customized follow ups to make sure you stay on track.
 
-Share any documents, links or anything else that might be relevant by replying to this email. Will read it before we meet.
-
-${waitlistText}We're only offering onboarding calls for a limited time, so I'd love to connect soon.
+Or simply reply to this email to interact with our agent.
 
 Thanks,
-Zoro`;
+Zoro
+
+${ONBOARDING_MEETING_LINK}`;
+
+  // Plain text only: html is same content with newlines as <br> for display
+  const htmlContent = textContent
+    .split('\n')
+    .map((line) => escapeHtml(line))
+    .join('<br>\n');
 
   return {
     text: textContent,
-    html: htmlContent.trim(),
+    html: htmlContent,
   };
 }
 

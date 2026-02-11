@@ -1,0 +1,6 @@
+# Local-only and independent repos (inbox-agent has its own repo)
+memory/
+inbox-agent/
+
+# OS
+.DS_Store
