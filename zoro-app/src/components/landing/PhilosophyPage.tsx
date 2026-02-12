@@ -33,35 +33,32 @@ export const PhilosophyPage: React.FC<PhilosophyPageProps> = ({
   // Philosophy page (main)
   return (
     <div className={`min-h-screen ${bgGradientClass} transition-colors duration-300`}>
-      <header className={`${theme.cardBgClass} shadow-md border-b ${theme.borderClass}`}>
-        <div className="max-w-7xl mx-auto px-6 py-6">
-          <div className="flex items-center justify-between">
-            <button 
+      <nav className={`${theme.cardBgClass} shadow-md border-b ${theme.borderClass}`}>
+        <div className="max-w-7xl mx-auto px-6 py-6 flex items-center justify-between">
+          <button 
+            onClick={onBack}
+            className="flex items-center cursor-pointer"
+            aria-label="Back to home"
+          >
+            <ZoroLogo className="h-8" isDark={darkMode} />
+          </button>
+          <div className="flex items-center gap-6">
+            <button
               onClick={onBack}
-              className="flex items-center cursor-pointer"
-              aria-label="Back to home"
+              className={`text-sm ${theme.textSecondaryClass} hover:${theme.textClass} transition-colors flex items-center gap-1`}
             >
-              <ZoroLogo className="h-8" isDark={darkMode} />
+              <ChevronLeft className="w-4 h-4" /> Back to Home
             </button>
-            <div className="flex items-center gap-6">
-              <button
-                onClick={onBack}
-                className={`text-sm ${theme.textSecondaryClass} hover:${theme.textClass} transition-colors flex items-center gap-1`}
-              >
-                <ChevronLeft className="w-4 h-4" /> Back to Home
-              </button>
-              <button
-                onClick={onToggleDarkMode}
-                className={`p-2 rounded-lg ${theme.textSecondaryClass} hover:${theme.textClass} transition-colors`}
-                aria-label="Toggle dark mode"
-              >
-                {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-              </button>
-            </div>
+            <button
+              onClick={onToggleDarkMode}
+              className={`p-2 rounded-lg ${theme.textSecondaryClass} hover:${theme.textClass} transition-colors`}
+              aria-label="Toggle dark mode"
+            >
+              {darkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+            </button>
           </div>
-          <h1 className={`text-3xl font-bold ${theme.textClass} mb-2 mt-4`}>Our Philosophy</h1>
         </div>
-      </header>
+      </nav>
 
       <div className="max-w-5xl mx-auto px-6 py-12">
         {/* Hero Section */}

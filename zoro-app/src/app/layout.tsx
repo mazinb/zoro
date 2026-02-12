@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ThemeFavicon } from "@/components/ThemeFavicon";
+import { DarkModeProvider } from "@/hooks/useDarkMode";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -78,8 +79,10 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         suppressHydrationWarning
       >
-        <ThemeFavicon />
-        {children}
+        <DarkModeProvider>
+          <ThemeFavicon />
+          {children}
+        </DarkModeProvider>
       </body>
     </html>
   );

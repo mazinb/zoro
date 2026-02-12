@@ -34,7 +34,7 @@ export const TIMELINE_MILESTONES: TimelineMilestone[] = [
     count: 10000,
     displayCount: '10k',
     title: 'First 10,000',
-    description: 'Launch as a paid app in the app and play stores, free only for life for early adopters',
+    description: 'Launch as a paid app in the app and play stores, free for life, only for early adopters',
   },
 ];
 

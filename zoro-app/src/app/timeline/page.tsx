@@ -15,15 +15,19 @@ export default function TimelinePage() {
     const theme = useThemeClasses(darkMode);
     const signupCount = useWaitlistCount();
 
+    const bgGradientClass = darkMode
+        ? 'bg-gradient-to-br from-slate-900 to-slate-800'
+        : 'bg-gradient-to-br from-slate-50 to-blue-50';
+
     const headerTextClass = darkMode ? theme.textClass : 'text-slate-900';
     const numberBgClass = darkMode ? theme.buttonClass : 'bg-slate-900 text-white';
 
     const milestones = buildTimelineMilestones(signupCount);
 
     return (
-        <div className={`min-h-screen ${theme.bgClass} transition-colors duration-300`}>
+        <div className={`min-h-screen ${bgGradientClass} transition-colors duration-300`}>
             {/* Navigation */}
-            <nav className={`border-b ${theme.borderClass}`}>
+            <nav className={`${theme.cardBgClass} border-b ${theme.borderClass}`}>
                 <div className="max-w-6xl mx-auto px-6 py-6 flex items-center justify-between">
                     <div className="flex items-center">
                         <Link href="/">

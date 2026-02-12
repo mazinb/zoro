@@ -1,10 +1,10 @@
-'use client';
+ 'use client';
 
 import { useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { TypingLoader } from '@/components/TypingLoader';
 import { AnimatedZoroLogo } from '@/components/AnimatedZoroLogo';
 import { LandingPage } from '@/components/landing/LandingPage';
-import { PhilosophyPage } from '@/components/landing/PhilosophyPage';
 import { GoalSelection } from '@/components/form/GoalSelection';
 import { GoalDetails, GoalDetailsMap } from '@/components/form/GoalDetails';
 import { ContactMethodSelection } from '@/components/form/ContactMethodSelection';
@@ -15,7 +15,7 @@ import { ContactMethod } from '@/types';
 
 const ZoroLanding = () => {
   const { darkMode, toggleDarkMode } = useDarkMode();
-  const [showPhilosophy, setShowPhilosophy] = useState(false);
+  const router = useRouter();
 
   const [showForm, setShowForm] = useState(false);
 
@@ -165,7 +165,6 @@ const ZoroLanding = () => {
   const handleGetStarted = useCallback(() => {
     setShowForm(true);
     setShowFormIntro(true);
-    setShowPhilosophy(false);
   }, []);
 
   const handleEdit = useCallback(() => {
@@ -300,24 +299,11 @@ const ZoroLanding = () => {
     );
   }
 
-  if (showPhilosophy) {
-    return (
-      <PhilosophyPage
-        darkMode={darkMode}
-        onToggleDarkMode={toggleDarkMode}
-        onBack={() => {
-          setShowPhilosophy(false);
-          resetForm();
-        }}
-      />
-    );
-  }
-
   return (
     <LandingPage
       darkMode={darkMode}
       onToggleDarkMode={toggleDarkMode}
-      onShowPhilosophy={() => setShowPhilosophy(true)}
+      onShowPhilosophy={() => router.push('/philosophy')}
       onGetStarted={handleGetStarted}
     />
   );
