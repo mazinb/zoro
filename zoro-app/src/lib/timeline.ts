@@ -16,13 +16,13 @@ export const TIMELINE_MILESTONES: TimelineMilestone[] = [
     count: 10,
     displayCount: '10',
     title: 'First 10',
-    description: '30-minute free portfolio review and planning meeting directly with our founding team',
+    description: 'Comprehensive portfolio review and quarterly planning with the team',
   },
   {
     count: 100,
     displayCount: '100',
     title: 'First 100',
-    description: 'Receive human reviewed email free for 1 year and early access to new features',
+    description: 'Email based protfolio review and quarterly planning free for 1 year',
   },
   {
     count: 1000,

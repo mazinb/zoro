@@ -60,9 +60,6 @@ export const PhilosophyPage: React.FC<PhilosophyPageProps> = ({
             </div>
           </div>
           <h1 className={`text-3xl font-bold ${theme.textClass} mb-2 mt-4`}>Our Philosophy</h1>
-          <p className={theme.textSecondaryClass}>
-            Master your behavior to own your time.
-          </p>
         </div>
       </header>
 
@@ -73,7 +70,7 @@ export const PhilosophyPage: React.FC<PhilosophyPageProps> = ({
             A calmer, clearer way to build wealth
           </h2>
           <p className={`text-xl ${theme.textSecondaryClass} max-w-3xl mx-auto`}>
-            Master your behavior to own your time.
+            Master your behavior to build wealth.
           </p>
         </div>
 
@@ -108,12 +105,12 @@ export const PhilosophyPage: React.FC<PhilosophyPageProps> = ({
               The US market has largely moved toward a &quot;Fiduciary&quot; standard where advisors are required to put your interests first. India is currently making this transition. As the market matures, it is vital to know how your advisor is compensated.
             </p>
             <ul className={`text-lg ${theme.textSecondaryClass} space-y-3 list-disc pl-6`}>
-              <li><strong className={theme.textClass}>Fee-Only Advisors:</strong> You pay a flat annual fee for a roadmap. Their only incentive is your long-term clarity and success.</li>
+              <li><strong className={theme.textClass}>Fee-Only Advisors:</strong> You pay a flat fee for a roadmap. Their incentive is not tied to your outcomes and long-term success.</li>
               <li><strong className={theme.textClass}>AUM-Based Advisors:</strong> They charge a percentage of your total assets, usually between 0.5% and 1.5%. They grow when you grow, which aligns your interests, though they may prefer you keep your money invested rather than spending it on major life goals.</li>
               <li><strong className={theme.textClass}>Commission-Led Distributors:</strong> The advice is often free because they earn commissions from the products you buy. This is the most common model in India, but it can create an incentive for constant movement or complexity.</li>
             </ul>
             <p className={`text-lg ${theme.textSecondaryClass}`}>
-              We help you compare these models in plain numbers so you can choose a path that lets you sleep at night.
+              Everyone has their preference, but we believe that building wealth is a soft skill.
             </p>
           </div>
 
