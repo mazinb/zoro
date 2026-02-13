@@ -320,7 +320,12 @@ export async function POST(request: NextRequest) {
       }
       if (!draftEmail) {
         const pos = typeof waitlistPosition === 'number' ? waitlistPosition : 0;
-        const fallbackText = `Hi ${body.name || 'there'}\n\nThanks for sharing your goals!\n\nYou're #${pos} on our waitlist. We are still building Zoro.\n\nWhile we do, I'd be happy to schedule a 15 min call to get you set up and schedule customized follow ups to make sure you stay on track.\n\nOr simply reply to this email to interact with our agent.\n\nThanks,\nZoro\n\nhttps://calendly.com/mazinb/15min`;
+        let fallbackText: string;
+        if (pos <= 10) {
+          fallbackText = `Hi ${body.name || 'there'}\n\nThanks for sharing your goals!\n\nYou're #${pos} on our waitlist. We are still building Zoro.\n\nWhile we do, I'd be happy to schedule a 15 min call to get you set up and schedule customized follow ups to make sure you stay on track.\n\nOr simply reply to this email to interact with our agent.\n\nThanks,\nZoro\n\nhttps://calendly.com/mazinb/15min`;
+        } else {
+          fallbackText = `Thanks for sharing your goals!\nYou're #${pos} on our waitlist. We are still building Zoro but want to give you a peak.\nSimply reply to this email to interact with our agent.\n— Zoro`;
+        }
         draftEmail = {
           text: fallbackText,
           html: fallbackText.split('\n').map((l) => l.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')).join('<br>\n'),

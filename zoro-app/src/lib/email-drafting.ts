@@ -100,7 +100,11 @@ export async function buildDraftResponseEmail(body: Record<string, any>) {
   const userName = body.name || 'there';
   const waitlistPosition = body.waitlistPosition ?? 0;
 
-  const textContent = `Hi ${userName},
+  let textContent: string;
+
+  if (waitlistPosition <= 10) {
+    // First 10 users get the full message with link
+    textContent = `Hi ${userName},
 
 Thanks for sharing your goals!
 
@@ -114,6 +118,13 @@ Thanks,
 Zoro
 
 ${ONBOARDING_MEETING_LINK}`;
+  } else {
+    // Users #11+ get simplified message without link
+    textContent = `Thanks for sharing your goals!
+You're #${waitlistPosition} on our waitlist. We are still building Zoro but want to give you a peak.
+Simply reply to this email to interact with our agent.
+— Zoro`;
+  }
 
   // Plain text only: html is same content with newlines as <br> for display
   const htmlContent = textContent
