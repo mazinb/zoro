@@ -55,37 +55,37 @@ const GOAL_CONFIG: Record<
     title: 'Save more consistently',
     desc: 'Build savings habits',
     Icon: SaveIcon,
-    options: ['Emergency fund', 'Spending habits', 'Debt payoff', 'Other'],
+    options: ['Emergency fund', 'Spending habits', 'Debt payoff', 'Other / more'],
   },
   invest: {
     title: 'Invest smarter',
     desc: 'Smarter portfolio choices',
     Icon: InvestIcon,
-    options: ['Index funds', 'Portfolio allocation', 'Risk strategy', 'Other'],
+    options: ['Index funds', 'Portfolio allocation', 'Risk strategy', 'Other / more'],
   },
   home: {
     title: 'Plan for big purchases',
     desc: 'Plan big purchases',
     Icon: HomeIcon,
-    options: ['Down payment', 'Education fund', 'Major purchase', 'Other'],
+    options: ['Down payment', 'Education fund', 'Major purchase', 'Other / more'],
   },
   insurance: {
     title: 'Review insurance',
     desc: 'Review coverage needs',
     Icon: ShieldIcon,
-    options: ['Life', 'Health', 'Property', 'Other'],
+    options: ['Life', 'Health', 'Property', 'Other / more'],
   },
   tax: {
     title: 'Tax optimization',
     desc: 'Lower tax burden',
     Icon: TaxIcon,
-    options: ['Deductions', 'Tax-saving funds', 'Income structure', 'Other'],
+    options: ['Deductions', 'Tax-saving funds', 'Income structure', 'Other / more'],
   },
   retirement: {
     title: 'Retirement planning',
     desc: 'Plan retirement roadmap',
     Icon: RetirementIcon,
-    options: ['Target age', 'Savings rate', 'Income plan', 'Other'],
+    options: ['Target age', 'Savings rate', 'Income plan', 'Other / more'],
   },
 };
 
@@ -130,7 +130,7 @@ export const GoalDetails: React.FC<GoalDetailsProps> = ({
     selectedGoals.every((id) => {
       const selections = goalDetails[id]?.selections || [];
       const hasSelections = selections.length > 0;
-      const needsOtherText = selections.includes('Other');
+      const needsOtherText = selections.includes('Other / more');
       const otherText = goalDetails[id]?.other || '';
       return hasSelections && (!needsOtherText || otherText.trim().length > 0);
     });
@@ -154,7 +154,7 @@ export const GoalDetails: React.FC<GoalDetailsProps> = ({
             const { Icon, title, desc, options } = config;
             const detail = goalDetails[goalId] || { selections: [], other: '' };
             const selections = detail.selections || [];
-            const hasOtherSelected = selections.includes('Other');
+            const hasOtherSelected = selections.includes('Other / more');
 
             return (
               <div
@@ -197,7 +197,7 @@ export const GoalDetails: React.FC<GoalDetailsProps> = ({
                               ? selections.filter((item) => item !== option)
                               : [...selections, option];
                             onChange(goalId, 'selections', nextSelections);
-                            if (option === 'Other' && isSelected) {
+                            if (option === 'Other / more' && isSelected) {
                               onChange(goalId, 'other', '');
                             }
                           }}
