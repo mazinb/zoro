@@ -7,13 +7,18 @@ function escapeHtml(value: string) {
     .replace(/'/g, '&#39;');
 }
 
+// Canonical goal id for retirement is "retirement"; URL path is "/retire".
+// Normalize so "retire" (from links/paths) is always treated as "retirement" everywhere.
+export const GOAL_ID_RETIREMENT = 'retirement';
+export const GOAL_PATH_RETIRE = '/retire';
+
 const goalLabels: Record<string, string> = {
   save: 'Saving more consistently',
   invest: 'Investing smarter',
   home: 'Planning for big purchases',
   insurance: 'Reviewing insurance',
   tax: 'Optimizing taxes',
-  retirement: 'Planning for retirement',
+  [GOAL_ID_RETIREMENT]: 'Planning for retirement',
 };
 
 const goalPaths: Record<string, string> = {
@@ -22,34 +27,37 @@ const goalPaths: Record<string, string> = {
   home: '/home',
   insurance: '/insurance',
   tax: '/tax',
-  retirement: '/retire',
+  [GOAL_ID_RETIREMENT]: GOAL_PATH_RETIRE,
 };
+
+/** Normalize goal id: "retire" (path-style) -> "retirement" (canonical). */
+function normalizeGoalId(goalId: string): string {
+  if (goalId === 'retire') return GOAL_ID_RETIREMENT;
+  return goalId;
+}
 
 function getBaseUrl() {
   return process.env.NEXT_PUBLIC_BASE_URL || 'https://www.getzoro.com';
 }
 
 function extractGoals(body: Record<string, any>): string[] {
+  let raw: string[] = [];
   // Try to get goals from body.goals (array)
   if (Array.isArray(body.goals) && body.goals.length > 0) {
-    return body.goals;
-  }
-  
-  // Try to parse from additional_info if it's a JSON string
-  if (body.additional_info) {
+    raw = body.goals;
+  } else if (body.additional_info) {
     try {
-      const parsed = typeof body.additional_info === 'string' 
-        ? JSON.parse(body.additional_info) 
+      const parsed = typeof body.additional_info === 'string'
+        ? JSON.parse(body.additional_info)
         : body.additional_info;
       if (parsed?.goals && Array.isArray(parsed.goals)) {
-        return parsed.goals;
+        raw = parsed.goals;
       }
     } catch (e) {
       // Ignore parse errors
     }
   }
-  
-  return [];
+  return raw.map(normalizeGoalId);
 }
 
 function formatGoalsList(goalIds: string[], userToken: string | null): { html: string; text: string } {
@@ -61,9 +69,10 @@ function formatGoalsList(goalIds: string[], userToken: string | null): { html: s
   const htmlParts: string[] = [];
   const textParts: string[] = [];
   
-  goalIds.forEach((id, index) => {
-    const goalName = goalLabels[id] || id;
-    const path = goalPaths[id] || '';
+  goalIds.forEach((id) => {
+    const canonicalId = normalizeGoalId(id);
+    const goalName = goalLabels[canonicalId] || id;
+    const path = goalPaths[canonicalId] || '';
     const hasValidToken = userToken && typeof userToken === 'string' && userToken.trim().length > 0;
     
     if (path && hasValidToken) {

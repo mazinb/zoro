@@ -447,34 +447,23 @@ export const BigPurchaseForm: React.FC<BigPurchaseFormProps> = ({
       <div className="mb-8 flex flex-row items-center justify-between gap-4">
         <h1 className={`text-2xl font-light tracking-tight ${theme.textClass}`}>Plan for Big Purchases</h1>
         <div className="flex-shrink-0 ml-auto">
-          {!userToken && (
-            <CurrencySelector
-              value={answers.currency}
-              onChange={(currency) => {
-                setAnswers((prev) => {
-                  const cleared: BigPurchaseAnswers = {
-                    ...prev,
-                    currency,
-                    // Clear currency-dependent numeric fields
-                    priceTag: null,
-                    currentProgress: null,
-                    recurringCost: null,
-                  };
-                  saveProgress(cleared);
-                  return cleared;
-                });
-              }}
-              darkMode={darkMode}
-            />
-          )}
-          {userToken && (
-            <CurrencySelector
-              value={answers.currency}
-              onChange={() => {}}
-              darkMode={darkMode}
-              disabled={true}
-            />
-          )}
+          <CurrencySelector
+            value={answers.currency}
+            onChange={(currency) => {
+              setAnswers((prev) => {
+                const cleared: BigPurchaseAnswers = {
+                  ...prev,
+                  currency,
+                  priceTag: null,
+                  currentProgress: null,
+                  recurringCost: null,
+                };
+                saveProgress(cleared);
+                return cleared;
+              });
+            }}
+            darkMode={darkMode}
+          />
         </div>
       </div>
 

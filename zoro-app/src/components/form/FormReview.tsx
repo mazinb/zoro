@@ -15,6 +15,10 @@ const goalLabels: Record<string, string> = {
   retirement: "Retirement planning",
 };
 
+function normalizeGoalId(goalId: string): string {
+  return goalId === 'retire' ? 'retirement' : goalId;
+}
+
 interface FormReviewProps {
   goals: string[];
   name: string;
@@ -101,7 +105,7 @@ export const FormReview: React.FC<FormReviewProps> = ({
                           : 'bg-blue-100 text-blue-700 border border-blue-200'
                         }`}
                     >
-                      {goalLabels[goalId] || goalId}
+                      {goalLabels[normalizeGoalId(goalId)] || goalId}
                     </span>
                   ))}
                 </div>

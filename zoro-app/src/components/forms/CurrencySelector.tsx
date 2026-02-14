@@ -67,7 +67,7 @@ export const CurrencySelector: React.FC<CurrencySelectorProps> = ({
             onClick={() => setIsOpen(false)}
           />
           <div
-            className={`absolute z-20 mt-2 rounded-lg shadow-xl border min-w-[200px] ${
+            className={`absolute right-0 z-20 mt-2 rounded-lg shadow-xl border min-w-[200px] ${
               darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'
             }`}
           >

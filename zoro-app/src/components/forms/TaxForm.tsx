@@ -462,32 +462,21 @@ export const TaxForm: React.FC<TaxFormProps> = ({
       <div className="mb-8 flex flex-row items-center justify-between gap-4">
         <h1 className={`text-2xl font-light tracking-tight ${theme.textClass}`}>Tax Optimization</h1>
         <div className="flex-shrink-0 ml-auto">
-          {!userToken && (
-            <CurrencySelector
-              value={answers.currency}
-              onChange={(currency) => {
-                setAnswers((prev) => {
-                  const cleared: TaxAnswers = {
-                    ...prev,
-                    currency,
-                    // Clear currency-dependent numeric fields
-                    grossIncome: null,
-                  };
-                  saveProgress(cleared);
-                  return cleared;
-                });
-              }}
-              darkMode={darkMode}
-            />
-          )}
-          {userToken && (
-            <CurrencySelector
-              value={answers.currency}
-              onChange={() => {}}
-              darkMode={darkMode}
-              disabled={true}
-            />
-          )}
+          <CurrencySelector
+            value={answers.currency}
+            onChange={(currency) => {
+              setAnswers((prev) => {
+                const cleared: TaxAnswers = {
+                  ...prev,
+                  currency,
+                  grossIncome: null,
+                };
+                saveProgress(cleared);
+                return cleared;
+              });
+            }}
+            darkMode={darkMode}
+          />
         </div>
       </div>
 

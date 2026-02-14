@@ -132,7 +132,9 @@ export async function POST(request: NextRequest) {
       };
     } else {
       // New landing/onboarding flow: goals + details
-      const goals: string[] = Array.isArray(body.goals) ? body.goals : [];
+      // Normalize goal ids so "retire" is stored as "retirement" (canonical id)
+      const rawGoals: string[] = Array.isArray(body.goals) ? body.goals : [];
+      const goals: string[] = rawGoals.map((id) => (id === 'retire' ? 'retirement' : id));
       const primaryGoal = goals[0] || 'not_set';
 
       const enrichedAdditionalInfo = {

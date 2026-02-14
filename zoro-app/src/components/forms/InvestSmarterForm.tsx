@@ -511,32 +511,21 @@ export const InvestSmarterForm: React.FC<InvestSmarterFormProps> = ({
       <div className="mb-8 flex flex-row items-center justify-between gap-4">
         <h1 className={`text-2xl font-light tracking-tight ${theme.textClass}`}>Invest Smarter</h1>
         <div className="flex-shrink-0 ml-auto">
-          {!userToken && (
-            <CurrencySelector
-              value={answers.currency}
-              onChange={(currency) => {
-                setAnswers((prev) => {
-                  const cleared: InvestAnswers = {
-                    ...prev,
-                    currency,
-                    // Clear currency-dependent numeric fields
-                    contribution: null,
-                  };
-                  saveProgress(cleared);
-                  return cleared;
-                });
-              }}
-              darkMode={darkMode}
-            />
-          )}
-          {userToken && (
-            <CurrencySelector
-              value={answers.currency}
-              onChange={() => {}}
-              darkMode={darkMode}
-              disabled={true}
-            />
-          )}
+          <CurrencySelector
+            value={answers.currency}
+            onChange={(currency) => {
+              setAnswers((prev) => {
+                const cleared: InvestAnswers = {
+                  ...prev,
+                  currency,
+                  contribution: null,
+                };
+                saveProgress(cleared);
+                return cleared;
+              });
+            }}
+            darkMode={darkMode}
+          />
         </div>
       </div>
 

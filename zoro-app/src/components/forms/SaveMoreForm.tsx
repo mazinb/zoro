@@ -181,34 +181,23 @@ export const SaveMoreForm: React.FC<SaveMoreFormProps> = ({
       <div className="mb-8 flex flex-row items-center justify-between gap-4">
         <h1 className={`text-2xl font-light tracking-tight ${theme.textClass}`}>Save More Consistently</h1>
         <div className="flex-shrink-0 ml-auto">
-          {!userToken && (
-            <CurrencySelector
-              value={answers.currency}
-              onChange={(currency) => {
-                setAnswers((prev) => {
-                  const cleared: SaveMoreAnswers = {
-                    ...prev,
-                    currency,
-                    // Clear currency-dependent numeric fields so user re-enters with new units
-                    currentSurplus: null,
-                    existingCash: null,
-                  };
-                  // Persist cleared values
-                  saveProgress(cleared);
-                  return cleared;
-                });
-              }}
-              darkMode={darkMode}
-            />
-          )}
-          {userToken && (
-            <CurrencySelector
-              value={answers.currency}
-              onChange={() => {}}
-              darkMode={darkMode}
-              disabled={true}
-            />
-          )}
+          <CurrencySelector
+            value={answers.currency}
+            onChange={(currency) => {
+              setAnswers((prev) => {
+                const cleared: SaveMoreAnswers = {
+                  ...prev,
+                  currency,
+                  // Clear currency-dependent numeric fields so user re-enters with new units
+                  currentSurplus: null,
+                  existingCash: null,
+                };
+                saveProgress(cleared);
+                return cleared;
+              });
+            }}
+            darkMode={darkMode}
+          />
         </div>
       </div>
 
