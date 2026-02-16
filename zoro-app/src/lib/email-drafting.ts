@@ -123,6 +123,8 @@ While we do, I'd be happy to schedule a 15 min call to get you set up and schedu
 
 Or simply reply to this email to interact with our agent.
 
+You can ask about your goals, general money questions, set up reminders, or how I work.
+
 Thanks,
 Zoro
 
@@ -132,6 +134,9 @@ ${ONBOARDING_MEETING_LINK}`;
     textContent = `Thanks for sharing your goals!
 You're #${waitlistPosition} on our waitlist. We are still building Zoro but want to give you a peak.
 Simply reply to this email to interact with our agent.
+
+You can ask about your goals, general money questions, set up reminders, or how I work.
+
 — Zoro`;
   }
 

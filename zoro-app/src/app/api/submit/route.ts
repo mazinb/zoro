@@ -324,9 +324,9 @@ export async function POST(request: NextRequest) {
         const pos = typeof waitlistPosition === 'number' ? waitlistPosition : 0;
         let fallbackText: string;
         if (pos <= 10) {
-          fallbackText = `Hi ${body.name || 'there'}\n\nThanks for sharing your goals!\n\nYou're #${pos} on our waitlist. We are still building Zoro.\n\nWhile we do, I'd be happy to schedule a 15 min call to get you set up and schedule customized follow ups to make sure you stay on track.\n\nOr simply reply to this email to interact with our agent.\n\nThanks,\nZoro\n\nhttps://calendly.com/mazinb/15min`;
+          fallbackText = `Hi ${body.name || 'there'}\n\nThanks for sharing your goals!\n\nYou're #${pos} on our waitlist. We are still building Zoro.\n\nWhile we do, I'd be happy to schedule a 15 min call to get you set up and schedule customized follow ups to make sure you stay on track.\n\nOr simply reply to this email to interact with our agent.\n\nYou can ask about your goals, general money questions, set up reminders, or how I work.\n\nThanks,\nZoro\n\nhttps://calendly.com/mazinb/15min`;
         } else {
-          fallbackText = `Thanks for sharing your goals!\nYou're #${pos} on our waitlist. We are still building Zoro but want to give you a peak.\nSimply reply to this email to interact with our agent.\n— Zoro`;
+          fallbackText = `Thanks for sharing your goals!\nYou're #${pos} on our waitlist. We are still building Zoro but want to give you a peak.\nSimply reply to this email to interact with our agent.\n\nYou can ask about your goals, general money questions, set up reminders, or how I work.\n\n— Zoro`;
         }
         draftEmail = {
           text: fallbackText,
