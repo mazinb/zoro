@@ -67,7 +67,7 @@ export const PhilosophyPage: React.FC<PhilosophyPageProps> = ({
             A calmer, clearer way to build wealth
           </h2>
           <p className={`text-xl ${theme.textSecondaryClass} max-w-3xl mx-auto`}>
-            Master your behavior to build wealth.
+            What matters to us and how Zoro works
           </p>
         </div>
 
@@ -76,53 +76,58 @@ export const PhilosophyPage: React.FC<PhilosophyPageProps> = ({
           <div className="space-y-4">
             <h3 className={`text-2xl font-bold ${theme.textClass}`}>Clarity beats complexity</h3>
             <p className={`text-lg ${theme.textSecondaryClass}`}>
-              We focus on the three numbers that drive 90% of outcomes: your income, your monthly spend, and your net worth. When these move in the right direction, your goals follow.
-            </p>
-            <p className={`text-lg ${theme.textSecondaryClass}`}>
-              A simple plan you actually review every 90 days is far more effective than a &quot;perfect&quot; plan that gathers dust. We make it easy to track a few priority goals, build a 6–12 month emergency runway, and target a retirement corpus of 25x–30x your annual expenses.
+              We focus on the three numbers that drive outcomes: what you earn, what you spend and what you keep. When these move in the right direction, your financial goals follow. We believe that a simple plan you actually review every 90 days is far more effective than a &quot;perfect&quot; plan that gathers dust. We make it easy to track a few priority goals and work on them.
             </p>
           </div>
 
           <div className="space-y-4">
-            <h3 className={`text-2xl font-bold ${theme.textClass}`}>The math of freedom</h3>
+            <h3 className={`text-2xl font-bold ${theme.textClass}`}>Redefining True Wealth</h3>
             <p className={`text-lg ${theme.textSecondaryClass}`}>
-              The &quot;25x Rule&quot; is a practical way to calculate when work becomes optional. In a market like India, the key is understanding your Real Return.
+              Ultimately, the goal isn&apos;t just to accumulate digits in a bank account but to buy back your time. It&apos;s about reaching a point where work becomes optional, not mandatory. This isn&apos;t about perfectly timing the market but building a portfolio large enough that your real returns (what you earn minus the rising cost of living) comfortably cover your lifestyle.
             </p>
             <p className={`text-lg ${theme.textSecondaryClass}`}>
-              If your portfolio earns 10% but inflation is 6%, your real gain is 4%. To live comfortably without touching your principal, you need a corpus large enough that this 4% gap covers your lifestyle. For most people, that means saving 25 to 30 times what they spend in a year. We help you find your specific &quot;X&quot; so you can stop guessing and start building.
+              It&apos;s important to remember that money&apos;s greatest intrinsic value is the ability to give you control over your time. True wealth is being able to wake up every morning and say, &quot;I can do whatever I want today.&quot; When you stop working for money and start letting your money work for you, the entire game changes. It&apos;s no longer about endless hustle. It&apos;s about freedom.
+            </p>
+            <p className={`text-lg ${theme.textSecondaryClass}`}>
+              Once you hit that milestone where work becomes truly optional, the anxiety of accumulation fades, but it is often replaced by a new, subtle fear of losing what you have. Getting money requires taking risks and being optimistic, but keeping money requires the exact opposite: humility and a healthy fear that what you&apos;ve built could be taken away.
+            </p>
+            <p className={`text-lg ${theme.textSecondaryClass}`}>
+              This is where most people fail. They try to apply the &quot;growth&quot; mindset to a &quot;preservation&quot; phase. Just like a professional athlete needs a coach to refine their form even when they are at the top of their game, you need a partner to protect you from your own biases.
             </p>
           </div>
 
           <div className="space-y-4">
             <h3 className={`text-2xl font-bold ${theme.textClass}`}>Advisory models and incentives</h3>
             <p className={`text-lg ${theme.textSecondaryClass}`}>
-              Financial success is often more about endurance than intensity. To stay in the game, you need to understand how the advice you receive is funded.
-            </p>
-            <p className={`text-lg ${theme.textSecondaryClass}`}>
-              The US market has largely moved toward a &quot;Fiduciary&quot; standard where advisors are required to put your interests first. India is currently making this transition. As the market matures, it is vital to know how your advisor is compensated.
+              Financial success is often more about endurance than intensity. To stay in the game, you need to understand how the &quot;referees&quot; are paid.
             </p>
             <ul className={`text-lg ${theme.textSecondaryClass} space-y-3 list-disc pl-6`}>
-              <li><strong className={theme.textClass}>Fee-Only Advisors:</strong> You pay a flat fee for a roadmap. Their incentive is not tied to your outcomes and long-term success.</li>
-              <li><strong className={theme.textClass}>AUM-Based Advisors:</strong> They charge a percentage of your total assets, usually between 0.5% and 1.5%. They grow when you grow, which aligns your interests, though they may prefer you keep your money invested rather than spending it on major life goals.</li>
-              <li><strong className={theme.textClass}>Commission-Led Distributors:</strong> The advice is often free because they earn commissions from the products you buy. This is the most common model in India, but it can create an incentive for constant movement or complexity.</li>
+              <li><strong className={theme.textClass}>Commission-Led Distributors:</strong> The free model, they earn commissions from the products you buy. Incentivised by commissions and sign-up bonuses</li>
+              <li><strong className={theme.textClass}>AUM-Based Advisors:</strong> They grow when you grow, which aligns interests, but they may prefer you keep your money invested. The fees also add up quickly over time</li>
+              <li><strong className={theme.textClass}>Fee-Only Advisors:</strong> You pay for the roadmap. There are only about 1,000 RIAs in India serving a billion people. Quality varies and is manual and time-consuming</li>
             </ul>
+          </div>
+
+          <div className="space-y-4">
+            <h3 className={`text-2xl font-bold ${theme.textClass}`}>How Zoro works</h3>
             <p className={`text-lg ${theme.textSecondaryClass}`}>
-              Everyone has their preference, but we believe that building wealth is a soft skill.
+              Zoro is designed to bridge the gap between financial intention and daily action through a simple, email based interface. Here is the process:
             </p>
+            <ul className={`text-lg ${theme.textSecondaryClass} space-y-3 list-disc pl-6`}>
+              <li><strong className={theme.textClass}>Intent Mapping:</strong> When you email Zoro, the agent analyzes the text to understand your specific financial intent (e.g., &quot;I just got a bonus,&quot; &quot;I need to update my insurance,&quot; or &quot;Review my portfolio&quot;).</li>
+              <li><strong className={theme.textClass}>Contextual Analysis:</strong> Zoro reviews your saved structured data income, expenses, and current net worth to ensure advice is personalised to your situation.</li>
+              <li><strong className={theme.textClass}>Actionable Drafting:</strong> Zoro drafts a response that isn&apos;t just advice, but a next step. This reply often includes a customized link to: securely update a specific data point, review a curated summary of your last 90 days, or adjust your priority goals.</li>
+              <li><strong className={theme.textClass}>Data Integration (coming soon):</strong> With your permission, Zoro scans your inbox to automatically update your tracking sheet, turning manual data entry into a passive process.</li>
+            </ul>
           </div>
 
           <div className="space-y-4">
             <h3 className={`text-2xl font-bold ${theme.textClass}`}>Where Zoro fits</h3>
             <p className={`text-lg ${theme.textSecondaryClass}`}>
-              Zoro is your personal system for consistency. We don&apos;t sell products or take commissions. We simply provide the framework to turn complex financial decisions into small, trackable actions.
+              Zoro isn&apos;t another app to check stock prices. It is a behavioural interface designed to turn &quot;I should do this&quot; into &quot;I have done this.&quot; Think of Zoro as your system for consistency. We don&apos;t sell products or take commissions. We simply provide the framework to keep you on track.
             </p>
-            <ul className={`text-lg ${theme.textSecondaryClass} space-y-3 list-disc pl-6`}>
-              <li><strong className={theme.textClass}>Survival First:</strong> We prioritize your emergency runway so you never have to sell your long-term investments during a market dip.</li>
-              <li><strong className={theme.textClass}>Quarterly Pulse:</strong> We move your focus away from daily market noise and toward meaningful 90-day progress.</li>
-              <li><strong className={theme.textClass}>Behavioral Support:</strong> We act as the neutral ground where you can see your entire financial life in one place.</li>
-            </ul>
             <p className={`text-lg ${theme.textSecondaryClass}`}>
-              The goal is not just to be wealthy. The goal is to build a life where you are in control of your own time.
+              <strong className={theme.textClass}>Privacy First:</strong> You will only hear from us if you email us first or if you specifically ask for a reminder or follow-up. We never spam.
             </p>
           </div>
         </div>
