@@ -330,7 +330,7 @@ export const RetirementCalculator: React.FC<RetirementCalculatorProps> = ({
             </div>
             <h2 className={`text-2xl font-light mb-2 ${theme.textClass}`}>You're all set!</h2>
             <p className={theme.textSecondaryClass}>
-              We'll review this and reply manually.
+              Thank you, let us continue the conversation over email
             </p>
           </div>
         </div>
