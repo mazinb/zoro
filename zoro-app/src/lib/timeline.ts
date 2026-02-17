@@ -15,26 +15,26 @@ export const TIMELINE_MILESTONES: TimelineMilestone[] = [
   {
     count: 10,
     displayCount: '10',
-    title: 'First 10',
-    description: 'Comprehensive portfolio review and quarterly planning with the team',
+    title: 'Dedicated 1-on-1 Portfolio Strategy',
+    description: 'Get a comprehensive portfolio review and customized quarterly planning directly from our team to set your foundation.',
   },
   {
     count: 100,
     displayCount: '100',
-    title: 'First 100',
-    description: 'Email based protfolio review and quarterly planning free for 1 year',
+    title: 'AI-Powered Portfolio Insights & Human Review',
+    description: 'Receive AI-generated portfolio reviews via email, validated by our experts, with quarterly planning free for one year.',
   },
   {
     count: 1000,
     displayCount: '1k',
-    title: 'First 1,000',
-    description: 'We take the RIA exam and offer AI powered comprehensive planning free for 1 year',
+    title: 'Registered Investment Advice & AI Planning',
+    description: 'Once we obtain our RIA license, get free access to AI-powered comprehensive financial planning and tailored portfolio updates for one year.',
   },
   {
     count: 10000,
     displayCount: '10k',
-    title: 'First 10,000',
-    description: 'Launch as a paid app in the app and play stores, free for life, only for early adopters',
+    title: 'Lifetime Access to Paid App',
+    description: 'Secure a free-for-life subscription to our mobile app, including RIA-backed stock insights and goal-based portfolio balancing.',
   },
 ];
 

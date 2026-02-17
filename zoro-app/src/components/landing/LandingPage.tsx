@@ -200,15 +200,21 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               const isCurrent = milestone.status === 'current';
               const isUpcoming = milestone.status === 'upcoming';
               const badgeClass = isComplete
-                ? 'bg-green-600 text-white'
+                ? 'bg-green-600 text-white border-2 border-green-300 dark:border-green-400/70'
                 : isCurrent
-                  ? 'bg-blue-600 text-white'
+                  ? 'bg-blue-600 text-white border-2 border-blue-300 dark:border-blue-400/70'
                   : '';
+
+              const boxOutlineClass = isComplete
+                ? 'border-2 border-green-200 dark:border-green-500/50'
+                : isCurrent
+                  ? 'border-2 border-blue-200 dark:border-blue-500/50'
+                  : theme.borderClass;
 
               return (
                 <div
                   key={milestone.count}
-                  className={`flex gap-6 p-6 rounded-2xl border ${theme.borderClass} ${
+                  className={`relative flex items-center gap-4 md:gap-6 p-4 md:p-6 rounded-2xl border overflow-visible ${boxOutlineClass} ${
                     isUpcoming
                       ? darkMode
                         ? 'bg-slate-800/50 opacity-75'
@@ -218,23 +224,32 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                         : 'bg-white'
                   }`}
                 >
-                  <div
-                    className={`flex-shrink-0 w-12 h-12 ${
-                      isUpcoming ? upcomingNumberClass : numberBgClass
-                    } rounded-full flex items-center justify-center font-bold text-lg`}
-                  >
-                    {milestone.displayCount}
+                  {!isUpcoming && (
+                    <span
+                      className={`absolute top-0 left-[2.25rem] md:left-12 -translate-x-1/2 -translate-y-1/2 text-xs md:text-sm font-medium px-2.5 md:px-3 py-1 md:py-1.5 rounded-full whitespace-nowrap z-10 shadow-sm ${badgeClass}`}
+                    >
+                      {isComplete ? 'Complete' : 'Current'}
+                    </span>
+                  )}
+                  <div className="w-10 h-10 md:w-12 md:h-12 flex-shrink-0 flex items-center justify-center">
+                    <div
+                      className={`w-10 h-10 md:w-12 md:h-12 ${
+                        isUpcoming ? upcomingNumberClass : numberBgClass
+                      } rounded-full flex items-center justify-center font-bold text-sm md:text-base`}
+                    >
+                      {milestone.displayCount}
+                    </div>
                   </div>
-                  <div>
-                    <h3 className={`text-xl font-bold ${theme.textClass} mb-2 flex items-center gap-2`}>
+                  <div className="min-w-0 flex-1">
+                    <h3
+                      className={`font-bold ${theme.textClass} whitespace-nowrap md:whitespace-normal overflow-hidden text-ellipsis md:overflow-visible`}
+                      style={{ fontSize: 'clamp(0.625rem, 2.8vw, 1rem)' }}
+                    >
                       {milestone.title}
-                      {!isUpcoming && (
-                        <span className={`text-xs px-2 py-1 rounded-full ${badgeClass}`}>
-                          {isComplete ? 'Complete' : 'Current'}
-                        </span>
-                      )}
                     </h3>
-                    <p className={theme.textSecondaryClass}>{milestone.description}</p>
+                    <p className={`hidden md:block text-sm ${theme.textSecondaryClass} mt-1 leading-snug`}>
+                      {milestone.description}
+                    </p>
                   </div>
                 </div>
               );
