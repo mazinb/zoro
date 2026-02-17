@@ -205,16 +205,19 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                   ? 'bg-blue-600 text-white border-2 border-blue-300 dark:border-blue-400/70'
                   : '';
 
-              const boxOutlineClass = isComplete
-                ? 'border-2 border-green-200 dark:border-green-500/50'
-                : isCurrent
-                  ? 'border-2 border-blue-200 dark:border-blue-500/50'
-                  : theme.borderClass;
+              // Old milestone titles for mobile
+              const oldTitle = milestone.count === 10 
+                ? 'First 10'
+                : milestone.count === 100
+                ? 'First 100'
+                : milestone.count === 1000
+                ? 'First 1,000'
+                : 'First 10,000';
 
               return (
                 <div
                   key={milestone.count}
-                  className={`relative flex items-center gap-4 md:gap-6 p-4 md:p-6 rounded-2xl border overflow-visible ${boxOutlineClass} ${
+                  className={`relative flex flex-col md:flex-row md:items-center gap-4 md:gap-6 p-4 md:p-6 rounded-2xl border overflow-visible ${theme.borderClass} ${
                     isUpcoming
                       ? darkMode
                         ? 'bg-slate-800/50 opacity-75'
@@ -224,30 +227,45 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                         : 'bg-white'
                   }`}
                 >
+                  {/* Desktop: Badge above number */}
                   {!isUpcoming && (
                     <span
-                      className={`absolute top-0 left-[2.25rem] md:left-12 -translate-x-1/2 -translate-y-1/2 text-xs md:text-sm font-medium px-2.5 md:px-3 py-1 md:py-1.5 rounded-full whitespace-nowrap z-10 shadow-sm ${badgeClass}`}
+                      className={`hidden md:block absolute top-0 left-[2.25rem] md:left-12 -translate-x-1/2 -translate-y-1/2 text-xs md:text-sm font-medium px-2.5 md:px-3 py-1 md:py-1.5 rounded-full whitespace-nowrap z-10 shadow-sm ${badgeClass}`}
                     >
                       {isComplete ? 'Complete' : 'Current'}
                     </span>
                   )}
-                  <div className="w-10 h-10 md:w-12 md:h-12 flex-shrink-0 flex items-center justify-center">
-                    <div
-                      className={`w-10 h-10 md:w-12 md:h-12 ${
-                        isUpcoming ? upcomingNumberClass : numberBgClass
-                      } rounded-full flex items-center justify-center font-bold text-sm md:text-base`}
-                    >
-                      {milestone.displayCount}
+                  <div className="flex items-center gap-4 md:gap-0">
+                    <div className="w-10 h-10 md:w-12 md:h-12 flex-shrink-0 flex items-center justify-center">
+                      <div
+                        className={`w-10 h-10 md:w-12 md:h-12 ${
+                          isUpcoming ? upcomingNumberClass : numberBgClass
+                        } rounded-full flex items-center justify-center font-bold text-sm md:text-base`}
+                      >
+                        {milestone.displayCount}
+                      </div>
+                    </div>
+                    {/* Mobile: Old title with badge, then new title below */}
+                    <div className="flex-1 md:hidden">
+                      <h3 className={`text-base font-bold ${theme.textClass} flex items-center gap-2 flex-wrap`}>
+                        <span>{oldTitle}</span>
+                        {!isUpcoming && (
+                          <span className={`text-xs px-2 py-1 rounded-full whitespace-nowrap ${badgeClass}`}>
+                            {isComplete ? 'Complete' : 'Current'}
+                          </span>
+                        )}
+                      </h3>
+                      <p className={`text-sm ${theme.textSecondaryClass} mt-1`}>
+                        {milestone.title}
+                      </p>
                     </div>
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <h3
-                      className={`font-bold ${theme.textClass} whitespace-nowrap md:whitespace-normal overflow-hidden text-ellipsis md:overflow-visible`}
-                      style={{ fontSize: 'clamp(0.625rem, 2.8vw, 1rem)' }}
-                    >
+                  {/* Desktop: Title and description */}
+                  <div className="hidden md:block min-w-0 flex-1">
+                    <h3 className={`text-base font-bold ${theme.textClass}`}>
                       {milestone.title}
                     </h3>
-                    <p className={`hidden md:block text-sm ${theme.textSecondaryClass} mt-1 leading-snug`}>
+                    <p className={`text-sm ${theme.textSecondaryClass} mt-1 leading-snug`}>
                       {milestone.description}
                     </p>
                   </div>
