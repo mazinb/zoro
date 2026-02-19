@@ -21,12 +21,12 @@ export const countryData: Record<string, CountryData> = {
     multiplier: 1.0, 
     currency: '฿',
     buckets: {
-      housing: { value: 600, label: 'Housing & Utilities', min: 300, max: 2000, step: 50 },
-      food: { value: 400, label: 'Food & Dining', min: 200, max: 1000, step: 50 },
-      transportation: { value: 200, label: 'Transportation', min: 100, max: 800, step: 25 },
-      healthcare: { value: 300, label: 'Healthcare & Insurance', min: 150, max: 1000, step: 50 },
-      entertainment: { value: 250, label: 'Entertainment & Leisure', min: 100, max: 800, step: 25 },
-      other: { value: 150, label: 'Other Expenses', min: 50, max: 500, step: 25 }
+      housing: { value: 15000, label: 'Housing & Utilities', min: 8000, max: 40000, step: 1000 },
+      food: { value: 10000, label: 'Food & Dining', min: 5000, max: 25000, step: 500 },
+      transportation: { value: 5000, label: 'Transportation', min: 2000, max: 15000, step: 500 },
+      healthcare: { value: 4000, label: 'Healthcare & Insurance', min: 1500, max: 12000, step: 500 },
+      entertainment: { value: 6000, label: 'Entertainment & Leisure', min: 2000, max: 15000, step: 500 },
+      other: { value: 4000, label: 'Other Expenses', min: 1000, max: 10000, step: 500 }
     }
   },
   'UAE': { 

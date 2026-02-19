@@ -13,6 +13,7 @@
     "listen:forms:dev": "nodemon --watch scripts/form-listener.ts --exec \"ts-node scripts/form-listener.ts\""
   },
   "dependencies": {
+    "@google/genai": "^1.41.0",
     "@supabase/supabase-js": "^2.78.0",
     "lucide-react": "^0.552.0",
     "next": "16.0.7",

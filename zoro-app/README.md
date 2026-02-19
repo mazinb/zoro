@@ -92,6 +92,8 @@ DELETE FROM user_data WHERE user_id IS NULL;
 - `RESEND_FROM` (default: `Zoro <admin@getzoro.com>`)
 - `SUBMISSION_NOTIFY_EMAIL`
 - `NEXT_PUBLIC_BASE_URL` (default: `https://www.getzoro.com`)
+- `GEMINI_API_KEY` (required for Expenses: PDF parsing and savings analysis)
+- `NEXT_PUBLIC_APP_URL` or `VERCEL_URL` (for magic-link emails; production URL)
 
 ## Development
 
@@ -100,3 +102,10 @@ npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000)
+
+## Deploy
+
+1. Set all environment variables in your host (Vercel, etc.).
+2. Build: `npm run build`
+3. Start: `npm start` (or use host’s build + start).
+4. For Expenses magic links, set `NEXT_PUBLIC_APP_URL` to your production URL (e.g. `https://www.getzoro.com`) so the email “Open form” button uses the correct origin.
