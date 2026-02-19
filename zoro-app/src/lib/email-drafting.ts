@@ -103,47 +103,51 @@ function formatGoalsList(goalIds: string[], userToken: string | null): { html: s
   return { html, text };
 }
 
-const ONBOARDING_MEETING_LINK = 'https://calendly.com/mazinb/15min';
-
 export async function buildDraftResponseEmail(body: Record<string, any>) {
   const userName = body.name || 'there';
   const waitlistPosition = body.waitlistPosition ?? 0;
+  const userToken = body.userToken || body.token || '';
+  const baseUrl = getBaseUrl();
+  const expensesUrl = userToken ? `${baseUrl}/expenses?token=${encodeURIComponent(userToken)}` : '';
 
   let textContent: string;
 
   if (waitlistPosition <= 10) {
-    // First 10 users get the full message with link
     textContent = `Hi ${userName},
 
 Thanks for sharing your goals!
 
 You're #${waitlistPosition} on our waitlist. We are still building Zoro.
 
-While we do, I'd be happy to schedule a 15 min call to get you set up and schedule customized follow ups to make sure you stay on track.
+Simply reply to this email to interact with our agent. You can ask about your goals, general money questions, set up reminders, or how I work.
 
-Or simply reply to this email to interact with our agent.
-
-You can ask about your goals, general money questions, set up reminders, or how I work.
+Let's get started with your expenses: ${expensesUrl || baseUrl + '/expenses'}
 
 Thanks,
-Zoro
-
-${ONBOARDING_MEETING_LINK}`;
+Zoro`;
   } else {
-    // Users #11+ get simplified message without link
     textContent = `Thanks for sharing your goals!
 You're #${waitlistPosition} on our waitlist. We are still building Zoro but want to give you a peak.
 Simply reply to this email to interact with our agent.
 
 You can ask about your goals, general money questions, set up reminders, or how I work.
 
+Let's get started with your expenses: ${expensesUrl || baseUrl + '/expenses'}
+
 — Zoro`;
   }
 
-  // Plain text only: html is same content with newlines as <br> for display
   const htmlContent = textContent
     .split('\n')
-    .map((line) => escapeHtml(line))
+    .map((line) => {
+      if (line.includes("Let's get started with your expenses")) {
+        if (expensesUrl) {
+          return `<p style="margin:24px 0"><a href="${escapeHtml(expensesUrl)}" style="display:inline-block;background:#2563eb;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600">Let's get started with your expenses</a></p><p style="color:#64748b;font-size:14px">Or copy this link: ${escapeHtml(expensesUrl)}</p>`;
+        }
+        return `<p>Let's get started with your expenses: <a href="${escapeHtml(baseUrl + '/expenses')}">${escapeHtml(baseUrl + '/expenses')}</a></p>`;
+      }
+      return escapeHtml(line);
+    })
     .join('<br>\n');
 
   return {

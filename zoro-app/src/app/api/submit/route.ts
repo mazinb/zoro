@@ -247,11 +247,11 @@ export async function POST(request: NextRequest) {
 
       const prettyJson = JSON.stringify(submissionSummary, null, 2);
       let draftEmail: { text: string; html: string } | null = null;
+      let userToken: string | null = null;
 
       try {
         // Get or generate user token from users table by email
         // Uses users.verification_token as the primary identifier
-        let userToken = null;
         if (normalizedEmail) {
           // Find user in users table
           const { data: user } = await anonClient
@@ -315,7 +315,7 @@ export async function POST(request: NextRequest) {
           ...body,
           email: normalizedEmail,
           waitlistPosition,
-          userToken: userToken
+          userToken,
         });
       } catch (error) {
         console.error('Failed to build draft response email:', error);
@@ -324,9 +324,11 @@ export async function POST(request: NextRequest) {
         const pos = typeof waitlistPosition === 'number' ? waitlistPosition : 0;
         let fallbackText: string;
         if (pos <= 10) {
-          fallbackText = `Hi ${body.name || 'there'}\n\nThanks for sharing your goals!\n\nYou're #${pos} on our waitlist. We are still building Zoro.\n\nWhile we do, I'd be happy to schedule a 15 min call to get you set up and schedule customized follow ups to make sure you stay on track.\n\nOr simply reply to this email to interact with our agent.\n\nYou can ask about your goals, general money questions, set up reminders, or how I work.\n\nThanks,\nZoro\n\nhttps://calendly.com/mazinb/15min`;
+          const expensesUrl = userToken ? `${process.env.NEXT_PUBLIC_BASE_URL || 'https://www.getzoro.com'}/expenses?token=${encodeURIComponent(userToken)}` : '';
+          fallbackText = `Hi ${body.name || 'there'}\n\nThanks for sharing your goals!\n\nYou're #${pos} on our waitlist. We are still building Zoro.\n\nSimply reply to this email to interact with our agent. You can ask about your goals, general money questions, set up reminders, or how I work.\n\nLet's get started with your expenses: ${expensesUrl || 'https://www.getzoro.com/expenses'}\n\nThanks,\nZoro`;
         } else {
-          fallbackText = `Thanks for sharing your goals!\nYou're #${pos} on our waitlist. We are still building Zoro but want to give you a peak.\nSimply reply to this email to interact with our agent.\n\nYou can ask about your goals, general money questions, set up reminders, or how I work.\n\n— Zoro`;
+          const expensesUrl = userToken ? `${process.env.NEXT_PUBLIC_BASE_URL || 'https://www.getzoro.com'}/expenses?token=${encodeURIComponent(userToken)}` : '';
+          fallbackText = `Thanks for sharing your goals!\nYou're #${pos} on our waitlist. We are still building Zoro but want to give you a peak.\nSimply reply to this email to interact with our agent.\n\nYou can ask about your goals, general money questions, set up reminders, or how I work.\n\nLet's get started with your expenses: ${expensesUrl || 'https://www.getzoro.com/expenses'}\n\n— Zoro`;
         }
         draftEmail = {
           text: fallbackText,

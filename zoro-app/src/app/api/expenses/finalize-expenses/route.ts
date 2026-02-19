@@ -45,10 +45,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'User not found.' }, { status: 404 });
   }
   if (user.expenses_used_at) {
-    return NextResponse.json(
-      { error: 'Already used', message: "You've already used the expenses analysis once." },
-      { status: 409 }
-    );
+    const last = new Date(user.expenses_used_at);
+    const now = new Date();
+    if (last.getFullYear() === now.getFullYear() && last.getMonth() === now.getMonth()) {
+      return NextResponse.json(
+        { error: 'One per month', message: 'You can upload one statement per month. Try again next month.' },
+        { status: 409 }
+      );
+    }
   }
 
   const { error: updateErr } = await supabase

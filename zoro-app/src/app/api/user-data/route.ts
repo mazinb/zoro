@@ -312,8 +312,8 @@ export async function POST(request: NextRequest) {
       updateData[`${formType}_answers`] = formData;
     }
 
-    // Handle expense buckets for retirement form
-    if (formType === 'retirement' && expenseBuckets) {
+    // Handle expense buckets for retirement or expenses form
+    if ((formType === 'retirement' || formType === 'expenses') && expenseBuckets) {
       updateData.retirement_expense_buckets = expenseBuckets;
     }
 
@@ -328,8 +328,8 @@ export async function POST(request: NextRequest) {
       ...updateData,
     };
 
-    // Add expense buckets for retirement form
-    if (formType === 'retirement' && expenseBuckets) {
+    // Add expense buckets for retirement or expenses form
+    if ((formType === 'retirement' || formType === 'expenses') && expenseBuckets) {
       upsertData.retirement_expense_buckets = expenseBuckets;
     }
 

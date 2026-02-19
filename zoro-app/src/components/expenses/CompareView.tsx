@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { ChevronDown, ChevronRight, FileText } from 'lucide-react';
 import { formatCurrency } from '@/components/retirement/utils';
 import type { ExpenseBucket } from '@/components/retirement/types';
@@ -36,6 +36,10 @@ interface CompareViewProps {
   darkMode: boolean;
   theme: ThemeClasses;
   userName?: string;
+  /** Save current estimates to DB (new table). When called from compare view, pass comparedToActuals: true. */
+  onSaveEstimatesToDb?: (buckets: Record<string, { value: number }>, comparedToActuals: boolean) => Promise<void>;
+  /** Optional token for saving to DB */
+  token?: string | null;
 }
 
 export function CompareView({
@@ -45,10 +49,35 @@ export function CompareView({
   darkMode,
   theme,
   userName,
+  onSaveEstimatesToDb,
+  token,
 }: CompareViewProps) {
   const [expandedBucket, setExpandedBucket] = useState<string | null>(null);
   const [report, setReport] = useState<string | null>(null);
   const [reportLoading, setReportLoading] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [revisedValues, setRevisedValues] = useState<Record<string, number>>(() => {
+    const out: Record<string, number> = {};
+    for (const k of BUCKET_KEYS) {
+      out[k] = estimatedBuckets[k]?.value ?? 0;
+    }
+    return out;
+  });
+
+  useEffect(() => {
+    setRevisedValues((prev) => {
+      const out = { ...prev };
+      let changed = false;
+      for (const k of BUCKET_KEYS) {
+        const v = estimatedBuckets[k]?.value ?? 0;
+        if (out[k] !== v) {
+          out[k] = v;
+          changed = true;
+        }
+      }
+      return changed ? out : prev;
+    });
+  }, [estimatedBuckets]);
 
   const numFiles = bucketsPerFile.length || 1;
 
@@ -68,6 +97,32 @@ export function CompareView({
   const hasData = bucketsPerFile.some(({ buckets }) =>
     BUCKET_KEYS.some((k) => (buckets[k]?.length ?? 0) > 0)
   );
+
+  const isUpdatingEstimates = useMemo(() => {
+    return BUCKET_KEYS.some(
+      (k) => (revisedValues[k] ?? 0) !== (estimatedBuckets[k]?.value ?? 0)
+    );
+  }, [revisedValues, estimatedBuckets]);
+
+  const handleRevisedChange = (bucket: string, value: number) => {
+    setRevisedValues((prev) => ({ ...prev, [bucket]: value }));
+  };
+
+  const handleSaveToDb = async () => {
+    if (!onSaveEstimatesToDb || !token) return;
+    setSaveStatus('saving');
+    try {
+      const bucketsToSave: Record<string, { value: number }> = {};
+      for (const k of BUCKET_KEYS) {
+        bucketsToSave[k] = { value: revisedValues[k] ?? estimatedBuckets[k]?.value ?? 0 };
+      }
+      await onSaveEstimatesToDb(bucketsToSave, true);
+      setSaveStatus('saved');
+      setTimeout(() => setSaveStatus('idle'), 2000);
+    } catch {
+      setSaveStatus('error');
+    }
+  };
 
   if (!hasData) {
     return (
@@ -110,34 +165,53 @@ export function CompareView({
     <div className={`p-6 rounded-lg ${darkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-gray-200'}`}>
       <h3 className={`text-xl font-light mb-2 ${theme.textClass}`}>Compare estimate vs actual</h3>
       <p className={`text-sm mb-4 ${theme.textSecondaryClass}`}>
-        Actual amounts are averaged across {numFiles} file{numFiles !== 1 ? 's' : ''}. Click a category to see expenses grouped by file. Green = within 10%, orange = over, blue = under.
+        Actual amounts are averaged across {numFiles} file{numFiles !== 1 ? 's' : ''}. You can enter revised estimates below (e.g. from actuals). Report uses your original estimates only. Click a category to see expenses by file. Green = within 10%, orange = over, blue = under.
       </p>
 
-      <div className="mb-6">
-        <button
-          type="button"
-          onClick={handleGetReport}
-          disabled={reportLoading}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white text-sm font-medium"
-        >
-          <FileText className="w-4 h-4" />
-          {reportLoading ? 'Generating…' : 'Get savings report'}
-        </button>
-        {(report !== null || reportLoading) && (
-          <div className={`mt-4 p-4 rounded-lg border ${darkMode ? 'border-slate-700 bg-slate-900/50' : 'border-gray-200 bg-gray-50'}`}>
+      <div className="mb-6 flex flex-wrap gap-3 items-center">
+        {!isUpdatingEstimates && (
+          <button
+            type="button"
+            onClick={handleGetReport}
+            disabled={reportLoading}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white text-sm font-medium"
+          >
+            <FileText className="w-4 h-4" />
+            {reportLoading ? 'Generating…' : 'Get savings report'}
+          </button>
+        )}
+        {isUpdatingEstimates && (
+          <span className={`text-sm ${theme.textSecondaryClass}`}>
+            Report hidden while you edit estimates. Save or reset to original to see report.
+          </span>
+        )}
+        {onSaveEstimatesToDb && token && (
+          <button
+            type="button"
+            onClick={handleSaveToDb}
+            disabled={saveStatus === 'saving'}
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg border ${theme.borderClass ?? (darkMode ? 'border-slate-700' : 'border-gray-200')} ${theme.textClass} text-sm font-medium disabled:opacity-50`}
+          >
+            {saveStatus === 'saving' ? 'Saving…' : saveStatus === 'saved' ? 'Saved' : 'Save estimates to history'}
+          </button>
+        )}
+        {saveStatus === 'error' && <span className="text-sm text-red-500">Save failed</span>}
+      </div>
+      {(report !== null || reportLoading) && (
+        <div className={`mt-4 p-4 rounded-lg border ${darkMode ? 'border-slate-700 bg-slate-900/50' : 'border-gray-200 bg-gray-50'}`}>
             {reportLoading ? (
               <p className={theme.textSecondaryClass}>Generating report…</p>
             ) : (
               <p className={`text-sm whitespace-pre-wrap ${theme.textClass}`}>{report || 'No report returned.'}</p>
             )}
-          </div>
-        )}
-      </div>
+        </div>
+      )}
 
       <div className={`rounded-lg border ${darkMode ? 'border-slate-700' : 'border-gray-200'}`}>
         {BUCKET_KEYS.map((bucket) => {
           const estimated = estimatedBuckets[bucket]?.value ?? 0;
           const actual = actualTotals[bucket] ?? 0;
+          const revised = revisedValues[bucket] ?? estimated;
           const status = diffStatus(estimated, actual);
           const isExpanded = expandedBucket === bucket;
 
@@ -182,6 +256,27 @@ export function CompareView({
 
               {isExpanded && (
                 <div className={`px-4 pb-4 pt-0 ${darkMode ? 'bg-slate-800/50' : 'bg-gray-50/50'}`}>
+                  <div className="flex flex-wrap items-center gap-2 mb-3">
+                    <label className={`text-xs font-medium ${theme.textSecondaryClass}`}>
+                      Revised estimate (optional, input from actuals):
+                    </label>
+                    <input
+                      type="number"
+                      min={0}
+                      step={1}
+                      value={revised}
+                      onChange={(e) => handleRevisedChange(bucket, parseFloat(e.target.value) || 0)}
+                      className={`w-28 px-2 py-1 rounded border text-sm ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-300'} ${theme.textClass}`}
+                    />
+                    <span className={`text-xs ${theme.textSecondaryClass}`}>{currency}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRevisedChange(bucket, actual)}
+                      className={`text-xs underline ${theme.textSecondaryClass} hover:${theme.textClass}`}
+                    >
+                      Use actual (avg)
+                    </button>
+                  </div>
                   <div className={`rounded-lg border ${darkMode ? 'border-slate-700' : 'border-gray-200'} overflow-hidden`}>
                     <div className={`px-3 py-2 text-xs font-medium ${theme.textSecondaryClass} ${darkMode ? 'bg-slate-800' : 'bg-gray-100'}`}>
                       Actual expenses by file

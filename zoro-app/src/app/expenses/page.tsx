@@ -13,8 +13,8 @@ import type { BucketsPerFile } from '@/components/expenses/types';
 import { countryData, getCountriesSorted } from '@/components/retirement/countryData';
 
 const EXPENSES_TOKEN_KEY = 'zoro_expenses_token';
-const MAX_UPLOAD_FILES = 5;
 const DEFAULT_COUNTRY = 'India';
+const BUCKET_KEYS = ['housing', 'food', 'transportation', 'healthcare', 'entertainment', 'other'] as const;
 
 function getDefaultBuckets(country: string): Record<string, ExpenseBucket> {
   const data = countryData[country] ?? countryData['India'];
@@ -48,6 +48,7 @@ function ExpensesPageContent() {
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [userName, setUserName] = useState<string>('');
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [gateEmail, setGateEmail] = useState('');
   const [gateSending, setGateSending] = useState(false);
   const [gateMessage, setGateMessage] = useState<'idle' | 'sent' | 'not_registered' | 'error'>('idle');
@@ -63,6 +64,19 @@ function ExpensesPageContent() {
         if (cancelled) return;
         const data = json?.data;
         if (data?.name && typeof data.name === 'string') setUserName(data.name.trim());
+        const saved = data?.retirement_expense_buckets;
+        if (saved && typeof saved === 'object' && !Array.isArray(saved)) {
+          setBuckets((prev) => {
+            const next = { ...prev };
+            for (const k of BUCKET_KEYS) {
+              const v = saved[k];
+              if (v != null && typeof v === 'object' && typeof (v as { value?: number }).value === 'number' && next[k]) {
+                next[k] = { ...next[k], value: (v as { value: number }).value };
+              }
+            }
+            return next;
+          });
+        }
       } catch {
         if (!cancelled) setUserName('');
       }
@@ -89,15 +103,67 @@ function ExpensesPageContent() {
   }, []);
 
   const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const list = e.target.files;
-    if (!list) {
-      setUploadFiles([]);
-      return;
-    }
-    const arr = Array.from(list).filter((f) => f.type?.toLowerCase() === 'application/pdf').slice(0, MAX_UPLOAD_FILES);
-    setUploadFiles(arr);
+    const f = e.target.files?.[0];
+    setUploadFiles(f && f.type?.toLowerCase() === 'application/pdf' ? [f] : []);
     setUploadError(null);
   }, []);
+
+  const saveEstimatesWithBuckets = useCallback(
+    async (bucketsToSave: Record<string, ExpenseBucket>): Promise<boolean> => {
+      if (!token) return false;
+      try {
+        const res = await fetch('/api/user-data', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token,
+            formType: 'expenses',
+            expenseBuckets: bucketsToSave,
+          }),
+        });
+        return res.ok;
+      } catch {
+        return false;
+      }
+    },
+    [token]
+  );
+
+  const saveEstimatesToDb = useCallback(
+    async (bucketsToSave: Record<string, { value: number }>, comparedToActuals: boolean) => {
+      if (!token) return;
+      const res = await fetch('/api/expenses/estimates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token,
+          buckets: bucketsToSave,
+          comparedToActuals,
+        }),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(json.error ?? 'Save failed');
+      }
+    },
+    [token]
+  );
+
+  const saveEstimates = useCallback(async () => {
+    if (!token) return;
+    setSaveStatus('saving');
+    try {
+      await saveEstimatesWithBuckets(buckets);
+      await saveEstimatesToDb(
+        Object.fromEntries(BUCKET_KEYS.map((k) => [k, { value: buckets[k]?.value ?? 0 }])),
+        false
+      );
+      setSaveStatus('saved');
+      setTimeout(() => setSaveStatus('idle'), 2000);
+    } catch {
+      setSaveStatus('error');
+    }
+  }, [buckets, token, saveEstimatesWithBuckets, saveEstimatesToDb]);
 
   const handleSendMagicLink = useCallback(async () => {
     const email = gateEmail.trim().toLowerCase();
@@ -140,41 +206,36 @@ function ExpensesPageContent() {
       setUploadError('Session expired. Please use the link from your email again.');
       return;
     }
-    if (uploadFiles.length === 0) {
-      setUploadError('Select at least one PDF.');
+    const file = uploadFiles[0];
+    if (!file) {
+      setUploadError('Select a PDF.');
       return;
     }
     setUploading(true);
     setUploadError(null);
-    setUploadProgress(null);
-    const collected: BucketsPerFile[] = [];
-    const n = uploadFiles.length;
+    setUploadProgress('Processing…');
     try {
-      for (let i = 0; i < n; i++) {
-        setUploadProgress(`Parsing file ${i + 1}/${n}…`);
-        const formData = new FormData();
-        formData.append('token', token);
-        formData.append('file', uploadFiles[i]);
-        formData.append('fileName', `File ${i + 1}`);
-        const res = await fetch('/api/expenses/parse-one-file', {
-          method: 'POST',
-          body: formData,
-        });
-        const json = await res.json();
-        if (!res.ok) {
-          if (res.status === 409) {
-            setUploadError("You've already used the expenses analysis once.");
-            return;
-          }
-          setUploadError(json.error ?? json.message ?? `File ${i + 1} failed`);
+      const formData = new FormData();
+      formData.append('token', token);
+      formData.append('file', file);
+      formData.append('fileName', 'Statement');
+      const res = await fetch('/api/expenses/parse-one-file', {
+        method: 'POST',
+        body: formData,
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        if (res.status === 409) {
+          setUploadError(json.message ?? 'You can upload one statement per month. Try again next month.');
           return;
         }
-        const data = json.data;
-        if (data?.fileName != null && data?.buckets) {
-          collected.push({ fileName: data.fileName, buckets: data.buckets });
-        }
-        setUploadProgress(`Parsed ${i + 1}/${n} file${n !== 1 ? 's' : ''}`);
+        setUploadError(json.error ?? json.message ?? 'Upload failed');
+        return;
       }
+      const data = json.data;
+      const collected: BucketsPerFile[] = data?.fileName != null && data?.buckets
+        ? [{ fileName: data.fileName, buckets: data.buckets }]
+        : [];
       setUploadProgress('Finalizing…');
       const finalRes = await fetch('/api/expenses/finalize-expenses', {
         method: 'POST',
@@ -184,7 +245,7 @@ function ExpensesPageContent() {
       const finalJson = await finalRes.json();
       if (!finalRes.ok) {
         if (finalRes.status === 409) {
-          setUploadError("You've already used the expenses analysis once.");
+          setUploadError(finalJson.message ?? 'You can upload one statement per month. Try again next month.');
           return;
         }
         setUploadError(finalJson.error ?? 'Finalize failed');
@@ -370,14 +431,25 @@ function ExpensesPageContent() {
               darkMode={darkMode}
               theme={theme}
             />
-            <button
-              type="button"
-              onClick={() => setStep(1)}
-              disabled={!canProceedFromEstimate}
-              className="w-full py-4 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg transition-colors font-medium text-lg"
-            >
-              Continue to upload
-            </button>
+            <div className="mt-4 flex flex-wrap gap-3 items-center">
+              <button
+                type="button"
+                onClick={saveEstimates}
+                disabled={!token || saveStatus === 'saving'}
+                className={`py-2 px-4 rounded-lg border ${theme.borderClass} ${theme.textClass} disabled:opacity-50`}
+              >
+                {saveStatus === 'saving' ? 'Saving…' : saveStatus === 'saved' ? 'Saved' : 'Save estimates'}
+              </button>
+              {saveStatus === 'error' && <span className="text-sm text-red-500">Save failed</span>}
+              <button
+                type="button"
+                onClick={() => setStep(1)}
+                disabled={!canProceedFromEstimate}
+                className="py-4 px-6 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg transition-colors font-medium text-lg"
+              >
+                Continue to upload
+              </button>
+            </div>
           </>
         )}
 
@@ -389,18 +461,14 @@ function ExpensesPageContent() {
           >
             <h2 className={`text-xl font-light mb-2 ${theme.textClass}`}>Upload bank statement</h2>
             <p className={`text-sm mb-2 ${theme.textSecondaryClass}`}>
-              Compare your estimates to your statement. We extract expenses by category. You can upload up to {MAX_UPLOAD_FILES} PDFs.
+              Compare your estimates to your statement. We extract expenses by category. One PDF per month.
             </p>
             <p className={`text-sm mb-4 font-medium ${theme.textClass}`}>
-              We do not save your files. PDFs are processed and then discarded. You can use this analysis only once per account.
-            </p>
-            <p className={`text-sm mb-2 ${theme.textSecondaryClass}`}>
-              <strong>{uploadFiles.length}/{MAX_UPLOAD_FILES}</strong> files selected
+              We do not save your file. It is processed and then discarded. You can upload one statement per month.
             </p>
             <input
               type="file"
               accept="application/pdf"
-              multiple
               onChange={handleFileChange}
               className={`block w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-medium file:bg-blue-500 file:text-white hover:file:bg-blue-600 ${theme.textClass}`}
             />
@@ -432,14 +500,16 @@ function ExpensesPageContent() {
         )}
 
         {step === 2 && (
-          <CompareView
-            estimatedBuckets={buckets}
-            bucketsPerFile={bucketsPerFile}
-            currency={currency}
-            darkMode={darkMode}
-            theme={theme}
-            userName={userName}
-          />
+            <CompareView
+              estimatedBuckets={buckets}
+              bucketsPerFile={bucketsPerFile}
+              currency={currency}
+              darkMode={darkMode}
+              theme={theme}
+              userName={userName}
+              token={token}
+              onSaveEstimatesToDb={saveEstimatesToDb}
+            />
         )}
       </main>
     </div>

@@ -54,10 +54,10 @@ export async function POST(request: NextRequest) {
 
     const origin =
       process.env.NEXT_PUBLIC_APP_URL ||
-      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
+      (process.env.VERCEL_URL ? 'https://www.getzoro.com' : null) ||
       request.headers.get('origin') ||
       request.headers.get('referer')?.replace(/\/[^/]*$/, '') ||
-      'https://getzoro.com';
+      'https://www.getzoro.com';
     const actionUrl = `${origin.replace(/\/$/, '')}${redirectPath.startsWith('/') ? redirectPath : `/${redirectPath}`}?token=${encodeURIComponent(token)}`;
 
     const fromAddress = process.env.RESEND_FROM || 'Zoro <admin@getzoro.com>';

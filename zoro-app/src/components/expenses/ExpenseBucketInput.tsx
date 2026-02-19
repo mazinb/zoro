@@ -7,6 +7,7 @@ import { formatCurrency, isValueInRange, getTotalMonthlyExpenses } from '@/compo
 export type ThemeClasses = {
   textClass: string;
   textSecondaryClass: string;
+  borderClass?: string;
 };
 
 interface ExpenseBucketInputProps {
