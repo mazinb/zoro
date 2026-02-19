@@ -8,13 +8,41 @@ import { useDarkMode } from '@/hooks/useDarkMode';
 import { useThemeClasses } from '@/hooks/useThemeClasses';
 import { ExpenseBucketInput } from '@/components/expenses/ExpenseBucketInput';
 import { CompareView } from '@/components/expenses/CompareView';
+import { ReviewClassifyView } from '@/components/expenses/ReviewClassifyView';
 import type { ExpenseBucket } from '@/components/retirement/types';
 import type { BucketsPerFile } from '@/components/expenses/types';
 import { countryData, getCountriesSorted } from '@/components/retirement/countryData';
+import { formatCurrency } from '@/components/retirement/utils';
 
 const EXPENSES_TOKEN_KEY = 'zoro_expenses_token';
 const DEFAULT_COUNTRY = 'India';
 const BUCKET_KEYS = ['housing', 'food', 'transportation', 'healthcare', 'entertainment', 'other'] as const;
+
+function getMonthOptions(): { value: string; label: string }[] {
+  const out: { value: string; label: string }[] = [];
+  const now = new Date();
+  const fmt = new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' });
+  for (let i = 0; i <= 6; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    out.push({ value: `${y}-${m}`, label: fmt.format(d) });
+  }
+  return out;
+}
+
+function bucketsToTotals(buckets: Record<string, { value?: number }>): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const k of BUCKET_KEYS) {
+    const v = buckets[k];
+    out[k] = v != null && typeof (v as { value?: number }).value === 'number' ? (v as { value: number }).value : 0;
+  }
+  return out;
+}
+
+function sumBucketTotals(totals: Record<string, number>): number {
+  return BUCKET_KEYS.reduce((s, k) => s + (totals[k] ?? 0), 0);
+}
 
 function getDefaultBuckets(country: string): Record<string, ExpenseBucket> {
   const data = countryData[country] ?? countryData['India'];
@@ -36,9 +64,16 @@ function ExpensesPageContent() {
     const stored = typeof window !== 'undefined' ? sessionStorage.getItem(EXPENSES_TOKEN_KEY) : null;
     setTokenState(urlToken || stored || null);
   }, [searchParams]);
+  const monthOptions = useMemo(() => getMonthOptions(), []);
+  const [selectedMonth, setSelectedMonth] = useState<string>(() => monthOptions[0]?.value ?? '');
+  const [monthAlreadyImported, setMonthAlreadyImported] = useState(false);
+  const [selectedMonthData, setSelectedMonthData] = useState<{
+    buckets: Record<string, { value: number }>;
+  } | null>(null);
   const [step, setStep] = useState(0);
   const [country, setCountry] = useState(DEFAULT_COUNTRY);
   const [showCountryDropdown, setShowCountryDropdown] = useState(false);
+  const [sharedData, setSharedData] = useState<Record<string, unknown>>({});
   const [buckets, setBuckets] = useState<Record<string, ExpenseBucket>>(() =>
     getDefaultBuckets(DEFAULT_COUNTRY)
   );
@@ -49,6 +84,7 @@ function ExpensesPageContent() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [userName, setUserName] = useState<string>('');
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [saveMonthlyStatus, setSaveMonthlyStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [gateEmail, setGateEmail] = useState('');
   const [gateSending, setGateSending] = useState(false);
   const [gateMessage, setGateMessage] = useState<'idle' | 'sent' | 'not_registered' | 'error'>('idle');
@@ -64,6 +100,13 @@ function ExpensesPageContent() {
         if (cancelled) return;
         const data = json?.data;
         if (data?.name && typeof data.name === 'string') setUserName(data.name.trim());
+        if (data?.shared_data && typeof data.shared_data === 'object' && !Array.isArray(data.shared_data)) {
+          setSharedData(data.shared_data as Record<string, unknown>);
+          const c = (data.shared_data as Record<string, unknown>)?.expenses_country;
+          if (typeof c === 'string' && c.trim() && (countryData as Record<string, unknown>)[c.trim()]) {
+            setCountry(c.trim());
+          }
+        }
         const saved = data?.retirement_expense_buckets;
         if (saved && typeof saved === 'object' && !Array.isArray(saved)) {
           setBuckets((prev) => {
@@ -86,7 +129,50 @@ function ExpensesPageContent() {
     };
   }, [token]);
 
+  useEffect(() => {
+    if (!token || !selectedMonth) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(
+          `/api/expenses/monthly?token=${encodeURIComponent(token)}&month=${encodeURIComponent(selectedMonth)}`
+        );
+        const json = await res.json();
+        if (cancelled) return;
+        const data = json?.data;
+        setMonthAlreadyImported(!!data?.imported_at);
+        if (data?.buckets && typeof data.buckets === 'object' && !Array.isArray(data.buckets)) {
+          setSelectedMonthData({ buckets: data.buckets as Record<string, { value: number }> });
+        } else {
+          setSelectedMonthData(null);
+        }
+      } catch {
+        if (!cancelled) {
+          setMonthAlreadyImported(false);
+          setSelectedMonthData(null);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [token, selectedMonth]);
+
   const currency = countryData[country]?.currency ?? countryData['India'].currency;
+  const selectedMonthLabel = monthOptions.find((o) => o.value === selectedMonth)?.label ?? selectedMonth;
+
+  const estimateTotal = useMemo(
+    () => sumBucketTotals(Object.fromEntries(BUCKET_KEYS.map((k) => [k, buckets[k]?.value ?? 0]))),
+    [buckets]
+  );
+  const monthlySummary = useMemo(() => {
+    if (!selectedMonthData?.buckets) return null;
+    const totals = bucketsToTotals(selectedMonthData.buckets);
+    const monthlyTotal = sumBucketTotals(totals);
+    const diff = monthlyTotal - estimateTotal;
+    const pct = estimateTotal > 0 ? (diff / estimateTotal) * 100 : 0;
+    return { monthlyTotal, estimateTotal, diff, pct };
+  }, [selectedMonthData, estimateTotal]);
 
   const handleCountryChange = useCallback((newCountry: string) => {
     setCountry(newCountry);
@@ -119,6 +205,7 @@ function ExpensesPageContent() {
             token,
             formType: 'expenses',
             expenseBuckets: bucketsToSave,
+            sharedData: { ...sharedData, expenses_country: country },
           }),
         });
         return res.ok;
@@ -126,7 +213,7 @@ function ExpensesPageContent() {
         return false;
       }
     },
-    [token]
+    [token, sharedData, country]
   );
 
   const saveEstimatesToDb = useCallback(
@@ -218,7 +305,8 @@ function ExpensesPageContent() {
       const formData = new FormData();
       formData.append('token', token);
       formData.append('file', file);
-      formData.append('fileName', 'Statement');
+      formData.append('fileName', `Statement ${selectedMonthLabel}`);
+      formData.append('month', selectedMonth);
       const res = await fetch('/api/expenses/parse-one-file', {
         method: 'POST',
         body: formData,
@@ -226,31 +314,17 @@ function ExpensesPageContent() {
       const json = await res.json();
       if (!res.ok) {
         if (res.status === 409) {
-          setUploadError(json.message ?? 'You can upload one statement per month. Try again next month.');
+          setUploadError(json.message ?? 'This month was already imported. Edit totals manually.');
           return;
         }
         setUploadError(json.error ?? json.message ?? 'Upload failed');
         return;
       }
       const data = json.data;
-      const collected: BucketsPerFile[] = data?.fileName != null && data?.buckets
-        ? [{ fileName: data.fileName, buckets: data.buckets }]
-        : [];
-      setUploadProgress('Finalizing…');
-      const finalRes = await fetch('/api/expenses/finalize-expenses', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token }),
-      });
-      const finalJson = await finalRes.json();
-      if (!finalRes.ok) {
-        if (finalRes.status === 409) {
-          setUploadError(finalJson.message ?? 'You can upload one statement per month. Try again next month.');
-          return;
-        }
-        setUploadError(finalJson.error ?? 'Finalize failed');
-        return;
-      }
+      const collected: BucketsPerFile[] =
+        data?.fileName != null && data?.buckets
+          ? [{ fileName: data.fileName, buckets: data.buckets }]
+          : [];
       setBucketsPerFile(collected);
       setStep(2);
     } catch (e) {
@@ -259,7 +333,81 @@ function ExpensesPageContent() {
       setUploading(false);
       setUploadProgress(null);
     }
-  }, [token, uploadFiles]);
+  }, [token, uploadFiles, selectedMonth, selectedMonthLabel]);
+
+  const handleSaveMonthlyFinal = useCallback(
+    async (bucketsToSave: Record<string, { value: number }>) => {
+      if (!token) return;
+      setSaveMonthlyStatus('saving');
+      try {
+        const res = await fetch('/api/expenses/monthly', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token,
+            month: selectedMonth,
+            buckets: bucketsToSave,
+            finalizeImport: true,
+          }),
+        });
+        if (!res.ok) {
+          const json = await res.json().catch(() => ({}));
+          throw new Error(json.error ?? 'Save failed');
+        }
+        setSaveMonthlyStatus('saved');
+        setTimeout(() => setSaveMonthlyStatus('idle'), 2000);
+        setStep(3);
+      } catch {
+        setSaveMonthlyStatus('error');
+      }
+    },
+    [token, selectedMonth]
+  );
+
+  const handleViewAlreadyImported = useCallback(async () => {
+    if (!token || !selectedMonth) return;
+    try {
+      const res = await fetch(
+        `/api/expenses/monthly?token=${encodeURIComponent(token)}&month=${encodeURIComponent(selectedMonth)}`
+      );
+      const json = await res.json();
+      const data = json?.data;
+      if (data?.buckets) {
+        const totals = bucketsToTotals(data.buckets);
+        setBucketsPerFile([
+          {
+            fileName: selectedMonthLabel,
+            buckets: {},
+            bucketTotals: totals,
+          },
+        ]);
+        setStep(3);
+      }
+    } catch {
+      setUploadError('Failed to load month data.');
+    }
+  }, [token, selectedMonth, selectedMonthLabel]);
+
+  const handleSaveMonthlyTotals = useCallback(
+    async (bucketsToSave: Record<string, { value: number }>) => {
+      if (!token || !selectedMonth) return;
+      const res = await fetch('/api/expenses/monthly', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token,
+          month: selectedMonth,
+          buckets: bucketsToSave,
+          finalizeImport: false,
+        }),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(json.error ?? 'Update failed');
+      }
+    },
+    [token, selectedMonth]
+  );
 
   const canProceedFromEstimate = useMemo(() => {
     return Object.values(buckets).every((b) => typeof b.value === 'number' && !Number.isNaN(b.value));
@@ -459,26 +607,103 @@ function ExpensesPageContent() {
               darkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-gray-200'
             }`}
           >
-            <h2 className={`text-xl font-light mb-2 ${theme.textClass}`}>Upload bank statement</h2>
-            <p className={`text-sm mb-2 ${theme.textSecondaryClass}`}>
-              Compare your estimates to your statement. We extract expenses by category. One PDF per month.
+            <h2 className={`text-xl font-light mb-2 ${theme.textClass}`}>Statement by month</h2>
+            <p className={`text-sm mb-4 ${theme.textSecondaryClass}`}>
+              You can go back up to 6 months. Each month can be imported once; after that you edit totals manually.
             </p>
-            <p className={`text-sm mb-4 font-medium ${theme.textClass}`}>
-              We do not save your file. It is processed and then discarded. You can upload one statement per month.
-            </p>
-            <input
-              type="file"
-              accept="application/pdf"
-              onChange={handleFileChange}
-              className={`block w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-medium file:bg-blue-500 file:text-white hover:file:bg-blue-600 ${theme.textClass}`}
-            />
-            {uploadProgress && (
-              <p className={`mt-3 text-sm font-medium ${theme.textClass}`}>{uploadProgress}</p>
+            <div className="mb-4">
+              <label className={`block text-sm font-medium mb-2 ${theme.textClass}`}>Month</label>
+              <select
+                value={selectedMonth}
+                onChange={(e) => {
+                  setSelectedMonth(e.target.value);
+                  setUploadError(null);
+                }}
+                className={`w-full max-w-xs p-3 rounded-lg border ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-gray-200'} ${theme.textClass}`}
+              >
+                {monthOptions.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div
+              className={`mb-6 p-4 rounded-lg border ${darkMode ? 'bg-slate-900/40 border-slate-600' : 'bg-gray-50 border-gray-200'}`}
+            >
+              <h3 className={`text-sm font-medium mb-2 ${theme.textClass}`}>Summary — {selectedMonthLabel}</h3>
+              <p className={`text-sm ${theme.textSecondaryClass}`}>
+                Your estimates total: {formatCurrency(estimateTotal, currency)}
+              </p>
+              {monthlySummary ? (
+                <>
+                  <p className={`text-sm mt-1 ${theme.textClass}`}>
+                    Expenses for this month: {formatCurrency(monthlySummary.monthlyTotal, currency)}
+                  </p>
+                  <p className={`text-sm mt-1 ${theme.textSecondaryClass}`}>
+                    {monthlySummary.diff === 0
+                      ? 'Matches your estimates.'
+                      : monthlySummary.diff > 0
+                        ? `About ${monthlySummary.pct.toFixed(0)}% over your estimates (${formatCurrency(monthlySummary.diff, currency)} more).`
+                        : `About ${Math.abs(monthlySummary.pct).toFixed(0)}% under your estimates (${formatCurrency(Math.abs(monthlySummary.diff), currency)} less).`}
+                  </p>
+                </>
+              ) : (
+                <p className={`text-sm mt-1 ${theme.textSecondaryClass}`}>
+                  No statement imported yet for this month. Upload a PDF to compare.
+                </p>
+              )}
+            </div>
+
+            {monthAlreadyImported ? (
+              <div
+                className={`mb-4 p-4 rounded-lg border ${darkMode ? 'bg-slate-900/50 border-slate-600' : 'bg-amber-50 border-amber-200'}`}
+              >
+                <p className={`text-sm font-medium ${theme.textClass}`}>
+                  {selectedMonthLabel} was already imported. You can view & compare with your estimates or edit totals manually. Re-importing is not allowed.
+                </p>
+                <div className="mt-3 flex gap-3">
+                  <button
+                    type="button"
+                    onClick={handleViewAlreadyImported}
+                    className="inline-flex items-center gap-2 py-2 px-4 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium"
+                  >
+                    View & compare
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <p className={`text-sm mb-2 ${theme.textSecondaryClass}`}>
+                  Upload a PDF for {selectedMonthLabel}. We extract expenses by category. Only category totals are saved; no transaction or vendor data is stored.
+                </p>
+                <input
+                  type="file"
+                  accept="application/pdf"
+                  onChange={handleFileChange}
+                  className={`block w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-medium file:bg-blue-500 file:text-white hover:file:bg-blue-600 ${theme.textClass}`}
+                />
+                {uploadProgress && (
+                  <p className={`mt-3 text-sm font-medium ${theme.textClass}`}>{uploadProgress}</p>
+                )}
+                {uploadError && (
+                  <p className="mt-2 text-sm text-red-500">{uploadError}</p>
+                )}
+                <div className="mt-4 flex gap-3">
+                  <button
+                    type="button"
+                    onClick={handleUpload}
+                    disabled={uploadFiles.length === 0 || uploading}
+                    className="inline-flex items-center gap-2 py-2 px-4 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-lg font-medium"
+                  >
+                    <Upload className="w-4 h-4" />
+                    {uploading ? 'Processing…' : 'Upload & review'}
+                  </button>
+                </div>
+              </>
             )}
-            {uploadError && (
-              <p className="mt-2 text-sm text-red-500">{uploadError}</p>
-            )}
-            <div className="mt-4 flex gap-3">
+            <div className="mt-4">
               <button
                 type="button"
                 onClick={() => setStep(0)}
@@ -486,20 +711,44 @@ function ExpensesPageContent() {
               >
                 Back
               </button>
-              <button
-                type="button"
-                onClick={handleUpload}
-                disabled={uploadFiles.length === 0 || uploading}
-                className="inline-flex items-center gap-2 py-2 px-4 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-lg font-medium"
-              >
-                <Upload className="w-4 h-4" />
-                {uploading ? 'Processing…' : 'Upload & compare'}
-              </button>
             </div>
           </div>
         )}
 
-        {step === 2 && (
+        {step === 2 && bucketsPerFile.length > 0 && bucketsPerFile[0].buckets && (
+          <div className="mb-6">
+            <div className="mb-4 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setStep(1)}
+                className={`py-2 px-4 rounded-lg border ${theme.borderClass} ${theme.textClass}`}
+              >
+                Back
+              </button>
+            </div>
+            <ReviewClassifyView
+              initialBuckets={bucketsPerFile[0].buckets}
+              currency={currency}
+              darkMode={darkMode}
+              theme={theme}
+              monthLabel={selectedMonthLabel}
+              onSave={handleSaveMonthlyFinal}
+              saveStatus={saveMonthlyStatus}
+            />
+          </div>
+        )}
+
+        {step === 3 && (
+          <>
+            <div className="mb-4 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setStep(1)}
+                className={`py-2 px-4 rounded-lg border ${theme.borderClass} ${theme.textClass}`}
+              >
+                Back to months
+              </button>
+            </div>
             <CompareView
               estimatedBuckets={buckets}
               bucketsPerFile={bucketsPerFile}
@@ -509,7 +758,10 @@ function ExpensesPageContent() {
               userName={userName}
               token={token}
               onSaveEstimatesToDb={saveEstimatesToDb}
+              savedMonth={selectedMonth}
+              onSaveMonthlyTotals={handleSaveMonthlyTotals}
             />
+          </>
         )}
       </main>
     </div>

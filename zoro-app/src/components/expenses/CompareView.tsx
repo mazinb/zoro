@@ -40,7 +40,13 @@ interface CompareViewProps {
   onSaveEstimatesToDb?: (buckets: Record<string, { value: number }>, comparedToActuals: boolean) => Promise<void>;
   /** Optional token for saving to DB */
   token?: string | null;
+  /** When viewing a saved month (bucketTotals only), allow updating saved totals. */
+  savedMonth?: string | null;
+  onSaveMonthlyTotals?: (buckets: Record<string, { value: number }>) => Promise<void>;
 }
+
+const isSavedMonthView = (bucketsPerFile: BucketsPerFile[]) =>
+  bucketsPerFile.length > 0 && bucketsPerFile.every((e) => e.bucketTotals && Object.keys(e.bucketTotals).length > 0);
 
 export function CompareView({
   estimatedBuckets,
@@ -51,11 +57,14 @@ export function CompareView({
   userName,
   onSaveEstimatesToDb,
   token,
+  savedMonth,
+  onSaveMonthlyTotals,
 }: CompareViewProps) {
   const [expandedBucket, setExpandedBucket] = useState<string | null>(null);
   const [report, setReport] = useState<string | null>(null);
   const [reportLoading, setReportLoading] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [saveMonthlyStatus, setSaveMonthlyStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [revisedValues, setRevisedValues] = useState<Record<string, number>>(() => {
     const out: Record<string, number> = {};
     for (const k of BUCKET_KEYS) {
@@ -85,18 +94,36 @@ export function CompareView({
     const out: Record<string, number> = {};
     for (const key of BUCKET_KEYS) {
       let sum = 0;
-      for (const { buckets } of bucketsPerFile) {
-        const items = buckets[key];
-        sum += Array.isArray(items) ? totalForBucket(items) : 0;
+      for (const entry of bucketsPerFile) {
+        if (entry.bucketTotals && typeof entry.bucketTotals[key] === 'number') {
+          sum += entry.bucketTotals[key];
+        } else {
+          const items = entry.buckets[key];
+          sum += Array.isArray(items) ? totalForBucket(items) : 0;
+        }
       }
       out[key] = numFiles > 0 ? sum / numFiles : 0;
     }
     return out;
   }, [bucketsPerFile, numFiles]);
 
-  const hasData = bucketsPerFile.some(({ buckets }) =>
-    BUCKET_KEYS.some((k) => (buckets[k]?.length ?? 0) > 0)
+  const hasData = bucketsPerFile.some(
+    ({ buckets, bucketTotals }) =>
+      (bucketTotals && Object.values(bucketTotals).some((v) => v > 0)) ||
+      BUCKET_KEYS.some((k) => (buckets[k]?.length ?? 0) > 0)
   );
+
+  const canEditSavedMonth = !!savedMonth && !!onSaveMonthlyTotals && isSavedMonthView(bucketsPerFile);
+  const [editedActualTotals, setEditedActualTotals] = useState<Record<string, number>>({});
+  useEffect(() => {
+    if (canEditSavedMonth) {
+      const out: Record<string, number> = {};
+      for (const k of BUCKET_KEYS) {
+        out[k] = actualTotals[k] ?? 0;
+      }
+      setEditedActualTotals(out);
+    }
+  }, [canEditSavedMonth, actualTotals]);
 
   const isUpdatingEstimates = useMemo(() => {
     return BUCKET_KEYS.some(
@@ -121,6 +148,22 @@ export function CompareView({
       setTimeout(() => setSaveStatus('idle'), 2000);
     } catch {
       setSaveStatus('error');
+    }
+  };
+
+  const handleSaveMonthlyTotals = async () => {
+    if (!onSaveMonthlyTotals) return;
+    setSaveMonthlyStatus('saving');
+    try {
+      const bucketsToSave: Record<string, { value: number }> = {};
+      for (const k of BUCKET_KEYS) {
+        bucketsToSave[k] = { value: editedActualTotals[k] ?? actualTotals[k] ?? 0 };
+      }
+      await onSaveMonthlyTotals(bucketsToSave);
+      setSaveMonthlyStatus('saved');
+      setTimeout(() => setSaveMonthlyStatus('idle'), 2000);
+    } catch {
+      setSaveMonthlyStatus('error');
     }
   };
 
@@ -196,7 +239,41 @@ export function CompareView({
           </button>
         )}
         {saveStatus === 'error' && <span className="text-sm text-red-500">Save failed</span>}
+        {canEditSavedMonth && (
+          <>
+            <button
+              type="button"
+              onClick={handleSaveMonthlyTotals}
+              disabled={saveMonthlyStatus === 'saving'}
+              className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg border ${theme.borderClass ?? (darkMode ? 'border-slate-700' : 'border-gray-200')} ${theme.textClass} text-sm font-medium disabled:opacity-50`}
+            >
+              {saveMonthlyStatus === 'saving' ? 'Saving…' : saveMonthlyStatus === 'saved' ? 'Saved' : 'Update saved totals'}
+            </button>
+            {saveMonthlyStatus === 'error' && <span className="text-sm text-red-500">Update failed</span>}
+          </>
+        )}
       </div>
+      {canEditSavedMonth && (
+        <div className={`mb-4 p-4 rounded-lg border ${darkMode ? 'border-slate-600 bg-slate-900/50' : 'border-gray-200 bg-gray-50'}`}>
+          <p className={`text-sm font-medium mb-2 ${theme.textClass}`}>Edit saved totals for {savedMonth} (manual edit only; no re-import)</p>
+          <div className="flex flex-wrap gap-4">
+            {BUCKET_KEYS.map((k) => (
+              <div key={k} className="flex items-center gap-2">
+                <label className={`text-xs ${theme.textSecondaryClass}`}>{BUCKET_LABELS[k] ?? k}</label>
+                <input
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={editedActualTotals[k] ?? 0}
+                  onChange={(e) => setEditedActualTotals((prev) => ({ ...prev, [k]: parseFloat(e.target.value) || 0 }))}
+                  className={`w-24 px-2 py-1 rounded border text-sm ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-300'} ${theme.textClass}`}
+                />
+                <span className={`text-xs ${theme.textSecondaryClass}`}>{currency}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       {(report !== null || reportLoading) && (
         <div className={`mt-4 p-4 rounded-lg border ${darkMode ? 'border-slate-700 bg-slate-900/50' : 'border-gray-200 bg-gray-50'}`}>
             {reportLoading ? (
@@ -281,9 +358,10 @@ export function CompareView({
                     <div className={`px-3 py-2 text-xs font-medium ${theme.textSecondaryClass} ${darkMode ? 'bg-slate-800' : 'bg-gray-100'}`}>
                       Actual expenses by file
                     </div>
-                    {bucketsPerFile.map(({ fileName, buckets }) => {
+                    {bucketsPerFile.map(({ fileName, buckets, bucketTotals }) => {
                       const items = buckets[bucket] ?? [];
-                      if (items.length === 0) return null;
+                      const totalOnly = bucketTotals && typeof bucketTotals[bucket] === 'number';
+                      if (items.length === 0 && !totalOnly) return null;
                       return (
                         <div
                           key={fileName}
@@ -292,19 +370,25 @@ export function CompareView({
                           <div className={`px-3 py-2 text-xs font-medium ${theme.textClass} ${darkMode ? 'bg-slate-700/50' : 'bg-gray-100'}`}>
                             {fileName}
                           </div>
-                          <ul className="divide-y divide-slate-700/50 dark:divide-gray-200/50">
-                            {items.map((item, i) => (
-                              <li
-                                key={`${fileName}-${i}`}
-                                className={`flex justify-between items-baseline px-4 py-2 text-sm ${theme.textClass}`}
-                              >
-                                <span className="truncate pr-2">{item.description}</span>
-                                <span className={`font-medium shrink-0 ${theme.textSecondaryClass}`}>
-                                  {formatCurrency(item.amount, currency)}
-                                </span>
-                              </li>
-                            ))}
-                          </ul>
+                          {totalOnly ? (
+                            <div className={`px-4 py-2 text-sm ${theme.textSecondaryClass}`}>
+                              Saved total: {formatCurrency(bucketTotals![bucket], currency)} (no transaction details stored)
+                            </div>
+                          ) : (
+                            <ul className="divide-y divide-slate-700/50 dark:divide-gray-200/50">
+                              {items.map((item, i) => (
+                                <li
+                                  key={`${fileName}-${i}`}
+                                  className={`flex justify-between items-baseline px-4 py-2 text-sm ${theme.textClass}`}
+                                >
+                                  <span className="truncate pr-2">{item.description}</span>
+                                  <span className={`font-medium shrink-0 ${theme.textSecondaryClass}`}>
+                                    {formatCurrency(item.amount, currency)}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
                         </div>
                       );
                     })}

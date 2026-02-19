@@ -124,25 +124,35 @@ export async function POST(request: NextRequest) {
   }
   const userId = resolved.userId;
 
+  const monthRaw = formData.get('month');
+  const monthStr = typeof monthRaw === 'string' ? monthRaw.trim() : '';
+  if (!monthStr || !/^\d{4}-\d{2}$/.test(monthStr)) {
+    return NextResponse.json(
+      { error: 'month (YYYY-MM) is required for import.' },
+      { status: 400 }
+    );
+  }
+  const monthDate = `${monthStr}-01`;
+
   const supabase = getSupabase();
-  const { data: user, error: userError } = await supabase
-    .from('users')
-    .select('id, expenses_used_at')
-    .eq('id', userId)
+  const { data: existing, error: existingError } = await supabase
+    .from('monthly_expenses')
+    .select('id, imported_at')
+    .eq('user_id', userId)
+    .eq('month', monthDate)
     .maybeSingle();
 
-  if (userError || !user?.id) {
-    return NextResponse.json({ error: 'User not found.' }, { status: 404 });
+  if (existingError) {
+    return NextResponse.json({ error: 'Failed to check month.' }, { status: 500 });
   }
-  if (user.expenses_used_at) {
-    const last = new Date(user.expenses_used_at);
-    const now = new Date();
-    if (last.getFullYear() === now.getFullYear() && last.getMonth() === now.getMonth()) {
-      return NextResponse.json(
-        { error: 'One per month', message: 'You can upload one statement per month. Try again next month.' },
-        { status: 409 }
-      );
-    }
+  if (existing?.imported_at) {
+    return NextResponse.json(
+      {
+        error: 'Already imported',
+        message: 'This month was already imported. You can edit totals manually; re-import is not allowed.',
+      },
+      { status: 409 }
+    );
   }
 
   const file = formData.get('file') ?? formData.get('statement');
