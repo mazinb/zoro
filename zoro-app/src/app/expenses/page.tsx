@@ -44,6 +44,12 @@ function sumBucketTotals(totals: Record<string, number>): number {
   return BUCKET_KEYS.reduce((s, k) => s + (totals[k] ?? 0), 0);
 }
 
+function formatMonthLabel(monthStr: string): string {
+  const d = new Date(monthStr);
+  if (Number.isNaN(d.getTime())) return monthStr;
+  return new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(d);
+}
+
 function getDefaultBuckets(country: string): Record<string, ExpenseBucket> {
   const data = countryData[country] ?? countryData['India'];
   return Object.fromEntries(
@@ -70,6 +76,9 @@ function ExpensesPageContent() {
   const [selectedMonthData, setSelectedMonthData] = useState<{
     buckets: Record<string, { value: number }>;
   } | null>(null);
+  const [monthsWithData, setMonthsWithData] = useState<
+    Array<{ month: string; buckets: Record<string, { value: number }>; imported_at: string | null }>
+  >([]);
   const [step, setStep] = useState(0);
   const [country, setCountry] = useState(DEFAULT_COUNTRY);
   const [showCountryDropdown, setShowCountryDropdown] = useState(false);
@@ -120,6 +129,10 @@ function ExpensesPageContent() {
             return next;
           });
         }
+        const hasData =
+          (saved && typeof saved === 'object' && Object.keys(saved).length > 0) ||
+          (data?.shared_data && typeof data.shared_data === 'object' && (data.shared_data as Record<string, unknown>)?.expenses_country);
+        if (hasData) setStep(1);
       } catch {
         if (!cancelled) setUserName('');
       }
@@ -157,6 +170,34 @@ function ExpensesPageContent() {
       cancelled = true;
     };
   }, [token, selectedMonth]);
+
+  useEffect(() => {
+    if (!token || step !== 1) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/expenses/monthly?token=${encodeURIComponent(token)}`);
+        const json = await res.json();
+        if (cancelled) return;
+        const data = json?.data;
+        const list = Array.isArray(data) ? data : [];
+        setMonthsWithData(
+          list.map((row: { month: string; buckets: unknown; imported_at: string | null }) => ({
+            month: row.month,
+            buckets: (row.buckets && typeof row.buckets === 'object' && !Array.isArray(row.buckets)
+              ? row.buckets
+              : {}) as Record<string, { value: number }>,
+            imported_at: row.imported_at ?? null,
+          }))
+        );
+      } catch {
+        if (!cancelled) setMonthsWithData([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [token, step]);
 
   const currency = countryData[country]?.currency ?? countryData['India'].currency;
   const selectedMonthLabel = monthOptions.find((o) => o.value === selectedMonth)?.label ?? selectedMonth;
@@ -356,7 +397,7 @@ function ExpensesPageContent() {
         }
         setSaveMonthlyStatus('saved');
         setTimeout(() => setSaveMonthlyStatus('idle'), 2000);
-        setStep(3);
+        setStep(1);
       } catch {
         setSaveMonthlyStatus('error');
       }
@@ -607,10 +648,113 @@ function ExpensesPageContent() {
               darkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-gray-200'
             }`}
           >
-            <h2 className={`text-xl font-light mb-2 ${theme.textClass}`}>Statement by month</h2>
-            <p className={`text-sm mb-4 ${theme.textSecondaryClass}`}>
-              You can go back up to 6 months. Each month can be imported once; after that you edit totals manually.
-            </p>
+            <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
+              <div>
+                <h2 className={`text-xl font-light mb-1 ${theme.textClass}`}>Statement by month</h2>
+                <p className={`text-sm ${theme.textSecondaryClass}`}>
+                  Up to 6 months back. One import per month; then edit totals only.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="relative">
+                  <label className={`sr-only ${theme.textClass}`}>Currency</label>
+                  <button
+                    type="button"
+                    onClick={() => setShowCountryDropdown(!showCountryDropdown)}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-200'} ${theme.textClass} text-sm`}
+                  >
+                    <span>{countryData[country]?.flag ?? '🌍'}</span>
+                    <span>{country}</span>
+                    <span className={theme.textSecondaryClass}>({currency})</span>
+                    <svg className={`w-4 h-4 ${showCountryDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  {showCountryDropdown && (
+                    <div
+                      className={`absolute right-0 top-full mt-1 z-20 py-1 min-w-[180px] rounded-lg shadow-lg border ${
+                        darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-200'
+                      }`}
+                    >
+                      {getCountriesSorted().map((c) => (
+                        <button
+                          key={c}
+                          type="button"
+                          onClick={() => {
+                            handleCountryChange(c);
+                            setShowCountryDropdown(false);
+                          }}
+                          className={`w-full px-4 py-2 text-left text-sm flex items-center gap-2 ${
+                            darkMode ? 'hover:bg-slate-700' : 'hover:bg-gray-100'
+                          } ${country === c ? (darkMode ? 'bg-slate-700' : 'bg-gray-100') : ''} ${theme.textClass}`}
+                        >
+                          <span>{countryData[c].flag}</span>
+                          <span>{c}</span>
+                          <span className={theme.textSecondaryClass}>({countryData[c].currency})</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setStep(0)}
+                  className={`py-2 px-4 rounded-lg border ${theme.borderClass} ${theme.textClass} text-sm`}
+                >
+                  Change estimates
+                </button>
+              </div>
+            </div>
+
+            {monthsWithData.length > 0 && (
+              <div className={`mb-6 overflow-x-auto rounded-lg border ${darkMode ? 'border-slate-600' : 'border-gray-200'}`}>
+                <h3 className={`text-sm font-medium px-4 py-2 ${darkMode ? 'bg-slate-800/50' : 'bg-gray-100'} ${theme.textClass}`}>
+                  Months with data
+                </h3>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className={`border-b ${darkMode ? 'border-slate-600' : 'border-gray-200'}`}>
+                      <th className={`text-left px-4 py-2 font-medium ${theme.textSecondaryClass}`}>Month</th>
+                      <th className={`text-right px-4 py-2 font-medium ${theme.textSecondaryClass}`}>Expenses</th>
+                      <th className={`text-right px-4 py-2 font-medium ${theme.textSecondaryClass}`}>Vs estimates</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {monthsWithData.map((row) => {
+                      const totals = bucketsToTotals(row.buckets);
+                      const total = sumBucketTotals(totals);
+                      const diff = total - estimateTotal;
+                      const pct = estimateTotal > 0 ? (diff / estimateTotal) * 100 : 0;
+                      const vsLabel =
+                        diff === 0
+                          ? '—'
+                          : diff > 0
+                            ? `+${formatCurrency(diff, currency)} (+${pct.toFixed(0)}%)`
+                            : `${formatCurrency(-diff, currency)} under (${Math.abs(pct).toFixed(0)}%)`;
+                      const monthValue = row.month.slice(0, 7);
+                      const isSelected = monthValue === selectedMonth;
+                      return (
+                        <tr
+                          key={row.month}
+                          className={`border-b last:border-b-0 ${darkMode ? 'border-slate-600' : 'border-gray-200'} ${isSelected ? (darkMode ? 'bg-slate-700/30' : 'bg-blue-50/50') : ''}`}
+                        >
+                          <td className={`px-4 py-2 ${theme.textClass}`}>
+                            {formatMonthLabel(row.month)}
+                          </td>
+                          <td className={`px-4 py-2 text-right ${theme.textClass}`}>
+                            {formatCurrency(total, currency)}
+                          </td>
+                          <td className={`px-4 py-2 text-right ${theme.textSecondaryClass}`}>
+                            {vsLabel}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
             <div className="mb-4">
               <label className={`block text-sm font-medium mb-2 ${theme.textClass}`}>Month</label>
               <select
@@ -661,7 +805,7 @@ function ExpensesPageContent() {
                 className={`mb-4 p-4 rounded-lg border ${darkMode ? 'bg-slate-900/50 border-slate-600' : 'bg-amber-50 border-amber-200'}`}
               >
                 <p className={`text-sm font-medium ${theme.textClass}`}>
-                  {selectedMonthLabel} was already imported. You can view & compare with your estimates or edit totals manually. Re-importing is not allowed.
+                  Already imported. View & compare or edit totals.
                 </p>
                 <div className="mt-3 flex gap-3">
                   <button
@@ -703,15 +847,6 @@ function ExpensesPageContent() {
                 </div>
               </>
             )}
-            <div className="mt-4">
-              <button
-                type="button"
-                onClick={() => setStep(0)}
-                className={`py-2 px-4 rounded-lg border ${theme.borderClass} ${theme.textClass}`}
-              >
-                Back
-              </button>
-            </div>
           </div>
         )}
 
