@@ -325,10 +325,10 @@ export async function POST(request: NextRequest) {
         let fallbackText: string;
         if (pos <= 10) {
           const expensesUrl = userToken ? `${process.env.NEXT_PUBLIC_BASE_URL || 'https://www.getzoro.com'}/expenses?token=${encodeURIComponent(userToken)}` : '';
-          fallbackText = `Hi ${body.name || 'there'}\n\nThanks for sharing your goals!\n\nYou're #${pos} on our waitlist. We are still building Zoro.\n\nSimply reply to this email to interact with our agent. You can ask about your goals, general money questions, set up reminders, or how I work.\n\nLet's get started with your expenses: ${expensesUrl || 'https://www.getzoro.com/expenses'}\n\nThanks,\nZoro`;
+          fallbackText = `Hi ${body.name || 'there'}\n\nThanks for sharing your goals!\n\nYou're #${pos} on our waitlist. We are still building Zoro.\n\nSimply reply to this email to interact with our agent. You can ask about your goals, general money questions, set up reminders, or how I work.\n\nStart with expenses: ${expensesUrl || 'https://www.getzoro.com/expenses'}\n\nThanks,\nZoro`;
         } else {
           const expensesUrl = userToken ? `${process.env.NEXT_PUBLIC_BASE_URL || 'https://www.getzoro.com'}/expenses?token=${encodeURIComponent(userToken)}` : '';
-          fallbackText = `Thanks for sharing your goals!\nYou're #${pos} on our waitlist. We are still building Zoro but want to give you a peak.\nSimply reply to this email to interact with our agent.\n\nYou can ask about your goals, general money questions, set up reminders, or how I work.\n\nLet's get started with your expenses: ${expensesUrl || 'https://www.getzoro.com/expenses'}\n\n— Zoro`;
+          fallbackText = `Thanks for sharing your goals!\nYou're #${pos} on our waitlist. We are still building Zoro but want to give you a peak. There are 3 ways to interact:\n1. Simply reply to this email. You can ask about your goals, general money questions or ask how I work. Anything really\n2. Use action buttons like the one below share data or view your information. You are always in control of what I know\n3. By scheduling one time or recurring reminders for me to follow up. I won't email you ever again unless you ask me to\nCan't wait to work with you!\nZoro\nStart with expenses: ${expensesUrl || 'https://www.getzoro.com/expenses'}`;
         }
         draftEmail = {
           text: fallbackText,

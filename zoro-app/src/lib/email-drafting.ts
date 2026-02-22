@@ -121,30 +121,27 @@ You're #${waitlistPosition} on our waitlist. We are still building Zoro.
 
 Simply reply to this email to interact with our agent. You can ask about your goals, general money questions, set up reminders, or how I work.
 
-Let's get started with your expenses: ${expensesUrl || baseUrl + '/expenses'}
+Start with expenses: ${expensesUrl || baseUrl + '/expenses'}
 
 Thanks,
 Zoro`;
   } else {
     textContent = `Thanks for sharing your goals!
-You're #${waitlistPosition} on our waitlist. We are still building Zoro but want to give you a peak.
-Simply reply to this email to interact with our agent.
-
-You can ask about your goals, general money questions, set up reminders, or how I work.
-
-Let's get started with your expenses: ${expensesUrl || baseUrl + '/expenses'}
-
-— Zoro`;
+You're #${waitlistPosition} on our waitlist. We are still building Zoro but want to give you a peak. There are 3 ways to interact:
+1. Simply reply to this email. You can ask about your goals, general money questions or ask how I work. Anything really
+2. Use action buttons like the one below share data or view your information. You are always in control of what I know
+3. By scheduling one time or recurring reminders for me to follow up. I won't email you ever again unless you ask me to
+Can't wait to work with you!
+Zoro
+Start with expenses: ${expensesUrl || baseUrl + '/expenses'}`;
   }
 
   const htmlContent = textContent
     .split('\n')
     .map((line) => {
-      if (line.includes("Let's get started with your expenses")) {
-        if (expensesUrl) {
-          return `<p style="margin:24px 0"><a href="${escapeHtml(expensesUrl)}" style="display:inline-block;background:#2563eb;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600">Let's get started with your expenses</a></p><p style="color:#64748b;font-size:14px">Or copy this link: ${escapeHtml(expensesUrl)}</p>`;
-        }
-        return `<p>Let's get started with your expenses: <a href="${escapeHtml(baseUrl + '/expenses')}">${escapeHtml(baseUrl + '/expenses')}</a></p>`;
+      if (line.includes('Start with expenses:')) {
+        const url = expensesUrl || baseUrl + '/expenses';
+        return `<p style="margin:24px 0"><a href="${escapeHtml(url)}" style="display:inline-block;background:#2563eb;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600">Start with expenses</a></p><p style="color:#64748b;font-size:14px">Or copy this link: ${escapeHtml(url)}</p>`;
       }
       return escapeHtml(line);
     })
