@@ -13,6 +13,7 @@ import type { ExpenseBucket } from '@/components/retirement/types';
 import type { BucketsPerFile } from '@/components/expenses/types';
 import { countryData, getCountriesSorted } from '@/components/retirement/countryData';
 import { formatCurrency } from '@/components/retirement/utils';
+import { AddReminderForm } from '@/components/reminders/AddReminderForm';
 
 const EXPENSES_TOKEN_KEY = 'zoro_expenses_token';
 const DEFAULT_COUNTRY = 'India';
@@ -552,10 +553,10 @@ function ExpensesPageContent() {
         </div>
       </nav>
 
-      <main className="max-w-4xl mx-auto px-6 py-10">
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-8 sm:py-10 min-w-0 overflow-x-hidden">
         <h1 className={`text-2xl font-light mb-2 ${theme.textClass}`}>Expenses</h1>
-        <p className={`text-sm mb-8 ${theme.textSecondaryClass}`}>
-          Estimate your monthly expenses, then compare with your bank statement.
+        <p className={`text-sm mb-6 sm:mb-8 ${theme.textSecondaryClass}`}>
+          Monthly estimates, then compare with your statement.
         </p>
 
         {step === 0 && (
@@ -644,15 +645,15 @@ function ExpensesPageContent() {
 
         {step === 1 && (
           <div
-            className={`p-6 rounded-lg mb-6 ${
+            className={`p-4 sm:p-6 rounded-lg mb-6 min-w-0 overflow-x-auto ${
               darkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-gray-200'
             }`}
           >
             <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
-              <div>
+              <div className="min-w-0">
                 <h2 className={`text-xl font-light mb-1 ${theme.textClass}`}>Statement by month</h2>
                 <p className={`text-sm ${theme.textSecondaryClass}`}>
-                  Up to 6 months back. One import per month; then edit totals only.
+                  6 months max. One import per month; edit totals after.
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-3">
@@ -898,6 +899,7 @@ function ExpensesPageContent() {
             />
           </>
         )}
+        <AddReminderForm token={token} context="expenses" defaultDescription="Update expenses" darkMode={darkMode} theme={theme} />
       </main>
     </div>
   );

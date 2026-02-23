@@ -9,6 +9,16 @@ This system handles:
 - Scheduled check-in email delivery
 - Processing user replies via inbound email webhooks
 
+## Check-in flows (Zoro app)
+
+The Zoro app exposes token-gated forms that sync to `user_data` and support reminders:
+
+- **Income** — Dashboard by year; yearly summary; AI import from comp statement/offer letter (PDF) to prefill by year for review/edit. Option to add reminders.
+- **Assets** — Snapshot per quarter; history per account from snapshots; minimal summary view. Option to add reminders.
+- **Expenses** — Monthly estimates and statement import; responsive layout. Option to add reminders.
+
+Reminders use the existing `reminders` table only (no new tables). An external cron/follow-up service is responsible for sending reminders; see `CRON_SERVICE_REFERENCE.md` for DB field details and how to poll or consume reminders.
+
 ## Prerequisites
 
 - Node.js 18+ 
@@ -63,5 +73,6 @@ This system handles:
 
 ## Documentation
 
-See `IMPLEMENTATION_PLAN.md` for detailed implementation guide.
+- See `IMPLEMENTATION_PLAN.md` for detailed implementation guide.
+- See `CRON_SERVICE_REFERENCE.md` for how an external cron/follow-up service should use the `reminders` table (fields, `user_key`, scheduling, context).
 

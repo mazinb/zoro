@@ -1,13 +1,14 @@
 'use client';
 
-import React, { Suspense, useState, useCallback, useEffect, useMemo } from 'react';
+import React, { Suspense, useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Moon, Sun, Plus, Trash2, ChevronDown, ChevronUp, MessageSquare } from 'lucide-react';
+import { Moon, Sun, Plus, Trash2, ChevronDown, ChevronUp, MessageSquare, Upload } from 'lucide-react';
 import { ZoroLogo } from '@/components/ZoroLogo';
 import { useDarkMode } from '@/hooks/useDarkMode';
 import { useThemeClasses } from '@/hooks/useThemeClasses';
 import { countryData, getCountriesSorted } from '@/components/retirement/countryData';
 import { formatInputValue, parseInputValue, formatCurrency } from '@/components/retirement/utils';
+import { AddReminderForm } from '@/components/reminders/AddReminderForm';
 
 const ASSETS_TOKEN_KEY = 'zoro_assets_token';
 const DEFAULT_COUNTRY = 'India';
@@ -53,6 +54,19 @@ export type LiabilityRow = {
   comment: string;
 };
 
+export type QuarterlySnapshot = {
+  quarter: string;
+  captured_at: string;
+  accounts: Array<{ type: string; currency: string; name?: string; total?: number; label?: string; comment?: string }>;
+  liabilities: Array<{ type: string; name?: string; currency: string; total?: number; comment?: string }>;
+};
+
+function getQuarterKey(date: Date): string {
+  const y = date.getFullYear();
+  const q = Math.floor(date.getMonth() / 3) + 1;
+  return `${y}-Q${q}`;
+}
+
 // Approximate rates to INR for rough total (not real-time)
 const RATES_TO_INR: Record<string, number> = {
   India: 1,
@@ -91,6 +105,11 @@ function AssetsPageContent() {
   const [gateSending, setGateSending] = useState(false);
   const [gateMessage, setGateMessage] = useState<'idle' | 'sent' | 'not_registered' | 'error'>('idle');
   const [gateError, setGateError] = useState<string | null>(null);
+  const [quarterlySnapshots, setQuarterlySnapshots] = useState<QuarterlySnapshot[]>([]);
+  const [importingId, setImportingId] = useState<string | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
+  const importTargetRef = useRef<{ kind: 'account' | 'liability'; id: string } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const urlToken = searchParams.get('token');
@@ -169,6 +188,19 @@ function AssetsPageContent() {
                 };
               })
             );
+          }
+          const snapshots = (a as { quarterly_snapshots?: unknown }).quarterly_snapshots;
+          if (Array.isArray(snapshots) && snapshots.length > 0) {
+            const valid = snapshots.filter(
+              (s): s is QuarterlySnapshot =>
+                s != null &&
+                typeof s === 'object' &&
+                typeof (s as QuarterlySnapshot).quarter === 'string' &&
+                typeof (s as QuarterlySnapshot).captured_at === 'string' &&
+                Array.isArray((s as QuarterlySnapshot).accounts) &&
+                Array.isArray((s as QuarterlySnapshot).liabilities)
+            );
+            setQuarterlySnapshots(valid);
           }
         }
       } catch {
@@ -256,6 +288,72 @@ function AssetsPageContent() {
     setExpandedLiabilityCommentId((prev) => (prev === id ? null : id));
   }, []);
 
+  const triggerImport = useCallback((kind: 'account' | 'liability', id: string) => {
+    if (!token) return;
+    setImportError(null);
+    importTargetRef.current = { kind, id };
+    fileInputRef.current?.click();
+  }, [token]);
+
+  const handleImportFile = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      e.target.value = '';
+      const target = importTargetRef.current;
+      importTargetRef.current = null;
+      if (!file || !token || !target) return;
+      setImportingId(target.id);
+      setImportError(null);
+      try {
+        const formData = new FormData();
+        formData.set('token', token);
+        formData.set('kind', target.kind);
+        formData.set('file', file);
+        const res = await fetch('/api/assets/parse-document', { method: 'POST', body: formData });
+        const json = await res.json();
+        if (!res.ok) {
+          setImportError(json.error ?? 'Import failed');
+          setImportingId(null);
+          return;
+        }
+        const d = json?.data;
+        if (target.kind === 'account' && d) {
+          setAccounts((prev) =>
+            prev.map((r) =>
+              r.id !== target.id
+                ? r
+                : {
+                    ...r,
+                    name: typeof d.name === 'string' ? d.name : r.name,
+                    type: d.type && ASSET_TYPES.includes(d.type as AssetType) ? (d.type as AssetType) : r.type,
+                    currency: typeof d.currency === 'string' && (countryData as Record<string, unknown>)[d.currency] ? d.currency : r.currency,
+                    total: typeof d.total === 'number' ? d.total : r.total,
+                  }
+            )
+          );
+        } else if (target.kind === 'liability' && d) {
+          setLiabilities((prev) =>
+            prev.map((r) =>
+              r.id !== target.id
+                ? r
+                : {
+                    ...r,
+                    name: typeof d.name === 'string' ? d.name : r.name,
+                    type: d.type && LIABILITY_TYPES.includes(d.type as LiabilityType) ? (d.type as LiabilityType) : r.type,
+                    currency: typeof d.currency === 'string' && (countryData as Record<string, unknown>)[d.currency] ? d.currency : r.currency,
+                    total: typeof d.total === 'number' ? d.total : r.total,
+                  }
+            )
+          );
+        }
+      } catch {
+        setImportError('Import failed');
+      }
+      setImportingId(null);
+    },
+    [token]
+  );
+
   const approxTotal = useMemo(() => {
     const hasAny = accounts.some((r) => r.total !== '') || liabilities.some((r) => r.total !== '');
     if (!hasAny) return null;
@@ -323,6 +421,7 @@ function AssetsPageContent() {
             currency: country,
             accounts: accountList,
             liabilities: liabilityList,
+            quarterly_snapshots: quarterlySnapshots,
           },
           sharedData: { ...sharedData, assets_country: country },
         }),
@@ -335,7 +434,83 @@ function AssetsPageContent() {
       setSaveStatus('error');
       setSaveError('Save failed.');
     }
-  }, [token, country, accounts, liabilities, sharedData]);
+  }, [token, country, accounts, liabilities, sharedData, quarterlySnapshots]);
+
+  const saveSnapshot = useCallback(async () => {
+    if (!token) return;
+    const quarter = getQuarterKey(new Date());
+    const accountList = accounts
+      .filter((r) => r.total !== '' || (r.type === 'other' && r.label.trim() !== ''))
+      .map((r) => ({
+        type: r.type,
+        currency: r.currency,
+        name: r.name.trim() || undefined,
+        total: r.total === '' ? undefined : Number(r.total),
+        label: r.type === 'other' ? r.label.trim() : undefined,
+        comment: r.comment.trim() || undefined,
+      }));
+    const liabilityList = liabilities
+      .filter((r) => r.name.trim() !== '' || r.total !== '')
+      .map((r) => ({
+        type: r.type,
+        name: r.name.trim() || undefined,
+        currency: r.currency,
+        total: r.total === '' ? undefined : Number(r.total),
+        comment: r.comment.trim() || undefined,
+      }));
+    const snapshot: QuarterlySnapshot = {
+      quarter,
+      captured_at: new Date().toISOString(),
+      accounts: accountList,
+      liabilities: liabilityList,
+    };
+    const nextSnapshots = [snapshot, ...quarterlySnapshots.filter((s) => s.quarter !== quarter)];
+    setQuarterlySnapshots(nextSnapshots);
+    setSaveError(null);
+    setSaveStatus('saving');
+    try {
+      const accountPayload = accounts
+        .filter((r) => r.total !== '' || (r.type === 'other' && r.label.trim() !== ''))
+        .map((r) => ({
+          type: r.type,
+          currency: r.currency,
+          name: r.name.trim() || undefined,
+          total: r.total === '' ? undefined : Number(r.total),
+          label: r.type === 'other' ? r.label.trim() : undefined,
+          comment: r.comment.trim() || undefined,
+        }));
+      const liabilityPayload = liabilities
+        .filter((r) => r.name.trim() !== '' || r.total !== '')
+        .map((r) => ({
+          type: r.type,
+          name: r.name.trim() || undefined,
+          currency: r.currency,
+          total: r.total === '' ? undefined : Number(r.total),
+          comment: r.comment.trim() || undefined,
+        }));
+      const res = await fetch('/api/user-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token,
+          formType: 'assets',
+          formData: {
+            currency: country,
+            accounts: accountPayload,
+            liabilities: liabilityPayload,
+            quarterly_snapshots: nextSnapshots,
+          },
+          sharedData: { ...sharedData, assets_country: country },
+        }),
+      });
+      if (!res.ok) throw new Error('Save failed');
+      setSaveStatus('saved');
+      setTimeout(() => setSaveStatus('idle'), 2000);
+    } catch {
+      setSaveStatus('error');
+      setSaveError('Snapshot save failed.');
+    }
+  }, [token, country, accounts, liabilities, sharedData, quarterlySnapshots]);
 
   if (!token) {
     return (
@@ -417,9 +592,9 @@ function AssetsPageContent() {
         </div>
       </nav>
       <main className="max-w-4xl mx-auto px-6 py-10">
-        <h1 className={`text-2xl font-light mb-2 ${theme.textClass}`}>Assets & account details</h1>
+        <h1 className={`text-2xl font-light mb-2 ${theme.textClass}`}>Assets and liabilities</h1>
         <p className={`text-sm mb-2 ${theme.textSecondaryClass}`}>
-          High-level only: asset type, currency, and totals per type.
+          List assets and liabilities; add a snapshot to track over time. Import from a statement image or PDF to fill a row.
         </p>
         {approxTotal != null && (
           <div className={`mb-4 py-2 px-3 rounded-lg border ${theme.borderClass} ${theme.textSecondaryClass} text-sm`}>
@@ -428,9 +603,83 @@ function AssetsPageContent() {
           </div>
         )}
 
+        {quarterlySnapshots.length > 0 && (
+          <div className={`mb-6 overflow-x-auto rounded-lg border ${darkMode ? 'border-slate-600' : 'border-gray-200'}`}>
+            <h2 className={`text-sm font-medium px-4 py-2 ${darkMode ? 'bg-slate-800/50' : 'bg-gray-100'} ${theme.textClass}`}>
+              Snapshot history
+            </h2>
+            <table className="w-full text-sm">
+              <thead>
+                <tr className={`border-b ${darkMode ? 'border-slate-600' : 'border-gray-200'}`}>
+                  <th className={`text-left px-4 py-2 font-medium ${theme.textSecondaryClass}`}>Quarter</th>
+                  <th className={`text-left px-4 py-2 font-medium ${theme.textSecondaryClass}`}>Captured</th>
+                  <th className={`text-right px-4 py-2 font-medium ${theme.textSecondaryClass}`}>Net (approx)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {quarterlySnapshots.map((s) => {
+                  const toInr = (amount: number, countryKey: string) => amount * (RATES_TO_INR[countryKey] ?? 1);
+                  const assetsInr = s.accounts.filter((r) => r.total != null).reduce((sum, r) => sum + toInr(Number(r.total), r.currency), 0);
+                  const liabilitiesInr = s.liabilities.filter((r) => r.total != null).reduce((sum, r) => sum + toInr(Number(r.total), r.currency), 0);
+                  const netInr = assetsInr - liabilitiesInr;
+                  const captured = new Date(s.captured_at);
+                  const capturedStr = Number.isNaN(captured.getTime()) ? s.captured_at : captured.toLocaleDateString();
+                  return (
+                    <tr key={`${s.quarter}-${s.captured_at}`} className={`border-b last:border-b-0 ${darkMode ? 'border-slate-600' : 'border-gray-200'}`}>
+                      <td className={`px-4 py-2 font-medium ${theme.textClass}`}>{s.quarter}</td>
+                      <td className={`px-4 py-2 ${theme.textSecondaryClass}`}>{capturedStr}</td>
+                      <td className={`px-4 py-2 text-right ${theme.textClass}`}>{formatCurrency(netInr, '₹')}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+            {accounts.some((a) => a.name.trim()) && (
+              <details className={`border-t ${darkMode ? 'border-slate-600' : 'border-gray-200'}`}>
+                <summary className={`px-4 py-2 text-sm cursor-pointer ${theme.textSecondaryClass} hover:${theme.textClass}`}>
+                  By account
+                </summary>
+                <div className="px-4 pb-2">
+                  {accounts.filter((a) => a.name.trim()).map((acc) => {
+                    const history = quarterlySnapshots.map((s) => {
+                      const row = s.accounts.find((r) => r.name === acc.name.trim() && r.type === acc.type);
+                      const total = row?.total;
+                      const cur = (countryData as Record<string, { currency?: string }>)[row?.currency ?? acc.currency]?.currency ?? '₹';
+                      return { quarter: s.quarter, total, cur };
+                    });
+                    return (
+                      <div key={`${acc.id}-hist`} className={`mt-2 text-xs ${theme.textSecondaryClass}`}>
+                        <span className={theme.textClass}>{acc.name || acc.type}</span>
+                        {' — '}
+                        {history.filter((h) => h.total != null).length === 0
+                          ? 'no history'
+                          : history
+                              .filter((h) => h.total != null)
+                              .map((h) => `${h.quarter}: ${formatCurrency(Number(h.total), h.cur)}`)
+                              .join(', ')}
+                      </div>
+                    );
+                  })}
+                </div>
+              </details>
+            )}
+          </div>
+        )}
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".pdf,application/pdf,image/png,image/jpeg,image/jpg,image/webp"
+          className="hidden"
+          onChange={handleImportFile}
+          aria-label="Import from file"
+        />
+        {importError && (
+          <p className="mb-2 text-sm text-red-500">{importError}</p>
+        )}
         <div className={`p-6 rounded-lg mb-6 ${darkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-gray-200'}`}>
           <div className="mb-2">
-            <span className={`text-sm font-medium ${theme.textClass}`}>Accounts</span>
+            <span className={`text-sm font-medium ${theme.textClass}`}>Assets</span>
           </div>
           <div className="space-y-4 mb-4">
             {accounts.map((row) => {
@@ -506,6 +755,16 @@ function AssetsPageContent() {
                     </div>
                     <button
                       type="button"
+                      onClick={() => triggerImport('account', row.id)}
+                      disabled={!token || importingId === row.id}
+                      className={`p-2 rounded ${theme.textSecondaryClass} hover:${theme.textClass} disabled:opacity-40`}
+                      aria-label="Import from file"
+                      title="Import from statement or screenshot"
+                    >
+                      <Upload className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => removeRow(row.id)}
                       disabled={accounts.length <= 1}
                       className={`p-2 rounded ${theme.textSecondaryClass} hover:text-red-500 disabled:opacity-40`}
@@ -514,6 +773,9 @@ function AssetsPageContent() {
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
+                  {importingId === row.id && (
+                    <p className={`mt-1 text-xs ${theme.textSecondaryClass}`}>Importing…</p>
+                  )}
                   <div className="mt-2 flex items-center gap-2">
                     <button
                       type="button"
@@ -560,7 +822,7 @@ function AssetsPageContent() {
           </button>
 
           <div className={`mb-2 pt-4 border-t ${theme.borderClass}`}>
-            <span className={`text-sm font-medium ${theme.textClass}`}>Liabilities (optional)</span>
+            <span className={`text-sm font-medium ${theme.textClass}`}>Liabilities</span>
           </div>
           <div className="space-y-4 mb-4">
             {liabilities.map((row) => {
@@ -623,6 +885,16 @@ function AssetsPageContent() {
                     </div>
                     <button
                       type="button"
+                      onClick={() => triggerImport('liability', row.id)}
+                      disabled={!token || importingId === row.id}
+                      className={`p-2 rounded ${theme.textSecondaryClass} hover:${theme.textClass} disabled:opacity-40`}
+                      aria-label="Import from file"
+                      title="Import from statement or screenshot"
+                    >
+                      <Upload className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => removeLiability(row.id)}
                       className={`p-2 rounded ${theme.textSecondaryClass} hover:text-red-500`}
                       aria-label="Remove liability"
@@ -630,6 +902,9 @@ function AssetsPageContent() {
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
+                  {importingId === row.id && (
+                    <p className={`mt-1 text-xs ${theme.textSecondaryClass}`}>Importing…</p>
+                  )}
                   <div className="mt-2 flex items-center gap-2">
                     <button
                       type="button"
@@ -684,9 +959,18 @@ function AssetsPageContent() {
             >
               {saveStatus === 'saving' ? 'Saving…' : saveStatus === 'saved' ? 'Saved' : 'Save'}
             </button>
+            <button
+              type="button"
+              onClick={saveSnapshot}
+              disabled={saveStatus === 'saving'}
+              className={`py-2 px-4 rounded-lg border ${theme.borderClass} ${theme.textClass} disabled:opacity-50`}
+            >
+              Save snapshot
+            </button>
             {saveError && <span className="text-sm text-red-500">{saveError}</span>}
             {saveStatus === 'error' && !saveError && <span className="text-sm text-red-500">Save failed</span>}
           </div>
+          <AddReminderForm token={token} context="assets" defaultDescription="Review assets" darkMode={darkMode} theme={theme} />
         </div>
       </main>
     </div>

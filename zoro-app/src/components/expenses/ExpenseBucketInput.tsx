@@ -36,26 +36,26 @@ export function ExpenseBucketInput({
   };
 
   return (
-    <div className={`p-6 rounded-lg mb-6 ${darkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-gray-200'}`}>
-      <h3 className={`text-xl font-light mb-2 ${theme.textClass}`}>Review Monthly Expenses</h3>
+    <div className={`p-4 sm:p-6 rounded-lg mb-6 min-w-0 ${darkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-gray-200'}`}>
+      <h3 className={`text-xl font-light mb-2 ${theme.textClass}`}>Monthly estimates</h3>
       <p className={`text-sm mb-6 ${theme.textSecondaryClass}`}>
-        Estimate your monthly spending by category (we&apos;ll compare with your statement later)
+        By category; we&apos;ll compare with your statement later.
       </p>
 
       <div className="space-y-6">
         {Object.entries(buckets).map(([key, bucket]) => {
           const inRange = bucket.min != null && bucket.max != null ? isValueInRange(bucket.value, bucket) : true;
           return (
-            <div key={key} className="space-y-2">
-              <div className="flex justify-between items-center mb-1">
-                <label className={`text-sm font-medium ${theme.textClass}`}>
+            <div key={key} className="space-y-2 min-w-0">
+              <div className="flex justify-between items-center gap-3 mb-1">
+                <label className={`text-sm font-medium shrink-0 ${theme.textClass}`}>
                   {bucket.label}
                 </label>
                 <input
                   type="number"
                   value={bucket.value}
                   onChange={(e) => handleBucketChange(key, e.target.value)}
-                  className={`w-32 px-3 py-2 rounded text-sm font-medium ${
+                  className={`w-24 sm:w-32 min-w-0 px-2 sm:px-3 py-2 rounded text-sm font-medium ${
                     darkMode
                       ? 'bg-slate-900 border border-slate-600 text-gray-100'
                       : 'bg-gray-100 border border-gray-300 text-gray-900'
@@ -89,7 +89,7 @@ export function ExpenseBucketInput({
               )}
               {!inRange && bucket.min !== undefined && bucket.max !== undefined && (
                 <p className={`text-xs ${darkMode ? 'text-yellow-400' : 'text-yellow-600'}`}>
-                  Value outside range - slider disabled
+                  Out of range
                 </p>
               )}
             </div>
@@ -97,10 +97,10 @@ export function ExpenseBucketInput({
         })}
       </div>
 
-      <div className={`mt-6 pt-6 border-t ${darkMode ? 'border-slate-700' : 'border-gray-200'}`}>
-        <div className="flex justify-between items-center">
-          <span className={`text-lg font-medium ${theme.textClass}`}>Total Monthly</span>
-          <span className="text-2xl font-light text-blue-500">
+      <div className={`mt-6 pt-6 border-t ${darkMode ? 'border-slate-700' : 'border-gray-200'} min-w-0`}>
+        <div className="flex justify-between items-center gap-2">
+          <span className={`text-lg font-medium shrink-0 ${theme.textClass}`}>Total monthly</span>
+          <span className="text-xl sm:text-2xl font-light text-blue-500 truncate">
             {formatCurrency(getTotalMonthlyExpenses(buckets), currency)}
           </span>
         </div>
