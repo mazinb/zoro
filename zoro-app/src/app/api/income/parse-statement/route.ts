@@ -43,6 +43,22 @@ function toNum(v: unknown): number | undefined {
   return undefined;
 }
 
+/** Normalize bonusPct: if value is 0–1 treat as fraction (e.g. 0.15 → 15), else if 1–100 keep as % */
+function normalizeBonusPct(v: number | undefined): number | undefined {
+  if (v == null || Number.isNaN(v)) return undefined;
+  if (v > 0 && v <= 1) return Math.round(v * 100 * 10) / 10;
+  if (v >= 0 && v <= 100) return v;
+  return undefined;
+}
+
+/** If period is monthly, convert to annual; otherwise return as-is */
+function toAnnualAmount(amount: number | undefined, period: string | undefined): number | undefined {
+  if (amount == null || Number.isNaN(amount)) return undefined;
+  const p = (period || '').toLowerCase();
+  if (p === 'monthly' || p === 'month') return Math.round(amount * 12);
+  return amount;
+}
+
 function parseYearlyFromResponse(response: {
   text?: string;
   candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
@@ -77,11 +93,18 @@ function parseYearlyFromResponse(response: {
   for (const [year, val] of Object.entries(yearly)) {
     if (!/^\d{4}$/.test(year) || !val || typeof val !== 'object') continue;
     const v = val as Record<string, unknown>;
+    const basePeriod = typeof v.baseSalaryPeriod === 'string' ? v.baseSalaryPeriod : undefined;
+    const bonusPeriod = typeof v.bonusPeriod === 'string' ? v.bonusPeriod : undefined;
+    const rawBase = toNum(v.baseSalary);
+    const rawBonus = toNum(v.bonus);
+    const baseSalary = toAnnualAmount(rawBase, basePeriod);
+    const bonus = toAnnualAmount(rawBonus, bonusPeriod);
+    const bonusPct = normalizeBonusPct(toNum(v.bonusPct));
     out[year] = {
       job: typeof v.job === 'string' ? v.job.trim() : undefined,
-      baseSalary: toNum(v.baseSalary),
-      bonus: toNum(v.bonus),
-      bonusPct: toNum(v.bonusPct),
+      baseSalary,
+      bonus,
+      bonusPct,
       rsuValue: toNum(v.rsuValue),
       rsuCurrency: typeof v.rsuCurrency === 'string' ? v.rsuCurrency : undefined,
       effectiveTaxRate: toNum(v.effectiveTaxRate),
@@ -154,20 +177,24 @@ export async function POST(request: NextRequest) {
 
   const prompt = `You are analyzing a compensation statement, offer letter, or tax/income document (PDF). Extract compensation data BY YEAR.
 
+IMPORTANT: All salary and bonus amounts must be ANNUAL (yearly). If the document shows monthly salary or monthly bonus, multiply by 12 and output the annual amount.
+
 For each calendar year that appears in the document (e.g. 2024, 2023), extract:
 - job: job title or employer name (string)
-- baseSalary: annual base salary (number)
-- bonus: annual bonus amount (number), or omit if not stated
-- bonusPct: bonus as % of base (number), or omit
-- rsuValue: RSU/stock grant value if mentioned (number)
+- baseSalary: annual base salary (number). If the document only shows monthly gross/base, multiply by 12 and output the annual figure.
+- baseSalaryPeriod: "annual" or "monthly" depending on what the document states (so we can convert if needed)
+- bonus: annual bonus amount (number), or omit if not stated. If document shows monthly bonus, multiply by 12.
+- bonusPeriod: "annual" or "monthly" if you extracted a bonus
+- bonusPct: bonus as a percentage of base salary, as a number 0-100 (e.g. 15 for 15%, not 0.15). Omit if not stated.
+- rsuValue: RSU/stock grant value if mentioned (number), annual if possible
 - rsuCurrency: currency for RSU if different (e.g. "US")
-- effectiveTaxRate: effective tax rate % if stated (number)
+- effectiveTaxRate: effective tax rate % if stated (number, 0-100)
 - currency: main currency for salary (e.g. "India", "US")
 
 Respond with ONLY a JSON object in this exact shape, no other text or markdown:
-{"yearly":{"2024":{"job":"Software Engineer at Acme","baseSalary":120000,"bonus":10000,"currency":"US","effectiveTaxRate":28},"2023":{...}}}
+{"yearly":{"2024":{"job":"Software Engineer at Acme","baseSalary":120000,"baseSalaryPeriod":"annual","bonus":10000,"bonusPeriod":"annual","bonusPct":8.3,"currency":"US","effectiveTaxRate":28},"2023":{...}}}
 
-Use empty object {} for a year if nothing is found. Include every year that has compensation data.`;
+Use empty object {} for a year if nothing is found. Include every year that has compensation data. Always output baseSalary and bonus as annual figures.`;
 
   let response;
   try {
