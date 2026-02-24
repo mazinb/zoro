@@ -104,29 +104,12 @@ function formatGoalsList(goalIds: string[], userToken: string | null): { html: s
 }
 
 export async function buildDraftResponseEmail(body: Record<string, any>) {
-  const userName = body.name || 'there';
   const waitlistPosition = body.waitlistPosition ?? 0;
   const userToken = body.userToken || body.token || '';
   const baseUrl = getBaseUrl();
   const expensesUrl = userToken ? `${baseUrl}/expenses?token=${encodeURIComponent(userToken)}` : '';
 
-  let textContent: string;
-
-  if (waitlistPosition <= 10) {
-    textContent = `Hi ${userName},
-
-Thanks for sharing your goals!
-
-You're #${waitlistPosition} on our waitlist. We are still building Zoro.
-
-Simply reply to this email to interact with our agent. You can ask about your goals, general money questions, set up reminders, or how I work.
-
-Start with expenses: ${expensesUrl || baseUrl + '/expenses'}
-
-Thanks,
-Zoro`;
-  } else {
-    textContent = `Thanks for sharing your goals!
+  const textContent = `Thanks for sharing your goals!
 You're #${waitlistPosition} on our waitlist. We are still building Zoro but want to give you a peak. There are 3 ways to interact:
 1. Simply reply to this email. You can ask about your goals, general money questions or ask how I work. Anything really
 2. Use action buttons like the one below share data or view your information. You are always in control of what I know
@@ -134,14 +117,13 @@ You're #${waitlistPosition} on our waitlist. We are still building Zoro but want
 Can't wait to work with you!
 Zoro
 Start with expenses: ${expensesUrl || baseUrl + '/expenses'}`;
-  }
 
   const htmlContent = textContent
     .split('\n')
     .map((line) => {
       if (line.includes('Start with expenses:')) {
         const url = expensesUrl || baseUrl + '/expenses';
-        return `<p style="margin:24px 0"><a href="${escapeHtml(url)}" style="display:inline-block;background:#2563eb;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600">Start with expenses</a></p><p style="color:#64748b;font-size:14px">Or copy this link: ${escapeHtml(url)}</p>`;
+        return `<p style="margin:24px 0"><a href="${escapeHtml(url)}" style="display:inline-block;background:#2563eb;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600">Start with expenses</a></p>`;
       }
       return escapeHtml(line);
     })
