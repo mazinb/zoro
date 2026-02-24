@@ -92,7 +92,6 @@ function IncomePageContent() {
   const [importResult, setImportResult] = useState<Record<string, YearlyIncome> | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [showImportReview, setShowImportReview] = useState(false);
-  const [missingRates, setMissingRates] = useState<Array<{ month: string; currency_code: string }>>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -152,23 +151,6 @@ function IncomePageContent() {
         }
       } catch {
         if (!cancelled) setUserName('');
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [token]);
-
-  useEffect(() => {
-    if (!token) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch(`/api/currency-rates/coverage?token=${encodeURIComponent(token)}`);
-        const json = await res.json();
-        if (cancelled || !res.ok) return;
-        const list = json?.data?.missing;
-        setMissingRates(Array.isArray(list) ? list : []);
-      } catch {
-        setMissingRates([]);
       }
     })();
     return () => { cancelled = true; };
@@ -408,12 +390,6 @@ function IncomePageContent() {
         <p className={`text-sm mb-4 ${theme.textSecondaryClass}`}>
           Job, base salary, and bonus. By year; we only store high-level numbers.
         </p>
-        {missingRates.length > 0 && (
-          <div className={`mb-4 py-2 px-3 rounded-lg border ${darkMode ? 'border-amber-600 bg-amber-900/20' : 'border-amber-400 bg-amber-50'} ${theme.textClass} text-sm`}>
-            Currency rate missing for {missingRates.slice(0, 5).map((m) => `${m.month} (${m.currency_code})`).join(', ')}
-            {missingRates.length > 5 ? ` and ${missingRates.length - 5} more` : ''}. Totals may be approximate.
-          </div>
-        )}
 
         <input
           ref={fileInputRef}

@@ -100,7 +100,6 @@ function ExpensesPageContent() {
   const [gateSending, setGateSending] = useState(false);
   const [gateMessage, setGateMessage] = useState<'idle' | 'sent' | 'not_registered' | 'error'>('idle');
   const [gateError, setGateError] = useState<string | null>(null);
-  const [missingRates, setMissingRates] = useState<Array<{ month: string; currency_code: string }>>([]);
   const [statementViewCurrency, setStatementViewCurrency] = useState(DEFAULT_COUNTRY);
   const [ratesByMonth, setRatesByMonth] = useState<Record<string, Record<string, number>>>({});
   const [showStatementViewDropdown, setShowStatementViewDropdown] = useState(false);
@@ -152,23 +151,6 @@ function ExpensesPageContent() {
     return () => {
       cancelled = true;
     };
-  }, [token]);
-
-  useEffect(() => {
-    if (!token) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch(`/api/currency-rates/coverage?token=${encodeURIComponent(token)}`);
-        const json = await res.json();
-        if (cancelled || !res.ok) return;
-        const list = json?.data?.missing;
-        setMissingRates(Array.isArray(list) ? list : []);
-      } catch {
-        setMissingRates([]);
-      }
-    })();
-    return () => { cancelled = true; };
   }, [token]);
 
   useEffect(() => {
@@ -656,12 +638,6 @@ function ExpensesPageContent() {
         <p className={`text-sm mb-6 sm:mb-8 ${theme.textSecondaryClass}`}>
           Monthly estimates, then compare with your statement.
         </p>
-        {missingRates.length > 0 && (
-          <div className={`mb-4 py-2 px-3 rounded-lg border ${darkMode ? 'border-amber-600 bg-amber-900/20' : 'border-amber-400 bg-amber-50'} ${theme.textClass} text-sm`}>
-            Currency rate missing for {missingRates.slice(0, 5).map((m) => `${m.month} (${m.currency_code})`).join(', ')}
-            {missingRates.length > 5 ? ` and ${missingRates.length - 5} more` : ''}. Totals may be approximate.
-          </div>
-        )}
 
         {step === 0 && (
           <>
@@ -831,20 +807,38 @@ function ExpensesPageContent() {
                       const diff = total - estimateTotal;
                       const pct = estimateTotal > 0 ? (diff / estimateTotal) * 100 : 0;
                       const monthKey = row.month.slice(0, 7);
-                      const totalInView = convertBetweenCurrencies(total, monthKey, country, statementViewCurrency, ratesByMonth);
-                      const diffInView = convertBetweenCurrencies(diff, monthKey, country, statementViewCurrency, ratesByMonth);
+                      const totalInView = convertBetweenCurrencies(
+                        total,
+                        monthKey,
+                        country,
+                        statementViewCurrency,
+                        ratesByMonth
+                      );
+                      const diffInView = convertBetweenCurrencies(
+                        diff,
+                        monthKey,
+                        country,
+                        statementViewCurrency,
+                        ratesByMonth
+                      );
                       const viewSymbol = countryData[statementViewCurrency]?.currency ?? '₹';
-                      const vsLabel =
+                      const amountPart =
                         diff === 0
                           ? '—'
                           : diff > 0
-                            ? `+${formatCurrency(diffInView, viewSymbol)} (+${pct.toFixed(0)}%)`
-                            : `${formatCurrency(-diffInView, viewSymbol)} under (${Math.abs(pct).toFixed(0)}%)`;
+                            ? `+${formatCurrency(diffInView, viewSymbol)}`
+                            : formatCurrency(-diffInView, viewSymbol);
+                      const pctPart =
+                        diff === 0 ? null : diff > 0 ? `+${pct.toFixed(0)}%` : `-${Math.abs(pct).toFixed(0)}%`;
+                      const pctClass =
+                        diff === 0 ? theme.textSecondaryClass : diff > 0 ? 'text-red-400' : 'text-emerald-400';
                       const isSelected = monthKey === selectedMonth;
                       return (
                         <tr
                           key={row.month}
-                          className={`border-b last:border-b-0 ${darkMode ? 'border-slate-600' : 'border-gray-200'} ${isSelected ? (darkMode ? 'bg-slate-700/30' : 'bg-blue-50/50') : ''}`}
+                          className={`border-b last:border-b-0 ${
+                            darkMode ? 'border-slate-600' : 'border-gray-200'
+                          } ${isSelected ? (darkMode ? 'bg-slate-700/30' : 'bg-blue-50/50') : ''}`}
                         >
                           <td className={`px-4 py-2 ${theme.textClass}`}>
                             {formatMonthLabel(row.month)}
@@ -853,7 +847,14 @@ function ExpensesPageContent() {
                             {formatCurrency(totalInView, viewSymbol)}
                           </td>
                           <td className={`px-4 py-2 text-right ${theme.textSecondaryClass}`}>
-                            {vsLabel}
+                            {diff === 0 ? (
+                              amountPart
+                            ) : (
+                              <>
+                                {amountPart}{' '}
+                                <span className={pctClass}>({pctPart})</span>
+                              </>
+                            )}
                           </td>
                         </tr>
                       );

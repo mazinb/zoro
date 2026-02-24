@@ -98,7 +98,6 @@ function AssetsPageContent() {
   const [gateError, setGateError] = useState<string | null>(null);
   const [quarterlySnapshots, setQuarterlySnapshots] = useState<QuarterlySnapshot[]>([]);
   const [ratesByMonth, setRatesByMonth] = useState<Record<string, Record<string, number>>>({});
-  const [missingRates, setMissingRates] = useState<Array<{ month: string; currency_code: string }>>([]);
 
   useEffect(() => {
     const urlToken = searchParams.get('token');
@@ -216,23 +215,6 @@ function AssetsPageContent() {
     })();
     return () => { cancelled = true; };
   }, []);
-
-  useEffect(() => {
-    if (!token) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch(`/api/currency-rates/coverage?token=${encodeURIComponent(token)}`);
-        const json = await res.json();
-        if (cancelled || !res.ok) return;
-        const list = json?.data?.missing;
-        setMissingRates(Array.isArray(list) ? list : []);
-      } catch {
-        setMissingRates([]);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [token]);
 
   const handleSendMagicLink = useCallback(async () => {
     const email = gateEmail.trim().toLowerCase();
@@ -557,12 +539,6 @@ function AssetsPageContent() {
         <p className={`text-sm mb-2 ${theme.textSecondaryClass}`}>
           List assets and liabilities; add a snapshot to track over time.
         </p>
-        {missingRates.length > 0 && (
-          <div className={`mb-4 py-2 px-3 rounded-lg border ${darkMode ? 'border-amber-600 bg-amber-900/20' : 'border-amber-400 bg-amber-50'} ${theme.textClass} text-sm`}>
-            Currency rate missing for {missingRates.slice(0, 5).map((m) => `${m.month} (${m.currency_code})`).join(', ')}
-            {missingRates.length > 5 ? ` and ${missingRates.length - 5} more` : ''}. Totals may be approximate.
-          </div>
-        )}
         {approxTotal != null && (
           <div className={`mb-4 py-2 px-3 rounded-lg border ${theme.borderClass} ${theme.textSecondaryClass} text-sm`}>
             <span className={theme.textClass}>Net worth (approx): {formatCurrency(approxTotal.netInr, '₹')}</span>
