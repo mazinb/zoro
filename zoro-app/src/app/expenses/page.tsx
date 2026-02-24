@@ -106,6 +106,7 @@ function ExpensesPageContent() {
   const [showStatementViewDropdown, setShowStatementViewDropdown] = useState(false);
   const [actualsEdits, setActualsEdits] = useState<Record<string, number>>({});
   const [saveActualsStatus, setSaveActualsStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [showManualActuals, setShowManualActuals] = useState(false);
 
   useEffect(() => {
     if (!token) return;
@@ -218,6 +219,7 @@ function ExpensesPageContent() {
 
   useEffect(() => {
     setActualsEdits({});
+    setShowManualActuals(false);
   }, [selectedMonth]);
 
   useEffect(() => {
@@ -880,67 +882,6 @@ function ExpensesPageContent() {
             </div>
 
             <div
-              className={`mb-6 p-4 rounded-lg border ${darkMode ? 'bg-slate-800/60 border-slate-600' : 'bg-white border-gray-200'}`}
-            >
-              <h3 className={`text-sm font-medium mb-2 ${theme.textClass}`}>Actuals by bucket — {selectedMonthLabel}</h3>
-              <p className={`text-xs mb-3 ${theme.textSecondaryClass}`}>
-                {monthAlreadyImported
-                  ? 'Verified (from statement). You can still edit below and save; saved values will be marked not verified.'
-                  : 'Not verified (manual). Enter actual amounts per category; these are not verified against a statement.'}
-              </p>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className={`border-b ${darkMode ? 'border-slate-600' : 'border-gray-200'}`}>
-                      <th className={`text-left py-2 pr-4 font-medium ${theme.textSecondaryClass}`}>Category</th>
-                      <th className={`text-right py-2 pr-4 font-medium ${theme.textSecondaryClass}`}>Estimate</th>
-                      <th className={`text-right py-2 pl-4 font-medium ${theme.textSecondaryClass}`}>Actual</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {BUCKET_KEYS.map((k) => {
-                      const estimate = buckets[k]?.value ?? 0;
-                      const actual = actualsEdits[k] ?? selectedMonthData?.buckets?.[k]?.value ?? 0;
-                      return (
-                        <tr key={k} className={`border-b last:border-b-0 ${darkMode ? 'border-slate-600' : 'border-gray-200'}`}>
-                          <td className={`py-2 pr-4 ${theme.textClass}`}>{buckets[k]?.label ?? k}</td>
-                          <td className={`py-2 pr-4 text-right ${theme.textSecondaryClass}`}>
-                            {formatCurrency(estimate, currency)}
-                          </td>
-                          <td className="py-2 pl-4">
-                            <input
-                              type="number"
-                              min={0}
-                              step={1}
-                              value={actual}
-                              onChange={(e) =>
-                                setActualsEdits((prev) => ({ ...prev, [k]: parseFloat(e.target.value) || 0 }))
-                              }
-                              className={`w-28 px-2 py-1.5 rounded border text-right text-sm ${
-                                darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-300'
-                              } ${theme.textClass}`}
-                            />
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleSaveManualActuals}
-                  disabled={saveActualsStatus === 'saving'}
-                  className={`py-2 px-4 rounded-lg border ${theme.borderClass} ${theme.textClass} text-sm font-medium disabled:opacity-50`}
-                >
-                  {saveActualsStatus === 'saving' ? 'Saving…' : saveActualsStatus === 'saved' ? 'Saved' : 'Save actuals'}
-                </button>
-                {saveActualsStatus === 'error' && <span className="text-sm text-red-500">Save failed</span>}
-              </div>
-            </div>
-
-            <div
               className={`mb-6 p-4 rounded-lg border ${darkMode ? 'bg-slate-900/40 border-slate-600' : 'bg-gray-50 border-gray-200'}`}
             >
               <h3 className={`text-sm font-medium mb-2 ${theme.textClass}`}>Summary — {selectedMonthLabel}</h3>
@@ -958,7 +899,7 @@ function ExpensesPageContent() {
                     <p className={`text-sm ${theme.textSecondaryClass}`}>
                       Your estimates total: {formatCurrency(estimateInView, viewSymbol)}
                     </p>
-                    {monthlySummary ? (
+                    {monthlySummary != null ? (
                       <>
                         <p className={`text-sm mt-1 ${theme.textClass}`}>
                           Expenses for this month: {formatCurrency(monthlyInView, viewSymbol)}
@@ -970,16 +911,92 @@ function ExpensesPageContent() {
                               ? `About ${monthlySummary.pct.toFixed(0)}% over your estimates (${formatCurrency(diffInView, viewSymbol)} more).`
                               : `About ${Math.abs(monthlySummary.pct).toFixed(0)}% under your estimates (${formatCurrency(Math.abs(diffInView), viewSymbol)} less).`}
                         </p>
+                        <p className={`text-xs mt-2 ${theme.textSecondaryClass}`}>
+                          {monthAlreadyImported ? 'Verified (from statement).' : 'Not verified (manual).'}
+                        </p>
                       </>
                     ) : (
                       <p className={`text-sm mt-1 ${theme.textSecondaryClass}`}>
-                        No statement imported yet for this month. Upload a PDF to compare.
+                        No data for this month. Upload a PDF or enter actuals manually.
                       </p>
                     )}
                   </>
                 );
               })()}
             </div>
+
+            <div className="mb-4">
+              <button
+                type="button"
+                onClick={() => setShowManualActuals((prev) => !prev)}
+                className={`py-2 px-4 rounded-lg border text-sm ${theme.borderClass} ${theme.textClass}`}
+              >
+                {showManualActuals ? 'Hide manual input' : monthlySummary != null ? 'Edit by bucket' : 'Enter actuals manually'}
+              </button>
+            </div>
+
+            {showManualActuals && (
+              <div
+                className={`mb-6 p-4 rounded-lg border ${darkMode ? 'bg-slate-800/60 border-slate-600' : 'bg-white border-gray-200'}`}
+              >
+                <h3 className={`text-sm font-medium mb-2 ${theme.textClass}`}>Actuals by bucket — {selectedMonthLabel}</h3>
+                <p className={`text-xs mb-3 ${theme.textSecondaryClass}`}>
+                  {monthAlreadyImported
+                    ? 'Verified (from statement). Saving below will mark this month as not verified.'
+                    : 'Not verified (manual). Enter actual amounts per category.'}
+                </p>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className={`border-b ${darkMode ? 'border-slate-600' : 'border-gray-200'}`}>
+                        <th className={`text-left py-2 pr-4 font-medium ${theme.textSecondaryClass}`}>Category</th>
+                        <th className={`text-right py-2 pr-4 font-medium ${theme.textSecondaryClass}`}>Estimate</th>
+                        <th className={`text-right py-2 pl-4 font-medium ${theme.textSecondaryClass}`}>Actual</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {BUCKET_KEYS.map((k) => {
+                        const estimate = buckets[k]?.value ?? 0;
+                        const actual = actualsEdits[k] ?? selectedMonthData?.buckets?.[k]?.value ?? 0;
+                        return (
+                          <tr key={k} className={`border-b last:border-b-0 ${darkMode ? 'border-slate-600' : 'border-gray-200'}`}>
+                            <td className={`py-2 pr-4 ${theme.textClass}`}>{buckets[k]?.label ?? k}</td>
+                            <td className={`py-2 pr-4 text-right ${theme.textSecondaryClass}`}>
+                              {formatCurrency(estimate, currency)}
+                            </td>
+                            <td className="py-2 pl-4">
+                              <input
+                                type="number"
+                                min={0}
+                                step={1}
+                                value={actual}
+                                onChange={(e) =>
+                                  setActualsEdits((prev) => ({ ...prev, [k]: parseFloat(e.target.value) || 0 }))
+                                }
+                                className={`w-28 px-2 py-1.5 rounded border text-right text-sm ${
+                                  darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-300'
+                                } ${theme.textClass}`}
+                              />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleSaveManualActuals}
+                    disabled={saveActualsStatus === 'saving'}
+                    className={`py-2 px-4 rounded-lg border ${theme.borderClass} ${theme.textClass} text-sm font-medium disabled:opacity-50`}
+                  >
+                    {saveActualsStatus === 'saving' ? 'Saving…' : saveActualsStatus === 'saved' ? 'Saved' : 'Save actuals'}
+                  </button>
+                  {saveActualsStatus === 'error' && <span className="text-sm text-red-500">Save failed</span>}
+                </div>
+              </div>
+            )}
 
             {monthAlreadyImported ? (
               <div
