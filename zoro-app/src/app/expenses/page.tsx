@@ -14,6 +14,7 @@ import type { BucketsPerFile } from '@/components/expenses/types';
 import { countryData, getCountriesSorted } from '@/components/retirement/countryData';
 import { formatCurrency } from '@/components/retirement/utils';
 import { AddReminderForm } from '@/components/reminders/AddReminderForm';
+import { convertBetweenCurrencies } from '@/lib/currency';
 
 const EXPENSES_TOKEN_KEY = 'zoro_expenses_token';
 const DEFAULT_COUNTRY = 'India';
@@ -99,6 +100,12 @@ function ExpensesPageContent() {
   const [gateSending, setGateSending] = useState(false);
   const [gateMessage, setGateMessage] = useState<'idle' | 'sent' | 'not_registered' | 'error'>('idle');
   const [gateError, setGateError] = useState<string | null>(null);
+  const [missingRates, setMissingRates] = useState<Array<{ month: string; currency_code: string }>>([]);
+  const [statementViewCurrency, setStatementViewCurrency] = useState(DEFAULT_COUNTRY);
+  const [ratesByMonth, setRatesByMonth] = useState<Record<string, Record<string, number>>>({});
+  const [showStatementViewDropdown, setShowStatementViewDropdown] = useState(false);
+  const [actualsEdits, setActualsEdits] = useState<Record<string, number>>({});
+  const [saveActualsStatus, setSaveActualsStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
   useEffect(() => {
     if (!token) return;
@@ -112,9 +119,12 @@ function ExpensesPageContent() {
         if (data?.name && typeof data.name === 'string') setUserName(data.name.trim());
         if (data?.shared_data && typeof data.shared_data === 'object' && !Array.isArray(data.shared_data)) {
           setSharedData(data.shared_data as Record<string, unknown>);
-          const c = (data.shared_data as Record<string, unknown>)?.expenses_country;
+          const sd = data.shared_data as Record<string, unknown>;
+          const c = (sd?.expenses_country ?? sd?.default_currency) as string | undefined;
           if (typeof c === 'string' && c.trim() && (countryData as Record<string, unknown>)[c.trim()]) {
-            setCountry(c.trim());
+            const resolved = c.trim();
+            setCountry(resolved);
+            setStatementViewCurrency(resolved);
           }
         }
         const saved = data?.retirement_expense_buckets;
@@ -144,6 +154,40 @@ function ExpensesPageContent() {
   }, [token]);
 
   useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/currency-rates/coverage?token=${encodeURIComponent(token)}`);
+        const json = await res.json();
+        if (cancelled || !res.ok) return;
+        const list = json?.data?.missing;
+        setMissingRates(Array.isArray(list) ? list : []);
+      } catch {
+        setMissingRates([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [token]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/currency-rates');
+        const json = await res.json();
+        if (cancelled || !res.ok) return;
+        if (json?.data && typeof json.data === 'object' && !Array.isArray(json.data)) {
+          setRatesByMonth(json.data as Record<string, Record<string, number>>);
+        }
+      } catch {
+        // keep empty; convertBetweenCurrencies uses fallback rates
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
     if (!token || !selectedMonth) return;
     let cancelled = false;
     (async () => {
@@ -171,6 +215,10 @@ function ExpensesPageContent() {
       cancelled = true;
     };
   }, [token, selectedMonth]);
+
+  useEffect(() => {
+    setActualsEdits({});
+  }, [selectedMonth]);
 
   useEffect(() => {
     if (!token || step !== 1) return;
@@ -451,6 +499,54 @@ function ExpensesPageContent() {
     [token, selectedMonth]
   );
 
+  const handleSaveManualActuals = useCallback(async () => {
+    if (!token || !selectedMonth) return;
+    setSaveActualsStatus('saving');
+    try {
+      const bucketsToSave: Record<string, { value: number }> = {};
+      for (const k of BUCKET_KEYS) {
+        const v = actualsEdits[k] ?? selectedMonthData?.buckets?.[k]?.value ?? 0;
+        bucketsToSave[k] = { value: typeof v === 'number' ? v : 0 };
+      }
+      const res = await fetch('/api/expenses/monthly', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token,
+          month: selectedMonth,
+          buckets: bucketsToSave,
+          finalizeImport: false,
+        }),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        throw new Error(json.error ?? 'Save failed');
+      }
+      setSaveActualsStatus('saved');
+      setActualsEdits({});
+      const refetch = await fetch(
+        `/api/expenses/monthly?token=${encodeURIComponent(token)}&month=${encodeURIComponent(selectedMonth)}`
+      );
+      const json = await refetch.json();
+      const data = json?.data;
+      setMonthAlreadyImported(!!data?.imported_at);
+      if (data?.buckets && typeof data.buckets === 'object' && !Array.isArray(data.buckets)) {
+        setSelectedMonthData({ buckets: data.buckets as Record<string, { value: number }> });
+      }
+      setMonthsWithData((prev) => {
+        const monthDate = `${selectedMonth}-01`;
+        const existing = prev.find((r) => r.month.startsWith(selectedMonth));
+        const next = existing
+          ? prev.map((r) => (r.month.startsWith(selectedMonth) ? { ...r, buckets: data?.buckets ?? r.buckets, imported_at: data?.imported_at ?? null } : r))
+          : [{ month: monthDate, buckets: (data?.buckets ?? {}) as Record<string, { value: number }>, imported_at: data?.imported_at ?? null }, ...prev];
+        return next;
+      });
+      setTimeout(() => setSaveActualsStatus('idle'), 2000);
+    } catch {
+      setSaveActualsStatus('error');
+    }
+  }, [token, selectedMonth, actualsEdits, selectedMonthData]);
+
   const canProceedFromEstimate = useMemo(() => {
     return Object.values(buckets).every((b) => typeof b.value === 'number' && !Number.isNaN(b.value));
   }, [buckets]);
@@ -558,12 +654,18 @@ function ExpensesPageContent() {
         <p className={`text-sm mb-6 sm:mb-8 ${theme.textSecondaryClass}`}>
           Monthly estimates, then compare with your statement.
         </p>
+        {missingRates.length > 0 && (
+          <div className={`mb-4 py-2 px-3 rounded-lg border ${darkMode ? 'border-amber-600 bg-amber-900/20' : 'border-amber-400 bg-amber-50'} ${theme.textClass} text-sm`}>
+            Currency rate missing for {missingRates.slice(0, 5).map((m) => `${m.month} (${m.currency_code})`).join(', ')}
+            {missingRates.length > 5 ? ` and ${missingRates.length - 5} more` : ''}. Totals may be approximate.
+          </div>
+        )}
 
         {step === 0 && (
           <>
             <div className="mb-6">
               <label className={`block text-sm font-medium mb-2 ${theme.textClass}`}>
-                Currency
+                Currency <span className={theme.textSecondaryClass}>(your default; expense data is stored in this)</span>
               </label>
               <div className="relative">
                 <button
@@ -658,20 +760,20 @@ function ExpensesPageContent() {
               </div>
               <div className="flex flex-wrap items-center gap-3">
                 <div className="relative">
-                  <label className={`sr-only ${theme.textClass}`}>Currency</label>
+                  <label className={`block text-xs font-medium mb-1 ${theme.textSecondaryClass}`}>View table in</label>
                   <button
                     type="button"
-                    onClick={() => setShowCountryDropdown(!showCountryDropdown)}
+                    onClick={() => setShowStatementViewDropdown(!showStatementViewDropdown)}
                     className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-200'} ${theme.textClass} text-sm`}
                   >
-                    <span>{countryData[country]?.flag ?? '🌍'}</span>
-                    <span>{country}</span>
-                    <span className={theme.textSecondaryClass}>({currency})</span>
-                    <svg className={`w-4 h-4 ${showCountryDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <span>{countryData[statementViewCurrency]?.flag ?? '🌍'}</span>
+                    <span>{statementViewCurrency}</span>
+                    <span className={theme.textSecondaryClass}>({countryData[statementViewCurrency]?.currency ?? '₹'})</span>
+                    <svg className={`w-4 h-4 ${showStatementViewDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                     </svg>
                   </button>
-                  {showCountryDropdown && (
+                  {showStatementViewDropdown && (
                     <div
                       className={`absolute right-0 top-full mt-1 z-20 py-1 min-w-[180px] rounded-lg shadow-lg border ${
                         darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-200'
@@ -682,12 +784,12 @@ function ExpensesPageContent() {
                           key={c}
                           type="button"
                           onClick={() => {
-                            handleCountryChange(c);
-                            setShowCountryDropdown(false);
+                            setStatementViewCurrency(c);
+                            setShowStatementViewDropdown(false);
                           }}
                           className={`w-full px-4 py-2 text-left text-sm flex items-center gap-2 ${
                             darkMode ? 'hover:bg-slate-700' : 'hover:bg-gray-100'
-                          } ${country === c ? (darkMode ? 'bg-slate-700' : 'bg-gray-100') : ''} ${theme.textClass}`}
+                          } ${statementViewCurrency === c ? (darkMode ? 'bg-slate-700' : 'bg-gray-100') : ''} ${theme.textClass}`}
                         >
                           <span>{countryData[c].flag}</span>
                           <span>{c}</span>
@@ -726,14 +828,17 @@ function ExpensesPageContent() {
                       const total = sumBucketTotals(totals);
                       const diff = total - estimateTotal;
                       const pct = estimateTotal > 0 ? (diff / estimateTotal) * 100 : 0;
+                      const monthKey = row.month.slice(0, 7);
+                      const totalInView = convertBetweenCurrencies(total, monthKey, country, statementViewCurrency, ratesByMonth);
+                      const diffInView = convertBetweenCurrencies(diff, monthKey, country, statementViewCurrency, ratesByMonth);
+                      const viewSymbol = countryData[statementViewCurrency]?.currency ?? '₹';
                       const vsLabel =
                         diff === 0
                           ? '—'
                           : diff > 0
-                            ? `+${formatCurrency(diff, currency)} (+${pct.toFixed(0)}%)`
-                            : `${formatCurrency(-diff, currency)} under (${Math.abs(pct).toFixed(0)}%)`;
-                      const monthValue = row.month.slice(0, 7);
-                      const isSelected = monthValue === selectedMonth;
+                            ? `+${formatCurrency(diffInView, viewSymbol)} (+${pct.toFixed(0)}%)`
+                            : `${formatCurrency(-diffInView, viewSymbol)} under (${Math.abs(pct).toFixed(0)}%)`;
+                      const isSelected = monthKey === selectedMonth;
                       return (
                         <tr
                           key={row.month}
@@ -743,7 +848,7 @@ function ExpensesPageContent() {
                             {formatMonthLabel(row.month)}
                           </td>
                           <td className={`px-4 py-2 text-right ${theme.textClass}`}>
-                            {formatCurrency(total, currency)}
+                            {formatCurrency(totalInView, viewSymbol)}
                           </td>
                           <td className={`px-4 py-2 text-right ${theme.textSecondaryClass}`}>
                             {vsLabel}
@@ -775,30 +880,105 @@ function ExpensesPageContent() {
             </div>
 
             <div
+              className={`mb-6 p-4 rounded-lg border ${darkMode ? 'bg-slate-800/60 border-slate-600' : 'bg-white border-gray-200'}`}
+            >
+              <h3 className={`text-sm font-medium mb-2 ${theme.textClass}`}>Actuals by bucket — {selectedMonthLabel}</h3>
+              <p className={`text-xs mb-3 ${theme.textSecondaryClass}`}>
+                {monthAlreadyImported
+                  ? 'Verified (from statement). You can still edit below and save; saved values will be marked not verified.'
+                  : 'Not verified (manual). Enter actual amounts per category; these are not verified against a statement.'}
+              </p>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className={`border-b ${darkMode ? 'border-slate-600' : 'border-gray-200'}`}>
+                      <th className={`text-left py-2 pr-4 font-medium ${theme.textSecondaryClass}`}>Category</th>
+                      <th className={`text-right py-2 pr-4 font-medium ${theme.textSecondaryClass}`}>Estimate</th>
+                      <th className={`text-right py-2 pl-4 font-medium ${theme.textSecondaryClass}`}>Actual</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {BUCKET_KEYS.map((k) => {
+                      const estimate = buckets[k]?.value ?? 0;
+                      const actual = actualsEdits[k] ?? selectedMonthData?.buckets?.[k]?.value ?? 0;
+                      return (
+                        <tr key={k} className={`border-b last:border-b-0 ${darkMode ? 'border-slate-600' : 'border-gray-200'}`}>
+                          <td className={`py-2 pr-4 ${theme.textClass}`}>{buckets[k]?.label ?? k}</td>
+                          <td className={`py-2 pr-4 text-right ${theme.textSecondaryClass}`}>
+                            {formatCurrency(estimate, currency)}
+                          </td>
+                          <td className="py-2 pl-4">
+                            <input
+                              type="number"
+                              min={0}
+                              step={1}
+                              value={actual}
+                              onChange={(e) =>
+                                setActualsEdits((prev) => ({ ...prev, [k]: parseFloat(e.target.value) || 0 }))
+                              }
+                              className={`w-28 px-2 py-1.5 rounded border text-right text-sm ${
+                                darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-300'
+                              } ${theme.textClass}`}
+                            />
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleSaveManualActuals}
+                  disabled={saveActualsStatus === 'saving'}
+                  className={`py-2 px-4 rounded-lg border ${theme.borderClass} ${theme.textClass} text-sm font-medium disabled:opacity-50`}
+                >
+                  {saveActualsStatus === 'saving' ? 'Saving…' : saveActualsStatus === 'saved' ? 'Saved' : 'Save actuals'}
+                </button>
+                {saveActualsStatus === 'error' && <span className="text-sm text-red-500">Save failed</span>}
+              </div>
+            </div>
+
+            <div
               className={`mb-6 p-4 rounded-lg border ${darkMode ? 'bg-slate-900/40 border-slate-600' : 'bg-gray-50 border-gray-200'}`}
             >
               <h3 className={`text-sm font-medium mb-2 ${theme.textClass}`}>Summary — {selectedMonthLabel}</h3>
-              <p className={`text-sm ${theme.textSecondaryClass}`}>
-                Your estimates total: {formatCurrency(estimateTotal, currency)}
-              </p>
-              {monthlySummary ? (
-                <>
-                  <p className={`text-sm mt-1 ${theme.textClass}`}>
-                    Expenses for this month: {formatCurrency(monthlySummary.monthlyTotal, currency)}
-                  </p>
-                  <p className={`text-sm mt-1 ${theme.textSecondaryClass}`}>
-                    {monthlySummary.diff === 0
-                      ? 'Matches your estimates.'
-                      : monthlySummary.diff > 0
-                        ? `About ${monthlySummary.pct.toFixed(0)}% over your estimates (${formatCurrency(monthlySummary.diff, currency)} more).`
-                        : `About ${Math.abs(monthlySummary.pct).toFixed(0)}% under your estimates (${formatCurrency(Math.abs(monthlySummary.diff), currency)} less).`}
-                  </p>
-                </>
-              ) : (
-                <p className={`text-sm mt-1 ${theme.textSecondaryClass}`}>
-                  No statement imported yet for this month. Upload a PDF to compare.
-                </p>
-              )}
+              {(() => {
+                const viewSymbol = countryData[statementViewCurrency]?.currency ?? '₹';
+                const estimateInView = convertBetweenCurrencies(estimateTotal, selectedMonth, country, statementViewCurrency, ratesByMonth);
+                const monthlyInView = monthlySummary
+                  ? convertBetweenCurrencies(monthlySummary.monthlyTotal, selectedMonth, country, statementViewCurrency, ratesByMonth)
+                  : 0;
+                const diffInView = monthlySummary
+                  ? convertBetweenCurrencies(monthlySummary.diff, selectedMonth, country, statementViewCurrency, ratesByMonth)
+                  : 0;
+                return (
+                  <>
+                    <p className={`text-sm ${theme.textSecondaryClass}`}>
+                      Your estimates total: {formatCurrency(estimateInView, viewSymbol)}
+                    </p>
+                    {monthlySummary ? (
+                      <>
+                        <p className={`text-sm mt-1 ${theme.textClass}`}>
+                          Expenses for this month: {formatCurrency(monthlyInView, viewSymbol)}
+                        </p>
+                        <p className={`text-sm mt-1 ${theme.textSecondaryClass}`}>
+                          {monthlySummary.diff === 0
+                            ? 'Matches your estimates.'
+                            : monthlySummary.diff > 0
+                              ? `About ${monthlySummary.pct.toFixed(0)}% over your estimates (${formatCurrency(diffInView, viewSymbol)} more).`
+                              : `About ${Math.abs(monthlySummary.pct).toFixed(0)}% under your estimates (${formatCurrency(Math.abs(diffInView), viewSymbol)} less).`}
+                        </p>
+                      </>
+                    ) : (
+                      <p className={`text-sm mt-1 ${theme.textSecondaryClass}`}>
+                        No statement imported yet for this month. Upload a PDF to compare.
+                      </p>
+                    )}
+                  </>
+                );
+              })()}
             </div>
 
             {monthAlreadyImported ? (

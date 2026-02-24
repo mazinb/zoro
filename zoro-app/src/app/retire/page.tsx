@@ -7,6 +7,9 @@ import { ZoroLogo } from '@/components/ZoroLogo';
 import { useDarkMode } from '@/hooks/useDarkMode';
 import { useThemeClasses } from '@/hooks/useThemeClasses';
 import { RetirementCalculator } from '@/components/retirement/RetirementCalculator';
+import { GoalDataGate } from '@/components/goals/GoalDataGate';
+import { goalHasRequiredData } from '@/lib/goalDataConfig';
+import type { UserDataRow } from '@/lib/goalDataConfig';
 import { ExpenseBucket, Answers } from '@/components/retirement/types';
 
 function RetirePageContent() {
@@ -19,29 +22,29 @@ function RetirePageContent() {
     expenseBuckets?: Record<string, ExpenseBucket>;
     email?: string;
   } | null>(null);
+  const [userDataForGate, setUserDataForGate] = useState<UserDataRow | null>(null);
   const [loading, setLoading] = useState(true);
+  const [passedGate, setPassedGate] = useState(false);
+
+  const token = searchParams.get('token');
+  const userName = searchParams.get('name') || undefined;
 
   useEffect(() => {
     const loadUserData = async () => {
-      const token = searchParams.get('token');
-      const name = searchParams.get('name');
-      
       if (token) {
         try {
           const response = await fetch(`/api/user-data?token=${token}`);
           const result = await response.json();
-          
           if (result.data) {
-            const retirementAnswers = result.data.retirement_answers;
-            const expenseBuckets = result.data.retirement_expense_buckets;
-            
-            if (retirementAnswers || expenseBuckets) {
-              setInitialData({
-                answers: retirementAnswers || undefined,
-                expenseBuckets: expenseBuckets || undefined,
-                email: result.data.email, // Include email so form can use it
-              });
-            }
+            const data = result.data as UserDataRow;
+            setUserDataForGate(data);
+            const retirementAnswers = data.retirement_answers;
+            const expenseBuckets = data.retirement_expense_buckets;
+            setInitialData({
+              answers: retirementAnswers || undefined,
+              expenseBuckets: (expenseBuckets || undefined) as Record<string, ExpenseBucket> | undefined,
+              email: result.data.email,
+            });
           }
         } catch (error) {
           console.error('Failed to load user data:', error);
@@ -51,7 +54,7 @@ function RetirePageContent() {
     };
 
     loadUserData();
-  }, [searchParams]);
+  }, [token]);
 
   if (loading) {
     return (
@@ -61,12 +64,13 @@ function RetirePageContent() {
     );
   }
 
+  const showGate = token && goalHasRequiredData('retirement') && !passedGate;
+
   return (
     <div className={`min-h-screen ${theme.bgClass} transition-colors duration-300`}>
-      {/* Navigation - matching checkin/profile pages */}
       <nav className={`border-b ${theme.borderClass}`}>
         <div className="max-w-6xl mx-auto px-6 py-6 flex items-center justify-between">
-          <button 
+          <button
             onClick={() => router.push('/')}
             className="flex items-center cursor-pointer"
             aria-label="Back to home"
@@ -85,12 +89,26 @@ function RetirePageContent() {
         </div>
       </nav>
 
-      <RetirementCalculator 
-        darkMode={darkMode} 
-        initialData={initialData || undefined}
-        userToken={searchParams.get('token') || undefined}
-        userName={searchParams.get('name') || undefined}
-      />
+      {showGate ? (
+        <main className="max-w-6xl mx-auto px-6 py-10">
+          <GoalDataGate
+            goalId="retirement"
+            userData={userDataForGate}
+            token={token}
+            userName={userName}
+            darkMode={darkMode}
+            theme={theme}
+            onContinue={() => setPassedGate(true)}
+          />
+        </main>
+      ) : (
+        <RetirementCalculator
+          darkMode={darkMode}
+          initialData={initialData || undefined}
+          userToken={token || undefined}
+          userName={userName}
+        />
+      )}
     </div>
   );
 }

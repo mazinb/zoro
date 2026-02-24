@@ -1,14 +1,15 @@
 'use client';
 
-import React, { Suspense, useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import React, { Suspense, useState, useCallback, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Moon, Sun, Plus, Trash2, ChevronDown, ChevronUp, MessageSquare, Upload } from 'lucide-react';
+import { Moon, Sun, Plus, Trash2, ChevronDown, ChevronUp, MessageSquare } from 'lucide-react';
 import { ZoroLogo } from '@/components/ZoroLogo';
 import { useDarkMode } from '@/hooks/useDarkMode';
 import { useThemeClasses } from '@/hooks/useThemeClasses';
 import { countryData, getCountriesSorted } from '@/components/retirement/countryData';
 import { formatInputValue, parseInputValue, formatCurrency } from '@/components/retirement/utils';
 import { AddReminderForm } from '@/components/reminders/AddReminderForm';
+import { getRateToInr, currentMonthKey, toMonthKey } from '@/lib/currency';
 
 const ASSETS_TOKEN_KEY = 'zoro_assets_token';
 const DEFAULT_COUNTRY = 'India';
@@ -67,16 +68,6 @@ function getQuarterKey(date: Date): string {
   return `${y}-Q${q}`;
 }
 
-// Approximate rates to INR for rough total (not real-time)
-const RATES_TO_INR: Record<string, number> = {
-  India: 1,
-  Thailand: 2.2,
-  UAE: 22,
-  Europe: 90,
-  US: 83,
-  Other: 83,
-};
-
 function nextId(): string {
   return `a-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -106,10 +97,8 @@ function AssetsPageContent() {
   const [gateMessage, setGateMessage] = useState<'idle' | 'sent' | 'not_registered' | 'error'>('idle');
   const [gateError, setGateError] = useState<string | null>(null);
   const [quarterlySnapshots, setQuarterlySnapshots] = useState<QuarterlySnapshot[]>([]);
-  const [importingId, setImportingId] = useState<string | null>(null);
-  const [importError, setImportError] = useState<string | null>(null);
-  const importTargetRef = useRef<{ kind: 'account' | 'liability'; id: string } | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [ratesByMonth, setRatesByMonth] = useState<Record<string, Record<string, number>>>({});
+  const [missingRates, setMissingRates] = useState<Array<{ month: string; currency_code: string }>>([]);
 
   useEffect(() => {
     const urlToken = searchParams.get('token');
@@ -130,7 +119,8 @@ function AssetsPageContent() {
         const data = json?.data;
         if (data?.shared_data && typeof data.shared_data === 'object' && !Array.isArray(data.shared_data)) {
           setSharedData(data.shared_data as Record<string, unknown>);
-          const c = (data.shared_data as Record<string, unknown>)?.assets_country;
+          const sd = data.shared_data as Record<string, unknown>;
+          const c = (sd?.assets_country ?? sd?.default_currency) as string | undefined;
           if (typeof c === 'string' && c.trim() && (countryData as Record<string, unknown>)[c.trim()]) {
             setCountry(c.trim());
           }
@@ -210,6 +200,40 @@ function AssetsPageContent() {
     return () => { cancelled = true; };
   }, [token]);
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch('/api/currency-rates');
+        const json = await res.json();
+        if (cancelled || !res.ok) return;
+        if (json?.data && typeof json.data === 'object' && !Array.isArray(json.data)) {
+          setRatesByMonth(json.data as Record<string, Record<string, number>>);
+        }
+      } catch {
+        // keep empty, fallback used
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    if (!token) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/currency-rates/coverage?token=${encodeURIComponent(token)}`);
+        const json = await res.json();
+        if (cancelled || !res.ok) return;
+        const list = json?.data?.missing;
+        setMissingRates(Array.isArray(list) ? list : []);
+      } catch {
+        setMissingRates([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [token]);
+
   const handleSendMagicLink = useCallback(async () => {
     const email = gateEmail.trim().toLowerCase();
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -249,9 +273,9 @@ function AssetsPageContent() {
   const addRow = useCallback(() => {
     setAccounts((prev) => [
       ...prev,
-      { id: nextId(), type: 'savings', currency: DEFAULT_COUNTRY, name: '', total: '', label: '', comment: '' },
+      { id: nextId(), type: 'savings', currency: country, name: '', total: '', label: '', comment: '' },
     ]);
-  }, []);
+  }, [country]);
 
   const removeRow = useCallback((id: string) => {
     setAccounts((prev) => (prev.length <= 1 ? prev : prev.filter((r) => r.id !== id)));
@@ -270,9 +294,9 @@ function AssetsPageContent() {
   const addLiability = useCallback(() => {
     setLiabilities((prev) => [
       ...prev,
-      { id: nextLiabilityId(), type: 'personal_loan', name: '', currency: DEFAULT_COUNTRY, total: '', comment: '' },
+      { id: nextLiabilityId(), type: 'personal_loan', name: '', currency: country, total: '', comment: '' },
     ]);
-  }, []);
+  }, [country]);
 
   const removeLiability = useCallback((id: string) => {
     setLiabilities((prev) => prev.filter((r) => r.id !== id));
@@ -288,80 +312,16 @@ function AssetsPageContent() {
     setExpandedLiabilityCommentId((prev) => (prev === id ? null : id));
   }, []);
 
-  const triggerImport = useCallback((kind: 'account' | 'liability', id: string) => {
-    if (!token) return;
-    setImportError(null);
-    importTargetRef.current = { kind, id };
-    fileInputRef.current?.click();
-  }, [token]);
-
-  const handleImportFile = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      e.target.value = '';
-      const target = importTargetRef.current;
-      importTargetRef.current = null;
-      if (!file || !token || !target) return;
-      setImportingId(target.id);
-      setImportError(null);
-      try {
-        const formData = new FormData();
-        formData.set('token', token);
-        formData.set('kind', target.kind);
-        formData.set('file', file);
-        const res = await fetch('/api/assets/parse-document', { method: 'POST', body: formData });
-        const json = await res.json();
-        if (!res.ok) {
-          setImportError(json.error ?? 'Import failed');
-          setImportingId(null);
-          return;
-        }
-        const d = json?.data;
-        if (target.kind === 'account' && d) {
-          setAccounts((prev) =>
-            prev.map((r) =>
-              r.id !== target.id
-                ? r
-                : {
-                    ...r,
-                    name: typeof d.name === 'string' ? d.name : r.name,
-                    type: d.type && ASSET_TYPES.includes(d.type as AssetType) ? (d.type as AssetType) : r.type,
-                    currency: typeof d.currency === 'string' && (countryData as Record<string, unknown>)[d.currency] ? d.currency : r.currency,
-                    total: typeof d.total === 'number' ? d.total : r.total,
-                  }
-            )
-          );
-        } else if (target.kind === 'liability' && d) {
-          setLiabilities((prev) =>
-            prev.map((r) =>
-              r.id !== target.id
-                ? r
-                : {
-                    ...r,
-                    name: typeof d.name === 'string' ? d.name : r.name,
-                    type: d.type && LIABILITY_TYPES.includes(d.type as LiabilityType) ? (d.type as LiabilityType) : r.type,
-                    currency: typeof d.currency === 'string' && (countryData as Record<string, unknown>)[d.currency] ? d.currency : r.currency,
-                    total: typeof d.total === 'number' ? d.total : r.total,
-                  }
-            )
-          );
-        }
-      } catch {
-        setImportError('Import failed');
-      }
-      setImportingId(null);
-    },
-    [token]
-  );
-
+  const currentMonth = currentMonthKey();
   const approxTotal = useMemo(() => {
     const hasAny = accounts.some((r) => r.total !== '') || liabilities.some((r) => r.total !== '');
     if (!hasAny) return null;
-    const toInr = (amount: number, countryKey: string) => amount * (RATES_TO_INR[countryKey] ?? 1);
+    const toInr = (amount: number, countryKey: string) =>
+      amount * getRateToInr(countryKey, ratesByMonth[currentMonth], currentMonth);
     const assetsInr = accounts.filter((r) => r.total !== '').reduce((s, r) => s + toInr(Number(r.total), r.currency), 0);
     const liabilitiesInr = liabilities.filter((r) => r.total !== '').reduce((s, r) => s + toInr(Number(r.total), r.currency), 0);
     return { netInr: assetsInr - liabilitiesInr, assetsInr, liabilitiesInr };
-  }, [accounts, liabilities]);
+  }, [accounts, liabilities, ratesByMonth, currentMonth]);
 
   const saveAssets = useCallback(async () => {
     if (!token) return;
@@ -380,7 +340,8 @@ function AssetsPageContent() {
         return;
       }
     }
-    const toInr = (amount: number, countryKey: string) => amount * (RATES_TO_INR[countryKey] ?? 1);
+    const toInr = (amount: number, countryKey: string) =>
+      amount * getRateToInr(countryKey, ratesByMonth[currentMonthKey()], currentMonthKey());
     const assetsInr = accounts.filter((r) => r.total !== '').reduce((s, r) => s + toInr(Number(r.total), r.currency), 0);
     const liabilitiesInr = liabilities.filter((r) => r.total !== '').reduce((s, r) => s + toInr(Number(r.total), r.currency), 0);
     const netInr = assetsInr - liabilitiesInr;
@@ -434,7 +395,7 @@ function AssetsPageContent() {
       setSaveStatus('error');
       setSaveError('Save failed.');
     }
-  }, [token, country, accounts, liabilities, sharedData, quarterlySnapshots]);
+  }, [token, country, accounts, liabilities, sharedData, quarterlySnapshots, ratesByMonth]);
 
   const saveSnapshot = useCallback(async () => {
     if (!token) return;
@@ -510,7 +471,7 @@ function AssetsPageContent() {
       setSaveStatus('error');
       setSaveError('Snapshot save failed.');
     }
-  }, [token, country, accounts, liabilities, sharedData, quarterlySnapshots]);
+  }, [token, country, accounts, liabilities, sharedData, quarterlySnapshots, ratesByMonth]);
 
   if (!token) {
     return (
@@ -594,8 +555,14 @@ function AssetsPageContent() {
       <main className="max-w-4xl mx-auto px-6 py-10">
         <h1 className={`text-2xl font-light mb-2 ${theme.textClass}`}>Assets and liabilities</h1>
         <p className={`text-sm mb-2 ${theme.textSecondaryClass}`}>
-          List assets and liabilities; add a snapshot to track over time. Import from a statement image or PDF to fill a row.
+          List assets and liabilities; add a snapshot to track over time.
         </p>
+        {missingRates.length > 0 && (
+          <div className={`mb-4 py-2 px-3 rounded-lg border ${darkMode ? 'border-amber-600 bg-amber-900/20' : 'border-amber-400 bg-amber-50'} ${theme.textClass} text-sm`}>
+            Currency rate missing for {missingRates.slice(0, 5).map((m) => `${m.month} (${m.currency_code})`).join(', ')}
+            {missingRates.length > 5 ? ` and ${missingRates.length - 5} more` : ''}. Totals may be approximate.
+          </div>
+        )}
         {approxTotal != null && (
           <div className={`mb-4 py-2 px-3 rounded-lg border ${theme.borderClass} ${theme.textSecondaryClass} text-sm`}>
             <span className={theme.textClass}>Net worth (approx): {formatCurrency(approxTotal.netInr, '₹')}</span>
@@ -618,7 +585,9 @@ function AssetsPageContent() {
               </thead>
               <tbody>
                 {quarterlySnapshots.map((s) => {
-                  const toInr = (amount: number, countryKey: string) => amount * (RATES_TO_INR[countryKey] ?? 1);
+                  const snapMonth = toMonthKey(s.captured_at);
+                  const toInr = (amount: number, countryKey: string) =>
+                    amount * getRateToInr(countryKey, ratesByMonth[snapMonth], snapMonth);
                   const assetsInr = s.accounts.filter((r) => r.total != null).reduce((sum, r) => sum + toInr(Number(r.total), r.currency), 0);
                   const liabilitiesInr = s.liabilities.filter((r) => r.total != null).reduce((sum, r) => sum + toInr(Number(r.total), r.currency), 0);
                   const netInr = assetsInr - liabilitiesInr;
@@ -666,17 +635,6 @@ function AssetsPageContent() {
           </div>
         )}
 
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".pdf,application/pdf,image/png,image/jpeg,image/jpg,image/webp"
-          className="hidden"
-          onChange={handleImportFile}
-          aria-label="Import from file"
-        />
-        {importError && (
-          <p className="mb-2 text-sm text-red-500">{importError}</p>
-        )}
         <div className={`p-6 rounded-lg mb-6 ${darkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-gray-200'}`}>
           <div className="mb-2">
             <span className={`text-sm font-medium ${theme.textClass}`}>Assets</span>
@@ -755,16 +713,6 @@ function AssetsPageContent() {
                     </div>
                     <button
                       type="button"
-                      onClick={() => triggerImport('account', row.id)}
-                      disabled={!token || importingId === row.id}
-                      className={`p-2 rounded ${theme.textSecondaryClass} hover:${theme.textClass} disabled:opacity-40`}
-                      aria-label="Import from file"
-                      title="Import from statement or screenshot"
-                    >
-                      <Upload className="w-4 h-4" />
-                    </button>
-                    <button
-                      type="button"
                       onClick={() => removeRow(row.id)}
                       disabled={accounts.length <= 1}
                       className={`p-2 rounded ${theme.textSecondaryClass} hover:text-red-500 disabled:opacity-40`}
@@ -773,9 +721,6 @@ function AssetsPageContent() {
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
-                  {importingId === row.id && (
-                    <p className={`mt-1 text-xs ${theme.textSecondaryClass}`}>Importing…</p>
-                  )}
                   <div className="mt-2 flex items-center gap-2">
                     <button
                       type="button"
@@ -885,16 +830,6 @@ function AssetsPageContent() {
                     </div>
                     <button
                       type="button"
-                      onClick={() => triggerImport('liability', row.id)}
-                      disabled={!token || importingId === row.id}
-                      className={`p-2 rounded ${theme.textSecondaryClass} hover:${theme.textClass} disabled:opacity-40`}
-                      aria-label="Import from file"
-                      title="Import from statement or screenshot"
-                    >
-                      <Upload className="w-4 h-4" />
-                    </button>
-                    <button
-                      type="button"
                       onClick={() => removeLiability(row.id)}
                       className={`p-2 rounded ${theme.textSecondaryClass} hover:text-red-500`}
                       aria-label="Remove liability"
@@ -902,9 +837,6 @@ function AssetsPageContent() {
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
-                  {importingId === row.id && (
-                    <p className={`mt-1 text-xs ${theme.textSecondaryClass}`}>Importing…</p>
-                  )}
                   <div className="mt-2 flex items-center gap-2">
                     <button
                       type="button"

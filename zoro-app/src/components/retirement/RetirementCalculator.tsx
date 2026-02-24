@@ -1,13 +1,14 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useFormSave } from '@/hooks/useFormSave';
-import { Shield, TrendingUp, Check } from 'lucide-react';
+import { Shield, TrendingUp, Check, ExternalLink } from 'lucide-react';
 import { useThemeClasses } from '@/hooks/useThemeClasses';
 import { RETIREMENT_CONFIG } from './retirementConfig';
 import { ExpenseBucket, Answers } from './types';
 import { countryData, getCountriesSorted } from './countryData';
-import { formatCurrency, formatInputValue, parseInputValue, isValueInRange, getTotalMonthlyExpenses } from './utils';
+import { formatCurrency, formatInputValue, parseInputValue, getTotalMonthlyExpenses } from './utils';
 import { HousingStep } from './steps/HousingStep';
 import { HealthcareStep } from './steps/HealthcareStep';
 import { TravelStep } from './steps/TravelStep';
@@ -37,10 +38,10 @@ export const RetirementCalculator: React.FC<RetirementCalculatorProps> = ({
 
   const [step, setStep] = useState(0);
   const [showCountryDropdown, setShowCountryDropdown] = useState(false);
+  /** Expense buckets from user_data (expenses page). Read-only here; edit at /expenses. */
   const [customBuckets, setCustomBuckets] = useState<Record<string, ExpenseBucket> | null>(
     initialData?.expenseBuckets || null
   );
-  const [showExpenses, setShowExpenses] = useState(false);
   const [liquidNetWorthError, setLiquidNetWorthError] = useState('');
   const [finalNotes, setFinalNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -94,29 +95,10 @@ export const RetirementCalculator: React.FC<RetirementCalculatorProps> = ({
     }
   }, [initialData]);
 
-  // Auto-save function (wraps the hook's saveProgress)
-  // Note: customBuckets are handled by the hook via expenseBuckets prop
-  const saveProgress = async (answersToSave: Answers, bucketsToSave: Record<string, ExpenseBucket> | null) => {
-    // Update customBuckets state so hook can use it
-    if (bucketsToSave) {
-      setCustomBuckets(bucketsToSave);
-    }
+  // Auto-save function (wraps the hook's saveProgress). Expense buckets are read-only from initialData; only expenses page writes them.
+  const saveProgress = async (answersToSave: Answers, _bucketsToSave?: Record<string, ExpenseBucket> | null) => {
     await saveProgressHook(answersToSave);
   };
-
-  // Save expense buckets separately when they change
-  // Update customBuckets and trigger save via hook
-  useEffect(() => {
-    if (customBuckets && (userToken || email) && answers.liquidNetWorth) {
-      const saveBuckets = async () => {
-        await saveProgressHook(answers);
-      };
-      
-      // Debounce bucket saves
-      const timeoutId = setTimeout(saveBuckets, 1000);
-      return () => clearTimeout(timeoutId);
-    }
-  }, [customBuckets, userToken, email, answers, saveProgressHook]);
 
   const validateLiquidNetWorth = (): boolean => {
     const value = parseFloat(answers.liquidNetWorth || '0') || 0;
@@ -202,8 +184,7 @@ export const RetirementCalculator: React.FC<RetirementCalculatorProps> = ({
   const resetForm = () => {
     setStep(0);
     setShowCountryDropdown(false);
-    setShowExpenses(false);
-    setCustomBuckets(null);
+    setCustomBuckets(initialData?.expenseBuckets || null);
     setEmail('');
     setEmailError('');
     setLiquidNetWorthError('');
@@ -246,9 +227,7 @@ export const RetirementCalculator: React.FC<RetirementCalculatorProps> = ({
     });
 
     if (question === 'country') {
-      setCustomBuckets({ ...countryData[value].buckets });
       setShowCountryDropdown(false);
-      setShowExpenses(true);
       return;
     }
 
@@ -260,49 +239,15 @@ export const RetirementCalculator: React.FC<RetirementCalculatorProps> = ({
       setStep(step - 1);
       if (step === 1) {
         setShowCountryDropdown(false);
-        setShowExpenses(false);
       }
     }
   };
 
-  const initializeCustomBuckets = () => {
-    if (!customBuckets) {
-      const country = countryData[answers.country] || countryData['Other'];
-      const buckets: Record<string, ExpenseBucket> = {
-        food: country.buckets.food,
-        transportation: country.buckets.transportation,
-        entertainment: country.buckets.entertainment,
-        other: country.buckets.other,
-      };
-      setCustomBuckets(buckets);
-    }
-  };
-
-  const handleContinueToExpenses = () => {
-    initializeCustomBuckets();
-    setShowExpenses(true);
-  };
-
-  const handleBucketChange = (bucketKey: string, newValue: string) => {
-    const numValue = parseFloat(newValue) || 0;
-    setCustomBuckets((prev) => {
-      if (!prev) return null;
-      return {
-        ...prev,
-        [bucketKey]: { ...prev[bucketKey], value: numValue },
-      };
-    });
-  };
-
-  const handleSliderChange = (bucketKey: string, newValue: string) => {
-    setCustomBuckets((prev) => {
-      if (!prev) return null;
-      return {
-        ...prev,
-        [bucketKey]: { ...prev[bucketKey], value: parseFloat(newValue) },
-      };
-    });
-  };
+  const expensesQuery = new URLSearchParams();
+  if (userToken) expensesQuery.set('token', userToken);
+  if (userName) expensesQuery.set('name', userName);
+  const expensesUrl = expensesQuery.toString() ? `/expenses?${expensesQuery.toString()}` : '/expenses';
+  const hasExpenseBuckets = customBuckets && Object.keys(customBuckets).length > 0 && Object.values(customBuckets).some((b) => b && typeof b.value === 'number');
 
   if (submitted && !showSuccess) {
     return (
@@ -446,97 +391,56 @@ export const RetirementCalculator: React.FC<RetirementCalculatorProps> = ({
               )}
             </div>
 
-            {showExpenses && customBuckets && (
-              <div className={`p-6 rounded-lg mb-6 ${darkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-gray-200'}`}>
-                <h3 className={`text-xl font-light mb-2 ${theme.textClass}`}>Review Monthly Expenses</h3>
-                <p className={`text-sm mb-6 ${theme.textSecondaryClass}`}>
-                  Adjust these values to match your expected lifestyle
-                </p>
-
-                <div className="space-y-6">
-                  {Object.entries(customBuckets).map(([key, bucket]) => {
-                    const inRange = bucket.min && bucket.max ? isValueInRange(bucket.value, bucket) : true;
-                    return (
-                      <div key={key} className="space-y-2">
-                        <div className="flex justify-between items-center mb-1">
-                          <label className={`text-sm font-medium ${theme.textClass}`}>
-                            {bucket.label}
-                          </label>
-                          <input
-                            type="number"
-                            value={bucket.value}
-                            onChange={(e) => handleBucketChange(key, e.target.value)}
-                            className={`w-32 px-3 py-2 rounded text-sm font-medium ${
-                              darkMode
-                                ? 'bg-slate-900 border border-slate-600 text-gray-100'
-                                : 'bg-gray-100 border border-gray-300 text-gray-900'
-                            } focus:outline-none focus:ring-2 focus:ring-blue-500`}
-                          />
-                        </div>
-                        {bucket.min !== undefined && bucket.max !== undefined && (
-                          <div className="space-y-1">
-                            <input
-                              type="range"
-                              min={bucket.min}
-                              max={bucket.max}
-                              step={bucket.step || 1}
-                              value={inRange ? bucket.value : bucket.min}
-                              onChange={(e) => handleSliderChange(key, e.target.value)}
-                              disabled={!inRange}
-                              className={`w-full h-2 rounded-lg appearance-none cursor-pointer slider ${
-                                !inRange ? 'opacity-30 cursor-not-allowed' : ''
-                              }`}
-                              style={{
-                                background: inRange
-                                  ? `linear-gradient(to right, #3b82f6 0%, #3b82f6 ${((bucket.value - bucket.min) / (bucket.max - bucket.min)) * 100}%, ${darkMode ? '#4b5563' : '#d1d5db'} ${((bucket.value - bucket.min) / (bucket.max - bucket.min)) * 100}%, ${darkMode ? '#4b5563' : '#d1d5db'} 100%)`
-                                  : darkMode ? '#4b5563' : '#d1d5db'
-                              }}
-                            />
-                            <div className={`flex justify-between text-xs ${theme.textSecondaryClass}`}>
-                              <span>{formatCurrency(bucket.min, countryData[answers.country].currency)}</span>
-                              <span>{formatCurrency(bucket.max, countryData[answers.country].currency)}</span>
-                            </div>
-                          </div>
-                        )}
-                        {!inRange && bucket.min !== undefined && bucket.max !== undefined && (
-                          <p className={`text-xs ${darkMode ? 'text-yellow-400' : 'text-yellow-600'}`}>
-                            Value outside range - slider disabled
-                          </p>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <div className={`mt-6 pt-6 border-t ${darkMode ? 'border-slate-700' : 'border-gray-200'}`}>
-                  <div className="flex justify-between items-center">
-                    <span className={`text-lg font-medium ${theme.textClass}`}>Total Monthly</span>
+            {/* Estimated expenses: single source on /expenses; here we show status and link only */}
+            <div className={`p-6 rounded-lg mb-6 ${darkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-gray-200'}`}>
+              <h3 className={`text-xl font-light mb-2 ${theme.textClass}`}>Estimated expenses</h3>
+              {hasExpenseBuckets ? (
+                <>
+                  <p className={`text-sm mb-4 ${theme.textSecondaryClass}`}>
+                    You&apos;ve set estimated expenses. Edit them on the Expenses page if needed.
+                  </p>
+                  <div className={`mb-4 flex justify-between items-center`}>
+                    <span className={`text-lg font-medium ${theme.textClass}`}>Total monthly</span>
                     <span className="text-2xl font-light text-blue-500">
-                      {formatCurrency(getTotalMonthlyExpenses(customBuckets), countryData[answers.country].currency)}
+                      {formatCurrency(getTotalMonthlyExpenses(customBuckets!), countryData[answers.country].currency)}
                     </span>
                   </div>
-                  <div className={`text-sm mt-2 ${theme.textSecondaryClass}`}>
-                    Annual: {formatCurrency(getTotalMonthlyExpenses(customBuckets) * 12, countryData[answers.country].currency)}
+                  <div className={`text-sm mb-4 ${theme.textSecondaryClass}`}>
+                    Annual: {formatCurrency(getTotalMonthlyExpenses(customBuckets!) * 12, countryData[answers.country].currency)}
                   </div>
-                </div>
-              </div>
-            )}
+                  <Link
+                    href={expensesUrl}
+                    className={`inline-flex items-center gap-2 text-sm font-medium transition-colors ${theme.textSecondaryClass} hover:${theme.textClass}`}
+                  >
+                    Edit in Expenses
+                    <ExternalLink className="w-4 h-4" />
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <p className={`text-sm mb-4 ${theme.textSecondaryClass}`}>
+                    Add your estimated expenses first so we can plan your retirement needs.
+                  </p>
+                  <Link
+                    href={expensesUrl}
+                    className="inline-flex items-center gap-2 py-3 px-4 rounded-lg bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium transition-colors mb-4"
+                  >
+                    Add expenses
+                    <ExternalLink className="w-4 h-4" />
+                  </Link>
+                  <p className={`text-xs ${theme.textSecondaryClass}`}>
+                    You can also skip for now and add them later.
+                  </p>
+                </>
+              )}
+            </div>
 
-            {!showExpenses ? (
-              <button
-                onClick={handleContinueToExpenses}
-                className="w-full py-4 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors font-medium text-lg"
-              >
-                Review Expenses
-              </button>
-            ) : (
-              <button
-                onClick={() => setStep(step + 1)}
-                className="w-full py-4 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors font-medium text-lg"
-              >
-                Continue
-              </button>
-            )}
+            <button
+              onClick={() => setStep(step + 1)}
+              className="w-full py-4 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors font-medium text-lg"
+            >
+              Continue
+            </button>
           </div>
         )}
 

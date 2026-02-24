@@ -151,7 +151,7 @@ export async function POST(request: NextRequest) {
       user_id: userId,
       month: monthDate,
       buckets: bucketsJson,
-      ...(finalizeImport ? { imported_at: new Date().toISOString() } : {}),
+      ...(finalizeImport ? { imported_at: new Date().toISOString() } : { imported_at: null }),
       updated_at: new Date().toISOString(),
     };
 
