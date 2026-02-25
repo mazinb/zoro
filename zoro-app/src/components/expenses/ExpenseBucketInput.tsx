@@ -37,10 +37,7 @@ export function ExpenseBucketInput({
 
   return (
     <div className={`p-4 sm:p-6 rounded-lg mb-6 min-w-0 ${darkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-gray-200'}`}>
-      <h3 className={`text-xl font-light mb-2 ${theme.textClass}`}>Monthly estimates</h3>
-      <p className={`text-sm mb-6 ${theme.textSecondaryClass}`}>
-        By category; we&apos;ll compare with your statement later.
-      </p>
+      <h3 className={`text-xl font-light mb-6 ${theme.textClass}`}>Monthly estimates by category</h3>
 
       <div className="space-y-6">
         {Object.entries(buckets).map(([key, bucket]) => {

@@ -18,7 +18,7 @@ function getSupabase() {
 const MAX_FILE_SIZE_MB = 20;
 const MAX_FILE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
 const EXPENSE_CATEGORIES = ['housing', 'food', 'transportation', 'healthcare', 'entertainment', 'other', 'one_time'] as const;
-const CATEGORIES_WITH_TRANSFER = [...EXPENSE_CATEGORIES, 'transfer'] as const;
+const CATEGORIES_WITH_EXCLUDE = [...EXPENSE_CATEGORIES, 'to_exclude'] as const;
 
 const LOG_PREFIX = '[parse-one-file]';
 
@@ -152,12 +152,9 @@ export async function POST(request: NextRequest) {
 
   const fileNameRaw = formData.get('fileName');
   const fileName = typeof fileNameRaw === 'string' && fileNameRaw.trim() ? fileNameRaw.trim() : 'Statement';
-  const sourceTypeRaw = formData.get('sourceType');
-  const sourceType = sourceTypeRaw === 'checking' ? 'checking' : 'credit_card';
-  const isChecking = sourceType === 'checking';
-  const categories = isChecking ? CATEGORIES_WITH_TRANSFER : EXPENSE_CATEGORIES;
+  const categories = CATEGORIES_WITH_EXCLUDE;
 
-  console.log(`${LOG_PREFIX} Input: token, 1 PDF, fileName=${fileName}, sourceType=${sourceType}`);
+  console.log(`${LOG_PREFIX} Input: token, 1 PDF, fileName=${fileName}`);
 
   const ai = new GoogleGenAI({ apiKey });
   let uploadedFile: { name?: string; uri?: string; mimeType?: string } | null = null;
@@ -180,24 +177,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 502 });
   }
 
-  const prompt = isChecking
-    ? `You are analyzing a CHECKING account statement PDF. Extract ALL transactions. Classify each into exactly these categories (use only these keys): ${categories.join(', ')}.
+  const prompt = `You are analyzing a bank or checking statement PDF. Extract ALL transactions. Classify into exactly these categories (use only these keys): ${categories.join(', ')}.
 
-CRITICAL: Put in "transfer" any transaction that is NOT an expense: credit card payments, transfers to savings, transfers to other accounts, internal transfers. These will be excluded from spending totals to avoid double-counting.
+Put in "to_exclude" anything that is NOT an expense: transfers to yourself, transactions with the account holder's name, internal transfers, credit card payments, refunds. These are excluded from spending.
 
-For each category, output an array of items. Each item: "description" (short), "amount" (number, positive). Map real expenses: rent/utilities -> housing; groceries/restaurants -> food; gas/transit -> transportation; doctor/insurance -> healthcare; subscriptions/leisure -> entertainment; one-off purchases -> one_time; else -> other. Transfers (credit card payment, transfer out, etc.) -> transfer.
+Each item: "description" (short), "amount" (number, positive). Expenses: rent/utilities -> housing; groceries/restaurants -> food; gas/transit -> transportation; doctor/insurance -> healthcare; subscriptions/leisure -> entertainment; one-off -> one_time; else -> other.
 
-Respond with ONLY a single JSON object in this exact shape, no other text:
-{"housing":[],"food":[],"transportation":[],"healthcare":[],"entertainment":[],"other":[],"one_time":[],"transfer":[]}
-Include every transaction. Use empty arrays [] for categories with none.`
-    : `You are analyzing a bank statement PDF. Extract ALL expenses and classify each one into exactly these categories (use only these keys): ${categories.join(', ')}.
-
-For each category, output an array of expense items. Each item must have: "description" (short transaction/merchant description) and "amount" (number, positive = spending).
-Map transactions to the best category: rent/mortgage/utilities -> housing; groceries/restaurants -> food; gas/transit/car -> transportation; doctor/insurance/pharmacy -> healthcare; subscriptions/leisure -> entertainment; one-off purchases, repairs, gifts, lump sums -> one_time; everything else -> other.
-
-Respond with ONLY a single JSON object in this exact shape, no other text or markdown:
-{"housing":[{"description":"Rent","amount":1500}],"food":[],"transportation":[],"healthcare":[],"entertainment":[],"other":[],"one_time":[]}
-Include every expense from the statement. Use empty arrays [] for categories with no expenses.`;
+Respond with ONLY this JSON shape, no other text:
+{"housing":[],"food":[],"transportation":[],"healthcare":[],"entertainment":[],"other":[],"one_time":[],"to_exclude":[]}
+Include every transaction. Use [] for empty categories.`;
 
   let response;
   try {
@@ -225,6 +213,6 @@ Include every expense from the statement. Use empty arrays [] for categories wit
   }
 
   const buckets = parseBucketsFromResponse(response as Parameters<typeof parseBucketsFromResponse>[0], categories);
-  console.log(`${LOG_PREFIX} Done → returning { data: { fileName, buckets, sourceType } }`);
-  return NextResponse.json({ data: { fileName, buckets, sourceType } });
+  console.log(`${LOG_PREFIX} Done → returning { data: { fileName, buckets } }`);
+  return NextResponse.json({ data: { fileName, buckets } });
 }

@@ -15,7 +15,8 @@ const BUCKET_LABELS: Record<string, string> = {
   entertainment: 'Entertainment & Leisure',
   other: 'Other Expenses',
   one_time: 'One-off / non-recurring',
-  transfer: 'Transfer (exclude from expenses)',
+  transfer: 'To exclude (not expenses)',
+  to_exclude: 'To exclude (not expenses)',
 };
 
 type ItemWithId = ExpenseItem & { id: string };
@@ -45,13 +46,15 @@ export function ReviewClassifyView({
 }: ReviewClassifyViewProps) {
   const displayKeys = useMemo((): string[] => {
     const keys: string[] = [...BUCKET_KEYS];
-    if (Array.isArray(initialBuckets.transfer) && initialBuckets.transfer.length > 0) keys.push('transfer');
+    if (Array.isArray(initialBuckets.to_exclude) && initialBuckets.to_exclude.length > 0) keys.push('to_exclude');
+    else if (Array.isArray(initialBuckets.transfer) && initialBuckets.transfer.length > 0) keys.push('transfer');
     return keys;
   }, [initialBuckets]);
 
   const [editableBuckets, setEditableBuckets] = useState<Record<string, ItemWithId[]>>(() => {
     const keys: string[] = [...BUCKET_KEYS];
-    if (Array.isArray(initialBuckets.transfer) && initialBuckets.transfer.length > 0) keys.push('transfer');
+    if (Array.isArray(initialBuckets.to_exclude) && initialBuckets.to_exclude.length > 0) keys.push('to_exclude');
+    else if (Array.isArray(initialBuckets.transfer) && initialBuckets.transfer.length > 0) keys.push('transfer');
     const out: Record<string, ItemWithId[]> = {};
     let idCounter = 0;
     for (const k of keys) {
@@ -186,17 +189,10 @@ export function ReviewClassifyView({
     <div
       className={`p-6 rounded-lg ${darkMode ? 'bg-slate-800 border border-slate-700' : 'bg-white border border-gray-200'}`}
     >
-      <h3 className={`text-xl font-light mb-2 ${theme.textClass}`}>Review & classify — {monthLabel}</h3>
-      <div
-        className={`mb-4 p-4 rounded-lg border ${darkMode ? 'border-slate-600 bg-slate-900/50' : 'border-amber-200 bg-amber-50/80'}`}
-      >
-        <p className={`text-sm ${theme.textClass}`}>
-          <strong>Only category totals are saved.</strong> Transactions are shown here so you can fix categories
-          before saving. We do not store individual transactions or vendor names — only the final totals per
-          category. Expand or collapse sections with the arrows; use the category icon next to a line to move it, or
-          select multiple (checkboxes) and use &quot;Move selected to…&quot; to move them together. Then save.
-        </p>
-      </div>
+      <h3 className={`text-xl font-light mb-2 ${theme.textClass}`}>Review — {monthLabel}</h3>
+      <p className={`mb-4 text-sm ${theme.textSecondaryClass}`}>
+        Only category totals are saved. Move lines between categories if needed, then save.
+      </p>
 
       <div className="mb-4 flex flex-wrap gap-3 items-center">
         <button
@@ -399,8 +395,7 @@ export function ReviewClassifyView({
       </div>
 
       <p className={`mt-4 text-sm ${theme.textSecondaryClass}`}>
-        Total: {formatCurrency(totalAmount, currency)} — Save as final to store only these category totals for{' '}
-        {monthLabel}. No transaction or vendor data is saved.
+        Total: {formatCurrency(totalAmount, currency)}. Save to store category totals only.
       </p>
     </div>
   );

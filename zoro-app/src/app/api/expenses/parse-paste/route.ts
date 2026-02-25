@@ -4,7 +4,7 @@ import { resolveTokenToUserId } from '@/lib/resolve-token';
 import type { CategorizedExpenses, ExpenseItem } from '@/components/expenses/types';
 
 const EXPENSE_CATEGORIES = ['housing', 'food', 'transportation', 'healthcare', 'entertainment', 'other', 'one_time'] as const;
-const CATEGORIES_WITH_TRANSFER = [...EXPENSE_CATEGORIES, 'transfer'] as const;
+const CATEGORIES_WITH_EXCLUDE = [...EXPENSE_CATEGORIES, 'to_exclude'] as const;
 
 const LOG_PREFIX = '[parse-paste]';
 
@@ -82,11 +82,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  const { token, month: monthStr, pastedText, sourceType: sourceTypeRaw, fileName: fileNameRaw } = body as {
+  const { token, month: monthStr, pastedText, fileName: fileNameRaw } = body as {
     token?: string;
     month?: string;
     pastedText?: string;
-    sourceType?: string;
     fileName?: string;
   };
 
@@ -115,33 +114,22 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const sourceType = sourceTypeRaw === 'checking' ? 'checking' : 'credit_card';
-  const isChecking = sourceType === 'checking';
-  const categories = isChecking ? CATEGORIES_WITH_TRANSFER : EXPENSE_CATEGORIES;
+  const categories = CATEGORIES_WITH_EXCLUDE;
   const fileName = typeof fileNameRaw === 'string' && fileNameRaw.trim() ? fileNameRaw.trim() : 'Pasted data';
 
-  console.log(`${LOG_PREFIX} Input: token, pastedText length=${text.length}, sourceType=${sourceType}`);
+  console.log(`${LOG_PREFIX} Input: token, pastedText length=${text.length}`);
 
   const ai = new GoogleGenAI({ apiKey });
 
-  const prompt = isChecking
-    ? `Below is pasted transaction data from a CHECKING account. Parse it and classify each transaction into exactly these categories (use only these keys): ${categories.join(', ')}.
+  const prompt = `Parse pasted transaction data. Classify into exactly these categories (use only these keys): ${categories.join(', ')}.
 
-CRITICAL: Put in "transfer" any transaction that is NOT an expense: credit card payments, transfers to savings, transfers to other accounts. These will be excluded from spending totals.
+Put in "to_exclude" anything that is NOT an expense: transfers to yourself, transactions with your name, internal transfers, credit card payments, refunds.
 
-For each category, output an array of items. Each item: "description" (short), "amount" (number, positive). Map real expenses: rent/utilities -> housing; groceries/restaurants -> food; gas/transit -> transportation; doctor/insurance -> healthcare; subscriptions/leisure -> entertainment; one-off -> one_time; else -> other. Transfers -> transfer.
+Each item: "description" (short), "amount" (number, positive). Expenses: rent/utilities -> housing; groceries/restaurants -> food; gas/transit -> transportation; doctor/insurance -> healthcare; subscriptions/leisure -> entertainment; one-off -> one_time; else -> other.
 
-Respond with ONLY a single JSON object in this exact shape, no other text:
-{"housing":[],"food":[],"transportation":[],"healthcare":[],"entertainment":[],"other":[],"one_time":[],"transfer":[]}
-Use empty arrays [] for categories with none.`
-
-    : `Below is pasted transaction/expense data. Parse it and classify each line into exactly these categories (use only these keys): ${categories.join(', ')}.
-
-For each category, output an array of expense items. Each item: "description" (short), "amount" (number, positive). Map: rent/utilities -> housing; groceries/restaurants -> food; gas/transit -> transportation; doctor/insurance -> healthcare; subscriptions/leisure -> entertainment; one-off purchases -> one_time; else -> other.
-
-Respond with ONLY a single JSON object in this exact shape, no other text:
-{"housing":[],"food":[],"transportation":[],"healthcare":[],"entertainment":[],"other":[],"one_time":[]}
-Use empty arrays [] for categories with none.`;
+Respond with ONLY this JSON shape, no other text:
+{"housing":[],"food":[],"transportation":[],"healthcare":[],"entertainment":[],"other":[],"one_time":[],"to_exclude":[]}
+Use [] for empty categories.`;
 
   let response;
   try {
@@ -156,6 +144,6 @@ Use empty arrays [] for categories with none.`;
   }
 
   const buckets = parseBucketsFromResponse(response as Parameters<typeof parseBucketsFromResponse>[0], categories);
-  console.log(`${LOG_PREFIX} Done → returning { data: { fileName, buckets, sourceType } }`);
-  return NextResponse.json({ data: { fileName, buckets, sourceType } });
+  console.log(`${LOG_PREFIX} Done → returning { data: { fileName, buckets } }`);
+  return NextResponse.json({ data: { fileName, buckets } });
 }

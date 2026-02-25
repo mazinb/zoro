@@ -7,7 +7,6 @@ import { ZoroLogo } from '@/components/ZoroLogo';
 import { useDarkMode } from '@/hooks/useDarkMode';
 import { useThemeClasses } from '@/hooks/useThemeClasses';
 import { ExpenseBucketInput } from '@/components/expenses/ExpenseBucketInput';
-import { CompareView } from '@/components/expenses/CompareView';
 import { ReviewClassifyView } from '@/components/expenses/ReviewClassifyView';
 import type { ExpenseBucket } from '@/components/retirement/types';
 import type { BucketsPerFile } from '@/components/expenses/types';
@@ -89,12 +88,10 @@ function ExpensesPageContent() {
   );
   const [bucketsPerFile, setBucketsPerFile] = useState<BucketsPerFile[]>([]);
   const [uploadFiles, setUploadFiles] = useState<File[]>([]);
-  const [importSourceType, setImportSourceType] = useState<'credit_card' | 'checking'>('credit_card');
   const [importAccountName, setImportAccountName] = useState('');
   const [pastedText, setPastedText] = useState('');
   const [pasteParsing, setPasteParsing] = useState(false);
   const [currentImportAccountName, setCurrentImportAccountName] = useState<string | null>(null);
-  const [currentImportSourceType, setCurrentImportSourceType] = useState<'credit_card' | 'checking'>('credit_card');
   const [expenseAccounts, setExpenseAccounts] = useState<Array<{ name: string; type: string }>>([]);
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -374,7 +371,6 @@ function ExpensesPageContent() {
       formData.append('file', file);
       formData.append('fileName', importAccountName.trim() || `Statement ${selectedMonthLabel}`);
       formData.append('month', selectedMonth);
-      formData.append('sourceType', importSourceType);
       const res = await fetch('/api/expenses/parse-one-file', {
         method: 'POST',
         body: formData,
@@ -391,7 +387,6 @@ function ExpensesPageContent() {
           : [];
       setBucketsPerFile(collected);
       setCurrentImportAccountName(importAccountName.trim() || null);
-      setCurrentImportSourceType(importSourceType);
       setStep(2);
     } catch (e) {
       setUploadError(e instanceof Error ? e.message : 'Upload failed');
@@ -399,7 +394,7 @@ function ExpensesPageContent() {
       setUploading(false);
       setUploadProgress(null);
     }
-  }, [token, uploadFiles, selectedMonth, selectedMonthLabel, importSourceType, importAccountName]);
+  }, [token, uploadFiles, selectedMonth, selectedMonthLabel, importAccountName]);
 
   const handlePasteParse = useCallback(async () => {
     if (!token || !pastedText.trim()) {
@@ -416,7 +411,6 @@ function ExpensesPageContent() {
           token,
           month: selectedMonth,
           pastedText: pastedText.trim(),
-          sourceType: importSourceType,
           fileName: importAccountName.trim() || `Pasted ${selectedMonthLabel}`,
         }),
       });
@@ -433,14 +427,13 @@ function ExpensesPageContent() {
       setBucketsPerFile(collected);
       setPastedText('');
       setCurrentImportAccountName(importAccountName.trim() || null);
-      setCurrentImportSourceType(importSourceType);
       setStep(2);
     } catch (e) {
       setUploadError(e instanceof Error ? e.message : 'Parse failed');
     } finally {
       setPasteParsing(false);
     }
-  }, [token, pastedText, selectedMonth, selectedMonthLabel, importSourceType, importAccountName]);
+  }, [token, pastedText, selectedMonth, selectedMonthLabel, importAccountName]);
 
   const handleSaveMonthlyFinal = useCallback(
     async (bucketsToSave: Record<string, { value: number }>) => {
@@ -465,7 +458,7 @@ function ExpensesPageContent() {
         if (currentImportAccountName) {
           const accounts = Array.isArray(sharedData.expense_accounts) ? [...(sharedData.expense_accounts as Array<{ name: string; type: string }>)] : [];
           if (!accounts.some((a) => a.name === currentImportAccountName)) {
-            accounts.push({ name: currentImportAccountName, type: currentImportSourceType });
+            accounts.push({ name: currentImportAccountName, type: 'expense' });
             setExpenseAccounts(accounts);
             setSharedData((prev) => ({ ...prev, expense_accounts: accounts }));
             await fetch('/api/user-data', {
@@ -486,52 +479,7 @@ function ExpensesPageContent() {
         setSaveMonthlyStatus('error');
       }
     },
-    [token, selectedMonth, currentImportAccountName, currentImportSourceType, sharedData]
-  );
-
-  const handleViewAlreadyImported = useCallback(async () => {
-    if (!token || !selectedMonth) return;
-    try {
-      const res = await fetch(
-        `/api/expenses/monthly?token=${encodeURIComponent(token)}&month=${encodeURIComponent(selectedMonth)}`
-      );
-      const json = await res.json();
-      const data = json?.data;
-      if (data?.buckets) {
-        const totals = bucketsToTotals(data.buckets);
-        setBucketsPerFile([
-          {
-            fileName: selectedMonthLabel,
-            buckets: {},
-            bucketTotals: totals,
-          },
-        ]);
-        setStep(3);
-      }
-    } catch {
-      setUploadError('Failed to load month data.');
-    }
-  }, [token, selectedMonth, selectedMonthLabel]);
-
-  const handleSaveMonthlyTotals = useCallback(
-    async (bucketsToSave: Record<string, { value: number }>) => {
-      if (!token || !selectedMonth) return;
-      const res = await fetch('/api/expenses/monthly', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          token,
-          month: selectedMonth,
-          buckets: bucketsToSave,
-          finalizeImport: false,
-        }),
-      });
-      if (!res.ok) {
-        const json = await res.json().catch(() => ({}));
-        throw new Error(json.error ?? 'Update failed');
-      }
-    },
-    [token, selectedMonth]
+    [token, selectedMonth, currentImportAccountName, sharedData]
   );
 
   const handleSaveManualActuals = useCallback(async () => {
@@ -694,15 +642,13 @@ function ExpensesPageContent() {
       <main className="max-w-4xl mx-auto px-4 sm:px-6 py-8 sm:py-10 min-w-0 overflow-x-hidden">
         <h1 className={`text-2xl font-light mb-2 ${theme.textClass}`}>Expenses</h1>
         <p className={`text-sm mb-6 sm:mb-8 ${theme.textSecondaryClass}`}>
-          Monthly estimates, then compare with your statement.
+          Set monthly estimates, then add actuals by month.
         </p>
 
         {step === 0 && (
           <>
             <div className="mb-6">
-              <label className={`block text-sm font-medium mb-2 ${theme.textClass}`}>
-                Currency <span className={theme.textSecondaryClass}>(your default; expense data is stored in this)</span>
-              </label>
+              <label className={`block text-sm font-medium mb-2 ${theme.textClass}`}>Currency</label>
               <div className="relative">
                 <button
                   type="button"
@@ -775,7 +721,7 @@ function ExpensesPageContent() {
                 disabled={!canProceedFromEstimate}
                 className="py-4 px-6 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg transition-colors font-medium text-lg"
               >
-                Continue to upload
+                Continue
               </button>
             </div>
           </>
@@ -788,12 +734,7 @@ function ExpensesPageContent() {
             }`}
           >
             <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
-              <div className="min-w-0">
-                <h2 className={`text-xl font-light mb-1 ${theme.textClass}`}>Statement by month</h2>
-                <p className={`text-sm ${theme.textSecondaryClass}`}>
-                  Add data from multiple accounts per month. Currency is set on the estimates step.
-                </p>
-              </div>
+              <h2 className={`text-xl font-light ${theme.textClass}`}>By month</h2>
               <button
                 type="button"
                 onClick={() => setStep(0)}
@@ -805,9 +746,6 @@ function ExpensesPageContent() {
 
             {monthsWithData.length > 0 && (
               <div className={`mb-6 overflow-x-auto rounded-lg border ${darkMode ? 'border-slate-600' : 'border-gray-200'}`}>
-                <h3 className={`text-sm font-medium px-4 py-2 ${darkMode ? 'bg-slate-800/50' : 'bg-gray-100'} ${theme.textClass}`}>
-                  Months with data
-                </h3>
                 <table className="w-full text-sm">
                   <thead>
                     <tr className={`border-b ${darkMode ? 'border-slate-600' : 'border-gray-200'}`}>
@@ -887,35 +825,30 @@ function ExpensesPageContent() {
             <div
               className={`mb-6 p-4 rounded-lg border ${darkMode ? 'bg-slate-900/40 border-slate-600' : 'bg-gray-50 border-gray-200'}`}
             >
-              <h3 className={`text-sm font-medium mb-2 ${theme.textClass}`}>Summary — {selectedMonthLabel}</h3>
+              <h3 className={`text-sm font-medium mb-2 ${theme.textClass}`}>{selectedMonthLabel}</h3>
               <p className={`text-sm ${theme.textSecondaryClass}`}>
                 Recurring estimate: {formatCurrency(recurringEstimateTotal, currency)}
               </p>
               {monthlySummary != null ? (
                 <>
                   <p className={`text-sm mt-1 ${theme.textClass}`}>
-                    Recurring expenses: {formatCurrency(monthlySummary.recurringTotal, currency)}
-                    {monthlySummary.oneTimeTotal > 0 && (
-                      <span className={theme.textSecondaryClass}>
-                        {' '} · One-off: {formatCurrency(monthlySummary.oneTimeTotal, currency)}
-                      </span>
-                    )}
+                    Recurring: {formatCurrency(monthlySummary.recurringTotal, currency)}
                   </p>
+                  {monthlySummary.oneTimeTotal > 0 && (
+                    <p className={`text-sm mt-1 ${theme.textSecondaryClass}`}>
+                      One-off: {formatCurrency(monthlySummary.oneTimeTotal, currency)}
+                    </p>
+                  )}
                   <p className={`text-sm mt-1 ${theme.textSecondaryClass}`}>
                     {monthlySummary.diff === 0
-                      ? 'Recurring matches your estimates.'
+                      ? 'Matches estimates.'
                       : monthlySummary.diff > 0
-                        ? `About ${monthlySummary.pct.toFixed(0)}% over (${formatCurrency(monthlySummary.diff, currency)} more).`
-                        : `About ${Math.abs(monthlySummary.pct).toFixed(0)}% under (${formatCurrency(Math.abs(monthlySummary.diff), currency)} less).`}
-                  </p>
-                  <p className={`text-xs mt-2 ${theme.textSecondaryClass}`}>
-                    {monthAlreadyImported ? 'Verified (from import).' : 'Not verified (manual).'}
+                        ? `${monthlySummary.pct.toFixed(0)}% over (${formatCurrency(monthlySummary.diff, currency)} more).`
+                        : `${Math.abs(monthlySummary.pct).toFixed(0)}% under (${formatCurrency(Math.abs(monthlySummary.diff), currency)} less).`}
                   </p>
                 </>
               ) : (
-                <p className={`text-sm mt-1 ${theme.textSecondaryClass}`}>
-                  No data for this month. Import from PDF/paste or enter actuals manually.
-                </p>
+                <p className={`text-sm mt-1 ${theme.textSecondaryClass}`}>No data. Upload, paste, or enter below.</p>
               )}
             </div>
 
@@ -925,7 +858,7 @@ function ExpensesPageContent() {
                 onClick={() => setShowManualActuals((prev) => !prev)}
                 className={`py-2 px-4 rounded-lg border text-sm ${theme.borderClass} ${theme.textClass}`}
               >
-                {showManualActuals ? 'Hide manual input' : monthlySummary != null ? 'Edit by bucket' : 'Enter actuals manually'}
+                {showManualActuals ? 'Hide' : 'Edit by bucket'}
               </button>
             </div>
 
@@ -933,11 +866,9 @@ function ExpensesPageContent() {
               <div
                 className={`mb-6 p-4 rounded-lg border ${darkMode ? 'bg-slate-800/60 border-slate-600' : 'bg-white border-gray-200'}`}
               >
-                <h3 className={`text-sm font-medium mb-2 ${theme.textClass}`}>Actuals by bucket — {selectedMonthLabel}</h3>
+                <h3 className={`text-sm font-medium mb-2 ${theme.textClass}`}>{selectedMonthLabel}</h3>
                 <p className={`text-xs mb-3 ${theme.textSecondaryClass}`}>
-                  {monthAlreadyImported
-                    ? 'Verified (from statement). Saving below will mark this month as not verified.'
-                    : 'Not verified (manual). Enter actual amounts per category.'}
+                  Enter amounts per category. Saving overwrites imported data.
                 </p>
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
@@ -992,61 +923,28 @@ function ExpensesPageContent() {
               </div>
             )}
 
-            {monthAlreadyImported && (
-              <div className="mb-4 flex gap-3">
-                <button
-                  type="button"
-                  onClick={handleViewAlreadyImported}
-                  className="inline-flex items-center gap-2 py-2 px-4 rounded-lg border border-blue-500 text-blue-600 dark:text-blue-400 dark:border-blue-400 font-medium"
-                >
-                  View & compare
-                </button>
-              </div>
-            )}
             {expenseAccounts.length > 0 && (
-              <div
-                className={`mb-4 p-3 rounded-lg border ${darkMode ? 'bg-slate-900/40 border-slate-600' : 'bg-gray-50 border-gray-200'}`}
-              >
-                <p className={`text-xs font-medium mb-1 ${theme.textSecondaryClass}`}>
-                  Your accounts to import from each month
-                </p>
-                <p className={`text-sm ${theme.textClass}`}>
-                  {expenseAccounts.map((a) => a.name).join(', ')}
-                </p>
-              </div>
+              <p className={`mb-2 text-xs ${theme.textSecondaryClass}`}>
+                Accounts: {expenseAccounts.map((a) => a.name).join(', ')}
+              </p>
             )}
-            <p className={`text-sm mb-2 ${theme.textSecondaryClass}`}>
-              Add data for {selectedMonthLabel}: upload a PDF or paste transactions below. You can add from multiple accounts; each import is reviewed line-by-line then merged into the month. Only category totals are saved.
-            </p>
-            <div className="mb-4 flex flex-wrap gap-4 items-center">
-              <div>
-                <label className={`block text-xs font-medium mb-1 ${theme.textSecondaryClass}`}>Import type</label>
-                <select
-                  value={importSourceType}
-                  onChange={(e) => setImportSourceType(e.target.value as 'credit_card' | 'checking')}
-                  className={`p-2 rounded-lg border text-sm ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-200'} ${theme.textClass}`}
-                >
-                  <option value="credit_card">Credit card statement</option>
-                  <option value="checking">Checking account</option>
-                </select>
-              </div>
-              <div className="min-w-0 flex-1">
-                <label className={`block text-xs font-medium mb-1 ${theme.textSecondaryClass}`}>Account name (optional)</label>
-                <input
-                  type="text"
-                  value={importAccountName}
-                  onChange={(e) => setImportAccountName(e.target.value)}
-                  placeholder="e.g. Credit card, Salary Account"
-                  className={`w-full max-w-xs p-2 rounded-lg border text-sm ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-200'} ${theme.textClass}`}
-                />
-              </div>
-            </div>
+            <label className={`block text-xs font-medium mb-1 ${theme.textSecondaryClass}`}>Account (optional)</label>
+            <input
+              type="text"
+              value={importAccountName}
+              onChange={(e) => setImportAccountName(e.target.value)}
+              placeholder="e.g. Credit card, Salary Account"
+              className={`w-full max-w-xs p-2 rounded-lg border text-sm mb-3 ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-200'} ${theme.textClass}`}
+            />
             <input
               type="file"
               accept="application/pdf"
               onChange={handleFileChange}
               className={`block w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-medium file:bg-blue-500 file:text-white hover:file:bg-blue-600 ${theme.textClass}`}
             />
+            <p className={`mt-1 text-xs ${theme.textSecondaryClass}`}>
+              File must not be password-protected. If it is, copy and paste the transactions instead.
+            </p>
             {uploadProgress && (
               <p className={`mt-3 text-sm font-medium ${theme.textClass}`}>{uploadProgress}</p>
             )}
@@ -1066,12 +964,7 @@ function ExpensesPageContent() {
             </div>
 
             <div className="mt-6 pt-6 border-t border-gray-200 dark:border-slate-600">
-              <label className={`block text-sm font-medium mb-2 ${theme.textClass}`}>
-                Or paste transaction data
-              </label>
-              <p className={`text-xs mb-2 ${theme.textSecondaryClass}`}>
-                Paste CSV or line-by-line data (date, description, amount). We’ll try to categorize each line.
-              </p>
+              <label className={`block text-sm font-medium mb-2 ${theme.textClass}`}>Or paste</label>
               <textarea
                 value={pastedText}
                 onChange={(e) => setPastedText(e.target.value)}
@@ -1118,31 +1011,6 @@ function ExpensesPageContent() {
           </div>
         )}
 
-        {step === 3 && (
-          <>
-            <div className="mb-4 flex gap-3">
-              <button
-                type="button"
-                onClick={() => setStep(1)}
-                className={`py-2 px-4 rounded-lg border ${theme.borderClass} ${theme.textClass}`}
-              >
-                Back to months
-              </button>
-            </div>
-            <CompareView
-              estimatedBuckets={buckets}
-              bucketsPerFile={bucketsPerFile}
-              currency={currency}
-              darkMode={darkMode}
-              theme={theme}
-              userName={userName}
-              token={token}
-              onSaveEstimatesToDb={saveEstimatesToDb}
-              savedMonth={selectedMonth}
-              onSaveMonthlyTotals={handleSaveMonthlyTotals}
-            />
-          </>
-        )}
         <AddReminderForm token={token} context="expenses" defaultDescription="Update expenses" darkMode={darkMode} theme={theme} />
       </main>
     </div>
