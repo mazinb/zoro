@@ -3,6 +3,7 @@
 import React from 'react';
 import { ExpenseBucket } from '@/components/retirement/types';
 import { formatCurrency, isValueInRange, getTotalMonthlyExpenses } from '@/components/retirement/utils';
+import { RECURRING_BUCKET_KEYS } from '@/components/expenses/types';
 
 export type ThemeClasses = {
   textClass: string;
@@ -40,7 +41,9 @@ export function ExpenseBucketInput({
       <h3 className={`text-xl font-light mb-6 ${theme.textClass}`}>Monthly estimates by category</h3>
 
       <div className="space-y-6">
-        {Object.entries(buckets).map(([key, bucket]) => {
+        {RECURRING_BUCKET_KEYS.map((key) => {
+          const bucket = buckets[key];
+          if (!bucket) return null;
           const inRange = bucket.min != null && bucket.max != null ? isValueInRange(bucket.value, bucket) : true;
           return (
             <div key={key} className="space-y-2 min-w-0">

@@ -91,6 +91,7 @@ function ExpensesPageContent() {
   const [importAccountName, setImportAccountName] = useState('');
   const [pastedText, setPastedText] = useState('');
   const [pasteParsing, setPasteParsing] = useState(false);
+  const [everSavedEstimates, setEverSavedEstimates] = useState(false);
   const [currentImportAccountName, setCurrentImportAccountName] = useState<string | null>(null);
   const [expenseAccounts, setExpenseAccounts] = useState<Array<{ name: string; type: string }>>([]);
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
@@ -304,11 +305,23 @@ function ExpensesPageContent() {
     if (!token) return;
     setSaveStatus('saving');
     try {
-      await saveEstimatesWithBuckets(buckets);
+      const bucketsForSave: Record<string, ExpenseBucket> = { ...buckets };
+      if (bucketsForSave.one_time) {
+        bucketsForSave.one_time = { ...bucketsForSave.one_time, value: 0 };
+      }
+      await saveEstimatesWithBuckets(bucketsForSave);
       await saveEstimatesToDb(
-        Object.fromEntries(BUCKET_KEYS.map((k) => [k, { value: buckets[k]?.value ?? 0 }])),
+        Object.fromEntries(
+          BUCKET_KEYS.map((k) => [
+            k,
+            {
+              value: k === 'one_time' ? 0 : buckets[k]?.value ?? 0,
+            },
+          ])
+        ),
         false
       );
+      setEverSavedEstimates(true);
       setSaveStatus('saved');
       setTimeout(() => setSaveStatus('idle'), 2000);
     } catch {
@@ -717,7 +730,13 @@ function ExpensesPageContent() {
               {saveStatus === 'error' && <span className="text-sm text-red-500">Save failed</span>}
               <button
                 type="button"
-                onClick={() => setStep(1)}
+                onClick={() => {
+                  if (!everSavedEstimates && typeof window !== 'undefined') {
+                    const ok = window.confirm('Continue without saving your estimates?');
+                    if (!ok) return;
+                  }
+                  setStep(1);
+                }}
                 disabled={!canProceedFromEstimate}
                 className="py-4 px-6 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg transition-colors font-medium text-lg"
               >
