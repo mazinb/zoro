@@ -19,6 +19,7 @@ export interface CountryData {
     entertainment: ExpenseBucket;
     other: ExpenseBucket;
     one_time: ExpenseBucket;
+    travel: ExpenseBucket;
   };
 }
 
