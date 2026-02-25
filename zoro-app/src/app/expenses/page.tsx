@@ -11,14 +11,13 @@ import { CompareView } from '@/components/expenses/CompareView';
 import { ReviewClassifyView } from '@/components/expenses/ReviewClassifyView';
 import type { ExpenseBucket } from '@/components/retirement/types';
 import type { BucketsPerFile } from '@/components/expenses/types';
+import { BUCKET_KEYS, RECURRING_BUCKET_KEYS } from '@/components/expenses/types';
 import { countryData, getCountriesSorted } from '@/components/retirement/countryData';
 import { formatCurrency } from '@/components/retirement/utils';
 import { AddReminderForm } from '@/components/reminders/AddReminderForm';
-import { convertBetweenCurrencies } from '@/lib/currency';
 
 const EXPENSES_TOKEN_KEY = 'zoro_expenses_token';
 const DEFAULT_COUNTRY = 'India';
-const BUCKET_KEYS = ['housing', 'food', 'transportation', 'healthcare', 'entertainment', 'other'] as const;
 
 function getMonthOptions(): { value: string; label: string }[] {
   const out: { value: string; label: string }[] = [];
@@ -42,8 +41,8 @@ function bucketsToTotals(buckets: Record<string, { value?: number }>): Record<st
   return out;
 }
 
-function sumBucketTotals(totals: Record<string, number>): number {
-  return BUCKET_KEYS.reduce((s, k) => s + (totals[k] ?? 0), 0);
+function sumBucketTotals(totals: Record<string, number>, keys: readonly string[] = BUCKET_KEYS): number {
+  return keys.reduce((s, k) => s + (totals[k] ?? 0), 0);
 }
 
 function formatMonthLabel(monthStr: string): string {
@@ -90,6 +89,13 @@ function ExpensesPageContent() {
   );
   const [bucketsPerFile, setBucketsPerFile] = useState<BucketsPerFile[]>([]);
   const [uploadFiles, setUploadFiles] = useState<File[]>([]);
+  const [importSourceType, setImportSourceType] = useState<'credit_card' | 'checking'>('credit_card');
+  const [importAccountName, setImportAccountName] = useState('');
+  const [pastedText, setPastedText] = useState('');
+  const [pasteParsing, setPasteParsing] = useState(false);
+  const [currentImportAccountName, setCurrentImportAccountName] = useState<string | null>(null);
+  const [currentImportSourceType, setCurrentImportSourceType] = useState<'credit_card' | 'checking'>('credit_card');
+  const [expenseAccounts, setExpenseAccounts] = useState<Array<{ name: string; type: string }>>([]);
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -100,9 +106,6 @@ function ExpensesPageContent() {
   const [gateSending, setGateSending] = useState(false);
   const [gateMessage, setGateMessage] = useState<'idle' | 'sent' | 'not_registered' | 'error'>('idle');
   const [gateError, setGateError] = useState<string | null>(null);
-  const [statementViewCurrency, setStatementViewCurrency] = useState(DEFAULT_COUNTRY);
-  const [ratesByMonth, setRatesByMonth] = useState<Record<string, Record<string, number>>>({});
-  const [showStatementViewDropdown, setShowStatementViewDropdown] = useState(false);
   const [actualsEdits, setActualsEdits] = useState<Record<string, number>>({});
   const [saveActualsStatus, setSaveActualsStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [showManualActuals, setShowManualActuals] = useState(false);
@@ -122,10 +125,10 @@ function ExpensesPageContent() {
           const sd = data.shared_data as Record<string, unknown>;
           const c = (sd?.expenses_country ?? sd?.default_currency) as string | undefined;
           if (typeof c === 'string' && c.trim() && (countryData as Record<string, unknown>)[c.trim()]) {
-            const resolved = c.trim();
-            setCountry(resolved);
-            setStatementViewCurrency(resolved);
+            setCountry(c.trim());
           }
+          const accounts = sd?.expense_accounts;
+          setExpenseAccounts(Array.isArray(accounts) ? accounts as Array<{ name: string; type: string }> : []);
         }
         const saved = data?.retirement_expense_buckets;
         if (saved && typeof saved === 'object' && !Array.isArray(saved)) {
@@ -152,23 +155,6 @@ function ExpensesPageContent() {
       cancelled = true;
     };
   }, [token]);
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch('/api/currency-rates');
-        const json = await res.json();
-        if (cancelled || !res.ok) return;
-        if (json?.data && typeof json.data === 'object' && !Array.isArray(json.data)) {
-          setRatesByMonth(json.data as Record<string, Record<string, number>>);
-        }
-      } catch {
-        // keep empty; convertBetweenCurrencies uses fallback rates
-      }
-    })();
-    return () => { cancelled = true; };
-  }, []);
 
   useEffect(() => {
     if (!token || !selectedMonth) return;
@@ -214,14 +200,19 @@ function ExpensesPageContent() {
         if (cancelled) return;
         const data = json?.data;
         const list = Array.isArray(data) ? data : [];
+        const mapped = list.map((row: { month: string; buckets: unknown; imported_at: string | null }) => ({
+          month: row.month,
+          buckets: (row.buckets && typeof row.buckets === 'object' && !Array.isArray(row.buckets)
+            ? row.buckets
+            : {}) as Record<string, { value: number }>,
+          imported_at: row.imported_at ?? null,
+        }));
         setMonthsWithData(
-          list.map((row: { month: string; buckets: unknown; imported_at: string | null }) => ({
-            month: row.month,
-            buckets: (row.buckets && typeof row.buckets === 'object' && !Array.isArray(row.buckets)
-              ? row.buckets
-              : {}) as Record<string, { value: number }>,
-            imported_at: row.imported_at ?? null,
-          }))
+          mapped.filter((row) => {
+            const totals = bucketsToTotals(row.buckets);
+            const total = sumBucketTotals(totals);
+            return row.imported_at != null || total > 0;
+          })
         );
       } catch {
         if (!cancelled) setMonthsWithData([]);
@@ -235,18 +226,20 @@ function ExpensesPageContent() {
   const currency = countryData[country]?.currency ?? countryData['India'].currency;
   const selectedMonthLabel = monthOptions.find((o) => o.value === selectedMonth)?.label ?? selectedMonth;
 
-  const estimateTotal = useMemo(
-    () => sumBucketTotals(Object.fromEntries(BUCKET_KEYS.map((k) => [k, buckets[k]?.value ?? 0]))),
+  const recurringEstimateTotal = useMemo(
+    () => sumBucketTotals(Object.fromEntries(BUCKET_KEYS.map((k) => [k, buckets[k]?.value ?? 0])), RECURRING_BUCKET_KEYS),
     [buckets]
   );
   const monthlySummary = useMemo(() => {
     if (!selectedMonthData?.buckets) return null;
     const totals = bucketsToTotals(selectedMonthData.buckets);
+    const recurringTotal = sumBucketTotals(totals, RECURRING_BUCKET_KEYS);
+    const oneTimeTotal = totals.one_time ?? 0;
     const monthlyTotal = sumBucketTotals(totals);
-    const diff = monthlyTotal - estimateTotal;
-    const pct = estimateTotal > 0 ? (diff / estimateTotal) * 100 : 0;
-    return { monthlyTotal, estimateTotal, diff, pct };
-  }, [selectedMonthData, estimateTotal]);
+    const diff = recurringTotal - recurringEstimateTotal;
+    const pct = recurringEstimateTotal > 0 ? (diff / recurringEstimateTotal) * 100 : 0;
+    return { recurringTotal, oneTimeTotal, monthlyTotal, recurringEstimateTotal, diff, pct };
+  }, [selectedMonthData, recurringEstimateTotal]);
 
   const handleCountryChange = useCallback((newCountry: string) => {
     setCountry(newCountry);
@@ -379,18 +372,15 @@ function ExpensesPageContent() {
       const formData = new FormData();
       formData.append('token', token);
       formData.append('file', file);
-      formData.append('fileName', `Statement ${selectedMonthLabel}`);
+      formData.append('fileName', importAccountName.trim() || `Statement ${selectedMonthLabel}`);
       formData.append('month', selectedMonth);
+      formData.append('sourceType', importSourceType);
       const res = await fetch('/api/expenses/parse-one-file', {
         method: 'POST',
         body: formData,
       });
       const json = await res.json();
       if (!res.ok) {
-        if (res.status === 409) {
-          setUploadError(json.message ?? 'This month was already imported. Edit totals manually.');
-          return;
-        }
         setUploadError(json.error ?? json.message ?? 'Upload failed');
         return;
       }
@@ -400,6 +390,8 @@ function ExpensesPageContent() {
           ? [{ fileName: data.fileName, buckets: data.buckets }]
           : [];
       setBucketsPerFile(collected);
+      setCurrentImportAccountName(importAccountName.trim() || null);
+      setCurrentImportSourceType(importSourceType);
       setStep(2);
     } catch (e) {
       setUploadError(e instanceof Error ? e.message : 'Upload failed');
@@ -407,7 +399,48 @@ function ExpensesPageContent() {
       setUploading(false);
       setUploadProgress(null);
     }
-  }, [token, uploadFiles, selectedMonth, selectedMonthLabel]);
+  }, [token, uploadFiles, selectedMonth, selectedMonthLabel, importSourceType, importAccountName]);
+
+  const handlePasteParse = useCallback(async () => {
+    if (!token || !pastedText.trim()) {
+      setUploadError('Paste some transaction data first.');
+      return;
+    }
+    setPasteParsing(true);
+    setUploadError(null);
+    try {
+      const res = await fetch('/api/expenses/parse-paste', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token,
+          month: selectedMonth,
+          pastedText: pastedText.trim(),
+          sourceType: importSourceType,
+          fileName: importAccountName.trim() || `Pasted ${selectedMonthLabel}`,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setUploadError(json.error ?? 'Parse failed');
+        return;
+      }
+      const data = json.data;
+      const collected: BucketsPerFile[] =
+        data?.fileName != null && data?.buckets
+          ? [{ fileName: data.fileName, buckets: data.buckets }]
+          : [];
+      setBucketsPerFile(collected);
+      setPastedText('');
+      setCurrentImportAccountName(importAccountName.trim() || null);
+      setCurrentImportSourceType(importSourceType);
+      setStep(2);
+    } catch (e) {
+      setUploadError(e instanceof Error ? e.message : 'Parse failed');
+    } finally {
+      setPasteParsing(false);
+    }
+  }, [token, pastedText, selectedMonth, selectedMonthLabel, importSourceType, importAccountName]);
 
   const handleSaveMonthlyFinal = useCallback(
     async (bucketsToSave: Record<string, { value: number }>) => {
@@ -429,13 +462,31 @@ function ExpensesPageContent() {
           throw new Error(json.error ?? 'Save failed');
         }
         setSaveMonthlyStatus('saved');
+        if (currentImportAccountName) {
+          const accounts = Array.isArray(sharedData.expense_accounts) ? [...(sharedData.expense_accounts as Array<{ name: string; type: string }>)] : [];
+          if (!accounts.some((a) => a.name === currentImportAccountName)) {
+            accounts.push({ name: currentImportAccountName, type: currentImportSourceType });
+            setExpenseAccounts(accounts);
+            setSharedData((prev) => ({ ...prev, expense_accounts: accounts }));
+            await fetch('/api/user-data', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                token,
+                formType: 'expenses',
+                sharedData: { ...sharedData, expense_accounts: accounts },
+              }),
+            });
+          }
+        }
+        setCurrentImportAccountName(null);
         setTimeout(() => setSaveMonthlyStatus('idle'), 2000);
         setStep(1);
       } catch {
         setSaveMonthlyStatus('error');
       }
     },
-    [token, selectedMonth]
+    [token, selectedMonth, currentImportAccountName, currentImportSourceType, sharedData]
   );
 
   const handleViewAlreadyImported = useCallback(async () => {
@@ -519,11 +570,18 @@ function ExpensesPageContent() {
       }
       setMonthsWithData((prev) => {
         const monthDate = `${selectedMonth}-01`;
+        const buckets = (data?.buckets ?? {}) as Record<string, { value: number }>;
+        const totals = bucketsToTotals(buckets);
+        const total = sumBucketTotals(totals);
+        const hasData = (data?.imported_at != null) || total > 0;
         const existing = prev.find((r) => r.month.startsWith(selectedMonth));
-        const next = existing
-          ? prev.map((r) => (r.month.startsWith(selectedMonth) ? { ...r, buckets: data?.buckets ?? r.buckets, imported_at: data?.imported_at ?? null } : r))
-          : [{ month: monthDate, buckets: (data?.buckets ?? {}) as Record<string, { value: number }>, imported_at: data?.imported_at ?? null }, ...prev];
-        return next;
+        if (!hasData) {
+          return existing ? prev.filter((r) => !r.month.startsWith(selectedMonth)) : prev;
+        }
+        const row = { month: monthDate, buckets, imported_at: data?.imported_at ?? null };
+        return existing
+          ? prev.map((r) => (r.month.startsWith(selectedMonth) ? row : r))
+          : [row, ...prev];
       });
       setTimeout(() => setSaveActualsStatus('idle'), 2000);
     } catch {
@@ -733,58 +791,16 @@ function ExpensesPageContent() {
               <div className="min-w-0">
                 <h2 className={`text-xl font-light mb-1 ${theme.textClass}`}>Statement by month</h2>
                 <p className={`text-sm ${theme.textSecondaryClass}`}>
-                  6 months max. One import per month; edit totals after.
+                  Add data from multiple accounts per month. Currency is set on the estimates step.
                 </p>
               </div>
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="relative">
-                  <label className={`block text-xs font-medium mb-1 ${theme.textSecondaryClass}`}>View table in</label>
-                  <button
-                    type="button"
-                    onClick={() => setShowStatementViewDropdown(!showStatementViewDropdown)}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-200'} ${theme.textClass} text-sm`}
-                  >
-                    <span>{countryData[statementViewCurrency]?.flag ?? '🌍'}</span>
-                    <span>{statementViewCurrency}</span>
-                    <span className={theme.textSecondaryClass}>({countryData[statementViewCurrency]?.currency ?? '₹'})</span>
-                    <svg className={`w-4 h-4 ${showStatementViewDropdown ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </button>
-                  {showStatementViewDropdown && (
-                    <div
-                      className={`absolute right-0 top-full mt-1 z-20 py-1 min-w-[180px] rounded-lg shadow-lg border ${
-                        darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-200'
-                      }`}
-                    >
-                      {getCountriesSorted().map((c) => (
-                        <button
-                          key={c}
-                          type="button"
-                          onClick={() => {
-                            setStatementViewCurrency(c);
-                            setShowStatementViewDropdown(false);
-                          }}
-                          className={`w-full px-4 py-2 text-left text-sm flex items-center gap-2 ${
-                            darkMode ? 'hover:bg-slate-700' : 'hover:bg-gray-100'
-                          } ${statementViewCurrency === c ? (darkMode ? 'bg-slate-700' : 'bg-gray-100') : ''} ${theme.textClass}`}
-                        >
-                          <span>{countryData[c].flag}</span>
-                          <span>{c}</span>
-                          <span className={theme.textSecondaryClass}>({countryData[c].currency})</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setStep(0)}
-                  className={`py-2 px-4 rounded-lg border ${theme.borderClass} ${theme.textClass} text-sm`}
-                >
-                  Change estimates
-                </button>
-              </div>
+              <button
+                type="button"
+                onClick={() => setStep(0)}
+                className={`py-2 px-4 rounded-lg border ${theme.borderClass} ${theme.textClass} text-sm`}
+              >
+                Change estimates
+              </button>
             </div>
 
             {monthsWithData.length > 0 && (
@@ -803,36 +819,22 @@ function ExpensesPageContent() {
                   <tbody>
                     {monthsWithData.map((row) => {
                       const totals = bucketsToTotals(row.buckets);
+                      const recurringTotal = sumBucketTotals(totals, RECURRING_BUCKET_KEYS);
                       const total = sumBucketTotals(totals);
-                      const diff = total - estimateTotal;
-                      const pct = estimateTotal > 0 ? (diff / estimateTotal) * 100 : 0;
+                      const diff = recurringTotal - recurringEstimateTotal;
+                      const pct = recurringEstimateTotal > 0 ? (diff / recurringEstimateTotal) * 100 : 0;
                       const monthKey = row.month.slice(0, 7);
-                      const totalInView = convertBetweenCurrencies(
-                        total,
-                        monthKey,
-                        country,
-                        statementViewCurrency,
-                        ratesByMonth
-                      );
-                      const diffInView = convertBetweenCurrencies(
-                        diff,
-                        monthKey,
-                        country,
-                        statementViewCurrency,
-                        ratesByMonth
-                      );
-                      const viewSymbol = countryData[statementViewCurrency]?.currency ?? '₹';
+                      const isSelected = monthKey === selectedMonth;
                       const amountPart =
                         diff === 0
                           ? '—'
                           : diff > 0
-                            ? `+${formatCurrency(diffInView, viewSymbol)}`
-                            : formatCurrency(-diffInView, viewSymbol);
+                            ? `+${formatCurrency(diff, currency)}`
+                            : formatCurrency(-diff, currency);
                       const pctPart =
                         diff === 0 ? null : diff > 0 ? `+${pct.toFixed(0)}%` : `-${Math.abs(pct).toFixed(0)}%`;
                       const pctClass =
                         diff === 0 ? theme.textSecondaryClass : diff > 0 ? 'text-red-400' : 'text-emerald-400';
-                      const isSelected = monthKey === selectedMonth;
                       return (
                         <tr
                           key={row.month}
@@ -844,7 +846,7 @@ function ExpensesPageContent() {
                             {formatMonthLabel(row.month)}
                           </td>
                           <td className={`px-4 py-2 text-right ${theme.textClass}`}>
-                            {formatCurrency(totalInView, viewSymbol)}
+                            {formatCurrency(total, currency)}
                           </td>
                           <td className={`px-4 py-2 text-right ${theme.textSecondaryClass}`}>
                             {diff === 0 ? (
@@ -886,44 +888,35 @@ function ExpensesPageContent() {
               className={`mb-6 p-4 rounded-lg border ${darkMode ? 'bg-slate-900/40 border-slate-600' : 'bg-gray-50 border-gray-200'}`}
             >
               <h3 className={`text-sm font-medium mb-2 ${theme.textClass}`}>Summary — {selectedMonthLabel}</h3>
-              {(() => {
-                const viewSymbol = countryData[statementViewCurrency]?.currency ?? '₹';
-                const estimateInView = convertBetweenCurrencies(estimateTotal, selectedMonth, country, statementViewCurrency, ratesByMonth);
-                const monthlyInView = monthlySummary
-                  ? convertBetweenCurrencies(monthlySummary.monthlyTotal, selectedMonth, country, statementViewCurrency, ratesByMonth)
-                  : 0;
-                const diffInView = monthlySummary
-                  ? convertBetweenCurrencies(monthlySummary.diff, selectedMonth, country, statementViewCurrency, ratesByMonth)
-                  : 0;
-                return (
-                  <>
-                    <p className={`text-sm ${theme.textSecondaryClass}`}>
-                      Your estimates total: {formatCurrency(estimateInView, viewSymbol)}
-                    </p>
-                    {monthlySummary != null ? (
-                      <>
-                        <p className={`text-sm mt-1 ${theme.textClass}`}>
-                          Expenses for this month: {formatCurrency(monthlyInView, viewSymbol)}
-                        </p>
-                        <p className={`text-sm mt-1 ${theme.textSecondaryClass}`}>
-                          {monthlySummary.diff === 0
-                            ? 'Matches your estimates.'
-                            : monthlySummary.diff > 0
-                              ? `About ${monthlySummary.pct.toFixed(0)}% over your estimates (${formatCurrency(diffInView, viewSymbol)} more).`
-                              : `About ${Math.abs(monthlySummary.pct).toFixed(0)}% under your estimates (${formatCurrency(Math.abs(diffInView), viewSymbol)} less).`}
-                        </p>
-                        <p className={`text-xs mt-2 ${theme.textSecondaryClass}`}>
-                          {monthAlreadyImported ? 'Verified (from statement).' : 'Not verified (manual).'}
-                        </p>
-                      </>
-                    ) : (
-                      <p className={`text-sm mt-1 ${theme.textSecondaryClass}`}>
-                        No data for this month. Upload a PDF or enter actuals manually.
-                      </p>
+              <p className={`text-sm ${theme.textSecondaryClass}`}>
+                Recurring estimate: {formatCurrency(recurringEstimateTotal, currency)}
+              </p>
+              {monthlySummary != null ? (
+                <>
+                  <p className={`text-sm mt-1 ${theme.textClass}`}>
+                    Recurring expenses: {formatCurrency(monthlySummary.recurringTotal, currency)}
+                    {monthlySummary.oneTimeTotal > 0 && (
+                      <span className={theme.textSecondaryClass}>
+                        {' '} · One-off: {formatCurrency(monthlySummary.oneTimeTotal, currency)}
+                      </span>
                     )}
-                  </>
-                );
-              })()}
+                  </p>
+                  <p className={`text-sm mt-1 ${theme.textSecondaryClass}`}>
+                    {monthlySummary.diff === 0
+                      ? 'Recurring matches your estimates.'
+                      : monthlySummary.diff > 0
+                        ? `About ${monthlySummary.pct.toFixed(0)}% over (${formatCurrency(monthlySummary.diff, currency)} more).`
+                        : `About ${Math.abs(monthlySummary.pct).toFixed(0)}% under (${formatCurrency(Math.abs(monthlySummary.diff), currency)} less).`}
+                  </p>
+                  <p className={`text-xs mt-2 ${theme.textSecondaryClass}`}>
+                    {monthAlreadyImported ? 'Verified (from import).' : 'Not verified (manual).'}
+                  </p>
+                </>
+              ) : (
+                <p className={`text-sm mt-1 ${theme.textSecondaryClass}`}>
+                  No data for this month. Import from PDF/paste or enter actuals manually.
+                </p>
+              )}
             </div>
 
             <div className="mb-4">
@@ -999,53 +992,106 @@ function ExpensesPageContent() {
               </div>
             )}
 
-            {monthAlreadyImported ? (
-              <div
-                className={`mb-4 p-4 rounded-lg border ${darkMode ? 'bg-slate-900/50 border-slate-600' : 'bg-amber-50 border-amber-200'}`}
-              >
-                <p className={`text-sm font-medium ${theme.textClass}`}>
-                  Already imported. View & compare or edit totals.
-                </p>
-                <div className="mt-3 flex gap-3">
-                  <button
-                    type="button"
-                    onClick={handleViewAlreadyImported}
-                    className="inline-flex items-center gap-2 py-2 px-4 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium"
-                  >
-                    View & compare
-                  </button>
-                </div>
+            {monthAlreadyImported && (
+              <div className="mb-4 flex gap-3">
+                <button
+                  type="button"
+                  onClick={handleViewAlreadyImported}
+                  className="inline-flex items-center gap-2 py-2 px-4 rounded-lg border border-blue-500 text-blue-600 dark:text-blue-400 dark:border-blue-400 font-medium"
+                >
+                  View & compare
+                </button>
               </div>
-            ) : (
-              <>
-                <p className={`text-sm mb-2 ${theme.textSecondaryClass}`}>
-                  Upload a PDF for {selectedMonthLabel}. We extract expenses by category. Only category totals are saved; no transaction or vendor data is stored.
-                </p>
-                <input
-                  type="file"
-                  accept="application/pdf"
-                  onChange={handleFileChange}
-                  className={`block w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-medium file:bg-blue-500 file:text-white hover:file:bg-blue-600 ${theme.textClass}`}
-                />
-                {uploadProgress && (
-                  <p className={`mt-3 text-sm font-medium ${theme.textClass}`}>{uploadProgress}</p>
-                )}
-                {uploadError && (
-                  <p className="mt-2 text-sm text-red-500">{uploadError}</p>
-                )}
-                <div className="mt-4 flex gap-3">
-                  <button
-                    type="button"
-                    onClick={handleUpload}
-                    disabled={uploadFiles.length === 0 || uploading}
-                    className="inline-flex items-center gap-2 py-2 px-4 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-lg font-medium"
-                  >
-                    <Upload className="w-4 h-4" />
-                    {uploading ? 'Processing…' : 'Upload & review'}
-                  </button>
-                </div>
-              </>
             )}
+            {expenseAccounts.length > 0 && (
+              <div
+                className={`mb-4 p-3 rounded-lg border ${darkMode ? 'bg-slate-900/40 border-slate-600' : 'bg-gray-50 border-gray-200'}`}
+              >
+                <p className={`text-xs font-medium mb-1 ${theme.textSecondaryClass}`}>
+                  Your accounts to import from each month
+                </p>
+                <p className={`text-sm ${theme.textClass}`}>
+                  {expenseAccounts.map((a) => a.name).join(', ')}
+                </p>
+              </div>
+            )}
+            <p className={`text-sm mb-2 ${theme.textSecondaryClass}`}>
+              Add data for {selectedMonthLabel}: upload a PDF or paste transactions below. You can add from multiple accounts; each import is reviewed line-by-line then merged into the month. Only category totals are saved.
+            </p>
+            <div className="mb-4 flex flex-wrap gap-4 items-center">
+              <div>
+                <label className={`block text-xs font-medium mb-1 ${theme.textSecondaryClass}`}>Import type</label>
+                <select
+                  value={importSourceType}
+                  onChange={(e) => setImportSourceType(e.target.value as 'credit_card' | 'checking')}
+                  className={`p-2 rounded-lg border text-sm ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-200'} ${theme.textClass}`}
+                >
+                  <option value="credit_card">Credit card statement</option>
+                  <option value="checking">Checking account</option>
+                </select>
+              </div>
+              <div className="min-w-0 flex-1">
+                <label className={`block text-xs font-medium mb-1 ${theme.textSecondaryClass}`}>Account name (optional)</label>
+                <input
+                  type="text"
+                  value={importAccountName}
+                  onChange={(e) => setImportAccountName(e.target.value)}
+                  placeholder="e.g. Credit card, Salary Account"
+                  className={`w-full max-w-xs p-2 rounded-lg border text-sm ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-200'} ${theme.textClass}`}
+                />
+              </div>
+            </div>
+            <input
+              type="file"
+              accept="application/pdf"
+              onChange={handleFileChange}
+              className={`block w-full text-sm file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-medium file:bg-blue-500 file:text-white hover:file:bg-blue-600 ${theme.textClass}`}
+            />
+            {uploadProgress && (
+              <p className={`mt-3 text-sm font-medium ${theme.textClass}`}>{uploadProgress}</p>
+            )}
+            {uploadError && (
+              <p className="mt-2 text-sm text-red-500">{uploadError}</p>
+            )}
+            <div className="mt-4 flex gap-3">
+              <button
+                type="button"
+                onClick={handleUpload}
+                disabled={uploadFiles.length === 0 || uploading}
+                className="inline-flex items-center gap-2 py-2 px-4 bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white rounded-lg font-medium"
+              >
+                <Upload className="w-4 h-4" />
+                {uploading ? 'Processing…' : 'Upload PDF & review'}
+              </button>
+            </div>
+
+            <div className="mt-6 pt-6 border-t border-gray-200 dark:border-slate-600">
+              <label className={`block text-sm font-medium mb-2 ${theme.textClass}`}>
+                Or paste transaction data
+              </label>
+              <p className={`text-xs mb-2 ${theme.textSecondaryClass}`}>
+                Paste CSV or line-by-line data (date, description, amount). We’ll try to categorize each line.
+              </p>
+              <textarea
+                value={pastedText}
+                onChange={(e) => setPastedText(e.target.value)}
+                placeholder="e.g.&#10;2025-01-15, Grocery Store, 85.20&#10;2025-01-16, Gas Station, 45.00"
+                rows={5}
+                className={`w-full p-3 rounded-lg border text-sm font-mono ${
+                  darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-200'
+                } ${theme.textClass}`}
+              />
+              <div className="mt-2">
+                <button
+                  type="button"
+                  onClick={handlePasteParse}
+                  disabled={!pastedText.trim() || pasteParsing}
+                  className="inline-flex items-center gap-2 py-2 px-4 rounded-lg border border-blue-500 text-blue-600 dark:text-blue-400 dark:border-blue-400 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {pasteParsing ? 'Parsing…' : 'Parse & review'}
+                </button>
+              </div>
+            </div>
           </div>
         )}
 

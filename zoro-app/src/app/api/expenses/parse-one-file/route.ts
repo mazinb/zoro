@@ -17,7 +17,8 @@ function getSupabase() {
 
 const MAX_FILE_SIZE_MB = 20;
 const MAX_FILE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
-const CATEGORIES = ['housing', 'food', 'transportation', 'healthcare', 'entertainment', 'other'] as const;
+const EXPENSE_CATEGORIES = ['housing', 'food', 'transportation', 'healthcare', 'entertainment', 'other', 'one_time'] as const;
+const CATEGORIES_WITH_TRANSFER = [...EXPENSE_CATEGORIES, 'transfer'] as const;
 
 const LOG_PREFIX = '[parse-one-file]';
 
@@ -55,7 +56,10 @@ function normalizeItem(x: unknown): ExpenseItem | null {
   return { description: desc || 'Unknown', amount };
 }
 
-function parseBucketsFromResponse(response: { text?: string; candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> }): CategorizedExpenses {
+function parseBucketsFromResponse(
+  response: { text?: string; candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> },
+  categories: readonly string[] = EXPENSE_CATEGORIES
+): CategorizedExpenses {
   let text =
     response.text?.trim() ??
     (response.candidates?.[0]?.content?.parts
@@ -80,7 +84,7 @@ function parseBucketsFromResponse(response: { text?: string; candidates?: Array<
   }
   const buckets: CategorizedExpenses = {};
   const obj = data && typeof data === 'object' ? (data as Record<string, unknown>) : {};
-  for (const cat of CATEGORIES) {
+  for (const cat of categories) {
     const raw = obj[cat];
     if (!Array.isArray(raw)) {
       buckets[cat] = [];
@@ -132,29 +136,6 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     );
   }
-  const monthDate = `${monthStr}-01`;
-
-  const supabase = getSupabase();
-  const { data: existing, error: existingError } = await supabase
-    .from('monthly_expenses')
-    .select('id, imported_at')
-    .eq('user_id', userId)
-    .eq('month', monthDate)
-    .maybeSingle();
-
-  if (existingError) {
-    return NextResponse.json({ error: 'Failed to check month.' }, { status: 500 });
-  }
-  if (existing?.imported_at) {
-    return NextResponse.json(
-      {
-        error: 'Already imported',
-        message: 'This month was already imported. You can edit totals manually; re-import is not allowed.',
-      },
-      { status: 409 }
-    );
-  }
-
   const file = formData.get('file') ?? formData.get('statement');
   if (!file || !(file instanceof Blob)) {
     return NextResponse.json({ error: 'One PDF file is required.' }, { status: 400 });
@@ -171,8 +152,12 @@ export async function POST(request: NextRequest) {
 
   const fileNameRaw = formData.get('fileName');
   const fileName = typeof fileNameRaw === 'string' && fileNameRaw.trim() ? fileNameRaw.trim() : 'Statement';
+  const sourceTypeRaw = formData.get('sourceType');
+  const sourceType = sourceTypeRaw === 'checking' ? 'checking' : 'credit_card';
+  const isChecking = sourceType === 'checking';
+  const categories = isChecking ? CATEGORIES_WITH_TRANSFER : EXPENSE_CATEGORIES;
 
-  console.log(`${LOG_PREFIX} Input: token, 1 PDF, fileName=${fileName}`);
+  console.log(`${LOG_PREFIX} Input: token, 1 PDF, fileName=${fileName}, sourceType=${sourceType}`);
 
   const ai = new GoogleGenAI({ apiKey });
   let uploadedFile: { name?: string; uri?: string; mimeType?: string } | null = null;
@@ -195,13 +180,23 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 502 });
   }
 
-  const prompt = `You are analyzing a bank statement PDF. Extract ALL expenses and classify each one into exactly these categories (use only these keys): ${CATEGORIES.join(', ')}.
+  const prompt = isChecking
+    ? `You are analyzing a CHECKING account statement PDF. Extract ALL transactions. Classify each into exactly these categories (use only these keys): ${categories.join(', ')}.
+
+CRITICAL: Put in "transfer" any transaction that is NOT an expense: credit card payments, transfers to savings, transfers to other accounts, internal transfers. These will be excluded from spending totals to avoid double-counting.
+
+For each category, output an array of items. Each item: "description" (short), "amount" (number, positive). Map real expenses: rent/utilities -> housing; groceries/restaurants -> food; gas/transit -> transportation; doctor/insurance -> healthcare; subscriptions/leisure -> entertainment; one-off purchases -> one_time; else -> other. Transfers (credit card payment, transfer out, etc.) -> transfer.
+
+Respond with ONLY a single JSON object in this exact shape, no other text:
+{"housing":[],"food":[],"transportation":[],"healthcare":[],"entertainment":[],"other":[],"one_time":[],"transfer":[]}
+Include every transaction. Use empty arrays [] for categories with none.`
+    : `You are analyzing a bank statement PDF. Extract ALL expenses and classify each one into exactly these categories (use only these keys): ${categories.join(', ')}.
 
 For each category, output an array of expense items. Each item must have: "description" (short transaction/merchant description) and "amount" (number, positive = spending).
-Map transactions to the best category: rent/mortgage/utilities -> housing; groceries/restaurants -> food; gas/transit/car -> transportation; doctor/insurance/pharmacy -> healthcare; subscriptions/leisure -> entertainment; everything else -> other.
+Map transactions to the best category: rent/mortgage/utilities -> housing; groceries/restaurants -> food; gas/transit/car -> transportation; doctor/insurance/pharmacy -> healthcare; subscriptions/leisure -> entertainment; one-off purchases, repairs, gifts, lump sums -> one_time; everything else -> other.
 
 Respond with ONLY a single JSON object in this exact shape, no other text or markdown:
-{"housing":[{"description":"Rent","amount":1500}],"food":[{"description":"Grocery","amount":200}],"transportation":[],"healthcare":[],"entertainment":[],"other":[]}
+{"housing":[{"description":"Rent","amount":1500}],"food":[],"transportation":[],"healthcare":[],"entertainment":[],"other":[],"one_time":[]}
 Include every expense from the statement. Use empty arrays [] for categories with no expenses.`;
 
   let response;
@@ -229,7 +224,7 @@ Include every expense from the statement. Use empty arrays [] for categories wit
     /* best-effort */
   }
 
-  const buckets = parseBucketsFromResponse(response as Parameters<typeof parseBucketsFromResponse>[0]);
-  console.log(`${LOG_PREFIX} Done → returning { data: { fileName, buckets } }`);
-  return NextResponse.json({ data: { fileName, buckets } });
+  const buckets = parseBucketsFromResponse(response as Parameters<typeof parseBucketsFromResponse>[0], categories);
+  console.log(`${LOG_PREFIX} Done → returning { data: { fileName, buckets, sourceType } }`);
+  return NextResponse.json({ data: { fileName, buckets, sourceType } });
 }

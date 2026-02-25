@@ -6,7 +6,7 @@ import { formatCurrency } from '@/components/retirement/utils';
 import type { CategorizedExpenses, ExpenseItem } from './types';
 import type { ThemeClasses } from './ExpenseBucketInput';
 
-const BUCKET_KEYS = ['housing', 'food', 'transportation', 'healthcare', 'entertainment', 'other'] as const;
+import { BUCKET_KEYS } from './types';
 const BUCKET_LABELS: Record<string, string> = {
   housing: 'Housing & Utilities',
   food: 'Food & Dining',
@@ -14,6 +14,8 @@ const BUCKET_LABELS: Record<string, string> = {
   healthcare: 'Healthcare & Insurance',
   entertainment: 'Entertainment & Leisure',
   other: 'Other Expenses',
+  one_time: 'One-off / non-recurring',
+  transfer: 'Transfer (exclude from expenses)',
 };
 
 type ItemWithId = ExpenseItem & { id: string };
@@ -41,10 +43,18 @@ export function ReviewClassifyView({
   onSave,
   saveStatus,
 }: ReviewClassifyViewProps) {
+  const displayKeys = useMemo((): string[] => {
+    const keys: string[] = [...BUCKET_KEYS];
+    if (Array.isArray(initialBuckets.transfer) && initialBuckets.transfer.length > 0) keys.push('transfer');
+    return keys;
+  }, [initialBuckets]);
+
   const [editableBuckets, setEditableBuckets] = useState<Record<string, ItemWithId[]>>(() => {
+    const keys: string[] = [...BUCKET_KEYS];
+    if (Array.isArray(initialBuckets.transfer) && initialBuckets.transfer.length > 0) keys.push('transfer');
     const out: Record<string, ItemWithId[]> = {};
     let idCounter = 0;
-    for (const k of BUCKET_KEYS) {
+    for (const k of keys) {
       const arr = initialBuckets[k];
       out[k] = Array.isArray(arr)
         ? arr.map((i) => ({ ...i, id: `item-${k}-${idCounter++}-${Math.random().toString(36).slice(2)}` }))
@@ -67,8 +77,8 @@ export function ReviewClassifyView({
   }, []);
 
   const expandAll = useCallback(() => {
-    setExpandedBuckets(new Set(BUCKET_KEYS));
-  }, []);
+    setExpandedBuckets(new Set(Object.keys(editableBuckets)));
+  }, [editableBuckets]);
 
   const collapseAll = useCallback(() => {
     setExpandedBuckets(new Set());
@@ -124,7 +134,7 @@ export function ReviewClassifyView({
     setEditableBuckets((prev) => {
       const next: Record<string, ItemWithId[]> = { ...prev };
       const toMove: ItemWithId[] = [];
-      for (const k of BUCKET_KEYS) {
+      for (const k of Object.keys(next)) {
         const arr = next[k] ?? [];
         const kept: ItemWithId[] = [];
         for (const item of arr) {
@@ -142,7 +152,7 @@ export function ReviewClassifyView({
 
   const bucketTotals = useMemo(() => {
     const out: Record<string, number> = {};
-    for (const k of BUCKET_KEYS) {
+    for (const k of Object.keys(editableBuckets)) {
       out[k] = totalForBucket(editableBuckets[k] ?? []);
     }
     return out;
@@ -157,7 +167,7 @@ export function ReviewClassifyView({
   }, [bucketTotals, onSave]);
 
   const totalAmount = useMemo(
-    () => Object.values(bucketTotals).reduce((s, n) => s + n, 0),
+    () => BUCKET_KEYS.reduce((s, k) => s + (bucketTotals[k] ?? 0), 0),
     [bucketTotals]
   );
   const hasData = totalAmount > 0;
@@ -238,7 +248,7 @@ export function ReviewClassifyView({
                     >
                       Move to category
                     </div>
-                    {BUCKET_KEYS.map((toKey) => (
+                    {displayKeys.map((toKey) => (
                       <button
                         key={toKey}
                         type="button"
@@ -264,7 +274,7 @@ export function ReviewClassifyView({
       </div>
 
       <div className={`rounded-lg border ${darkMode ? 'border-slate-700' : 'border-gray-200'}`}>
-        {BUCKET_KEYS.map((bucket) => {
+        {displayKeys.map((bucket) => {
           const items = editableBuckets[bucket] ?? [];
           const total = bucketTotals[bucket] ?? 0;
           const isExpanded = expandedBuckets.has(bucket);
@@ -361,7 +371,7 @@ export function ReviewClassifyView({
                                     >
                                       Move to category
                                     </div>
-                                    {BUCKET_KEYS.filter((k) => k !== bucket).map((toKey) => (
+                                    {displayKeys.filter((k) => k !== bucket).map((toKey) => (
                                       <button
                                         key={toKey}
                                         type="button"

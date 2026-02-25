@@ -1,3 +1,8 @@
+/** All expense bucket keys including one-time (non-recurring) */
+export const BUCKET_KEYS = ['housing', 'food', 'transportation', 'healthcare', 'entertainment', 'other', 'one_time'] as const;
+/** Recurring buckets only; use for comparing actuals to monthly estimates (excludes one_time) */
+export const RECURRING_BUCKET_KEYS = ['housing', 'food', 'transportation', 'healthcare', 'entertainment', 'other'] as const;
+
 /** One expense line (description + amount) */
 export interface ExpenseItem {
   description: string;

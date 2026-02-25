@@ -7,7 +7,7 @@ import type { ExpenseBucket } from '@/components/retirement/types';
 import type { CategorizedExpenses, BucketsPerFile } from './types';
 import type { ThemeClasses } from './ExpenseBucketInput';
 
-const BUCKET_KEYS = ['housing', 'food', 'transportation', 'healthcare', 'entertainment', 'other'] as const;
+import { BUCKET_KEYS } from './types';
 const BUCKET_LABELS: Record<string, string> = {
   housing: 'Housing & Utilities',
   food: 'Food & Dining',
@@ -15,6 +15,7 @@ const BUCKET_LABELS: Record<string, string> = {
   healthcare: 'Healthcare & Insurance',
   entertainment: 'Entertainment & Leisure',
   other: 'Other Expenses',
+  one_time: 'One-off / non-recurring',
 };
 
 function diffStatus(estimated: number, actual: number): 'close' | 'over' | 'under' {

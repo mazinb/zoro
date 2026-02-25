@@ -13,7 +13,7 @@ const supabase = createClient(supabaseUrl, anonKey, {
   auth: { autoRefreshToken: false, persistSession: false },
 });
 
-const BUCKET_KEYS = ['housing', 'food', 'transportation', 'healthcare', 'entertainment', 'other'] as const;
+const BUCKET_KEYS = ['housing', 'food', 'transportation', 'healthcare', 'entertainment', 'other', 'one_time'] as const;
 
 /** POST: Save expense estimates to expense_estimates table */
 export async function POST(request: NextRequest) {

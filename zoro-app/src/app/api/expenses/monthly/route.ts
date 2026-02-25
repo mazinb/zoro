@@ -12,7 +12,7 @@ function getSupabase() {
   });
 }
 
-const BUCKET_KEYS = ['housing', 'food', 'transportation', 'healthcare', 'entertainment', 'other'] as const;
+const BUCKET_KEYS = ['housing', 'food', 'transportation', 'healthcare', 'entertainment', 'other', 'one_time'] as const;
 
 function firstDayOfMonth(monthStr: string): string | null {
   const match = /^(\d{4})-(\d{2})$/.exec(monthStr);
@@ -131,18 +131,25 @@ export async function POST(request: NextRequest) {
       Object.entries(normalized).map(([k, v]) => [k, { value: v }])
     );
 
+    let bucketsToSave = bucketsJson;
     if (finalizeImport) {
       const { data: existing } = await supabase
         .from('monthly_expenses')
-        .select('id, imported_at')
+        .select('id, buckets, imported_at')
         .eq('user_id', userId)
         .eq('month', monthDate)
         .maybeSingle();
 
-      if (existing?.imported_at) {
-        return NextResponse.json(
-          { error: 'This month was already imported. Edit totals manually.' },
-          { status: 409 }
+      if (existing?.buckets && typeof existing.buckets === 'object' && !Array.isArray(existing.buckets)) {
+        const existingBuckets = existing.buckets as Record<string, { value?: number }>;
+        const merged: Record<string, number> = {};
+        for (const k of BUCKET_KEYS) {
+          const prev = existingBuckets[k];
+          const prevVal = prev != null && typeof (prev as { value?: number }).value === 'number' ? (prev as { value: number }).value : 0;
+          merged[k] = (normalized[k] ?? 0) + prevVal;
+        }
+        bucketsToSave = Object.fromEntries(
+          Object.entries(merged).map(([k, v]) => [k, { value: v }])
         );
       }
     }
@@ -150,7 +157,7 @@ export async function POST(request: NextRequest) {
     const row = {
       user_id: userId,
       month: monthDate,
-      buckets: bucketsJson,
+      buckets: bucketsToSave,
       ...(finalizeImport ? { imported_at: new Date().toISOString() } : { imported_at: null }),
       updated_at: new Date().toISOString(),
     };

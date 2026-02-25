@@ -18,6 +18,7 @@ export interface CountryData {
     healthcare: ExpenseBucket;
     entertainment: ExpenseBucket;
     other: ExpenseBucket;
+    one_time: ExpenseBucket;
   };
 }
 
