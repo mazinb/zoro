@@ -13,7 +13,8 @@ export const countryData: Record<string, CountryData> = {
       healthcare: { value: 8000, label: 'Healthcare & Insurance', min: 3000, max: 25000, step: 1000 },
       entertainment: { value: 6000, label: 'Entertainment & Leisure', min: 2000, max: 20000, step: 500 },
       other: { value: 4000, label: 'Other Expenses', min: 1000, max: 15000, step: 500 },
-      one_time: { value: 0, label: 'One-off / non-recurring', min: 0, max: 500000, step: 500 }
+      one_time: { value: 0, label: 'One-off / non-recurring', min: 0, max: 500000, step: 500 },
+      travel: { value: 0, label: 'Travel', min: 0, max: 500000, step: 500 }
     }
   },
   'Thailand': { 
@@ -28,7 +29,8 @@ export const countryData: Record<string, CountryData> = {
       healthcare: { value: 4000, label: 'Healthcare & Insurance', min: 1500, max: 12000, step: 500 },
       entertainment: { value: 6000, label: 'Entertainment & Leisure', min: 2000, max: 15000, step: 500 },
       other: { value: 4000, label: 'Other Expenses', min: 1000, max: 10000, step: 500 },
-      one_time: { value: 0, label: 'One-off / non-recurring', min: 0, max: 500000, step: 500 }
+      one_time: { value: 0, label: 'One-off / non-recurring', min: 0, max: 500000, step: 500 },
+      travel: { value: 0, label: 'Travel', min: 0, max: 500000, step: 500 }
     }
   },
   'UAE': { 
@@ -43,7 +45,8 @@ export const countryData: Record<string, CountryData> = {
       healthcare: { value: 2000, label: 'Healthcare & Insurance', min: 1000, max: 6000, step: 250 },
       entertainment: { value: 2000, label: 'Entertainment & Leisure', min: 500, max: 6000, step: 250 },
       other: { value: 1000, label: 'Other Expenses', min: 300, max: 3000, step: 100 },
-      one_time: { value: 0, label: 'One-off / non-recurring', min: 0, max: 500000, step: 500 }
+      one_time: { value: 0, label: 'One-off / non-recurring', min: 0, max: 500000, step: 500 },
+      travel: { value: 0, label: 'Travel', min: 0, max: 500000, step: 500 }
     }
   },
   'Europe': { 
@@ -58,7 +61,8 @@ export const countryData: Record<string, CountryData> = {
       healthcare: { value: 500, label: 'Healthcare & Insurance', min: 250, max: 1500, step: 50 },
       entertainment: { value: 600, label: 'Entertainment & Leisure', min: 200, max: 1500, step: 50 },
       other: { value: 300, label: 'Other Expenses', min: 100, max: 800, step: 50 },
-      one_time: { value: 0, label: 'One-off / non-recurring', min: 0, max: 500000, step: 50 }
+      one_time: { value: 0, label: 'One-off / non-recurring', min: 0, max: 500000, step: 50 },
+      travel: { value: 0, label: 'Travel', min: 0, max: 500000, step: 50 }
     }
   },
   'US': { 
@@ -73,7 +77,8 @@ export const countryData: Record<string, CountryData> = {
       healthcare: { value: 800, label: 'Healthcare & Insurance', min: 400, max: 2000, step: 50 },
       entertainment: { value: 700, label: 'Entertainment & Leisure', min: 200, max: 2000, step: 50 },
       other: { value: 400, label: 'Other Expenses', min: 100, max: 1000, step: 50 },
-      one_time: { value: 0, label: 'One-off / non-recurring', min: 0, max: 500000, step: 50 }
+      one_time: { value: 0, label: 'One-off / non-recurring', min: 0, max: 500000, step: 50 },
+      travel: { value: 0, label: 'Travel', min: 0, max: 500000, step: 50 }
     }
   },
   'Other': { 
@@ -88,7 +93,8 @@ export const countryData: Record<string, CountryData> = {
       healthcare: { value: 400, label: 'Healthcare & Insurance', min: 150, max: 1200, step: 50 },
       entertainment: { value: 350, label: 'Entertainment & Leisure', min: 100, max: 1000, step: 25 },
       other: { value: 200, label: 'Other Expenses', min: 50, max: 600, step: 25 },
-      one_time: { value: 0, label: 'One-off / non-recurring', min: 0, max: 500000, step: 25 }
+      one_time: { value: 0, label: 'One-off / non-recurring', min: 0, max: 500000, step: 25 },
+      travel: { value: 0, label: 'Travel', min: 0, max: 500000, step: 25 }
     }
   }
 };

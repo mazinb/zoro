@@ -15,6 +15,7 @@ const BUCKET_LABELS: Record<string, string> = {
   entertainment: 'Entertainment & Leisure',
   other: 'Other Expenses',
   one_time: 'One-off / non-recurring',
+  travel: 'Travel',
   transfer: 'To exclude (not expenses)',
   to_exclude: 'To exclude (not expenses)',
 };

@@ -3,7 +3,7 @@
 import React from 'react';
 import { ExpenseBucket } from '@/components/retirement/types';
 import { formatCurrency, isValueInRange, getTotalMonthlyExpenses } from '@/components/retirement/utils';
-import { RECURRING_BUCKET_KEYS } from '@/components/expenses/types';
+import { RECURRING_BUCKET_KEYS, ONE_OFF_BUCKET_KEYS } from '@/components/expenses/types';
 
 export type ThemeClasses = {
   textClass: string;
@@ -95,6 +95,35 @@ export function ExpenseBucketInput({
             </div>
           );
         })}
+      </div>
+
+      <div className={`mt-6 pt-6 border-t ${darkMode ? 'border-slate-700' : 'border-gray-200'} min-w-0`}>
+        <p className={`text-sm font-medium mb-3 ${theme.textClass}`}>Optional (one-off & travel)</p>
+        <div className="space-y-3">
+          {ONE_OFF_BUCKET_KEYS.map((key) => {
+            const bucket = buckets[key];
+            if (!bucket) return null;
+            return (
+              <div key={key} className="flex justify-between items-center gap-3">
+                <label className={`text-sm shrink-0 ${theme.textSecondaryClass}`}>{bucket.label}</label>
+                <input
+                  type="number"
+                  min={0}
+                  value={bucket.value}
+                  onChange={(e) => {
+                    const num = parseFloat(e.target.value);
+                    if (!Number.isNaN(num)) onChange(key, num);
+                  }}
+                  className={`w-24 sm:w-32 min-w-0 px-2 sm:px-3 py-2 rounded text-sm ${
+                    darkMode
+                      ? 'bg-slate-900 border border-slate-600 text-gray-100'
+                      : 'bg-gray-100 border border-gray-300 text-gray-900'
+                  } focus:outline-none focus:ring-2 focus:ring-blue-500`}
+                />
+              </div>
+            );
+          })}
+        </div>
       </div>
 
       <div className={`mt-6 pt-6 border-t ${darkMode ? 'border-slate-700' : 'border-gray-200'} min-w-0`}>

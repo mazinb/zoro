@@ -12,7 +12,7 @@ function getSupabase() {
   });
 }
 
-const BUCKET_KEYS = ['housing', 'food', 'transportation', 'healthcare', 'entertainment', 'other', 'one_time'] as const;
+const BUCKET_KEYS = ['housing', 'food', 'transportation', 'healthcare', 'entertainment', 'other', 'one_time', 'travel'] as const;
 
 function firstDayOfMonth(monthStr: string): string | null {
   const match = /^(\d{4})-(\d{2})$/.exec(monthStr);

@@ -16,6 +16,7 @@ const BUCKET_LABELS: Record<string, string> = {
   entertainment: 'Entertainment & Leisure',
   other: 'Other Expenses',
   one_time: 'One-off / non-recurring',
+  travel: 'Travel',
 };
 
 function diffStatus(estimated: number, actual: number): 'close' | 'over' | 'under' {

@@ -3,7 +3,7 @@ import { GoogleGenAI } from '@google/genai';
 import { resolveTokenToUserId } from '@/lib/resolve-token';
 import type { CategorizedExpenses, ExpenseItem } from '@/components/expenses/types';
 
-const EXPENSE_CATEGORIES = ['housing', 'food', 'transportation', 'healthcare', 'entertainment', 'other', 'one_time'] as const;
+const EXPENSE_CATEGORIES = ['housing', 'food', 'transportation', 'healthcare', 'entertainment', 'other', 'one_time', 'travel'] as const;
 const CATEGORIES_WITH_EXCLUDE = [...EXPENSE_CATEGORIES, 'to_exclude'] as const;
 
 const LOG_PREFIX = '[parse-paste]';
@@ -125,10 +125,10 @@ export async function POST(request: NextRequest) {
 
 Put in "to_exclude" anything that is NOT an expense: transfers to yourself, transactions with your name, internal transfers, credit card payments, refunds.
 
-Each item: "description" (short), "amount" (number, positive). Expenses: rent/utilities -> housing; groceries/restaurants -> food; gas/transit -> transportation; doctor/insurance -> healthcare; subscriptions/leisure -> entertainment; one-off -> one_time; else -> other.
+Each item: "description" (short), "amount" (number, positive). Expenses: rent/utilities -> housing; groceries/restaurants -> food; gas/transit -> transportation; doctor/insurance -> healthcare; subscriptions/leisure -> entertainment; flights/hotels/trips -> travel; one-off -> one_time; else -> other.
 
 Respond with ONLY this JSON shape, no other text:
-{"housing":[],"food":[],"transportation":[],"healthcare":[],"entertainment":[],"other":[],"one_time":[],"to_exclude":[]}
+{"housing":[],"food":[],"transportation":[],"healthcare":[],"entertainment":[],"other":[],"one_time":[],"travel":[],"to_exclude":[]}
 Use [] for empty categories.`;
 
   let response;

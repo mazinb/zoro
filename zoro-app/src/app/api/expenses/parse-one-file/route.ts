@@ -17,7 +17,7 @@ function getSupabase() {
 
 const MAX_FILE_SIZE_MB = 20;
 const MAX_FILE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
-const EXPENSE_CATEGORIES = ['housing', 'food', 'transportation', 'healthcare', 'entertainment', 'other', 'one_time'] as const;
+const EXPENSE_CATEGORIES = ['housing', 'food', 'transportation', 'healthcare', 'entertainment', 'other', 'one_time', 'travel'] as const;
 const CATEGORIES_WITH_EXCLUDE = [...EXPENSE_CATEGORIES, 'to_exclude'] as const;
 
 const LOG_PREFIX = '[parse-one-file]';
@@ -181,10 +181,10 @@ export async function POST(request: NextRequest) {
 
 Put in "to_exclude" anything that is NOT an expense: transfers to yourself, transactions with the account holder's name, internal transfers, credit card payments, refunds. These are excluded from spending.
 
-Each item: "description" (short), "amount" (number, positive). Expenses: rent/utilities -> housing; groceries/restaurants -> food; gas/transit -> transportation; doctor/insurance -> healthcare; subscriptions/leisure -> entertainment; one-off -> one_time; else -> other.
+Each item: "description" (short), "amount" (number, positive). Expenses: rent/utilities -> housing; groceries/restaurants -> food; gas/transit -> transportation; doctor/insurance -> healthcare; subscriptions/leisure -> entertainment; flights/hotels/trips -> travel; one-off -> one_time; else -> other.
 
 Respond with ONLY this JSON shape, no other text:
-{"housing":[],"food":[],"transportation":[],"healthcare":[],"entertainment":[],"other":[],"one_time":[],"to_exclude":[]}
+{"housing":[],"food":[],"transportation":[],"healthcare":[],"entertainment":[],"other":[],"one_time":[],"travel":[],"to_exclude":[]}
 Include every transaction. Use [] for empty categories.`;
 
   let response;

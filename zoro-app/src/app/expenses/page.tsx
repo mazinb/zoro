@@ -10,7 +10,7 @@ import { ExpenseBucketInput } from '@/components/expenses/ExpenseBucketInput';
 import { ReviewClassifyView } from '@/components/expenses/ReviewClassifyView';
 import type { ExpenseBucket } from '@/components/retirement/types';
 import type { BucketsPerFile } from '@/components/expenses/types';
-import { BUCKET_KEYS, RECURRING_BUCKET_KEYS } from '@/components/expenses/types';
+import { BUCKET_KEYS, ONE_OFF_BUCKET_KEYS, RECURRING_BUCKET_KEYS } from '@/components/expenses/types';
 import { countryData, getCountriesSorted } from '@/components/retirement/countryData';
 import { formatCurrency } from '@/components/retirement/utils';
 import { AddReminderForm } from '@/components/reminders/AddReminderForm';
@@ -92,6 +92,7 @@ function ExpensesPageContent() {
   const [pastedText, setPastedText] = useState('');
   const [pasteParsing, setPasteParsing] = useState(false);
   const [everSavedEstimates, setEverSavedEstimates] = useState(false);
+  const [tableView, setTableView] = useState<'by_month' | 'by_bucket'>('by_month');
   const [currentImportAccountName, setCurrentImportAccountName] = useState<string | null>(null);
   const [expenseAccounts, setExpenseAccounts] = useState<Array<{ name: string; type: string }>>([]);
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
@@ -228,15 +229,35 @@ function ExpensesPageContent() {
     () => sumBucketTotals(Object.fromEntries(BUCKET_KEYS.map((k) => [k, buckets[k]?.value ?? 0])), RECURRING_BUCKET_KEYS),
     [buckets]
   );
+  const bucketAverages = useMemo(() => {
+    if (monthsWithData.length === 0) return null;
+    const sums: Record<string, number> = {};
+    for (const k of RECURRING_BUCKET_KEYS) sums[k] = 0;
+    for (const row of monthsWithData) {
+      const b = row.buckets;
+      for (const k of RECURRING_BUCKET_KEYS) {
+        const v = b[k]?.value ?? 0;
+        sums[k] += typeof v === 'number' ? v : 0;
+      }
+    }
+    const denom = monthsWithData.length || 1;
+    const avgs: Record<string, number> = {};
+    for (const k of RECURRING_BUCKET_KEYS) {
+      avgs[k] = sums[k] / denom;
+    }
+    return avgs;
+  }, [monthsWithData]);
   const monthlySummary = useMemo(() => {
     if (!selectedMonthData?.buckets) return null;
     const totals = bucketsToTotals(selectedMonthData.buckets);
     const recurringTotal = sumBucketTotals(totals, RECURRING_BUCKET_KEYS);
-    const oneTimeTotal = totals.one_time ?? 0;
+    const oneTimeOnly = totals.one_time ?? 0;
+    const travelTotal = totals.travel ?? 0;
+    const oneTimeTotal = oneTimeOnly + travelTotal;
     const monthlyTotal = sumBucketTotals(totals);
     const diff = recurringTotal - recurringEstimateTotal;
     const pct = recurringEstimateTotal > 0 ? (diff / recurringEstimateTotal) * 100 : 0;
-    return { recurringTotal, oneTimeTotal, monthlyTotal, recurringEstimateTotal, diff, pct };
+    return { recurringTotal, oneTimeTotal, oneTimeOnly, travelTotal, monthlyTotal, recurringEstimateTotal, diff, pct };
   }, [selectedMonthData, recurringEstimateTotal]);
 
   const handleCountryChange = useCallback((newCountry: string) => {
@@ -305,20 +326,9 @@ function ExpensesPageContent() {
     if (!token) return;
     setSaveStatus('saving');
     try {
-      const bucketsForSave: Record<string, ExpenseBucket> = { ...buckets };
-      if (bucketsForSave.one_time) {
-        bucketsForSave.one_time = { ...bucketsForSave.one_time, value: 0 };
-      }
-      await saveEstimatesWithBuckets(bucketsForSave);
+      await saveEstimatesWithBuckets(buckets);
       await saveEstimatesToDb(
-        Object.fromEntries(
-          BUCKET_KEYS.map((k) => [
-            k,
-            {
-              value: k === 'one_time' ? 0 : buckets[k]?.value ?? 0,
-            },
-          ])
-        ),
+        Object.fromEntries(BUCKET_KEYS.map((k) => [k, { value: buckets[k]?.value ?? 0 }])),
         false
       );
       setEverSavedEstimates(true);
@@ -753,7 +763,38 @@ function ExpensesPageContent() {
             }`}
           >
             <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
-              <h2 className={`text-xl font-light ${theme.textClass}`}>By month</h2>
+              <div className="flex items-center gap-2 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setTableView('by_month')}
+                  className={`px-2 py-1 rounded ${
+                    tableView === 'by_month'
+                      ? darkMode
+                        ? 'bg-slate-700 text-white'
+                        : 'bg-blue-500 text-white'
+                      : darkMode
+                        ? 'text-slate-300'
+                        : 'text-slate-600'
+                  }`}
+                >
+                  Month
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTableView('by_bucket')}
+                  className={`px-2 py-1 rounded ${
+                    tableView === 'by_bucket'
+                      ? darkMode
+                        ? 'bg-slate-700 text-white'
+                        : 'bg-blue-500 text-white'
+                      : darkMode
+                        ? 'text-slate-300'
+                        : 'text-slate-600'
+                  }`}
+                >
+                  Bucket
+                </button>
+              </div>
               <button
                 type="button"
                 onClick={() => setStep(0)}
@@ -768,56 +809,113 @@ function ExpensesPageContent() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className={`border-b ${darkMode ? 'border-slate-600' : 'border-gray-200'}`}>
-                      <th className={`text-left px-4 py-2 font-medium ${theme.textSecondaryClass}`}>Month</th>
+                      <th className={`text-left px-4 py-2 font-medium ${theme.textSecondaryClass}`}>{tableView === 'by_month' ? 'Month' : 'Bucket'}</th>
                       <th className={`text-right px-4 py-2 font-medium ${theme.textSecondaryClass}`}>Expenses</th>
                       <th className={`text-right px-4 py-2 font-medium ${theme.textSecondaryClass}`}>Vs estimates</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {monthsWithData.map((row) => {
-                      const totals = bucketsToTotals(row.buckets);
-                      const recurringTotal = sumBucketTotals(totals, RECURRING_BUCKET_KEYS);
-                      const total = sumBucketTotals(totals);
-                      const diff = recurringTotal - recurringEstimateTotal;
-                      const pct = recurringEstimateTotal > 0 ? (diff / recurringEstimateTotal) * 100 : 0;
-                      const monthKey = row.month.slice(0, 7);
-                      const isSelected = monthKey === selectedMonth;
-                      const amountPart =
-                        diff === 0
-                          ? '—'
-                          : diff > 0
-                            ? `+${formatCurrency(diff, currency)}`
-                            : formatCurrency(-diff, currency);
-                      const pctPart =
-                        diff === 0 ? null : diff > 0 ? `+${pct.toFixed(0)}%` : `-${Math.abs(pct).toFixed(0)}%`;
-                      const pctClass =
-                        diff === 0 ? theme.textSecondaryClass : diff > 0 ? 'text-red-400' : 'text-emerald-400';
-                      return (
-                        <tr
-                          key={row.month}
-                          className={`border-b last:border-b-0 ${
-                            darkMode ? 'border-slate-600' : 'border-gray-200'
-                          } ${isSelected ? (darkMode ? 'bg-slate-700/30' : 'bg-blue-50/50') : ''}`}
-                        >
-                          <td className={`px-4 py-2 ${theme.textClass}`}>
-                            {formatMonthLabel(row.month)}
-                          </td>
-                          <td className={`px-4 py-2 text-right ${theme.textClass}`}>
-                            {formatCurrency(total, currency)}
-                          </td>
-                          <td className={`px-4 py-2 text-right ${theme.textSecondaryClass}`}>
-                            {diff === 0 ? (
-                              amountPart
-                            ) : (
-                              <>
-                                {amountPart}{' '}
-                                <span className={pctClass}>({pctPart})</span>
-                              </>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })}
+                    {tableView === 'by_month'
+                      ? monthsWithData.map((row) => {
+                          const totals = bucketsToTotals(row.buckets);
+                          const recurringTotal = sumBucketTotals(totals, RECURRING_BUCKET_KEYS);
+                          const total = sumBucketTotals(totals);
+                          const diff = recurringTotal - recurringEstimateTotal;
+                          const pct = recurringEstimateTotal > 0 ? (diff / recurringEstimateTotal) * 100 : 0;
+                          const monthKey = row.month.slice(0, 7);
+                          const isSelected = monthKey === selectedMonth;
+                          const amountPart =
+                            diff === 0
+                              ? '—'
+                              : diff > 0
+                                ? `+${formatCurrency(diff, currency)}`
+                                : formatCurrency(-diff, currency);
+                          const pctPart =
+                            diff === 0 ? null : diff > 0 ? `+${pct.toFixed(0)}%` : `-${Math.abs(pct).toFixed(0)}%`;
+                          const pctClass =
+                            diff === 0 ? theme.textSecondaryClass : diff > 0 ? 'text-red-400' : 'text-emerald-400';
+                          return (
+                            <tr
+                              key={row.month}
+                              className={`border-b last:border-b-0 ${
+                                darkMode ? 'border-slate-600' : 'border-gray-200'
+                              } ${isSelected ? (darkMode ? 'bg-slate-700/30' : 'bg-blue-50/50') : ''}`}
+                            >
+                              <td className={`px-4 py-2 ${theme.textClass}`}>
+                                {formatMonthLabel(row.month)}
+                              </td>
+                              <td className={`px-4 py-2 text-right ${theme.textClass}`}>
+                                {formatCurrency(total, currency)}
+                              </td>
+                              <td className={`px-4 py-2 text-right ${theme.textSecondaryClass}`}>
+                                {diff === 0 ? (
+                                  amountPart
+                                ) : (
+                                  <>
+                                    {amountPart}{' '}
+                                    <span className={pctClass}>({pctPart})</span>
+                                  </>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })
+                      : RECURRING_BUCKET_KEYS.map((key) => {
+                          const avg = bucketAverages?.[key] ?? 0;
+                          const est = buckets[key]?.value ?? 0;
+                          const diff = avg - est;
+                          const pct = est > 0 ? (diff / est) * 100 : 0;
+                          const amountPart =
+                            diff === 0
+                              ? '—'
+                              : diff > 0
+                                ? `+${formatCurrency(diff, currency)}`
+                                : formatCurrency(-diff, currency);
+                          const pctPart =
+                            diff === 0 ? null : diff > 0 ? `+${pct.toFixed(0)}%` : `-${Math.abs(pct).toFixed(0)}%`;
+                          const pctClass =
+                            diff === 0 ? theme.textSecondaryClass : diff > 0 ? 'text-red-400' : 'text-emerald-400';
+                          return (
+                            <tr
+                              key={key}
+                              className={`border-b last:border-b-0 ${darkMode ? 'border-slate-600' : 'border-gray-200'}`}
+                            >
+                              <td className={`px-4 py-2 ${theme.textClass}`}>
+                                {buckets[key]?.label ?? key}
+                              </td>
+                              <td className={`px-4 py-2 text-right ${theme.textClass}`}>
+                                {formatCurrency(avg, currency)}
+                              </td>
+                              <td className={`px-4 py-2 text-right ${theme.textSecondaryClass}`}>
+                                {diff === 0 ? (
+                                  amountPart
+                                ) : (
+                                  <>
+                                    {amountPart}{' '}
+                                    <span className={pctClass}>({pctPart})</span>
+                                  </>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                    <tr aria-hidden="true">
+                      <td colSpan={3} className="py-2" />
+                    </tr>
+                    <tr className={`border-t ${darkMode ? 'border-slate-600' : 'border-gray-200'}`}>
+                      <td className={`px-4 py-2 font-medium ${theme.textClass}`}>One-off</td>
+                      <td className={`px-4 py-2 text-right ${theme.textClass}`}>
+                        {formatCurrency(monthlySummary?.oneTimeOnly ?? 0, currency)}
+                      </td>
+                      <td className={`px-4 py-2 text-right ${theme.textSecondaryClass}`}>—</td>
+                    </tr>
+                    <tr className={darkMode ? 'border-slate-600' : 'border-gray-200'}>
+                      <td className={`px-4 py-2 font-medium ${theme.textClass}`}>Travel</td>
+                      <td className={`px-4 py-2 text-right ${theme.textClass}`}>
+                        {formatCurrency(monthlySummary?.travelTotal ?? 0, currency)}
+                      </td>
+                      <td className={`px-4 py-2 text-right ${theme.textSecondaryClass}`}>—</td>
+                    </tr>
                   </tbody>
                 </table>
               </div>
@@ -844,7 +942,16 @@ function ExpensesPageContent() {
             <div
               className={`mb-6 p-4 rounded-lg border ${darkMode ? 'bg-slate-900/40 border-slate-600' : 'bg-gray-50 border-gray-200'}`}
             >
-              <h3 className={`text-sm font-medium mb-2 ${theme.textClass}`}>{selectedMonthLabel}</h3>
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <h3 className={`text-sm font-medium ${theme.textClass}`}>{selectedMonthLabel}</h3>
+                <button
+                  type="button"
+                  onClick={() => setShowManualActuals((prev) => !prev)}
+                  className={`py-1 px-2 rounded border text-xs shrink-0 ${theme.borderClass} ${theme.textClass}`}
+                >
+                  {showManualActuals ? 'Hide' : 'Edit'}
+                </button>
+              </div>
               <p className={`text-sm ${theme.textSecondaryClass}`}>
                 Recurring estimate: {formatCurrency(recurringEstimateTotal, currency)}
               </p>
@@ -853,10 +960,19 @@ function ExpensesPageContent() {
                   <p className={`text-sm mt-1 ${theme.textClass}`}>
                     Recurring: {formatCurrency(monthlySummary.recurringTotal, currency)}
                   </p>
-                  {monthlySummary.oneTimeTotal > 0 && (
-                    <p className={`text-sm mt-1 ${theme.textSecondaryClass}`}>
-                      One-off: {formatCurrency(monthlySummary.oneTimeTotal, currency)}
-                    </p>
+                  {(monthlySummary.oneTimeOnly > 0 || monthlySummary.travelTotal > 0) && (
+                    <>
+                      {monthlySummary.oneTimeOnly > 0 && (
+                        <p className={`text-sm mt-1 ${theme.textSecondaryClass}`}>
+                          One-off: {formatCurrency(monthlySummary.oneTimeOnly, currency)}
+                        </p>
+                      )}
+                      {monthlySummary.travelTotal > 0 && (
+                        <p className={`text-sm mt-2 ${theme.textSecondaryClass}`}>
+                          Travel: {formatCurrency(monthlySummary.travelTotal, currency)}
+                        </p>
+                      )}
+                    </>
                   )}
                   <p className={`text-sm mt-1 ${theme.textSecondaryClass}`}>
                     {monthlySummary.diff === 0
@@ -869,16 +985,6 @@ function ExpensesPageContent() {
               ) : (
                 <p className={`text-sm mt-1 ${theme.textSecondaryClass}`}>No data. Upload, paste, or enter below.</p>
               )}
-            </div>
-
-            <div className="mb-4">
-              <button
-                type="button"
-                onClick={() => setShowManualActuals((prev) => !prev)}
-                className={`py-2 px-4 rounded-lg border text-sm ${theme.borderClass} ${theme.textClass}`}
-              >
-                {showManualActuals ? 'Hide' : 'Edit by bucket'}
-              </button>
             </div>
 
             {showManualActuals && (
@@ -947,14 +1053,6 @@ function ExpensesPageContent() {
                 Accounts: {expenseAccounts.map((a) => a.name).join(', ')}
               </p>
             )}
-            <label className={`block text-xs font-medium mb-1 ${theme.textSecondaryClass}`}>Account (optional)</label>
-            <input
-              type="text"
-              value={importAccountName}
-              onChange={(e) => setImportAccountName(e.target.value)}
-              placeholder="e.g. Credit card, Salary Account"
-              className={`w-full max-w-xs p-2 rounded-lg border text-sm mb-3 ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-200'} ${theme.textClass}`}
-            />
             <input
               type="file"
               accept="application/pdf"
@@ -984,10 +1082,13 @@ function ExpensesPageContent() {
 
             <div className="mt-6 pt-6 border-t border-gray-200 dark:border-slate-600">
               <label className={`block text-sm font-medium mb-2 ${theme.textClass}`}>Or paste</label>
+              <p className={`mb-2 text-xs ${theme.textSecondaryClass}`}>
+                Include table headers when pasting. For multi-page statements, paste the full table (with headers) once per page.
+              </p>
               <textarea
                 value={pastedText}
                 onChange={(e) => setPastedText(e.target.value)}
-                placeholder="e.g.&#10;2025-01-15, Grocery Store, 85.20&#10;2025-01-16, Gas Station, 45.00"
+                placeholder="e.g.&#10;Date, Description, Amount&#10;2025-01-15, Grocery Store, 85.20&#10;2025-01-16, Gas Station, 45.00"
                 rows={5}
                 className={`w-full p-3 rounded-lg border text-sm font-mono ${
                   darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-200'

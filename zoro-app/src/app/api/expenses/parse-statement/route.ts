@@ -18,7 +18,7 @@ function getSupabase() {
 const MAX_FILES = 5;
 const MAX_FILE_SIZE_MB = 20;
 const MAX_FILE_BYTES = MAX_FILE_SIZE_MB * 1024 * 1024;
-const CATEGORIES = ['housing', 'food', 'transportation', 'healthcare', 'entertainment', 'other'] as const;
+const CATEGORIES = ['housing', 'food', 'transportation', 'healthcare', 'entertainment', 'other', 'one_time', 'travel'] as const;
 
 const LOG_PREFIX = '[parse-statement]';
 
@@ -129,10 +129,10 @@ async function processOnePdf(
   const prompt = `You are analyzing a bank statement PDF. Extract ALL expenses and classify each one into exactly these categories (use only these keys): ${CATEGORIES.join(', ')}.
 
 For each category, output an array of expense items. Each item must have: "description" (short transaction/merchant description) and "amount" (number, positive = spending).
-Map transactions to the best category: rent/mortgage/utilities -> housing; groceries/restaurants -> food; gas/transit/car -> transportation; doctor/insurance/pharmacy -> healthcare; subscriptions/leisure -> entertainment; everything else -> other.
+Map transactions to the best category: rent/mortgage/utilities -> housing; groceries/restaurants -> food; gas/transit/car -> transportation; doctor/insurance/pharmacy -> healthcare; subscriptions/leisure -> entertainment; flights/hotels/trips -> travel; one-off -> one_time; everything else -> other.
 
 Respond with ONLY a single JSON object in this exact shape, no other text or markdown:
-{"housing":[{"description":"Rent","amount":1500}],"food":[{"description":"Grocery","amount":200}],"transportation":[],"healthcare":[],"entertainment":[],"other":[]}
+{"housing":[{"description":"Rent","amount":1500}],"food":[{"description":"Grocery","amount":200}],"transportation":[],"healthcare":[],"entertainment":[],"other":[],"one_time":[],"travel":[]}
 Include every expense from the statement. Use empty arrays [] for categories with no expenses.`;
 
   const response = await ai.models.generateContent({
