@@ -6,8 +6,6 @@ import { Moon, Sun, Mail, ChevronDown, ChevronRight, Bot, AlertCircle, Flag } fr
 import { ZoroLogo } from '@/components/ZoroLogo';
 import { useThemeClasses } from '@/hooks/useThemeClasses';
 import { useDarkMode } from '@/hooks/useDarkMode';
-import { countryData, getCountriesSorted } from '@/components/retirement/countryData';
-
 type Usage = {
   daily_used: number;
   daily_limit: number;
@@ -52,8 +50,6 @@ function ProfileContent() {
   const [commentDraft, setCommentDraft] = useState<Record<string, string>>({});
   const [savingInboundId, setSavingInboundId] = useState<string | null>(null);
   const [sharedData, setSharedData] = useState<Record<string, unknown>>({});
-  const [defaultCurrency, setDefaultCurrency] = useState<string>('India');
-  const [savingDefaultCurrency, setSavingDefaultCurrency] = useState(false);
   const [userDataName, setUserDataName] = useState<string | null>(null);
   const [userDataEmail, setUserDataEmail] = useState<string | null>(null);
 
@@ -100,12 +96,7 @@ function ProfileContent() {
         if (data?.name !== undefined) setUserDataName(typeof data.name === 'string' ? data.name : null);
         if (data?.email !== undefined) setUserDataEmail(typeof data.email === 'string' ? data.email : null);
         if (data?.shared_data && typeof data.shared_data === 'object' && !Array.isArray(data.shared_data)) {
-          const sd = data.shared_data as Record<string, unknown>;
-          setSharedData(sd);
-          const c = (sd?.default_currency as string) ?? 'India';
-          if (typeof c === 'string' && (countryData as Record<string, unknown>)[c]) {
-            setDefaultCurrency(c);
-          }
+          setSharedData(data.shared_data as Record<string, unknown>);
         }
       } catch {
         // keep defaults
@@ -152,37 +143,6 @@ function ProfileContent() {
     if (!intent) return '—';
     if (intentType) return `${intent} (${intentType})`;
     return intent;
-  };
-
-  const handleSaveDefaultCurrency = async () => {
-    if (!token || savingDefaultCurrency) return;
-    setSavingDefaultCurrency(true);
-    try {
-      const merged = { ...sharedData, default_currency: defaultCurrency };
-      const res = await fetch('/api/user-data', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          token,
-          formType: 'profile',
-          sharedData: merged,
-          name: userDataName ?? undefined,
-          email: userDataEmail ?? undefined,
-        }),
-      });
-      const json = await res.json();
-      if (!res.ok) {
-        setError(json.error ?? 'Save failed');
-        return;
-      }
-      if (json?.data?.shared_data && typeof json.data.shared_data === 'object') {
-        setSharedData(json.data.shared_data as Record<string, unknown>);
-      }
-    } catch {
-      setError('Save failed');
-    } finally {
-      setSavingDefaultCurrency(false);
-    }
   };
 
   const updateInboundFlagOrComment = async (
@@ -323,36 +283,6 @@ function ProfileContent() {
                 {data?.usage.monthly_used ?? 0} / {data?.usage.monthly_limit ?? 100}
               </div>
             </div>
-          </div>
-        </section>
-
-        {/* Default currency */}
-        <section className="mb-10">
-          <h2 className={`text-lg font-semibold ${theme.textClass} mb-4`}>Default currency</h2>
-          <p className={`${theme.textSecondaryClass} text-sm mb-4`}>
-            Used as the initial currency on Income, Expenses, and Assets pages. You can still change it per item (e.g. RSUs in USD, account in AED).
-          </p>
-          <div className="flex flex-wrap items-center gap-3">
-            <select
-              value={defaultCurrency}
-              onChange={(e) => setDefaultCurrency(e.target.value)}
-              className={`px-3 py-2 rounded-lg border ${theme.borderClass} ${theme.bgClass} ${theme.textClass}`}
-              aria-label="Default currency"
-            >
-              {getCountriesSorted().map((c) => (
-                <option key={c} value={c}>
-                  {countryData[c]?.flag ?? '🌍'} {c} ({countryData[c]?.currency ?? ''})
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              onClick={handleSaveDefaultCurrency}
-              disabled={savingDefaultCurrency}
-              className={`px-4 py-2 rounded-lg border ${theme.borderClass} ${theme.textClass} disabled:opacity-50`}
-            >
-              {savingDefaultCurrency ? 'Saving…' : 'Save default currency'}
-            </button>
           </div>
         </section>
 

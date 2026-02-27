@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { ExpenseBucket } from '@/components/retirement/types';
-import { formatCurrency, isValueInRange, getTotalMonthlyExpenses } from '@/components/retirement/utils';
+import { formatCurrency, isValueInRange } from '@/components/retirement/utils';
 import { RECURRING_BUCKET_KEYS, ONE_OFF_BUCKET_KEYS } from '@/components/expenses/types';
 
 export type ThemeClasses = {
@@ -98,7 +98,19 @@ export function ExpenseBucketInput({
       </div>
 
       <div className={`mt-6 pt-6 border-t ${darkMode ? 'border-slate-700' : 'border-gray-200'} min-w-0`}>
-        <p className={`text-sm font-medium mb-3 ${theme.textClass}`}>Optional (one-off & travel)</p>
+        <div className="flex justify-between items-center gap-2">
+          <span className={`text-lg font-medium shrink-0 ${theme.textClass}`}>Total monthly</span>
+          <span className="text-xl sm:text-2xl font-light text-blue-500 truncate">
+            {formatCurrency(
+              RECURRING_BUCKET_KEYS.reduce((s, k) => s + (buckets[k]?.value ?? 0), 0),
+              currency
+            )}
+          </span>
+        </div>
+      </div>
+
+      <div className={`mt-6 pt-6 border-t ${darkMode ? 'border-slate-700' : 'border-gray-200'} min-w-0`}>
+        <p className={`text-lg font-medium mb-3 ${theme.textClass}`}>Annual budget for</p>
         <div className="space-y-3">
           {ONE_OFF_BUCKET_KEYS.map((key) => {
             const bucket = buckets[key];
@@ -123,18 +135,6 @@ export function ExpenseBucketInput({
               </div>
             );
           })}
-        </div>
-      </div>
-
-      <div className={`mt-6 pt-6 border-t ${darkMode ? 'border-slate-700' : 'border-gray-200'} min-w-0`}>
-        <div className="flex justify-between items-center gap-2">
-          <span className={`text-lg font-medium shrink-0 ${theme.textClass}`}>Total monthly</span>
-          <span className="text-xl sm:text-2xl font-light text-blue-500 truncate">
-            {formatCurrency(getTotalMonthlyExpenses(buckets), currency)}
-          </span>
-        </div>
-        <div className={`text-sm mt-2 ${theme.textSecondaryClass}`}>
-          Annual: {formatCurrency(getTotalMonthlyExpenses(buckets) * 12, currency)}
         </div>
       </div>
     </div>

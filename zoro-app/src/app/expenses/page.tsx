@@ -189,8 +189,9 @@ function ExpensesPageContent() {
     setShowManualActuals(false);
   }, [selectedMonth]);
 
+  // Fetch months list whenever we have a token (so dashboard shows for returning users)
   useEffect(() => {
-    if (!token || step !== 1) return;
+    if (!token) return;
     let cancelled = false;
     (async () => {
       try {
@@ -206,13 +207,14 @@ function ExpensesPageContent() {
             : {}) as Record<string, { value: number }>,
           imported_at: row.imported_at ?? null,
         }));
-        setMonthsWithData(
-          mapped.filter((row) => {
-            const totals = bucketsToTotals(row.buckets);
-            const total = sumBucketTotals(totals);
-            return row.imported_at != null || total > 0;
-          })
-        );
+        const filtered = mapped.filter((row) => {
+          const totals = bucketsToTotals(row.buckets);
+          const total = sumBucketTotals(totals);
+          return row.imported_at != null || total > 0;
+        });
+        setMonthsWithData(filtered);
+        // If user has any saved monthly data, show the dashboard (step 1) by default
+        if (filtered.length > 0) setStep(1);
       } catch {
         if (!cancelled) setMonthsWithData([]);
       }
@@ -220,7 +222,7 @@ function ExpensesPageContent() {
     return () => {
       cancelled = true;
     };
-  }, [token, step]);
+  }, [token]);
 
   const currency = countryData[country]?.currency ?? countryData['India'].currency;
   const selectedMonthLabel = monthOptions.find((o) => o.value === selectedMonth)?.label ?? selectedMonth;

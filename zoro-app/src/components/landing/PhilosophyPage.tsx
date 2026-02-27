@@ -99,7 +99,7 @@ export const PhilosophyPage: React.FC<PhilosophyPageProps> = ({
           <div className="space-y-4">
             <h3 className={`text-2xl font-bold ${theme.textClass}`}>Advisory models and incentives</h3>
             <p className={`text-lg ${theme.textSecondaryClass}`}>
-              Financial success is often more about endurance than intensity. To stay in the game, you must understand how the &quot;referees&quot; are paid.
+              Financial success is often more about endurance than intensity. To stay in the game, you must understand how advisors are paid.
             </p>
             <ul className={`text-lg ${theme.textSecondaryClass} space-y-3 list-disc pl-6`}>
               <li><strong className={theme.textClass}>Commission-Led Distributors:</strong> The free model, earning commissions from the products you buy. Incentivised by commissions and sign-up bonuses.</li>
@@ -115,7 +115,7 @@ export const PhilosophyPage: React.FC<PhilosophyPageProps> = ({
             </p>
             <ul className={`text-lg ${theme.textSecondaryClass} space-y-3 list-disc pl-6`}>
               <li><strong className={theme.textClass}>Intent Mapping:</strong> When you email Zoro, the agent analyses the text to understand your specific financial intent (e.g., &quot;I just got a bonus,&quot; &quot;I need to update my insurance,&quot; or &quot;Review my portfolio&quot;).</li>
-              <li><strong className={theme.textClass}>Contextual Analysis:</strong> Zoro reviews your saved structured data — income, expenses, and current net worth to ensure advice is personalised to your situation.</li>
+              <li><strong className={theme.textClass}>Contextual Analysis:</strong> Zoro reviews your saved structured data — income, expenses, and net worth to ensure advice is personalised to your situation.</li>
               <li><strong className={theme.textClass}>Actionable Drafting:</strong> Zoro drafts a response that isn&apos;t just advice, but a next step. This reply often includes a customised link to: securely update a specific data point; review a curated summary of your last 90 days; adjust your priority goals.</li>
               <li><strong className={theme.textClass}>Data Integration (coming soon):</strong> With your permission, Zoro scans your inbox to automatically update your tracking sheet, turning manual data entry into a passive process.</li>
             </ul>
@@ -127,7 +127,7 @@ export const PhilosophyPage: React.FC<PhilosophyPageProps> = ({
               Zoro isn&apos;t another app to check stock prices. It&apos;s a behavioural interface designed to turn &quot;I should do this&quot; into &quot;I have done this.&quot; Think of Zoro as your system for consistency. We don&apos;t sell products or take commissions. We simply provide the framework to keep you on track.
             </p>
             <p className={`text-lg ${theme.textSecondaryClass}`}>
-              <strong className={theme.textClass}>Privacy First:</strong> You will only hear from us if you email us first or if you specifically ask for a reminder or follow-up. We never spam.
+              <strong className={theme.textClass}>Privacy First:</strong> You will only hear from us if you email us first or if you specifically ask for a reminder or follow-up. We never spam and you are always in control of your data.
             </p>
           </div>
         </div>

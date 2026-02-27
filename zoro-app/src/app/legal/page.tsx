@@ -128,7 +128,7 @@ function TermsOfUse({ theme }: { theme: ReturnType<typeof useThemeClasses> }) {
   return (
     <>
       <h2>Terms of Use</h2>
-      <p><strong>Last updated:</strong> November 29, 2025</p>
+      <p><strong>Last updated:</strong> February 20, 2026</p>
 
       <p>
         Welcome to Zoro ("we", "us", "our", "Company"). These Terms of Use ("Terms") constitute a legally binding agreement between you and Zoro governing your access to and use of our website, mobile application, tools, and services (collectively, the "Services"). By accessing or using the Services, you acknowledge that you have read, understood, and agree to be bound by these Terms. If you do not agree to these Terms, you must immediately discontinue use of the Services.
@@ -313,7 +313,7 @@ function PrivacyPolicy({ theme }: { theme: ReturnType<typeof useThemeClasses> })
   return (
     <>
       <h2>Privacy Policy</h2>
-      <p><strong>Last updated:</strong> November 29, 2025</p>
+      <p><strong>Last updated:</strong> February 20, 2026</p>
 
       <p>
         This Privacy Policy ("Policy") describes how Zoro ("we", "our", "us", "Company") collects, uses, processes, stores, and protects your personal data in accordance with applicable Indian data protection laws, including the Information Technology Act, 2000, the Information Technology (Reasonable Security Practices and Procedures and Sensitive Personal Data or Information) Rules, 2011, and the Digital Personal Data Protection Act, 2023 ("DPDPA").

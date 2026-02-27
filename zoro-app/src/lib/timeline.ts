@@ -15,14 +15,14 @@ export const TIMELINE_MILESTONES: TimelineMilestone[] = [
   {
     count: 10,
     displayCount: '10',
-    title: 'Dedicated 1-on-1 Portfolio Strategy',
-    description: 'Get a comprehensive portfolio review and customized quarterly planning directly from our team to set your foundation.',
+    title: 'Dedicated 1-on-1 Financial Plan Review',
+    description: 'Get a comprehensive financial plan review and customized quarterly planning directly from our team to set your foundation.',
   },
   {
     count: 100,
     displayCount: '100',
-    title: 'AI-Powered Portfolio Insights & Human Review',
-    description: 'Receive AI-generated portfolio reviews via email, validated by our experts, with quarterly planning free for one year.',
+    title: 'AI-Powered Financial Plan Review & Human Validation',
+    description: 'Receive AI-generated financial plan reviews via email, validated by our experts, with quarterly planning free for one year.',
   },
   {
     count: 1000,
