@@ -7,6 +7,10 @@ const SCOPES = ['openid', 'profile', 'w_member_social'].join(' ');
 /**
  * GET /api/linkedin/auth
  * Redirects to LinkedIn OAuth. After auth, LinkedIn redirects to callback.
+ *
+ * Required in LinkedIn Developer Portal → Your app → Products:
+ * - "Sign In with LinkedIn using OpenID Connect" (for openid, profile)
+ * - "Share on LinkedIn" (for w_member_social)
  */
 export async function GET(request: NextRequest) {
   const clientId = process.env.LINKEDIN_CLIENT_ID;
