@@ -30,6 +30,9 @@ export default function LinkedInSuccessPage() {
         <p className="text-zinc-600 dark:text-zinc-400">
           Your token is saved. You can now post to LinkedIn via <code className="bg-zinc-200 dark:bg-zinc-800 px-1 rounded">POST /api/linkedin/post</code> with <code className="bg-zinc-200 dark:bg-zinc-800 px-1 rounded">{`{ "text": "..." }`}</code>.
         </p>
+        <p className="text-sm text-zinc-500">
+          Next: Reddit content → LinkedIn posts (daily automation coming soon).
+        </p>
         <Link href="/" className="inline-block text-blue-600 hover:underline">Back to home</Link>
       </div>
     </div>

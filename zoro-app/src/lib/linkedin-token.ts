@@ -21,8 +21,9 @@ export async function setLinkedInToken(accessToken: string, expiresInSeconds?: n
     expiresInSeconds != null
       ? new Date(Date.now() + expiresInSeconds * 1000).toISOString()
       : null;
-  await supabase.from('linkedin_token').upsert(
+  const { error } = await supabase.from('linkedin_token').upsert(
     { id: ROW_ID, access_token: accessToken, expires_at: expiresAt },
     { onConflict: 'id' }
   );
+  if (error) throw new Error(error.message);
 }

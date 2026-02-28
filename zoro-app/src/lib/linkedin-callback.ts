@@ -26,9 +26,17 @@ export async function handleLinkedInCallback(code: string, redirectUri: string):
   });
   if (!tokenRes.ok) {
     const err = await tokenRes.text();
-    return { ok: false, status: 502, error: 'Token exchange failed', details: err.slice(0, 300) };
+    return { ok: false, status: 502, error: 'Token exchange failed', details: err.slice(0, 500) };
   }
-  const data = (await tokenRes.json()) as { access_token: string; expires_in?: number };
-  await setLinkedInToken(data.access_token, data.expires_in);
+  const data = (await tokenRes.json()) as { access_token?: string; expires_in?: number; error?: string };
+  if (!data.access_token) {
+    return { ok: false, status: 502, error: data.error || 'No access token in response', details: JSON.stringify(data).slice(0, 300) };
+  }
+  try {
+    await setLinkedInToken(data.access_token, data.expires_in);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { ok: false, status: 500, error: 'Failed to save token', details: msg };
+  }
   return { ok: true };
 }

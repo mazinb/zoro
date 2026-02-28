@@ -7,17 +7,20 @@ const SCOPES = ['openid', 'profile', 'w_member_social'].join(' ');
 /**
  * GET /api/linkedin/auth
  * Redirects to LinkedIn OAuth. After auth, LinkedIn redirects to callback.
+ * Uses request origin + /auth/linkedin/callback so it matches the callback URL.
  *
- * Required in LinkedIn Developer Portal → Your app → Products:
- * - "Sign In with LinkedIn using OpenID Connect" (for openid, profile)
- * - "Share on LinkedIn" (for w_member_social)
+ * Add this redirect URL in LinkedIn Developer Portal → Auth:
+ * https://www.getzoro.com/auth/linkedin/callback
+ *
+ * Required Products: "Sign In with LinkedIn using OpenID Connect", "Share on LinkedIn"
  */
 export async function GET(request: NextRequest) {
   const clientId = process.env.LINKEDIN_CLIENT_ID;
-  const redirectUri = process.env.LINKEDIN_REDIRECT_URI;
-  if (!clientId || !redirectUri) {
-    return NextResponse.json({ error: 'LINKEDIN_CLIENT_ID and LINKEDIN_REDIRECT_URI required' }, { status: 500 });
+  if (!clientId) {
+    return NextResponse.json({ error: 'LINKEDIN_CLIENT_ID required' }, { status: 500 });
   }
+  const origin = request.nextUrl?.origin || `https://${request.headers.get('host') || 'www.getzoro.com'}`;
+  const redirectUri = `${origin.replace(/\/$/, '')}/auth/linkedin/callback`;
   const state = randomBytes(16).toString('hex');
   const params = new URLSearchParams({
     response_type: 'code',
