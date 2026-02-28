@@ -1,9 +1,10 @@
 'use client';
 
+import { Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
-export default function LinkedInSuccessPage() {
+function SuccessContent() {
   const searchParams = useSearchParams();
   const error = searchParams.get('error');
   const msg = searchParams.get('msg');
@@ -36,5 +37,13 @@ export default function LinkedInSuccessPage() {
         <Link href="/" className="inline-block text-blue-600 hover:underline">Back to home</Link>
       </div>
     </div>
+  );
+}
+
+export default function LinkedInSuccessPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-zinc-950"><p className="text-zinc-600">Loading…</p></div>}>
+      <SuccessContent />
+    </Suspense>
   );
 }
