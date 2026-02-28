@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { randomBytes } from 'crypto';
 
 const LINKEDIN_AUTH_URL = 'https://www.linkedin.com/oauth/v2/authorization';
-const SCOPES = ['openid', 'profile', 'w_member_social'].join(' ');
+const SCOPES = ['openid', 'profile', 'w_member_social', 'w_organization_social'].join(' ');
 
 /**
  * GET /api/linkedin/auth

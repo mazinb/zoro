@@ -25,21 +25,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'text required' }, { status: 400 });
     }
 
-    const userRes = await fetch(LINKEDIN_USERINFO_URL, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-    if (!userRes.ok) {
-      const err = await userRes.text();
-      return NextResponse.json({ error: 'Invalid or expired token', details: err.slice(0, 300) }, { status: 401 });
-    }
-    const user = (await userRes.json()) as { sub?: string };
-    const personId = user?.sub;
-    if (!personId) {
-      return NextResponse.json({ error: 'Profile missing id' }, { status: 502 });
-    }
+    const authorUrn = 'urn:li:organization:112682958';
 
     const postBody = {
-      author: `urn:li:person:${personId}`,
+      author: authorUrn,
       lifecycleState: 'PUBLISHED',
       specificContent: {
         'com.linkedin.ugc.ShareContent': {
@@ -48,6 +37,10 @@ export async function POST(request: NextRequest) {
         },
       },
       visibility: { 'com.linkedin.ugc.MemberNetworkVisibility': 'PUBLIC' },
+      distribution: {
+        feedDistribution: 'MAIN_FEED',
+        distributedViaFollowFeed: true,
+      },
     };
 
     const postRes = await fetch(LINKEDIN_UGC_POST_URL, {
