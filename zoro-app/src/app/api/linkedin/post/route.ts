@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getLinkedInToken } from '@/lib/linkedin-token';
 
-const LINKEDIN_ME_URL = 'https://api.linkedin.com/v2/me';
+const LINKEDIN_USERINFO_URL = 'https://api.linkedin.com/v2/userinfo';
 const LINKEDIN_UGC_POST_URL = 'https://api.linkedin.com/v2/ugcPosts';
 
 /**
@@ -25,18 +25,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'text required' }, { status: 400 });
     }
 
-    const meRes = await fetch(LINKEDIN_ME_URL, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        'X-Restli-Protocol-Version': '2.0.0',
-      },
+    const userRes = await fetch(LINKEDIN_USERINFO_URL, {
+      headers: { Authorization: `Bearer ${accessToken}` },
     });
-    if (!meRes.ok) {
-      const err = await meRes.text();
+    if (!userRes.ok) {
+      const err = await userRes.text();
       return NextResponse.json({ error: 'Invalid or expired token', details: err.slice(0, 300) }, { status: 401 });
     }
-    const me = (await meRes.json()) as { id?: string };
-    const personId = me?.id;
+    const user = (await userRes.json()) as { sub?: string };
+    const personId = user?.sub;
     if (!personId) {
       return NextResponse.json({ error: 'Profile missing id' }, { status: 502 });
     }
