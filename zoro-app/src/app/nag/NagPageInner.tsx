@@ -9,6 +9,15 @@ import { NagEndEditor, NagNav, NagSheet, type NagDraft } from './nag-chrome';
 const NAG_TOKEN_STORAGE = 'nag_dev_token';
 const NAG_FORCE_LOGOUT = 'nag_force_logout';
 
+const NAG_TIMEZONE_OPTIONS: string[] =
+  typeof Intl !== 'undefined' && 'supportedValuesOf' in Intl
+    ? [
+        ...(Intl as unknown as { supportedValuesOf: (k: string) => string[] }).supportedValuesOf(
+          'timeZone'
+        ),
+      ].sort((a, b) => a.localeCompare(b))
+    : ['UTC'];
+
 type Nag = {
   id: string;
   message: string;
@@ -77,11 +86,15 @@ function nagToDraft(n: Nag): NagDraft {
   };
 }
 
-function formatNext(nextAt: string | null): string {
+function formatNext(nextAt: string | null, timeZone: string): string {
   if (!nextAt) return '—';
   try {
     const d = new Date(nextAt);
-    return d.toISOString().replace('T', ' ').slice(0, 16) + ' UTC';
+    return new Intl.DateTimeFormat(undefined, {
+      timeZone: timeZone.trim() || 'UTC',
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    }).format(d);
   } catch {
     return nextAt;
   }
@@ -172,6 +185,9 @@ export function NagPageInner() {
   const [tokenInput, setTokenInput] = useState('');
   const [nags, setNags] = useState<Nag[]>([]);
   const [profileEmail, setProfileEmail] = useState<string | null>(null);
+  const [profileTimezone, setProfileTimezone] = useState('UTC');
+  const [profileSaveError, setProfileSaveError] = useState<string | null>(null);
+  const [profileSaving, setProfileSaving] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loadingList, setLoadingList] = useState(false);
 
@@ -198,6 +214,7 @@ export function NagPageInner() {
   const [profDraft, setProfDraft] = useState({
     phone: '',
     defaultVia: 'email' as 'email' | 'whatsapp',
+    timezone: 'UTC',
   });
 
   const [sandboxIdx, setSandboxIdx] = useState(0);
@@ -219,6 +236,11 @@ export function NagPageInner() {
       }
       setNags(json.nags ?? []);
       setProfileEmail(json.profile?.email ?? null);
+      setProfileTimezone(
+        typeof json.profile?.timezone === 'string' && json.profile.timezone.trim()
+          ? json.profile.timezone.trim()
+          : 'UTC'
+      );
       const first = (json.nags ?? [])[0]?.id;
       if (first) setFirstNagId(first);
     } catch {
@@ -238,14 +260,36 @@ export function NagPageInner() {
   const shown = tab === 'active' ? activeList : archivedList;
 
   const openProfile = () => {
-    setProfDraft({ phone: profilePhone, defaultVia: defaultChannel });
+    setProfileSaveError(null);
+    setProfDraft({ phone: profilePhone, defaultVia: defaultChannel, timezone: profileTimezone });
     setSheet('profile');
   };
 
-  const saveProfile = () => {
-    setProfilePhone(profDraft.phone);
-    setDefaultChannel(profDraft.defaultVia);
-    setSheet(null);
+  const saveProfile = async () => {
+    if (!effectiveToken) return;
+    setProfileSaveError(null);
+    setProfileSaving(true);
+    try {
+      const res = await fetch('/api/nag-profile', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: effectiveToken, timezone: profDraft.timezone }),
+      });
+      const json = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        setProfileSaveError(json.error ?? 'Could not save timezone');
+        return;
+      }
+      setProfileTimezone(profDraft.timezone);
+      setProfilePhone(profDraft.phone);
+      setDefaultChannel(profDraft.defaultVia);
+      setSheet(null);
+      await fetchNags();
+    } catch {
+      setProfileSaveError('Network error');
+    } finally {
+      setProfileSaving(false);
+    }
   };
 
   const onSchedule = async () => {
@@ -868,7 +912,9 @@ export function NagPageInner() {
                     <span className={theme.textSecondaryClass}>{n.frequency}</span>
                     <span className={theme.textSecondaryClass}>{endLabel(n)}</span>
                     {tab === 'active' && (
-                      <span className={theme.textSecondaryClass}>next {formatNext(n.next_at)}</span>
+                      <span className={theme.textSecondaryClass}>
+                        next {formatNext(n.next_at, profileTimezone)}
+                      </span>
                     )}
                   </div>
                 </div>
@@ -935,6 +981,26 @@ export function NagPageInner() {
                 From your Zoro account. To change it, update your registration email or contact support.
               </p>
               <label className={`mb-1 block text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}>
+                Timezone
+              </label>
+              <p className={`mb-2 text-xs ${theme.textSecondaryClass}`}>
+                Nags use this for schedule times, next-run display, and natural-language parsing.
+              </p>
+              <select
+                className={`mb-3 w-full rounded-lg border px-3 py-2.5 text-sm ${theme.inputBgClass}`}
+                value={profDraft.timezone}
+                onChange={(e) => setProfDraft((p) => ({ ...p, timezone: e.target.value }))}
+              >
+                {!NAG_TIMEZONE_OPTIONS.includes(profDraft.timezone) && (
+                  <option value={profDraft.timezone}>{profDraft.timezone}</option>
+                )}
+                {NAG_TIMEZONE_OPTIONS.map((z) => (
+                  <option key={z} value={z}>
+                    {z}
+                  </option>
+                ))}
+              </select>
+              <label className={`mb-1 block text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}>
                 WhatsApp number
               </label>
               <input
@@ -959,8 +1025,16 @@ export function NagPageInner() {
                   </button>
                 ))}
               </div>
-              <button type="button" onClick={saveProfile} className={`w-full rounded-lg py-3 text-sm font-bold ${theme.buttonClass}`}>
-                Save
+              {profileSaveError && (
+                <p className="mb-3 text-sm text-red-600 dark:text-red-400">{profileSaveError}</p>
+              )}
+              <button
+                type="button"
+                disabled={profileSaving}
+                onClick={() => void saveProfile()}
+                className={`w-full rounded-lg py-3 text-sm font-bold disabled:opacity-40 ${theme.buttonClass}`}
+              >
+                {profileSaving ? 'Saving…' : 'Save'}
               </button>
             </div>
           )}

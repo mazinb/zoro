@@ -1,27 +1,32 @@
+import { DateTime } from 'luxon';
 import type { NagEndType, NagFrequency, NagRow } from './nag-types';
-import { isoWeekdayToUtcJs, parseHHMM } from './nag-types';
+import { parseHHMM } from './nag-types';
+import { DEFAULT_NAG_TIMEZONE, normalizeNagTimeZone } from './nag-timezone';
 
-function daysInUtcMonth(year: number, monthIndex: number): number {
-  return new Date(Date.UTC(year, monthIndex + 1, 0)).getUTCDate();
+/** ISO weekday 0 = Monday … 6 = Sunday → Luxon weekday (Monday = 1 … Sunday = 7). */
+function isoWeekdayToLuxon(iso: number): number {
+  return iso + 1;
 }
 
-function utcAt(y: number, mo: number, d: number, hour: number, minute: number): Date {
-  return new Date(Date.UTC(y, mo, d, hour, minute, 0, 0));
-}
-
-/** Next calendar date (UTC) at given wall time */
-function withUtcTime(baseUtc: Date, hour: number, minute: number): Date {
-  return utcAt(
-    baseUtc.getUTCFullYear(),
-    baseUtc.getUTCMonth(),
-    baseUtc.getUTCDate(),
-    hour,
-    minute
+function endOfUntilDateInZone(untilDate: string, zone: string): DateTime {
+  const [y, mo, d] = untilDate.split('-').map(Number);
+  return DateTime.fromObject(
+    { year: y, month: mo, day: d, hour: 23, minute: 59, second: 59, millisecond: 999 },
+    { zone: normalizeNagTimeZone(zone) }
   );
 }
 
+function isPastEnd(nextAt: Date, endType: NagEndType, untilDate: string | null, zone: string): boolean {
+  if (endType === 'until_date' && untilDate) {
+    const end = endOfUntilDateInZone(untilDate, zone);
+    if (!end.isValid) return false;
+    return nextAt.getTime() > end.toUTC().toMillis();
+  }
+  return false;
+}
+
 /**
- * First fire time >= `from` (UTC semantics for time_hhmm and calendar dates).
+ * First fire time >= `from`. `time_hhmm`, `until_date`, and calendar rules use `timeZone` (IANA).
  */
 export function computeInitialNextAt(input: {
   frequency: NagFrequency;
@@ -30,82 +35,87 @@ export function computeInitialNextAt(input: {
   day_of_month: number | null;
   until_date: string | null;
   from?: Date;
+  timeZone?: string | null;
 }): Date | null {
-  const from = input.from ?? new Date();
+  const zone = normalizeNagTimeZone(input.timeZone ?? DEFAULT_NAG_TIMEZONE);
   const tm = parseHHMM(input.time_hhmm);
   if (!tm) return null;
+
+  const from = input.from ?? new Date();
+  const fromZ = DateTime.fromJSDate(from, { zone: 'utc' }).setZone(zone);
+  if (!fromZ.isValid) return null;
 
   if (input.frequency === 'once') {
     if (!input.until_date) return null;
     const [y, mo, d] = input.until_date.split('-').map(Number);
-    const candidate = utcAt(y, mo - 1, d, tm.hour, tm.minute);
-    if (candidate.getTime() <= from.getTime()) return null;
-    return candidate;
+    const cand = DateTime.fromObject(
+      { year: y, month: mo, day: d, hour: tm.hour, minute: tm.minute, second: 0, millisecond: 0 },
+      { zone }
+    );
+    if (!cand.isValid) return null;
+    const utc = cand.toUTC().toJSDate();
+    if (utc.getTime() <= from.getTime()) return null;
+    return utc;
   }
 
   if (input.frequency === 'daily') {
-    let cand = withUtcTime(from, tm.hour, tm.minute);
-    if (cand.getTime() <= from.getTime()) {
-      const n = new Date(from.getTime());
-      n.setUTCDate(n.getUTCDate() + 1);
-      cand = withUtcTime(n, tm.hour, tm.minute);
+    let cand = fromZ.set({ hour: tm.hour, minute: tm.minute, second: 0, millisecond: 0 });
+    if (cand.toMillis() <= from.getTime()) {
+      cand = cand.plus({ days: 1 });
     }
-    return cand;
+    return cand.toUTC().toJSDate();
   }
 
   if (input.frequency === 'weekly') {
     if (input.day_of_week === null) return null;
-    const targetJs = isoWeekdayToUtcJs(input.day_of_week);
-    const addDays = (targetJs - from.getUTCDay() + 7) % 7;
-    const base = new Date(from.getTime());
-    base.setUTCDate(base.getUTCDate() + addDays);
-    let cand = withUtcTime(base, tm.hour, tm.minute);
-    if (cand.getTime() <= from.getTime()) {
-      base.setUTCDate(base.getUTCDate() + 7);
-      cand = withUtcTime(base, tm.hour, tm.minute);
+    const targetWd = isoWeekdayToLuxon(input.day_of_week);
+    const base = fromZ.startOf('day');
+    let addDays = (targetWd - base.weekday + 7) % 7;
+    let cand = base.plus({ days: addDays }).set({ hour: tm.hour, minute: tm.minute, second: 0, millisecond: 0 });
+    if (cand.toMillis() <= from.getTime()) {
+      cand = cand.plus({ weeks: 1 });
     }
-    return cand;
+    return cand.toUTC().toJSDate();
   }
 
   if (input.frequency === 'monthly') {
     if (input.day_of_month === null) return null;
-    let y = from.getUTCFullYear();
-    let mo = from.getUTCMonth();
-    const dim = daysInUtcMonth(y, mo);
-    const dom = Math.min(input.day_of_month, dim);
-    let cand = utcAt(y, mo, dom, tm.hour, tm.minute);
-    if (cand.getTime() <= from.getTime()) {
-      mo += 1;
-      if (mo > 11) {
-        mo = 0;
-        y += 1;
-      }
-      const dim2 = daysInUtcMonth(y, mo);
-      const dom2 = Math.min(input.day_of_month, dim2);
-      cand = utcAt(y, mo, dom2, tm.hour, tm.minute);
+    let y = fromZ.year;
+    let month = fromZ.month;
+    const dim0 = DateTime.fromObject({ year: y, month, day: 1 }, { zone }).daysInMonth ?? 31;
+    const dom0 = Math.min(input.day_of_month, dim0);
+    let cand = DateTime.fromObject(
+      { year: y, month, day: dom0, hour: tm.hour, minute: tm.minute, second: 0, millisecond: 0 },
+      { zone }
+    );
+    if (!cand.isValid) return null;
+    if (cand.toMillis() <= from.getTime()) {
+      cand = cand.plus({ months: 1 });
+      y = cand.year;
+      month = cand.month;
+      const dim1 = DateTime.fromObject({ year: y, month, day: 1 }, { zone }).daysInMonth ?? 31;
+      const dom1 = Math.min(input.day_of_month, dim1);
+      cand = DateTime.fromObject(
+        { year: y, month, day: dom1, hour: tm.hour, minute: tm.minute, second: 0, millisecond: 0 },
+        { zone }
+      );
     }
-    return cand;
+    if (!cand.isValid) return null;
+    return cand.toUTC().toJSDate();
   }
 
   return null;
 }
 
-function endOfUntilDateUtcMs(untilDate: string): number {
-  const [y, mo, d] = untilDate.split('-').map(Number);
-  return Date.UTC(y, mo - 1, d, 23, 59, 59, 999);
-}
-
-function isPastEnd(nextAt: Date, endType: NagEndType, untilDate: string | null): boolean {
-  if (endType === 'until_date' && untilDate) {
-    return nextAt.getTime() > endOfUntilDateUtcMs(untilDate);
-  }
-  return false;
-}
-
 /**
  * After a successful send at `sentAt`, compute the next fire time or mark done.
  */
-export function computeNextAfterSend(row: NagRow, sentAt: Date): { next_at: Date | null; status?: 'archived'; occurrences_remaining: number | null } {
+export function computeNextAfterSend(
+  row: NagRow,
+  sentAt: Date,
+  timeZone?: string | null
+): { next_at: Date | null; status?: 'archived'; occurrences_remaining: number | null } {
+  const zone = normalizeNagTimeZone(timeZone ?? DEFAULT_NAG_TIMEZONE);
   const tm = parseHHMM(row.time_hhmm);
   if (!tm) return { next_at: null, status: 'archived', occurrences_remaining: row.occurrences_remaining };
 
@@ -122,42 +132,49 @@ export function computeNextAfterSend(row: NagRow, sentAt: Date): { next_at: Date
     return { next_at: null, status: 'archived', occurrences_remaining: occRem };
   }
 
-  let next: Date | null = null;
-  const base = new Date(sentAt.getTime());
+  const z = DateTime.fromJSDate(sentAt, { zone: 'utc' }).setZone(zone);
+  if (!z.isValid) {
+    return { next_at: null, status: 'archived', occurrences_remaining: occRem };
+  }
+
+  let next: DateTime | null = null;
 
   if (row.frequency === 'daily') {
-    base.setUTCDate(base.getUTCDate() + 1);
-    next = withUtcTime(base, tm.hour, tm.minute);
+    next = z.plus({ days: 1 }).set({ hour: tm.hour, minute: tm.minute, second: 0, millisecond: 0 });
   } else if (row.frequency === 'weekly') {
     if (row.day_of_week === null) return { next_at: null, status: 'archived', occurrences_remaining: occRem };
-    base.setUTCDate(base.getUTCDate() + 7);
-    next = withUtcTime(base, tm.hour, tm.minute);
+    next = z.plus({ weeks: 1 }).set({ hour: tm.hour, minute: tm.minute, second: 0, millisecond: 0 });
   } else if (row.frequency === 'monthly') {
     if (row.day_of_month === null) return { next_at: null, status: 'archived', occurrences_remaining: occRem };
-    const cursor = new Date(sentAt.getTime());
-    cursor.setUTCMonth(cursor.getUTCMonth() + 1);
-    const y = cursor.getUTCFullYear();
-    const mo = cursor.getUTCMonth();
-    const dim = daysInUtcMonth(y, mo);
+    let nextM = z.plus({ months: 1 });
+    const dim = nextM.daysInMonth ?? 31;
     const dom = Math.min(row.day_of_month, dim);
-    next = utcAt(y, mo, dom, tm.hour, tm.minute);
-    if (next.getTime() <= sentAt.getTime()) {
-      cursor.setUTCMonth(cursor.getUTCMonth() + 1);
-      const y2 = cursor.getUTCFullYear();
-      const mo2 = cursor.getUTCMonth();
-      const dim2 = daysInUtcMonth(y2, mo2);
+    next = DateTime.fromObject(
+      { year: nextM.year, month: nextM.month, day: dom, hour: tm.hour, minute: tm.minute, second: 0, millisecond: 0 },
+      { zone }
+    );
+    if (!next.isValid) {
+      return { next_at: null, status: 'archived', occurrences_remaining: occRem };
+    }
+    if (next.toMillis() <= sentAt.getTime()) {
+      nextM = nextM.plus({ months: 1 });
+      const dim2 = nextM.daysInMonth ?? 31;
       const dom2 = Math.min(row.day_of_month, dim2);
-      next = utcAt(y2, mo2, dom2, tm.hour, tm.minute);
+      next = DateTime.fromObject(
+        { year: nextM.year, month: nextM.month, day: dom2, hour: tm.hour, minute: tm.minute, second: 0, millisecond: 0 },
+        { zone }
+      );
     }
   }
 
-  if (!next) {
+  if (!next || !next.isValid) {
     return { next_at: null, status: 'archived', occurrences_remaining: occRem };
   }
 
-  if (isPastEnd(next, row.end_type, row.until_date)) {
+  const nextJs = next.toUTC().toJSDate();
+  if (isPastEnd(nextJs, row.end_type, row.until_date, zone)) {
     return { next_at: null, status: 'archived', occurrences_remaining: occRem };
   }
 
-  return { next_at: next, occurrences_remaining: occRem };
+  return { next_at: nextJs, occurrences_remaining: occRem };
 }

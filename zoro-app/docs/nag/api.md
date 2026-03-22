@@ -6,7 +6,7 @@ All user routes require a link token (`users.verification_token` or `user_data.u
 
 ## `POST /api/nag-parse`
 
-Parses free-text into a schedule draft using OpenAI (`OPENAI_API_KEY`). Falls back to defaults if the key is missing or the call fails.
+Parses free-text into a schedule draft using OpenAI (`OPENAI_API_KEY`). The model is told the user’s **`users.timezone`** so `time_hhmm` is interpreted in local wall time. Falls back to defaults if the key is missing or the call fails (without service role, the prompt uses **UTC**).
 
 This route lives at **`/api/nag-parse`** (not under `/api/nags/parse`) so it is never mistaken for `/api/nags/[id]` with `id=parse`.
 
@@ -59,9 +59,30 @@ _(The older path `/api/nags/parse` was removed for that reason.)_
 ```json
 {
   "nags": [ { "...row..." } ],
-  "profile": { "email": "user@example.com" }
+  "profile": { "email": "user@example.com", "timezone": "America/New_York" }
 }
 ```
+
+`timezone` is the user’s IANA zone from `users.timezone` (default `UTC`).
+
+---
+
+## `PATCH /api/nag-profile`
+
+Updates **`users.timezone`** and recomputes **`next_at`** for every **active** nag for that user.
+
+**Body (JSON):**
+
+```json
+{
+  "token": "string",
+  "timezone": "America/Los_Angeles"
+}
+```
+
+**Response 200:** `{ "timezone": "America/Los_Angeles" }`
+
+**Errors:** `400` if timezone is missing or not a valid IANA id; `401` invalid token; `503` missing service role.
 
 ---
 

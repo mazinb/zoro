@@ -7,16 +7,18 @@ import {
   validateScheduleBody,
 } from './nag-types';
 
-const SYSTEM = `You extract a recurring reminder schedule from the user's message.
+function buildSystem(profileTimeZone: string): string {
+  return `You extract a recurring reminder schedule from the user's message.
+The user's profile IANA timezone is: ${profileTimeZone}
 Return ONLY a JSON object with these keys (no markdown):
 - message: short task title (string)
 - channel: "email" or "whatsapp" — only if clearly implied; else null
 - frequency: one of "daily", "weekly", "monthly", "once"
-- time_hhmm: "HH:MM" 24-hour string in UTC. If user gives local time with no timezone, assume UTC.
+- time_hhmm: "HH:MM" 24-hour wall clock in ${profileTimeZone} for when the nag should fire. If the user names another timezone or offset, convert to the equivalent clock time in ${profileTimeZone}.
 - day_of_week: integer 0-6 only if weekly — 0=Monday, 6=Sunday. Null if not weekly.
 - day_of_month: integer 1-31 only if monthly. Null if not monthly.
 - end_type: "forever", "until_date", or "occurrences"
-- until_date: "YYYY-MM-DD" if end_type is until_date or user gave an end date; else null
+- until_date: "YYYY-MM-DD" if end_type is until_date or user gave an end date; else null (calendar date in ${profileTimeZone})
 - occurrences_max: positive integer if end_type is occurrences or user said "N times"; else null
 
 Rules:
@@ -25,6 +27,7 @@ Rules:
 - If no time mentioned, use "10:00".
 - If end unclear and not a single shot, use end_type "forever" with until_date null.
 - For a one-shot reminder on a specific date, use frequency "once" and until_date that day.`;
+}
 
 export type ParseDraft = NagScheduleInput & { parse_fallback: boolean };
 
@@ -107,7 +110,8 @@ function openAiJsonToBody(
 
 export async function parseNagTextWithOpenAI(
   text: string,
-  defaultChannel: NagChannel
+  defaultChannel: NagChannel,
+  profileTimeZone: string
 ): Promise<ParseDraft> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {
@@ -115,6 +119,7 @@ export async function parseNagTextWithOpenAI(
   }
 
   const model = process.env.OPENAI_NAG_PARSE_MODEL || 'gpt-4o-mini';
+  const system = buildSystem(profileTimeZone);
 
   try {
     const res = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -127,7 +132,7 @@ export async function parseNagTextWithOpenAI(
         model,
         response_format: { type: 'json_object' },
         messages: [
-          { role: 'system', content: SYSTEM },
+          { role: 'system', content: system },
           { role: 'user', content: text.trim().slice(0, 4000) },
         ],
         temperature: 0.2,

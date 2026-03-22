@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { SUPABASE_SERVICE_ROLE_SETUP, tryGetSupabaseServiceRole } from '@/lib/supabase-server';
 import { computeNextAfterSend } from '@/lib/nag-schedule';
+import { normalizeNagTimeZone } from '@/lib/nag-timezone';
 import { nagReminderHtml, sendNagEmail } from '@/lib/nag-email';
 import type { NagRow } from '@/lib/nag-types';
 
@@ -62,11 +63,12 @@ async function runCron(request: NextRequest) {
     for (const row of rows) {
       const { data: userRow } = await supabase
         .from('users')
-        .select('email')
+        .select('email,timezone')
         .eq('id', row.user_id)
         .maybeSingle();
 
       const to = userRow?.email;
+      const userTz = normalizeNagTimeZone((userRow as { timezone?: string } | null)?.timezone);
       if (!to) {
         failed += 1;
         continue;
@@ -85,7 +87,7 @@ async function runCron(request: NextRequest) {
 
       sent += 1;
       const sentAt = new Date();
-      const { next_at, status, occurrences_remaining } = computeNextAfterSend(row, sentAt);
+      const { next_at, status, occurrences_remaining } = computeNextAfterSend(row, sentAt, userTz);
 
       const updatePayload: Record<string, unknown> = {
         last_sent_at: sentAt.toISOString(),

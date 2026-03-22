@@ -4,6 +4,8 @@ import { nagRequireUserId } from '@/lib/nag-auth';
 import { SUPABASE_SERVICE_ROLE_SETUP, tryGetSupabaseServiceRole } from '@/lib/supabase-server';
 import { computeInitialNextAt } from '@/lib/nag-schedule';
 import { nagConfirmationHtml, sendNagEmail } from '@/lib/nag-email';
+import { formatNagNextLabel } from '@/lib/nag-timezone';
+import { getUserNagTimezone } from '@/lib/nag-user';
 import { isNagStatus, validateScheduleBody, type NagRow } from '@/lib/nag-types';
 
 const SELECT_FIELDS =
@@ -43,13 +45,16 @@ export async function GET(request: NextRequest) {
 
     const { data: userRow } = await supabase
       .from('users')
-      .select('email')
+      .select('email,timezone')
       .eq('id', userId)
       .maybeSingle();
 
     return NextResponse.json({
       nags: nags ?? [],
-      profile: { email: userRow?.email ?? null },
+      profile: {
+        email: userRow?.email ?? null,
+        timezone: (userRow as { timezone?: string } | null)?.timezone ?? 'UTC',
+      },
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'list failed';
@@ -72,11 +77,18 @@ export async function POST(request: NextRequest) {
     }
     const { userId } = auth;
 
+    const supabase = tryGetSupabaseServiceRole();
+    if (!supabase) {
+      return NextResponse.json({ error: SUPABASE_SERVICE_ROLE_SETUP }, { status: 503 });
+    }
+
     const v = validateScheduleBody(body as Record<string, unknown>);
     if (!v.ok) {
       return NextResponse.json({ error: v.error }, { status: 400 });
     }
     const data = v.data;
+
+    const userTz = await getUserNagTimezone(supabase, userId);
 
     const nextAt = computeInitialNextAt({
       frequency: data.frequency,
@@ -84,6 +96,7 @@ export async function POST(request: NextRequest) {
       day_of_week: data.day_of_week,
       day_of_month: data.day_of_month,
       until_date: data.until_date,
+      timeZone: userTz,
     });
 
     if (!nextAt) {
@@ -93,10 +106,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const supabase = tryGetSupabaseServiceRole();
-    if (!supabase) {
-      return NextResponse.json({ error: SUPABASE_SERVICE_ROLE_SETUP }, { status: 503 });
-    }
     const insertRow = {
       user_id: userId,
       message: data.message,
@@ -133,7 +142,7 @@ export async function POST(request: NextRequest) {
         .maybeSingle();
       const to = userRow?.email;
       if (to) {
-        const nextLabel = nextAt.toISOString().replace('T', ' ').slice(0, 16) + ' UTC';
+        const nextLabel = formatNagNextLabel(nextAt, userTz);
         await sendNagEmail({
           to,
           subject: `Nag scheduled: ${data.message.slice(0, 60)}${data.message.length > 60 ? '…' : ''}`,

@@ -37,6 +37,6 @@ The repo includes [`vercel.json`](../../vercel.json) with a cron entry for `/api
 
 Alternatively call `GET` or `POST /api/cron/nags` with `?secret=<CRON_SECRET>`. See [api.md](./api.md).
 
-## Timezone (MVP)
+## Timezone
 
-Schedule times (`time_hhmm`) are interpreted in **UTC**. Document any change to user-local TZ in future releases.
+Schedule times (`time_hhmm`) use the user’s **`users.timezone`** (IANA, e.g. `America/New_York`), editable from the Nags **Profile** sheet. Changing timezone updates **`next_at`** for all **active** nags. Default is **UTC** for existing rows after migration.

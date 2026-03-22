@@ -11,7 +11,7 @@ Applied via Supabase migration **`create_nags_table`** (`apply_migration`). Incl
 | `message` | text | |
 | `channel` | text | `email` \| `whatsapp` |
 | `frequency` | text | `daily` \| `weekly` \| `monthly` \| `once` |
-| `time_hhmm` | text | `HH:MM` (24h), interpreted in **UTC** for MVP |
+| `time_hhmm` | text | `HH:MM` (24h), wall time in the user’s **`users.timezone`** (IANA, default `UTC`) |
 | `day_of_week` | smallint | 0–6, **0 = Monday … 6 = Sunday**; null if N/A |
 | `day_of_month` | smallint | 1–31; null if N/A |
 | `end_type` | text | `forever` \| `until_date` \| `occurrences` |

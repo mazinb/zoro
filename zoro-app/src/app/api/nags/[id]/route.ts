@@ -3,6 +3,7 @@ import { resolveTokenToUserId } from '@/lib/resolve-token';
 import { nagRequireUserId } from '@/lib/nag-auth';
 import { SUPABASE_SERVICE_ROLE_SETUP, tryGetSupabaseServiceRole } from '@/lib/supabase-server';
 import { computeInitialNextAt } from '@/lib/nag-schedule';
+import { getUserNagTimezone } from '@/lib/nag-user';
 import {
   isNagChannel,
   isNagEndType,
@@ -112,6 +113,7 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ id: s
     const hasScheduleUpdate = scheduleKeys.some((k) => body[k] !== undefined);
 
     if (typeof body.status === 'string' && isNagStatus(body.status) && !hasScheduleUpdate) {
+      const userTz = await getUserNagTimezone(supabase, userId);
       const payload: Record<string, unknown> = { status: body.status };
       if (body.status === 'active' && row.status !== 'active') {
         const nextAt = computeInitialNextAt({
@@ -120,6 +122,7 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ id: s
           day_of_week: row.day_of_week,
           day_of_month: row.day_of_month,
           until_date: row.until_date,
+          timeZone: userTz,
         });
         payload.next_at = nextAt ? nextAt.toISOString() : null;
       }
@@ -144,12 +147,15 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ id: s
     }
     const data: NagScheduleInput = v.data;
 
+    const userTz = await getUserNagTimezone(supabase, userId);
+
     const nextAt = computeInitialNextAt({
       frequency: data.frequency,
       time_hhmm: data.time_hhmm,
       day_of_week: data.day_of_week,
       day_of_month: data.day_of_month,
       until_date: data.until_date,
+      timeZone: userTz,
     });
 
     if (!nextAt && data.frequency !== 'once') {
