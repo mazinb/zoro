@@ -6,23 +6,31 @@ import {
   parseHHMM,
   validateScheduleBody,
 } from './nag-types';
+import {
+  applyHeuristicGrounding,
+  extractDayOfWeekFromText,
+  extractFrequencyHint,
+  extractTaskMessage,
+  extractTimeHHMMFromText,
+} from './nag-parse-heuristics';
 
 function buildSystem(profileTimeZone: string): string {
   return `You extract a recurring reminder schedule from the user's message.
 The user's profile IANA timezone is: ${profileTimeZone}
 Return ONLY a JSON object with these keys (no markdown):
-- message: short task title (string)
+- message: short task title only — NOT the whole user sentence. Drop schedule phrases like "every Tuesday", "on Mondays". Example: user "mow the lawn every tuesday" → message "mow the lawn".
 - channel: "email" or "whatsapp" — only if clearly implied; else null
 - frequency: one of "daily", "weekly", "monthly", "once"
 - time_hhmm: "HH:MM" 24-hour wall clock in ${profileTimeZone} for when the nag should fire. If the user names another timezone or offset, convert to the equivalent clock time in ${profileTimeZone}.
-- day_of_week: integer 0-6 only if weekly — 0=Monday, 6=Sunday. Null if not weekly.
+- day_of_week: REQUIRED when frequency is weekly. Integer 0-6 with 0=Monday, 1=Tuesday, 2=Wednesday, 3=Thursday, 4=Friday, 5=Saturday, 6=Sunday. Map "Tuesday"/"Tues"/"Tuesdays" → 1. Null only if frequency is not weekly.
 - day_of_month: integer 1-31 only if monthly. Null if not monthly.
 - end_type: "forever", "until_date", or "occurrences"
 - until_date: "YYYY-MM-DD" if end_type is until_date or user gave an end date; else null (calendar date in ${profileTimeZone})
 - occurrences_max: positive integer if end_type is occurrences or user said "N times"; else null
 
 Rules:
-- If frequency is weekly and day unclear, use day_of_week 4 (Friday).
+- If the user names a weekday (Mon–Sun), frequency must be "weekly" and day_of_week must match that day.
+- If frequency is weekly and day is still unclear, use day_of_week 4 (Friday).
 - If frequency is monthly and day unclear, use day_of_month 1.
 - If no time mentioned, use "10:00".
 - If end unclear and not a single shot, use end_type "forever" with until_date null.
@@ -32,14 +40,37 @@ Rules:
 export type ParseDraft = NagScheduleInput & { parse_fallback: boolean };
 
 function fallbackDraft(text: string, defaultChannel: NagChannel): ParseDraft {
+  const freqHint = extractFrequencyHint(text);
+  const dow = extractDayOfWeekFromText(text);
+  const time = extractTimeHHMMFromText(text) ?? '10:00';
+  const refined = extractTaskMessage(text);
   const trimmed = text.trim() || 'Reminder';
+  let message = refined.length > 0 ? refined : trimmed;
+  if (message.length > 200) message = `${message.slice(0, 197)}…`;
+
+  let frequency: NagFrequency = 'weekly';
+  let day_of_week: number | null = dow ?? 4;
+  let day_of_month: number | null = null;
+
+  if (freqHint === 'daily') {
+    frequency = 'daily';
+    day_of_week = null;
+  } else if (freqHint === 'monthly') {
+    frequency = 'monthly';
+    day_of_week = null;
+    day_of_month = 1;
+  } else {
+    frequency = 'weekly';
+    day_of_week = dow ?? 4;
+  }
+
   return {
-    message: trimmed.length > 200 ? `${trimmed.slice(0, 197)}…` : trimmed,
+    message,
     channel: defaultChannel,
-    frequency: 'weekly',
-    time_hhmm: '10:00',
-    day_of_week: 4,
-    day_of_month: null,
+    frequency,
+    time_hhmm: time,
+    day_of_week: frequency === 'weekly' ? day_of_week : null,
+    day_of_month: frequency === 'monthly' ? day_of_month : null,
     end_type: 'forever',
     until_date: null,
     occurrences_max: null,
@@ -159,8 +190,13 @@ export async function parseNagTextWithOpenAI(
       return fallbackDraft(text, defaultChannel);
     }
 
-    const body = openAiJsonToBody(parsed, defaultChannel);
-    const validated = validateScheduleBody(body);
+    const bodyRaw = openAiJsonToBody(parsed, defaultChannel);
+    if (!(typeof bodyRaw.message === 'string' && bodyRaw.message.trim())) {
+      bodyRaw.message =
+        extractTaskMessage(text).trim() || text.trim().slice(0, 200) || 'Reminder';
+    }
+    const grounded = applyHeuristicGrounding(text, bodyRaw as NagScheduleInput);
+    const validated = validateScheduleBody(grounded);
     if (!validated.ok) {
       console.warn('[nag-parse] validate after OpenAI:', validated.error);
       return fallbackDraft(text, defaultChannel);

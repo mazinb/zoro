@@ -1,6 +1,27 @@
 # Nag API
 
-All user routes require a link token (`users.verification_token` or `user_data.user_token`) resolved via `resolveTokenToUserId`.
+## Sign-in & onboarding (no token yet)
+
+### `POST /api/auth/nag-email-check`
+
+**Body:** `{ "email": "string" }`
+
+**Response 200:** `{ "registered": true | false }` — whether `users` already has this email. Does not send email.
+
+### `POST /api/auth/nag-request-link`
+
+**Body:** `{ "email": "string", "name"?: "string" }`
+
+- If the email **exists**: sends the Nags magic link (same as a logged-in magic link). `name` is ignored.
+- If the email is **new**: `name` is **required**; creates a `users` row (and `user_data` with `name`), then sends the link.
+
+**Response 200:** `{ "success": true, "created": true | false }` (`created` true when a new user row was inserted).
+
+**Errors:** `400` invalid email or missing name for new users; `502` email send failure.
+
+---
+
+All other user routes require a link token (`users.verification_token` or `user_data.user_token`) resolved via `resolveTokenToUserId`.
 
 **Invalid or unknown tokens** return **401 Unauthorized** (not 404), so you can tell them apart from a missing HTTP route.
 

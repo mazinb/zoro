@@ -29,6 +29,7 @@ The same endpoint (without `inviteIfUnregistered`) is used elsewhere; see [`/api
 ## Docs in this folder
 
 - [api.md](./api.md) — HTTP endpoints and payloads
+- [mcp.md](./mcp.md) — MCP server (Cursor): stdio tools that call the Nag API
 - [schema.md](./schema.md) — Database table and RLS
 
 ## Cron (production)

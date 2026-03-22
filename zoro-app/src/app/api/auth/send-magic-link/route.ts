@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { buildNagAppUrl, nagMagicLinkOrigin, sendNagMagicLinkEmail } from '@/lib/nag-magic-link-mail';
 
 /**
  * Reusable magic-link sender for gated forms (expenses, /nag, etc.).
@@ -92,35 +93,31 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Account has no link token.' }, { status: 500 });
     }
 
-    const origin =
-      process.env.NEXT_PUBLIC_APP_URL ||
-      (process.env.VERCEL_URL ? 'https://www.getzoro.com' : null) ||
-      request.headers.get('origin') ||
-      request.headers.get('referer')?.replace(/\/[^/]*$/, '') ||
-      'https://www.getzoro.com';
-    const actionUrl = `${origin.replace(/\/$/, '')}${redirectPath.startsWith('/') ? redirectPath : `/${redirectPath}`}?token=${encodeURIComponent(token)}`;
+    const origin = nagMagicLinkOrigin(request);
+    const actionUrl =
+      context === 'nag' && redirectPath.replace(/^\//, '') === 'nag'
+        ? buildNagAppUrl(origin, token)
+        : `${origin}${redirectPath.startsWith('/') ? redirectPath : `/${redirectPath}`}?token=${encodeURIComponent(token)}`;
 
     const fromAddress = process.env.RESEND_FROM || 'Zoro <admin@getzoro.com>';
-    const subject =
-      context === 'nag'
-        ? 'Your link to Nags – Zoro'
-        : 'Your link to open the form – Zoro';
-    const html =
-      context === 'nag'
-        ? [
-            `<p>Hi,</p>`,
-            `<p>Use the button below to open <strong>Nags</strong>. This link is tied to your account.</p>`,
-            `<p style="margin:24px 0"><a href="${actionUrl}" style="display:inline-block;background:#2563eb;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600">Open Nags</a></p>`,
-            `<p style="color:#64748b;font-size:14px">If the button doesn’t work, copy and paste this link into your browser:</p>`,
-            `<p style="word-break:break-all;font-size:14px">${actionUrl}</p>`,
-          ].join('')
-        : [
-            `<p>Hi,</p>`,
-            `<p>Use the button below to open the form. This link is tied to your account.</p>`,
-            `<p style="margin:24px 0"><a href="${actionUrl}" style="display:inline-block;background:#2563eb;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600">Open form</a></p>`,
-            `<p style="color:#64748b;font-size:14px">If the button doesn’t work, copy and paste this link into your browser:</p>`,
-            `<p style="word-break:break-all;font-size:14px">${actionUrl}</p>`,
-          ].join('');
+
+    if (context === 'nag' && redirectPath.replace(/^\//, '') === 'nag') {
+      const nagSent = await sendNagMagicLinkEmail(email, actionUrl, resendApiKey, fromAddress);
+      if (!nagSent.ok) {
+        console.error('[send-magic-link] Resend error:', nagSent.status, nagSent.text);
+        return NextResponse.json({ error: 'Failed to send email.' }, { status: 502 });
+      }
+      return NextResponse.json({ success: true, registered: true });
+    }
+
+    const subject = 'Your link to open the form – Zoro';
+    const html = [
+      `<p>Hi,</p>`,
+      `<p>Use the button below to open the form. This link is tied to your account.</p>`,
+      `<p style="margin:24px 0"><a href="${actionUrl}" style="display:inline-block;background:#2563eb;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600">Open form</a></p>`,
+      `<p style="color:#64748b;font-size:14px">If the button doesn’t work, copy and paste this link into your browser:</p>`,
+      `<p style="word-break:break-all;font-size:14px">${actionUrl}</p>`,
+    ].join('');
 
     const resendResponse = await fetch('https://api.resend.com/emails', {
       method: 'POST',

@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useDarkMode } from '@/hooks/useDarkMode';
 import { useThemeClasses } from '@/hooks/useThemeClasses';
 import { NagEndEditor, NagNav, NagSheet, type NagDraft } from './nag-chrome';
+import { NAG_LANDING_TOOLS, landingSectionTitle, type NagLandingTool } from './nag-dev-tools';
 
 const NAG_TOKEN_STORAGE = 'nag_dev_token';
 const NAG_FORCE_LOGOUT = 'nag_force_logout';
@@ -108,23 +109,13 @@ function endLabel(n: Nag): string {
 
 function apiErrorMessage(status: number, json: { error?: string }): string {
   if (status === 401) {
-    return 'Invalid or expired token. Paste the token from your magic link (the value after ?token=), save it below, or request a new link.';
+    return 'Invalid or expired token. Use the link from your email again, or request a new one from Get started.';
   }
   if (status === 503 && json.error) {
     return json.error;
   }
   return json.error ?? `Request failed (${status})`;
 }
-
-type SandboxAction = 'parse' | 'list' | 'create' | 'patch' | 'delete';
-
-const SANDBOX_EXAMPLES: { label: string; method: string; path: string; action: SandboxAction }[] = [
-  { label: 'Parse', method: 'POST', path: '/api/nag-parse', action: 'parse' },
-  { label: 'Create', method: 'POST', path: '/api/nags', action: 'create' },
-  { label: 'List', method: 'GET', path: '/api/nags?token=…&status=all', action: 'list' },
-  { label: 'Edit', method: 'PATCH', path: '/api/nags/:id', action: 'patch' },
-  { label: 'Cancel', method: 'DELETE', path: '/api/nags/:id?token=…', action: 'delete' },
-];
 
 export function NagPageInner() {
   const router = useRouter();
@@ -182,7 +173,6 @@ export function NagPageInner() {
   const { darkMode, toggleDarkMode } = useDarkMode();
   const theme = useThemeClasses(darkMode);
 
-  const [tokenInput, setTokenInput] = useState('');
   const [nags, setNags] = useState<Nag[]>([]);
   const [profileEmail, setProfileEmail] = useState<string | null>(null);
   const [profileTimezone, setProfileTimezone] = useState('UTC');
@@ -201,14 +191,26 @@ export function NagPageInner() {
   const [saving, setSaving] = useState(false);
 
   const [tab, setTab] = useState<'active' | 'archived'>('active');
-  const [magicEmail, setMagicEmail] = useState('');
-  const [magicStatus, setMagicStatus] = useState<string | null>(null);
-  const [magicBusy, setMagicBusy] = useState(false);
 
   const [getStartedOpen, setGetStartedOpen] = useState(false);
   const [getStartedEmail, setGetStartedEmail] = useState('');
+  const [getStartedName, setGetStartedName] = useState('');
+  const [getStartedPhase, setGetStartedPhase] = useState<'email' | 'existing' | 'new' | 'sent'>('email');
   const [getStartedStatus, setGetStartedStatus] = useState<string | null>(null);
-  const [getStartedBusy, setGetStartedBusy] = useState(false);
+  const [getStartedCheckBusy, setGetStartedCheckBusy] = useState(false);
+  const [getStartedSendBusy, setGetStartedSendBusy] = useState(false);
+
+  /** Inline email flow on landing (between How it works and Developers) */
+  const [landEmail, setLandEmail] = useState('');
+  const [landPhase, setLandPhase] = useState<'email' | 'existing' | 'new' | 'sent'>('email');
+  const [landName, setLandName] = useState('');
+  const [landStatus, setLandStatus] = useState<string | null>(null);
+  const [landCheckBusy, setLandCheckBusy] = useState(false);
+  const [landSendBusy, setLandSendBusy] = useState(false);
+
+  /** Last natural-language line used for Schedule / Re-parse */
+  const [parseSourceText, setParseSourceText] = useState('');
+  const [reparsing, setReparsing] = useState(false);
 
   const [profilePhone, setProfilePhone] = useState('+1 555 010 1234');
   const [profDraft, setProfDraft] = useState({
@@ -217,9 +219,10 @@ export function NagPageInner() {
     timezone: 'UTC',
   });
 
-  const [sandboxIdx, setSandboxIdx] = useState(0);
-  const [sandboxRes, setSandboxRes] = useState<unknown>(null);
-  const [sandboxBusy, setSandboxBusy] = useState(false);
+  const [selectedDevTool, setSelectedDevTool] = useState<NagLandingTool>(NAG_LANDING_TOOLS[0]);
+  const [devToolBodyText, setDevToolBodyText] = useState('');
+  const [devToolResult, setDevToolResult] = useState<unknown>(null);
+  const [devToolBusy, setDevToolBusy] = useState(false);
   const [firstNagId, setFirstNagId] = useState<string | null>(null);
 
   const fetchNags = useCallback(async () => {
@@ -292,34 +295,62 @@ export function NagPageInner() {
     }
   };
 
+  const parseTextIntoDraft = useCallback(
+    async (raw: string, opts?: { keepEditingId?: boolean }): Promise<boolean> => {
+      const text = raw.trim();
+      if (!effectiveToken || !text) return false;
+      setLoadError(null);
+      try {
+        const res = await fetch('/api/nag-parse', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token: effectiveToken,
+            text,
+            default_channel: defaultChannel,
+          }),
+        });
+        const json = await res.json();
+        if (!res.ok) {
+          setLoadError(apiErrorMessage(res.status, json));
+          return false;
+        }
+        const d = draftFromParse(json.draft ?? {});
+        d.channel = defaultChannel;
+        setDraft(d);
+        if (!opts?.keepEditingId) {
+          setEditingId(null);
+        }
+        return true;
+      } catch {
+        setLoadError('Parse request failed');
+        return false;
+      }
+    },
+    [effectiveToken, defaultChannel]
+  );
+
   const onSchedule = async () => {
     if (!effectiveToken || !compose.trim()) return;
     setParsing(true);
-    setLoadError(null);
     try {
-      const res = await fetch('/api/nag-parse', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          token: effectiveToken,
-          text: compose.trim(),
-          default_channel: defaultChannel,
-        }),
-      });
-      const json = await res.json();
-      if (!res.ok) {
-        setLoadError(apiErrorMessage(res.status, json));
-        return;
+      const ok = await parseTextIntoDraft(compose.trim());
+      if (ok) {
+        setParseSourceText(compose.trim());
+        setSheet('confirm');
       }
-      const d = draftFromParse(json.draft ?? {});
-      d.channel = defaultChannel;
-      setDraft(d);
-      setEditingId(null);
-      setSheet('confirm');
-    } catch {
-      setLoadError('Parse request failed');
     } finally {
       setParsing(false);
+    }
+  };
+
+  const reparseFromDescription = async () => {
+    if (!parseSourceText.trim()) return;
+    setReparsing(true);
+    try {
+      await parseTextIntoDraft(parseSourceText.trim(), { keepEditingId: editingId != null });
+    } finally {
+      setReparsing(false);
     }
   };
 
@@ -411,232 +442,299 @@ export function NagPageInner() {
     await fetchNags();
   };
 
-  /** Reuses POST /api/auth/send-magic-link: registered → nag link; else → signup at getzoro.com */
-  const requestNagAccessLink = useCallback(
-    async (
-      emailRaw: string,
-      setStatus: (s: string | null) => void,
-      setBusy: (b: boolean) => void
-    ) => {
-      const em = emailRaw.trim().toLowerCase();
-      if (!em) return;
-      setBusy(true);
-      setStatus(null);
-      try {
-        const res = await fetch('/api/auth/send-magic-link', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email: em,
-            redirectPath: '/nag',
-            context: 'nag',
-            inviteIfUnregistered: true,
-          }),
-        });
-        const json = (await res.json()) as {
-          error?: string;
-          invited?: boolean;
-          registered?: boolean;
-          success?: boolean;
-        };
-        if (!res.ok) {
-          setStatus(json.error ?? 'Failed');
-          return;
-        }
-        if (json.invited) {
-          setStatus(
-            'Check your inbox — we sent you a link to sign up at getzoro.com.'
-          );
-          return;
-        }
-        if (json.success && json.registered) {
-          setStatus('Check your inbox for your personal link to open Nags.');
-          return;
-        }
-        setStatus('Something went wrong. Try again.');
-      } catch {
-        setStatus('Request failed');
-      } finally {
-        setBusy(false);
-      }
-    },
-    []
-  );
+  useEffect(() => {
+    const t = selectedDevTool;
+    setDevToolBodyText(
+      t.sampleBody && Object.keys(t.sampleBody).length > 0 ? JSON.stringify(t.sampleBody, null, 2) : ''
+    );
+  }, [selectedDevTool]);
 
-  const sendMagicLink = () => requestNagAccessLink(magicEmail, setMagicStatus, setMagicBusy);
+  const openGetStartedModal = useCallback(() => {
+    setGetStartedPhase('email');
+    setGetStartedName('');
+    setGetStartedStatus(null);
+    setGetStartedOpen(true);
+  }, []);
 
-  const submitGetStarted = () =>
-    requestNagAccessLink(getStartedEmail, setGetStartedStatus, setGetStartedBusy);
-
-  const applyTokenInput = () => {
-    setForceLogout(false);
+  const checkGetStartedEmail = async () => {
+    const em = getStartedEmail.trim().toLowerCase();
+    if (!em) return;
+    setGetStartedCheckBusy(true);
+    setGetStartedStatus(null);
     try {
-      sessionStorage.removeItem(NAG_FORCE_LOGOUT);
-    } catch {
-      /* ignore */
-    }
-    persistStoredToken(tokenInput);
-    setTokenInput('');
-    setSandboxRes({ info: 'Token saved in this browser. You can use Schedule and the sandbox now.' });
-  };
-
-  const runSandbox = async () => {
-    if (!effectiveToken) {
-      setSandboxRes({
-        error:
-          'No token. Paste your magic-link token (the part after ?token= in the email URL), click Save token, or set NEXT_PUBLIC_NAG_DEV_TOKEN in .env.local for local testing.',
+      const res = await fetch('/api/auth/nag-email-check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: em }),
       });
-      return;
-    }
-    const ex = SANDBOX_EXAMPLES[sandboxIdx];
-    setSandboxBusy(true);
-    setSandboxRes(null);
-    try {
-      if (ex.action === 'parse') {
-        const res = await fetch('/api/nag-parse', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            token: effectiveToken,
-            text: 'Remind me every Friday at 17:00 UTC to send the invoice until 2026-12-31',
-            default_channel: 'email',
-          }),
-        });
-        const json = await res.json();
-        setSandboxRes(res.ok ? json : { error: json.error, status: res.status });
+      const json = (await res.json()) as { error?: string; registered?: boolean };
+      if (!res.ok) {
+        setGetStartedStatus(json.error ?? 'Could not verify email.');
         return;
       }
-      if (ex.action === 'list') {
-        const res = await fetch(`/api/nags?token=${encodeURIComponent(effectiveToken)}&status=all`);
-        const json = await res.json();
-        setSandboxRes(res.ok ? json : { error: json.error, status: res.status });
-        return;
-      }
-      if (ex.action === 'delete') {
-        const id = firstNagId;
-        if (!id) {
-          setSandboxRes({ error: 'Create a nag first so there is an id to cancel.' });
-          return;
-        }
-        const res = await fetch(`/api/nags/${id}?token=${encodeURIComponent(effectiveToken)}`, {
-          method: 'DELETE',
-        });
-        const json = await res.json();
-        setSandboxRes(res.ok ? json : { error: json.error, status: res.status });
-        await fetchNags();
-        return;
-      }
-      if (ex.action === 'patch') {
-        const id = firstNagId;
-        if (!id) {
-          setSandboxRes({ error: 'Create a nag first to obtain an id.' });
-          return;
-        }
-        const res = await fetch(`/api/nags/${id}`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token: effectiveToken, time_hhmm: '09:00' }),
-        });
-        const json = await res.json();
-        setSandboxRes(res.ok ? json : { error: json.error, status: res.status });
-        await fetchNags();
-        return;
-      }
-      if (ex.action === 'create') {
-        const res = await fetch('/api/nags', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            token: effectiveToken,
-            message: 'Sandbox: send invoice',
-            channel: 'email',
-            frequency: 'weekly',
-            time_hhmm: '17:00',
-            day_of_week: 4,
-            day_of_month: null,
-            end_type: 'until_date',
-            until_date: '2026-12-31',
-            occurrences_max: null,
-          }),
-        });
-        const json = await res.json();
-        setSandboxRes(res.ok ? json : { error: json.error, status: res.status });
-        await fetchNags();
-      }
+      setGetStartedPhase(json.registered ? 'existing' : 'new');
+    } catch {
+      setGetStartedStatus('Network error.');
     } finally {
-      setSandboxBusy(false);
+      setGetStartedCheckBusy(false);
     }
   };
 
-  const SandboxPanel = ({ compact }: { compact?: boolean }) => (
-    <div className={compact ? '' : ''}>
-      {!compact && (
-        <div className={`mb-4 rounded-lg border p-3 text-sm ${theme.borderClass} ${theme.cardBgClass}`}>
-          <p className={`mb-2 font-semibold ${theme.textClass}`}>Link token</p>
-          <p className={`mb-2 text-xs leading-relaxed ${theme.textSecondaryClass}`}>
-            Copy the token from your magic-link URL only (not the words YOUR_TOKEN). Optional: set{' '}
-            <code className="text-[11px]">NEXT_PUBLIC_NAG_DEV_TOKEN</code> in <code className="text-[11px]">.env.local</code>{' '}
-            for automated local testing.
+  const sendNagAccessEmail = async (name?: string) => {
+    const em = getStartedEmail.trim().toLowerCase();
+    if (!em) return;
+    setGetStartedSendBusy(true);
+    setGetStartedStatus(null);
+    try {
+      const res = await fetch('/api/auth/nag-request-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: em,
+          ...(name?.trim() ? { name: name.trim() } : {}),
+        }),
+      });
+      const json = (await res.json()) as { error?: string; success?: boolean; created?: boolean };
+      if (!res.ok) {
+        setGetStartedStatus(json.error ?? 'Failed to send.');
+        return;
+      }
+      if (json.success) {
+        setGetStartedPhase('sent');
+        setGetStartedStatus(
+          json.created
+            ? 'We created your account and emailed a private link. Open it on this device to start.'
+            : 'We emailed a private link to open Nags. It replaces a password — check your inbox.'
+        );
+      }
+    } catch {
+      setGetStartedStatus('Request failed.');
+    } finally {
+      setGetStartedSendBusy(false);
+    }
+  };
+
+  const checkLandingEmail = async () => {
+    const em = landEmail.trim().toLowerCase();
+    if (!em) return;
+    setLandCheckBusy(true);
+    setLandStatus(null);
+    try {
+      const res = await fetch('/api/auth/nag-email-check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: em }),
+      });
+      const json = (await res.json()) as { error?: string; registered?: boolean };
+      if (!res.ok) {
+        setLandStatus(json.error ?? 'Could not verify email.');
+        return;
+      }
+      setLandPhase(json.registered ? 'existing' : 'new');
+    } catch {
+      setLandStatus('Network error.');
+    } finally {
+      setLandCheckBusy(false);
+    }
+  };
+
+  const sendLandingAccessEmail = async (name?: string) => {
+    const em = landEmail.trim().toLowerCase();
+    if (!em) return;
+    setLandSendBusy(true);
+    setLandStatus(null);
+    try {
+      const res = await fetch('/api/auth/nag-request-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: em,
+          ...(name?.trim() ? { name: name.trim() } : {}),
+        }),
+      });
+      const json = (await res.json()) as { error?: string; success?: boolean; created?: boolean };
+      if (!res.ok) {
+        setLandStatus(json.error ?? 'Failed to send.');
+        return;
+      }
+      if (json.success) {
+        setLandPhase('sent');
+        setLandStatus(
+          json.created
+            ? 'We created your account and emailed a private link. Open it on this device to start.'
+            : 'We emailed a private link to open Nags. Check your inbox.'
+        );
+      }
+    } catch {
+      setLandStatus('Request failed.');
+    } finally {
+      setLandSendBusy(false);
+    }
+  };
+
+  const resetLandingEmailFlow = () => {
+    setLandPhase('email');
+    setLandName('');
+    setLandStatus(null);
+  };
+
+  const runLandingMockTool = async () => {
+    const tool = selectedDevTool;
+    let parsed: unknown = null;
+    if (tool.method !== 'GET' && tool.method !== 'DELETE') {
+      try {
+        const raw = devToolBodyText.trim();
+        parsed = raw ? JSON.parse(raw) : tool.sampleBody ?? null;
+      } catch {
+        setDevToolResult({ error: 'Body is not valid JSON.' });
+        return;
+      }
+    }
+    setDevToolBusy(true);
+    setDevToolResult(null);
+    await new Promise((r) => setTimeout(r, 80));
+    try {
+      setDevToolResult(tool.mockResponse(parsed));
+    } finally {
+      setDevToolBusy(false);
+    }
+  };
+
+  const docsOrigin =
+    (process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_BASE_URL || '').replace(/\/$/, '') || null;
+
+  const methodPillClass = (method: NagLandingTool['method']) => {
+    const base =
+      'inline-flex min-w-[3rem] shrink-0 justify-center rounded-md px-2 py-1 text-[10px] font-bold uppercase tracking-wider';
+    if (darkMode) {
+      if (method === 'GET') return `${base} bg-emerald-500/20 text-emerald-300`;
+      if (method === 'POST') return `${base} bg-sky-500/20 text-sky-300`;
+      if (method === 'PATCH') return `${base} bg-amber-500/25 text-amber-200`;
+      return `${base} bg-rose-500/20 text-rose-300`;
+    }
+    if (method === 'GET') return `${base} bg-emerald-100 text-emerald-900`;
+    if (method === 'POST') return `${base} bg-sky-100 text-sky-900`;
+    if (method === 'PATCH') return `${base} bg-amber-100 text-amber-950`;
+    return `${base} bg-rose-100 text-rose-900`;
+  };
+
+  const LandingEndpointsPanel = () => {
+    let prevSection = '';
+    const fullUrl = (path: string) => (docsOrigin ? `${docsOrigin}${path}` : `YOUR_ORIGIN${path}`);
+
+    return (
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-12 lg:gap-10">
+        <div className="lg:col-span-5">
+          <p className={`mb-3 text-[10px] font-bold uppercase tracking-widest ${theme.textSecondaryClass}`}>
+            MCP tools
           </p>
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <input
-              type="text"
-              autoComplete="off"
-              placeholder="Paste token…"
-              className={`min-w-0 flex-1 rounded-lg border px-3 py-2 text-sm ${theme.inputBgClass}`}
-              value={tokenInput}
-              onChange={(e) => setTokenInput(e.target.value)}
-            />
+          <ul className={`rounded-xl border ${theme.borderClass} ${theme.cardBgClass} p-2`} role="list">
+            {NAG_LANDING_TOOLS.map((t) => {
+              const showSection = t.section !== prevSection;
+              prevSection = t.section;
+              return (
+                <React.Fragment key={t.mcpName}>
+                  {showSection && (
+                    <li className="list-none px-2 pb-2 pt-3 first:pt-1">
+                      <span
+                        className={`text-[10px] font-bold uppercase tracking-widest ${theme.textSecondaryClass} opacity-80`}
+                      >
+                        {landingSectionTitle(t.section)}
+                      </span>
+                    </li>
+                  )}
+                  <li className="list-none">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedDevTool(t);
+                        setDevToolResult(null);
+                      }}
+                      className={`flex w-full items-start gap-2.5 rounded-lg px-2 py-2.5 text-left transition-colors ${
+                        selectedDevTool.mcpName === t.mcpName
+                          ? `${theme.accentBgClass} ${theme.textClass}`
+                          : `hover:bg-black/5 dark:hover:bg-white/5 ${theme.textSecondaryClass}`
+                      }`}
+                    >
+                      <span className={methodPillClass(t.method)}>{t.method}</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-mono text-[12px] font-semibold leading-tight">{t.mcpName}</span>
+                        <span
+                          className={`mt-1 block text-[11px] leading-snug ${
+                            selectedDevTool.mcpName === t.mcpName ? 'opacity-95' : 'opacity-80'
+                          }`}
+                        >
+                          {t.description}
+                        </span>
+                      </span>
+                    </button>
+                  </li>
+                </React.Fragment>
+              );
+            })}
+          </ul>
+        </div>
+
+        <div className="min-w-0 lg:col-span-7">
+          <p className={`mb-3 text-[10px] font-bold uppercase tracking-widest ${theme.textSecondaryClass}`}>
+            REST · same contract in production
+          </p>
+          <div className={`rounded-xl border p-4 sm:p-5 ${theme.borderClass} ${theme.cardBgClass}`}>
+            <div className="mb-4 flex flex-wrap items-center gap-2 border-b border-current/10 pb-4">
+              <span className={methodPillClass(selectedDevTool.method)}>{selectedDevTool.method}</span>
+              <span className={`font-mono text-[13px] font-semibold sm:text-sm ${theme.textClass}`}>
+                {selectedDevTool.mcpName}
+              </span>
+            </div>
+            <p className={`mb-4 text-sm leading-relaxed ${theme.textSecondaryClass}`}>{selectedDevTool.description}</p>
+            <div
+              className={`overflow-x-auto rounded-lg border px-3 py-2.5 font-mono text-[11px] leading-relaxed ${theme.borderClass} ${darkMode ? 'bg-black/30' : 'bg-black/[0.03]'}`}
+            >
+              <span className={`select-all ${theme.textClass}`}>{fullUrl(selectedDevTool.path)}</span>
+            </div>
+            {!docsOrigin && (
+              <p className={`mt-2 text-[11px] leading-relaxed ${theme.textSecondaryClass}`}>
+                In production, <code className="font-mono text-[10px]">YOUR_ORIGIN</code> is your deployed site (e.g.{' '}
+                <code className="font-mono text-[10px]">https://www.getzoro.com</code>). Set{' '}
+                <code className="font-mono text-[10px]">NEXT_PUBLIC_APP_URL</code> or{' '}
+                <code className="font-mono text-[10px]">NEXT_PUBLIC_BASE_URL</code> at build time to preview full URLs
+                here.
+              </p>
+            )}
+
+            {selectedDevTool.sampleBody != null && Object.keys(selectedDevTool.sampleBody).length > 0 && (
+              <label className={`mt-5 block ${theme.textSecondaryClass}`}>
+                <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide">Sample body (JSON)</span>
+                <textarea
+                  rows={9}
+                  className={`w-full rounded-lg border px-3 py-2 font-mono text-[11px] leading-relaxed ${theme.inputBgClass}`}
+                  value={devToolBodyText}
+                  onChange={(e) => setDevToolBodyText(e.target.value)}
+                  spellCheck={false}
+                />
+              </label>
+            )}
+
             <button
               type="button"
-              disabled={!tokenInput.trim()}
-              onClick={applyTokenInput}
-              className={`rounded-lg px-4 py-2 text-sm font-bold disabled:opacity-40 ${theme.buttonClass}`}
+              disabled={devToolBusy}
+              onClick={() => void runLandingMockTool()}
+              className={`mt-5 w-full rounded-lg py-3 text-sm font-bold disabled:opacity-40 sm:w-auto sm:px-8 ${theme.buttonClass}`}
             >
-              Save token
+              {devToolBusy ? '…' : `Show sample response · ${selectedDevTool.mcpName}`}
             </button>
+            <pre
+              className={`mt-4 max-h-80 overflow-auto rounded-lg border p-4 text-[11px] leading-relaxed ${theme.borderClass} ${darkMode ? 'bg-black/25' : 'bg-black/[0.02]'} ${theme.textClass}`}
+            >
+              {devToolResult
+                ? JSON.stringify(devToolResult, null, 2)
+                : 'Select a tool, then show sample JSON (offline — no request is sent).'}
+            </pre>
           </div>
         </div>
-      )}
-      <div className="flex flex-wrap gap-2">
-        {SANDBOX_EXAMPLES.map((e, i) => (
-          <button
-            key={e.label}
-            type="button"
-            onClick={() => {
-              setSandboxIdx(i);
-              setSandboxRes(null);
-            }}
-            className={`rounded-lg border px-3 py-2 text-xs font-semibold ${
-              sandboxIdx === i ? `${theme.borderClass} ${theme.accentBgClass} ${theme.textClass}` : theme.textSecondaryClass
-            } ${theme.borderClass}`}
-          >
-            <span className="mr-1 font-mono text-[10px]">{e.method}</span>
-            {e.label}
-          </button>
-        ))}
       </div>
-      <div className={`mt-4 rounded-lg border p-3 font-mono text-xs ${theme.borderClass} ${theme.cardBgClass}`}>
-        <span className={SANDBOX_EXAMPLES[sandboxIdx].method === 'DELETE' ? 'font-bold text-red-500' : 'font-bold'}>
-          {SANDBOX_EXAMPLES[sandboxIdx].method}
-        </span>{' '}
-        <span className={theme.textClass}>{SANDBOX_EXAMPLES[sandboxIdx].path}</span>
-      </div>
-      <button
-        type="button"
-        disabled={sandboxBusy}
-        onClick={runSandbox}
-        className={`mt-4 rounded-lg px-6 py-3 text-sm font-bold disabled:opacity-40 ${theme.buttonClass}`}
-      >
-        {sandboxBusy ? 'Sending…' : `Send ${SANDBOX_EXAMPLES[sandboxIdx].method}`}
-      </button>
-      <pre
-        className={`mt-4 max-h-64 overflow-auto rounded-lg border p-3 text-xs ${theme.borderClass} ${theme.cardBgClass} ${theme.textClass}`}
-      >
-        {sandboxRes ? JSON.stringify(sandboxRes, null, 2) : 'Hit Send to see the JSON response.'}
-      </pre>
-    </div>
-  );
+    );
+  };
 
   if (!effectiveToken) {
     return (
@@ -661,23 +759,21 @@ export function NagPageInner() {
             <div className="mt-8 flex flex-wrap justify-center gap-3">
               <button
                 type="button"
-                onClick={() => {
-                  setGetStartedEmail(magicEmail);
-                  setGetStartedStatus(null);
-                  setGetStartedOpen(true);
-                }}
+                onClick={() => openGetStartedModal()}
                 className={`rounded-lg px-7 py-3 text-sm font-bold ${theme.buttonClass}`}
               >
                 Get started
               </button>
               <a
-                href="#sandbox"
+                href="#developer"
                 className={`rounded-lg border px-7 py-3 text-sm font-bold ${theme.borderClass} ${theme.textSecondaryClass}`}
               >
-                For developers
+                Developers
               </a>
             </div>
-            <p className={`mt-4 text-[11px] opacity-50 ${theme.textSecondaryClass}`}>No app. No download.</p>
+            <p className={`mt-4 text-[11px] opacity-50 ${theme.textSecondaryClass}`}>
+              For you: email link. For devs: endpoint reference below.
+            </p>
           </section>
 
         <section className={`border-y px-5 py-16 ${theme.borderClass} ${darkMode ? 'bg-[#111115]' : 'bg-white'}`}>
@@ -688,7 +784,7 @@ export function NagPageInner() {
             <h2 className={`mb-8 text-[clamp(1.35rem,4vw,2rem)] font-extrabold tracking-tight ${theme.textClass}`}>
               Three steps. Zero friction.
             </h2>
-            <div className="flex flex-wrap gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               {[
                 ['1', 'Tell Zoro', 'Type anything natural. Zoro figures out the schedule.'],
                 ['2', 'Confirm', 'Review parsed time, frequency, and end date.'],
@@ -696,7 +792,7 @@ export function NagPageInner() {
               ].map(([n, title, body]) => (
                 <div
                   key={n}
-                  className={`min-w-[180px] flex-1 rounded-xl border p-4 ${theme.borderClass} ${darkMode ? 'bg-[#09090c]' : 'bg-[#f5f5f7]'}`}
+                  className={`min-w-0 rounded-xl border p-4 ${theme.borderClass} ${darkMode ? 'bg-[#09090c]' : 'bg-[#f5f5f7]'}`}
                 >
                   <div
                     className={`mb-2 flex h-[26px] w-[26px] items-center justify-center rounded-md text-xs font-extrabold ${theme.buttonClass}`}
@@ -711,46 +807,141 @@ export function NagPageInner() {
           </div>
         </section>
 
-        <section className="px-5 py-16">
-          <div className="mx-auto max-w-[680px]">
+        <section
+          className={`border-t px-5 py-16 ${theme.borderClass} ${darkMode ? 'bg-[#09090c]' : 'bg-[#f5f5f7]'}`}
+        >
+          <div className={`mx-auto max-w-[480px] rounded-xl border p-6 ${theme.borderClass} ${theme.cardBgClass}`}>
             <p className={`mb-2 text-[10px] font-bold uppercase tracking-widest ${theme.textSecondaryClass}`}>
               Sign in
             </p>
-            <h2 className={`mb-4 text-xl font-bold ${theme.textClass}`}>Magic link</h2>
-            <p className={`mb-4 text-sm ${theme.textSecondaryClass}`}>
-              If you already have a Zoro account, we&apos;ll email a link to open Nags. If not, we&apos;ll email you a link
-              to sign up at <span className="font-medium">getzoro.com</span>.
+            <h2 className={`mb-2 text-xl font-bold ${theme.textClass}`}>Enter your email</h2>
+            <p className={`mb-5 text-sm leading-relaxed ${theme.textSecondaryClass}`}>
+              No password — we&apos;ll email you a private link to open Nags. New here? We&apos;ll ask for your first name
+              next.
             </p>
-            <div className="flex max-w-md flex-col gap-2 sm:flex-row">
-              <input
-                type="email"
-                placeholder="you@example.com"
-                className={`flex-1 rounded-lg border px-3 py-2.5 text-sm ${theme.inputBgClass}`}
-                value={magicEmail}
-                onChange={(e) => setMagicEmail(e.target.value)}
-              />
-              <button
-                type="button"
-                disabled={magicBusy || !magicEmail.trim()}
-                onClick={sendMagicLink}
-                className={`rounded-lg px-5 py-2.5 text-sm font-bold disabled:opacity-40 ${theme.buttonClass}`}
-              >
-                {magicBusy ? '…' : 'Send link'}
-              </button>
-            </div>
-            {magicStatus && <p className="mt-3 text-sm text-amber-600 dark:text-amber-400">{magicStatus}</p>}
+
+            {landPhase === 'email' && (
+              <>
+                <label className={`mb-1 block text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}>Email</label>
+                <input
+                  type="email"
+                  autoComplete="email"
+                  placeholder="you@example.com"
+                  className={`mb-3 w-full rounded-lg border px-3 py-2.5 text-sm ${theme.inputBgClass}`}
+                  value={landEmail}
+                  onChange={(e) => setLandEmail(e.target.value)}
+                />
+                <button
+                  type="button"
+                  disabled={landCheckBusy || !landEmail.trim()}
+                  onClick={() => void checkLandingEmail()}
+                  className={`w-full rounded-lg py-3 text-sm font-bold disabled:opacity-40 ${theme.buttonClass}`}
+                >
+                  {landCheckBusy ? 'Checking…' : 'Continue'}
+                </button>
+              </>
+            )}
+
+            {landPhase === 'existing' && (
+              <>
+                <p className={`mb-4 text-sm leading-relaxed ${theme.textSecondaryClass}`}>
+                  We found an account for <span className="font-medium text-current">{landEmail.trim()}</span>. We&apos;ll
+                  send one email with your link.
+                </p>
+                <button
+                  type="button"
+                  disabled={landSendBusy}
+                  onClick={() => void sendLandingAccessEmail()}
+                  className={`w-full rounded-lg py-3 text-sm font-bold disabled:opacity-40 ${theme.buttonClass}`}
+                >
+                  {landSendBusy ? 'Sending…' : 'Send link'}
+                </button>
+                <button
+                  type="button"
+                  onClick={resetLandingEmailFlow}
+                  className={`mt-3 w-full rounded-lg border py-2.5 text-sm font-semibold ${theme.borderClass} ${theme.textSecondaryClass}`}
+                >
+                  Different email
+                </button>
+              </>
+            )}
+
+            {landPhase === 'new' && (
+              <>
+                <p className={`mb-4 text-sm leading-relaxed ${theme.textSecondaryClass}`}>
+                  New email — add your first name, then we create your account and send the link.
+                </p>
+                <label className={`mb-1 block text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}>Name</label>
+                <input
+                  type="text"
+                  autoComplete="given-name"
+                  placeholder="Alex"
+                  className={`mb-3 w-full rounded-lg border px-3 py-2.5 text-sm ${theme.inputBgClass}`}
+                  value={landName}
+                  onChange={(e) => setLandName(e.target.value)}
+                />
+                <button
+                  type="button"
+                  disabled={landSendBusy || !landName.trim()}
+                  onClick={() => void sendLandingAccessEmail(landName)}
+                  className={`w-full rounded-lg py-3 text-sm font-bold disabled:opacity-40 ${theme.buttonClass}`}
+                >
+                  {landSendBusy ? 'Sending…' : 'Create account & send link'}
+                </button>
+                <button
+                  type="button"
+                  onClick={resetLandingEmailFlow}
+                  className={`mt-3 w-full rounded-lg border py-2.5 text-sm font-semibold ${theme.borderClass} ${theme.textSecondaryClass}`}
+                >
+                  Back
+                </button>
+              </>
+            )}
+
+            {landPhase === 'sent' && (
+              <>
+                <p className={`text-sm leading-relaxed ${theme.textSecondaryClass}`}>{landStatus}</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    resetLandingEmailFlow();
+                    setLandEmail('');
+                  }}
+                  className={`mt-6 w-full rounded-lg py-3 text-sm font-bold ${theme.buttonClass}`}
+                >
+                  Done
+                </button>
+              </>
+            )}
+
+            {landPhase !== 'sent' && landStatus && (
+              <p className="mt-3 text-sm text-amber-600 dark:text-amber-400">{landStatus}</p>
+            )}
           </div>
         </section>
 
-        <section id="sandbox" className={`scroll-mt-14 px-5 py-16 ${darkMode ? 'bg-[#09090c]' : 'bg-[#f5f5f7]'}`}>
-          <div className="mx-auto max-w-[680px]">
-            <p className={`mb-2 text-[10px] font-bold uppercase tracking-widest ${theme.textSecondaryClass}`}>
-              Developers
-            </p>
-            <h2 className={`mb-2 text-[clamp(1.35rem,4vw,2rem)] font-extrabold tracking-tight ${theme.textClass}`}>
-              API explorer
-            </h2>
-            <SandboxPanel />
+        <section
+          id="developer"
+          className={`scroll-mt-14 border-t px-5 py-16 sm:py-20 ${theme.borderClass} ${darkMode ? 'bg-[#09090c]' : 'bg-[#f5f5f7]'}`}
+        >
+          <div className="mx-auto max-w-5xl">
+            <header className="mb-10 max-w-3xl">
+              <p className={`mb-2 text-[10px] font-bold uppercase tracking-widest ${theme.textSecondaryClass}`}>
+                Developers
+              </p>
+              <h2
+                className={`text-[clamp(1.5rem,4vw,2.25rem)] font-extrabold leading-tight tracking-tight ${theme.textClass}`}
+              >
+                MCP tools & REST API
+              </h2>
+              <p className={`mt-3 text-sm leading-relaxed sm:text-[15px] ${theme.textSecondaryClass}`}>
+                Names match the <span className="font-mono text-[12px] text-current/90">zoro-nags</span> MCP server in
+                this repo. Each tool calls one origin-relative route — deploy the same app to production and swap the host;
+                paths stay <code className="font-mono text-[11px]">/api/…</code>. Sample responses below are static (no
+                network).
+              </p>
+            </header>
+            <LandingEndpointsPanel />
           </div>
         </section>
 
@@ -766,34 +957,124 @@ export function NagPageInner() {
             onClose={() => {
               setGetStartedOpen(false);
               setGetStartedStatus(null);
+              setGetStartedPhase('email');
             }}
           >
             <p className={`mb-2 text-[10px] font-bold uppercase tracking-wider ${theme.textSecondaryClass}`}>
               Get started
             </p>
-            <h2 className={`mb-2 text-lg font-bold ${theme.textClass}`}>Enter your email</h2>
-            <p className={`mb-4 text-sm leading-relaxed ${theme.textSecondaryClass}`}>
-              We use the same secure email flow as the rest of Zoro. You&apos;ll get either your Nags link or an invite to
-              sign up at getzoro.com.
-            </p>
-            <label className={`mb-1 block text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}>Email</label>
-            <input
-              type="email"
-              autoComplete="email"
-              placeholder="you@example.com"
-              className={`mb-4 w-full rounded-lg border px-3 py-2.5 text-sm ${theme.inputBgClass}`}
-              value={getStartedEmail}
-              onChange={(e) => setGetStartedEmail(e.target.value)}
-            />
-            <button
-              type="button"
-              disabled={getStartedBusy || !getStartedEmail.trim()}
-              onClick={submitGetStarted}
-              className={`w-full rounded-lg py-3 text-sm font-bold disabled:opacity-40 ${theme.buttonClass}`}
-            >
-              {getStartedBusy ? 'Sending…' : 'Email me'}
-            </button>
-            {getStartedStatus && (
+
+            {getStartedPhase === 'email' && (
+              <>
+                <h2 className={`mb-2 text-lg font-bold ${theme.textClass}`}>Your email</h2>
+                <p className={`mb-4 text-sm leading-relaxed ${theme.textSecondaryClass}`}>
+                  We check whether you already have a Zoro account. Next step depends on that — no password, just a link in
+                  your inbox.
+                </p>
+                <label className={`mb-1 block text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}>Email</label>
+                <input
+                  type="email"
+                  autoComplete="email"
+                  placeholder="you@example.com"
+                  className={`mb-4 w-full rounded-lg border px-3 py-2.5 text-sm ${theme.inputBgClass}`}
+                  value={getStartedEmail}
+                  onChange={(e) => setGetStartedEmail(e.target.value)}
+                />
+                <button
+                  type="button"
+                  disabled={getStartedCheckBusy || !getStartedEmail.trim()}
+                  onClick={() => void checkGetStartedEmail()}
+                  className={`w-full rounded-lg py-3 text-sm font-bold disabled:opacity-40 ${theme.buttonClass}`}
+                >
+                  {getStartedCheckBusy ? 'Checking…' : 'Continue'}
+                </button>
+              </>
+            )}
+
+            {getStartedPhase === 'existing' && (
+              <>
+                <h2 className={`mb-2 text-lg font-bold ${theme.textClass}`}>Welcome back</h2>
+                <p className={`mb-4 text-sm leading-relaxed ${theme.textSecondaryClass}`}>
+                  We found an account for <span className="font-medium">{getStartedEmail.trim()}</span>. We&apos;ll send one
+                  email with a private link to open Nags on this device.
+                </p>
+                <button
+                  type="button"
+                  disabled={getStartedSendBusy}
+                  onClick={() => void sendNagAccessEmail()}
+                  className={`w-full rounded-lg py-3 text-sm font-bold disabled:opacity-40 ${theme.buttonClass}`}
+                >
+                  {getStartedSendBusy ? 'Sending…' : 'Send link'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setGetStartedPhase('email');
+                    setGetStartedStatus(null);
+                  }}
+                  className={`mt-3 w-full rounded-lg border py-2.5 text-sm font-semibold ${theme.borderClass} ${theme.textSecondaryClass}`}
+                >
+                  Different email
+                </button>
+              </>
+            )}
+
+            {getStartedPhase === 'new' && (
+              <>
+                <h2 className={`mb-2 text-lg font-bold ${theme.textClass}`}>New here</h2>
+                <p className={`mb-4 text-sm leading-relaxed ${theme.textSecondaryClass}`}>
+                  No account for this email yet. Add your first name, then we create your account and email a sign-in link.
+                  Same link you&apos;ll use later — keep it private like a password.
+                </p>
+                <label className={`mb-1 block text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}>Name</label>
+                <input
+                  type="text"
+                  autoComplete="given-name"
+                  placeholder="Alex"
+                  className={`mb-3 w-full rounded-lg border px-3 py-2.5 text-sm ${theme.inputBgClass}`}
+                  value={getStartedName}
+                  onChange={(e) => setGetStartedName(e.target.value)}
+                />
+                <button
+                  type="button"
+                  disabled={getStartedSendBusy || !getStartedName.trim()}
+                  onClick={() => void sendNagAccessEmail(getStartedName)}
+                  className={`w-full rounded-lg py-3 text-sm font-bold disabled:opacity-40 ${theme.buttonClass}`}
+                >
+                  {getStartedSendBusy ? 'Sending…' : 'Create account & send link'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setGetStartedPhase('email');
+                    setGetStartedStatus(null);
+                  }}
+                  className={`mt-3 w-full rounded-lg border py-2.5 text-sm font-semibold ${theme.borderClass} ${theme.textSecondaryClass}`}
+                >
+                  Back
+                </button>
+              </>
+            )}
+
+            {getStartedPhase === 'sent' && (
+              <>
+                <h2 className={`mb-2 text-lg font-bold ${theme.textClass}`}>Check your email</h2>
+                <p className={`text-sm leading-relaxed ${theme.textSecondaryClass}`}>{getStartedStatus}</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setGetStartedOpen(false);
+                    setGetStartedPhase('email');
+                    setGetStartedStatus(null);
+                  }}
+                  className={`mt-6 w-full rounded-lg py-3 text-sm font-bold ${theme.buttonClass}`}
+                >
+                  Done
+                </button>
+              </>
+            )}
+
+            {getStartedPhase !== 'sent' && getStartedStatus && (
               <p className="mt-3 text-sm text-amber-600 dark:text-amber-400">{getStartedStatus}</p>
             )}
           </NagSheet>
@@ -894,6 +1175,7 @@ export function NagPageInner() {
                   if (tab === 'active') {
                     setDraft(nagToDraft(n));
                     setEditingId(n.id);
+                    setParseSourceText(n.message);
                     setSheet('edit');
                   }
                 }}
@@ -952,13 +1234,6 @@ export function NagPageInner() {
           )}
         </div>
 
-        <section id="sandbox" className="mt-14 scroll-mt-14">
-          <p className={`mb-2 text-[10px] font-bold uppercase tracking-widest ${theme.textSecondaryClass}`}>
-            Sandbox
-          </p>
-          <h2 className={`mb-4 text-lg font-extrabold ${theme.textClass}`}>API explorer</h2>
-          <SandboxPanel compact />
-        </section>
       </div>
 
       {sheet && (
@@ -1052,7 +1327,19 @@ export function NagPageInner() {
                       [
                         ['Via', draft.channel === 'whatsapp' ? 'WhatsApp' : 'Email'],
                         ['Freq', draft.frequency],
-                        ['Time', draft.time_hhmm],
+                        ...(draft.frequency === 'weekly' && draft.day_of_week != null
+                          ? ([
+                              [
+                                'Day',
+                                WEEKDAYS.find((w) => w.v === draft.day_of_week)?.l ?? '—',
+                              ],
+                            ] as const)
+                          : draft.frequency === 'daily'
+                            ? ([['Day', 'Every day']] as const)
+                            : draft.frequency === 'monthly' && draft.day_of_month != null
+                              ? ([['Day', `${draft.day_of_month} of month`]] as const)
+                              : []),
+                        ['Time', `${draft.time_hhmm} · ${profileTimezone}`],
                         [
                           'Until',
                           draft.end_type === 'forever'
@@ -1062,8 +1349,8 @@ export function NagPageInner() {
                               : draft.until_date || '—',
                         ],
                       ] as const
-                    ).map(([k, v]) => (
-                      <div key={k} className={`min-w-[70px] flex-1 rounded-lg p-2.5 ${theme.accentBgClass}`}>
+                    ).map(([k, v], i) => (
+                      <div key={`${i}-${k}`} className={`min-w-[70px] flex-1 rounded-lg p-2.5 ${theme.accentBgClass}`}>
                         <div className={`text-[9px] font-bold uppercase ${theme.textSecondaryClass}`}>{k}</div>
                         <div className="text-xs font-semibold">{v}</div>
                       </div>
@@ -1089,6 +1376,24 @@ export function NagPageInner() {
 
               {sheet === 'edit' && (
                 <>
+                  <label className={`mb-1 block text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}>
+                    Describe schedule
+                  </label>
+                  <textarea
+                    rows={2}
+                    className={`mb-2 w-full rounded-lg border px-3 py-2.5 text-sm ${theme.inputBgClass}`}
+                    placeholder="e.g. mow the lawn every Wednesday at 5pm"
+                    value={parseSourceText}
+                    onChange={(e) => setParseSourceText(e.target.value)}
+                  />
+                  <button
+                    type="button"
+                    disabled={reparsing || !parseSourceText.trim()}
+                    onClick={() => void reparseFromDescription()}
+                    className={`mb-4 w-full rounded-lg border py-2.5 text-sm font-semibold disabled:opacity-40 ${theme.borderClass} ${theme.textClass}`}
+                  >
+                    {reparsing ? 'Parsing…' : 'Re-parse from text'}
+                  </button>
                   <label className={`mb-1 block text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}>Task</label>
                   <input
                     className={`mb-3 w-full rounded-lg border px-3 py-2.5 text-sm ${theme.inputBgClass}`}
@@ -1097,7 +1402,9 @@ export function NagPageInner() {
                   />
                   <div className="mb-3 flex gap-2">
                     <div className="flex-1">
-                      <label className={`mb-1 block text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}>Time (UTC)</label>
+                      <label className={`mb-1 block text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}>
+                        Time ({profileTimezone})
+                      </label>
                       <input
                         className={`w-full rounded-lg border px-3 py-2.5 text-sm ${theme.inputBgClass}`}
                         value={draft.time_hhmm}

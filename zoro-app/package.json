@@ -10,7 +10,8 @@
     "generate-favicon": "node scripts/generate-favicon.js",
     "test": "jest",
     "listen:forms": "ts-node scripts/form-listener.ts",
-    "listen:forms:dev": "nodemon --watch scripts/form-listener.ts --exec \"ts-node scripts/form-listener.ts\""
+    "listen:forms:dev": "nodemon --watch scripts/form-listener.ts --exec \"ts-node scripts/form-listener.ts\"",
+    "mcp:nag": "node mcp/nag-server.mjs"
   },
   "dependencies": {
     "@google/genai": "^1.41.0",
@@ -24,6 +25,7 @@
     "undici": "^7.21.0"
   },
   "devDependencies": {
+    "@modelcontextprotocol/sdk": "^1.27.1",
     "@tailwindcss/postcss": "^4",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.1",
@@ -44,6 +46,7 @@
     "to-ico": "^1.1.1",
     "ts-jest": "^29.4.6",
     "ts-node": "^10.9.2",
-    "typescript": "^5"
+    "typescript": "^5",
+    "zod": "^4.3.6"
   }
 }
