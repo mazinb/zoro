@@ -88,6 +88,7 @@ DELETE FROM user_data WHERE user_id IS NULL;
 
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY` — **server-only**; required for **Nags** (`/api/nags`, `/api/cron/nags`) and LinkedIn token helpers. Copy the **service_role** secret from Supabase → Project Settings → API. Not the same as the anon key. Never expose in client code or commit to git.
 - `RESEND_API_KEY`
 - `RESEND_FROM` (default: `Zoro <admin@getzoro.com>`)
 - `SUBMISSION_NOTIFY_EMAIL`

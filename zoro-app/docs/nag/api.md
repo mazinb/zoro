@@ -1,0 +1,118 @@
+# Nag API
+
+All user routes require a link token (`users.verification_token` or `user_data.user_token`) resolved via `resolveTokenToUserId`.
+
+**Invalid or unknown tokens** return **401 Unauthorized** (not 404), so you can tell them apart from a missing HTTP route.
+
+## `POST /api/nag-parse`
+
+Parses free-text into a schedule draft using OpenAI (`OPENAI_API_KEY`). Falls back to defaults if the key is missing or the call fails.
+
+This route lives at **`/api/nag-parse`** (not under `/api/nags/parse`) so it is never mistaken for `/api/nags/[id]` with `id=parse`.
+
+_(The older path `/api/nags/parse` was removed for that reason.)_
+
+**Body (JSON):**
+
+```json
+{
+  "token": "string",
+  "text": "Remind me to file GST every month on the 15th at 10am until 2026-12-31",
+  "default_channel": "email"
+}
+```
+
+`default_channel` optional: `email` | `whatsapp` (default `email`).
+
+**Response 200:**
+
+```json
+{
+  "draft": {
+    "message": "File GST",
+    "channel": "email",
+    "frequency": "monthly",
+    "time_hhmm": "10:00",
+    "day_of_week": null,
+    "day_of_month": 15,
+    "end_type": "until_date",
+    "until_date": "2026-12-31",
+    "occurrences_max": null,
+    "parse_fallback": false
+  }
+}
+```
+
+`parse_fallback: true` when OpenAI was not used or failed.
+
+---
+
+## `GET /api/nags?token=...`
+
+**Query:**
+
+- `token` (required)
+- `status` optional: `active` | `archived` | `cancelled` | `all` (default `active`). **`all`** returns **active + archived** only (excludes `cancelled`).
+
+**Response 200:**
+
+```json
+{
+  "nags": [ { "...row..." } ],
+  "profile": { "email": "user@example.com" }
+}
+```
+
+---
+
+## `POST /api/nags`
+
+Creates a nag; sends a confirmation email to `users.email` when `channel` is `email` and Resend is configured.
+
+**Body:**
+
+```json
+{
+  "token": "string",
+  "message": "string",
+  "channel": "email",
+  "frequency": "daily|weekly|monthly|once",
+  "time_hhmm": "17:00",
+  "day_of_week": 4,
+  "day_of_month": null,
+  "end_type": "forever|until_date|occurrences",
+  "until_date": "2026-12-31",
+  "occurrences_max": 10
+}
+```
+
+- `day_of_week`: ISO-style **0 = Monday … 6 = Sunday** (weekly only).
+- `day_of_month`: 1–31 (monthly only).
+- For `end_type: occurrences`, set `occurrences_max` ≥ 1.
+- For `until_date`, use `YYYY-MM-DD`.
+
+**Response 201:** created row.
+
+---
+
+## `PATCH /api/nags/:id`
+
+**Body:** `token` plus any updatable fields (`message`, `channel`, `frequency`, `time_hhmm`, `day_of_week`, `day_of_month`, `end_type`, `until_date`, `occurrences_max`, `status`).
+
+When schedule fields change, `next_at` is recomputed. Setting `status` to `archived` or `cancelled` stops cron delivery.
+
+---
+
+## `DELETE /api/nags/:id?token=...`
+
+Soft-cancel: sets `status` to `cancelled`.
+
+---
+
+## `GET | POST /api/cron/nags`
+
+**Auth:** `Authorization: Bearer <CRON_SECRET>` or query `?secret=<CRON_SECRET>` if `CRON_SECRET` is set.
+
+If `CRON_SECRET` is unset (local dev), the route returns 503.
+
+**Behavior:** For each due `nags` row (`status = active`, `channel = email`, `next_at <= now()`), sends the nag email via Resend, updates `last_sent_at`, advances `next_at` or completes the series (`occurrences_remaining`) or archives one-shot / past-`until_date` nags.
