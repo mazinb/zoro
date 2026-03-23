@@ -228,6 +228,13 @@ export function createNagMcpServer() {
     {
       email: z.string().email().describe('Email to check'),
     },
+    {
+      title: 'Check Nag Email',
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
     async ({ email }) => {
       const { ok, status, data } = await fetchJson('/api/auth/nag-email-check', {
         method: 'POST',
@@ -245,6 +252,13 @@ export function createNagMcpServer() {
       name: z.string().optional().describe('Required when email is not yet registered'),
       timezone: z.string().optional().describe('Optional IANA timezone to set on the user (used going forward)'),
       confirm_send: z.boolean().optional().describe('Must be true to actually send the email (requires user consent)'),
+    },
+    {
+      title: 'Request Nag Magic Link',
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: true,
     },
     async ({ email, name, timezone, confirm_send }) => {
       if (confirm_send !== true) {
@@ -275,6 +289,13 @@ export function createNagMcpServer() {
       timezone: z.string().optional().describe('Optional IANA timezone for signup/profile'),
       confirm_send: z.boolean().optional().describe('Must be true to send the magic link email'),
     },
+    {
+      title: 'Authenticate by Email',
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
     async ({ email, name, timezone, confirm_send }) => {
       if (confirm_send !== true) {
         return jsonResult(
@@ -301,7 +322,14 @@ export function createNagMcpServer() {
     {
       text: z.string().min(1).describe('What the user wants reminded, e.g. mow lawn every Tuesday'),
       token: z.string().optional().describe('Override NAG_MCP_TOKEN for this call'),
-      default_channel: z.enum(['email', 'whatsapp']).optional(),
+      default_channel: z.enum(['email', 'whatsapp']).optional().describe('Fallback delivery channel for parsed draft'),
+    },
+    {
+      title: 'Parse Reminder Text',
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
     },
     async ({ text, token, default_channel }, extra) => {
       const t = resolveToken(token, extra);
@@ -329,8 +357,15 @@ server.tool(
   'nags_list',
   'List nags for the user (active, archived, cancelled, or all).',
   {
-    token: z.string().optional(),
+    token: z.string().optional().describe('Auth token override (users.verification_token)'),
     status: z.enum(['active', 'archived', 'cancelled', 'all']).optional().default('active'),
+  },
+  {
+    title: 'List Nags',
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
   },
   async ({ token, status }, extra) => {
     const t = resolveToken(token, extra);
@@ -347,9 +382,16 @@ server.tool(
   'nags_sent_log',
   'List recent nag reminder emails from user_context.memory_jsonb (outbound entries with nag_id or Reminder: subject).',
   {
-    token: z.string().optional(),
+    token: z.string().optional().describe('Auth token override (users.verification_token)'),
     nag_id: z.string().uuid().optional().describe('Filter to one nag'),
-    limit: z.number().int().min(1).max(200).optional().default(50),
+    limit: z.number().int().min(1).max(200).optional().default(50).describe('Max entries to return (1-200)'),
+  },
+  {
+    title: 'List Sent Log',
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
   },
   async ({ token, nag_id, limit }, extra) => {
     const t = resolveToken(token, extra);
@@ -365,18 +407,25 @@ server.tool(
   'nags_create',
   'Create a new nag.',
   {
-    token: z.string().optional(),
-    message: z.string().min(1),
-    channel: z.enum(['email', 'whatsapp']),
-    frequency: z.enum(['daily', 'weekly', 'monthly', 'once']),
+    token: z.string().optional().describe('Auth token override (users.verification_token)'),
+    message: z.string().min(1).describe('Reminder message body'),
+    channel: z.enum(['email', 'whatsapp']).describe('Delivery channel'),
+    frequency: z.enum(['daily', 'weekly', 'monthly', 'once']).describe('Reminder frequency'),
     time_hhmm: z.string().describe('24h HH:MM in user timezone'),
     day_of_week: z.number().int().min(0).max(6).optional().describe('0=Mon … 6=Sun; weekly only'),
     day_of_month: z.number().int().min(1).max(31).optional().describe('monthly only'),
-    end_type: z.enum(['forever', 'until_date', 'occurrences']),
+    end_type: z.enum(['forever', 'until_date', 'occurrences']).describe('When reminder series should end'),
     until_date: z.string().optional().describe('YYYY-MM-DD if until_date or once'),
-    occurrences_max: z.number().int().positive().optional(),
+    occurrences_max: z.number().int().positive().optional().describe('Max occurrences when end_type=occurrences'),
     nag_until_done: z.boolean().optional().describe('Email only: follow up until user marks done'),
     followup_interval_hours: z.number().int().min(1).max(336).optional().describe('Hours between follow-ups; omit for default from frequency'),
+  },
+  {
+    title: 'Create Nag',
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: false,
+    openWorldHint: false,
   },
   async (args, extra) => {
     const t = resolveToken(args.token, extra);
@@ -395,24 +444,31 @@ server.tool(
   'nags_update',
   'PATCH an existing nag (schedule fields, message, status archive/cancel, etc.).',
   {
-    nag_id: z.string().uuid(),
-    token: z.string().optional(),
-    message: z.string().optional(),
-    channel: z.enum(['email', 'whatsapp']).optional(),
-    frequency: z.enum(['daily', 'weekly', 'monthly', 'once']).optional(),
-    time_hhmm: z.string().optional(),
-    day_of_week: z.number().int().min(0).max(6).optional(),
-    day_of_month: z.number().int().min(1).max(31).optional(),
-    end_type: z.enum(['forever', 'until_date', 'occurrences']).optional(),
-    until_date: z.string().optional(),
-    occurrences_max: z.number().int().positive().optional(),
-    status: z.enum(['active', 'archived', 'cancelled']).optional(),
-    nag_until_done: z.boolean().optional(),
-    followup_interval_hours: z.number().int().min(1).max(336).nullable().optional(),
+    nag_id: z.string().uuid().describe('Nag UUID to patch'),
+    token: z.string().optional().describe('Auth token override (users.verification_token)'),
+    message: z.string().optional().describe('Updated reminder message'),
+    channel: z.enum(['email', 'whatsapp']).optional().describe('Updated delivery channel'),
+    frequency: z.enum(['daily', 'weekly', 'monthly', 'once']).optional().describe('Updated reminder frequency'),
+    time_hhmm: z.string().optional().describe('Updated 24h HH:MM time in user timezone'),
+    day_of_week: z.number().int().min(0).max(6).optional().describe('Weekly only: 0=Mon … 6=Sun'),
+    day_of_month: z.number().int().min(1).max(31).optional().describe('Monthly only: day 1..31'),
+    end_type: z.enum(['forever', 'until_date', 'occurrences']).optional().describe('Updated end condition'),
+    until_date: z.string().optional().describe('Updated until date YYYY-MM-DD'),
+    occurrences_max: z.number().int().positive().optional().describe('Updated max occurrences when applicable'),
+    status: z.enum(['active', 'archived', 'cancelled']).optional().describe('Updated lifecycle status'),
+    nag_until_done: z.boolean().optional().describe('Email only: whether to follow up until task is done'),
+    followup_interval_hours: z.number().int().min(1).max(336).nullable().optional().describe('Hours between follow-ups or null to clear'),
     task_completed: z
       .boolean()
       .optional()
       .describe('Mark current cycle done; reschedules to next main occurrence (do not combine with schedule fields)'),
+  },
+  {
+    title: 'Update Nag',
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
   },
   async (args, extra) => {
     const t = resolveToken(args.token, extra);
@@ -431,8 +487,15 @@ server.tool(
   'nags_delete',
   'Soft-cancel a nag (DELETE — sets status cancelled).',
   {
-    nag_id: z.string().uuid(),
-    token: z.string().optional(),
+    nag_id: z.string().uuid().describe('Nag UUID to cancel'),
+    token: z.string().optional().describe('Auth token override (users.verification_token)'),
+  },
+  {
+    title: 'Cancel Nag',
+    readOnlyHint: false,
+    destructiveHint: true,
+    idempotentHint: true,
+    openWorldHint: false,
   },
   async ({ nag_id, token }, extra) => {
     const t = resolveToken(token, extra);
@@ -447,7 +510,14 @@ server.tool(
   'nag_reset_token',
     'Rotate your token. The new token is returned (no email is sent).',
   {
-    token: z.string().optional(),
+    token: z.string().optional().describe('Current auth token to rotate'),
+  },
+  {
+    title: 'Reset Nag Token',
+    readOnlyHint: false,
+    destructiveHint: true,
+    idempotentHint: false,
+    openWorldHint: false,
   },
   async ({ token }, extra) => {
     const t = resolveToken(token, extra);
@@ -464,7 +534,14 @@ server.tool(
   'user_data_get',
   'Fetch user + shared_data by token.',
   {
-    token: z.string().optional(),
+    token: z.string().optional().describe('Auth token override (users.verification_token)'),
+  },
+  {
+    title: 'Get User Data',
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
   },
   async ({ token }, extra) => {
     const t = resolveToken(token, extra);
@@ -480,7 +557,14 @@ server.tool(
   'Set user IANA timezone for future scheduling (does not change already-scheduled next_at).',
   {
     timezone: z.string().min(1).describe('IANA zone e.g. America/New_York'),
-    token: z.string().optional(),
+    token: z.string().optional().describe('Auth token override (users.verification_token)'),
+  },
+  {
+    title: 'Set Nag Timezone',
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
   },
   async ({ timezone, token }, extra) => {
     const t = resolveToken(token, extra);
