@@ -6,6 +6,7 @@ import { useDarkMode } from '@/hooks/useDarkMode';
 import { useThemeClasses } from '@/hooks/useThemeClasses';
 import { NagEndEditor, NagNav, NagSheet, type NagDraft } from './nag-chrome';
 import { NAG_LANDING_TOOLS, landingSectionTitle, type NagLandingTool } from './nag-dev-tools';
+import { HelpCircle, X } from 'lucide-react';
 
 const NAG_TOKEN_STORAGE = 'nag_dev_token';
 const NAG_FORCE_LOGOUT = 'nag_force_logout';
@@ -46,6 +47,8 @@ const WEEKDAYS = [
   { v: 5, l: 'Sat' },
   { v: 6, l: 'Sun' },
 ];
+
+const NAG_MCP_URL = 'https://www.getzoro.com/api/mcp/nags';
 
 function followupOptionsForFrequency(frequency: string): { value: string; label: string }[] {
   switch (frequency) {
@@ -244,21 +247,13 @@ export function NagPageInner() {
   const [getStartedCheckBusy, setGetStartedCheckBusy] = useState(false);
   const [getStartedSendBusy, setGetStartedSendBusy] = useState(false);
 
-  /** Inline email flow on landing (between How it works and Developers) */
-  const [landEmail, setLandEmail] = useState('');
-  const [landPhase, setLandPhase] = useState<'email' | 'existing' | 'new' | 'sent'>('email');
-  const [landName, setLandName] = useState('');
-  const [landStatus, setLandStatus] = useState<string | null>(null);
-  const [landCheckBusy, setLandCheckBusy] = useState(false);
-  const [landSendBusy, setLandSendBusy] = useState(false);
-
-
   const [profilePhone, setProfilePhone] = useState('+1 555 010 1234');
   const [tokenCopied, setTokenCopied] = useState(false);
   const [tokenResetBusy, setTokenResetBusy] = useState(false);
   const [tokenResetError, setTokenResetError] = useState<string | null>(null);
   const [tokenResetNotice, setTokenResetNotice] = useState<string | null>(null);
   const [mcpGuideOpen, setMcpGuideOpen] = useState(false);
+  const [mcpLandingGuideOpen, setMcpLandingGuideOpen] = useState(false);
   const [mcpJsonCopied, setMcpJsonCopied] = useState(false);
   const [personalityDraft, setPersonalityDraft] = useState('');
   const [soulDraft, setSoulDraft] = useState('');
@@ -273,6 +268,10 @@ export function NagPageInner() {
   const [devToolResult, setDevToolResult] = useState<unknown>(null);
   const [devToolBusy, setDevToolBusy] = useState(false);
   const [firstNagId, setFirstNagId] = useState<string | null>(null);
+
+  const openMcpGuide = useCallback(() => {
+    setMcpGuideOpen(true);
+  }, []);
 
   const fetchNags = useCallback(async () => {
     if (!effectiveToken) return;
@@ -429,7 +428,9 @@ export function NagPageInner() {
           router.replace(`/nag?${next.toString()}`);
         }
       }
-      setTokenResetNotice(json.message ?? 'Token reset. We emailed you a fresh link with the new token.');
+      setTokenResetNotice(
+        json.message ?? 'Token reset. Your access token has been refreshed on this device.'
+      );
     } catch {
       setTokenResetError('Network error while resetting token.');
     } finally {
@@ -470,19 +471,13 @@ export function NagPageInner() {
     };
   }, [effectiveToken]);
 
-  const copyMcpJson = async () => {
-    const payload = {
-      'zoro-nags': {
-        command: 'node',
-        args: ['/ABSOLUTE/PATH/TO/zoro-app/mcp/nag-server.mjs'],
-        env: {
-          NAG_MCP_BASE_URL: appOrigin,
-          NAG_MCP_TOKEN: 'YOUR_TOKEN',
-        },
-      },
-    };
+  const copyMcpJson = async (tokenToUse: string) => {
+    // Copy exactly the snippet shown in the modal so it can be pasted into `mcp.json`
+    // under `mcpServers` without extra wrapping braces.
+    const safeToken = String(tokenToUse).replace(/"/g, '\\"');
+    const payloadSnippet = `"zoro-nags": {\n  "url": "${NAG_MCP_URL}",\n  "headers": {\n    "x-nag-mcp-token": "${safeToken}"\n  }\n}`;
     try {
-      await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+      await navigator.clipboard.writeText(payloadSnippet);
       setMcpJsonCopied(true);
       window.setTimeout(() => setMcpJsonCopied(false), 1400);
     } catch {
@@ -754,70 +749,6 @@ export function NagPageInner() {
     }
   };
 
-  const checkLandingEmail = async () => {
-    const em = landEmail.trim().toLowerCase();
-    if (!em) return;
-    setLandCheckBusy(true);
-    setLandStatus(null);
-    try {
-      const res = await fetch('/api/auth/nag-email-check', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: em }),
-      });
-      const json = (await res.json()) as { error?: string; registered?: boolean };
-      if (!res.ok) {
-        setLandStatus(json.error ?? 'Could not verify email.');
-        return;
-      }
-      setLandPhase(json.registered ? 'existing' : 'new');
-    } catch {
-      setLandStatus('Network error.');
-    } finally {
-      setLandCheckBusy(false);
-    }
-  };
-
-  const sendLandingAccessEmail = async (name?: string) => {
-    const em = landEmail.trim().toLowerCase();
-    if (!em) return;
-    setLandSendBusy(true);
-    setLandStatus(null);
-    try {
-      const res = await fetch('/api/auth/nag-request-link', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: em,
-          ...(name?.trim() ? { name: name.trim() } : {}),
-        }),
-      });
-      const json = (await res.json()) as { error?: string; success?: boolean; created?: boolean };
-      if (!res.ok) {
-        setLandStatus(json.error ?? 'Failed to send.');
-        return;
-      }
-      if (json.success) {
-        setLandPhase('sent');
-        setLandStatus(
-          json.created
-            ? 'We created your account and emailed a private link. Open it on this device to start.'
-            : 'We emailed a private link to open Nags. Check your inbox.'
-        );
-      }
-    } catch {
-      setLandStatus('Request failed.');
-    } finally {
-      setLandSendBusy(false);
-    }
-  };
-
-  const resetLandingEmailFlow = () => {
-    setLandPhase('email');
-    setLandName('');
-    setLandStatus(null);
-  };
-
   const runLandingMockTool = async () => {
     const tool = selectedDevTool;
     let parsed: unknown = null;
@@ -1051,113 +982,6 @@ export function NagPageInner() {
         </section>
 
         <section
-          className={`border-t px-5 py-16 ${theme.borderClass} ${darkMode ? 'bg-[#09090c]' : 'bg-[#f5f5f7]'}`}
-        >
-          <div className={`mx-auto max-w-[480px] rounded-xl border p-6 ${theme.borderClass} ${theme.cardBgClass}`}>
-            <p className={`mb-2 text-[10px] font-bold uppercase tracking-widest ${theme.textSecondaryClass}`}>Sign in</p>
-            <h2 className={`mb-5 text-xl font-bold ${theme.textClass}`}>Email</h2>
-
-            {landPhase === 'email' && (
-              <>
-                <label className={`mb-1 block text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}>Email</label>
-                <input
-                  type="email"
-                  autoComplete="email"
-                  placeholder="you@example.com"
-                  className={`mb-3 w-full rounded-lg border px-3 py-2.5 text-sm ${theme.inputBgClass}`}
-                  value={landEmail}
-                  onChange={(e) => setLandEmail(e.target.value)}
-                />
-                <button
-                  type="button"
-                  disabled={landCheckBusy || !landEmail.trim()}
-                  onClick={() => void checkLandingEmail()}
-                  className={`w-full rounded-lg py-3 text-sm font-bold disabled:opacity-40 ${theme.buttonClass}`}
-                >
-                  {landCheckBusy ? 'Checking…' : 'Continue'}
-                </button>
-              </>
-            )}
-
-            {landPhase === 'existing' && (
-              <>
-                <p className={`mb-4 text-sm leading-relaxed ${theme.textSecondaryClass}`}>
-                  We found an account for <span className="font-medium text-current">{landEmail.trim()}</span>. We&apos;ll
-                  send one email with your link.
-                </p>
-                <button
-                  type="button"
-                  disabled={landSendBusy}
-                  onClick={() => void sendLandingAccessEmail()}
-                  className={`w-full rounded-lg py-3 text-sm font-bold disabled:opacity-40 ${theme.buttonClass}`}
-                >
-                  {landSendBusy ? 'Sending…' : 'Send link'}
-                </button>
-                <button
-                  type="button"
-                  onClick={resetLandingEmailFlow}
-                  className={`mt-3 w-full rounded-lg border py-2.5 text-sm font-semibold ${theme.borderClass} ${theme.textSecondaryClass}`}
-                >
-                  Different email
-                </button>
-              </>
-            )}
-
-            {landPhase === 'new' && (
-              <>
-                <p className={`mb-4 text-sm leading-relaxed ${theme.textSecondaryClass}`}>
-                  Add your first name to create your account and get your link.
-                </p>
-                <label className={`mb-1 block text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}>Name</label>
-                <input
-                  type="text"
-                  autoComplete="given-name"
-                  placeholder="Alex"
-                  className={`mb-3 w-full rounded-lg border px-3 py-2.5 text-sm ${theme.inputBgClass}`}
-                  value={landName}
-                  onChange={(e) => setLandName(e.target.value)}
-                />
-                <button
-                  type="button"
-                  disabled={landSendBusy || !landName.trim()}
-                  onClick={() => void sendLandingAccessEmail(landName)}
-                  className={`w-full rounded-lg py-3 text-sm font-bold disabled:opacity-40 ${theme.buttonClass}`}
-                >
-                  {landSendBusy ? 'Sending…' : 'Create account & send link'}
-                </button>
-                <button
-                  type="button"
-                  onClick={resetLandingEmailFlow}
-                  className={`mt-3 w-full rounded-lg border py-2.5 text-sm font-semibold ${theme.borderClass} ${theme.textSecondaryClass}`}
-                >
-                  Back
-                </button>
-              </>
-            )}
-
-            {landPhase === 'sent' && (
-              <>
-                <p className={`text-sm leading-relaxed ${theme.textSecondaryClass}`}>{landStatus}</p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    resetLandingEmailFlow();
-                    setLandEmail('');
-                  }}
-                  className={`mt-6 w-full rounded-lg py-3 text-sm font-bold ${theme.buttonClass}`}
-                >
-                  Done
-                </button>
-              </>
-            )}
-
-            {landPhase !== 'sent' && landStatus && (
-              <p className="mt-3 text-sm text-amber-600 dark:text-amber-400">{landStatus}</p>
-            )}
-          </div>
-        </section>
-
-        <section
           id="developer"
           className={`scroll-mt-14 border-t px-5 py-16 sm:py-20 ${theme.borderClass} ${darkMode ? 'bg-[#09090c]' : 'bg-[#f5f5f7]'}`}
         >
@@ -1172,19 +996,17 @@ export function NagPageInner() {
                 >
                   MCP tools & REST API
                 </h2>
-                <button
-                  type="button"
-                  title="Connect via MCP"
-                  aria-label="Connect via MCP"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    setMcpGuideOpen(true);
-                  }}
-                  className={`flex h-[26px] w-[26px] items-center justify-center rounded-md text-xs font-black ${theme.borderClass} ${theme.textSecondaryClass} hover:bg-black/5 dark:hover:bg-white/5`}
-                >
-                  ?
-                </button>
+              <button
+                type="button"
+                  title="MCP connection steps"
+                  aria-label="MCP connection steps"
+                  onClick={() => setMcpLandingGuideOpen(true)}
+                onMouseDown={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
+                  className={`flex h-[32px] w-[32px] items-center justify-center rounded-md border text-xs font-black ${theme.borderClass} ${theme.textSecondaryClass} hover:bg-black/5 dark:hover:bg-white/5 pointer-events-auto`}
+              >
+                  <HelpCircle size={16} />
+              </button>
               </div>
             </header>
             <LandingEndpointsPanel />
@@ -1319,6 +1141,41 @@ export function NagPageInner() {
             {getStartedPhase !== 'sent' && getStartedStatus && (
               <p className="mt-3 text-sm text-amber-600 dark:text-amber-400">{getStartedStatus}</p>
             )}
+          </NagSheet>
+        )}
+
+        {mcpLandingGuideOpen && (
+          <NagSheet theme={theme} onClose={() => setMcpLandingGuideOpen(false)}>
+            <div className="mb-3 flex items-start justify-between gap-2">
+              <p className={`text-[10px] font-bold uppercase tracking-wider ${theme.textSecondaryClass}`}>Add MCP server</p>
+              <button
+                type="button"
+                onClick={() => setMcpLandingGuideOpen(false)}
+                aria-label="Close"
+                className={`mt-[-2px] inline-flex h-[26px] w-[26px] items-center justify-center rounded-md border ${theme.borderClass} ${theme.textSecondaryClass} hover:bg-black/5 dark:hover:bg-white/5`}
+              >
+                <X size={14} />
+              </button>
+            </div>
+            <p className={`mb-3 text-xs leading-relaxed ${theme.textSecondaryClass}`}>
+              The server runs remotely via HTTP/SSE. Set `x-nag-mcp-token` so tools can authenticate.
+            </p>
+            <ol className={`mb-3 list-decimal space-y-2 pl-5 text-sm leading-relaxed ${theme.textSecondaryClass}`}>
+              <li>In Cursor, open MCP server settings (global MCP JSON).</li>
+              <li>Paste this config, then set your `YOUR_TOKEN`:</li>
+            </ol>
+            <pre
+              className={`mb-3 overflow-auto rounded-md border p-2 font-mono text-[11px] leading-relaxed ${theme.borderClass}`}
+            >
+              {`"zoro-nags": {\n  "url": "${NAG_MCP_URL}",\n  "headers": {\n    "x-nag-mcp-token": "YOUR_TOKEN"\n  }\n}`}
+            </pre>
+            <button
+              type="button"
+              onClick={() => void copyMcpJson('YOUR_TOKEN')}
+              className={`mb-1 w-full rounded-lg py-3 text-sm font-bold ${theme.buttonClass}`}
+            >
+              {mcpJsonCopied ? 'Copied' : 'Copy'}
+            </button>
           </NagSheet>
         )}
       </>
@@ -1587,11 +1444,11 @@ export function NagPageInner() {
                 {tokenResetBusy ? 'Resetting…' : 'Reset token'}
               </button>
               <p className={`mb-3 text-xs leading-relaxed ${theme.textSecondaryClass}`}>
-                Reset sends a new link to your email and keeps your reminders. Old token access stops immediately.
+                Reset rotates your access token on this device and keeps your reminders. Old token access stops immediately.
               </p>
               <button
                 type="button"
-                onClick={() => setMcpGuideOpen(true)}
+                onClick={() => openMcpGuide()}
                 className={`mb-4 w-full rounded-lg border py-2.5 text-sm font-semibold ${theme.borderClass} ${theme.textSecondaryClass}`}
               >
                 Connect via MCP
@@ -1946,44 +1803,35 @@ export function NagPageInner() {
 
       {mcpGuideOpen && (
         <NagSheet theme={theme} onClose={() => setMcpGuideOpen(false)}>
-          <p className={`mb-2 text-[10px] font-bold uppercase tracking-wider ${theme.textSecondaryClass}`}>
-            Connect via MCP
+          <div className="mb-3 flex items-start justify-between gap-2">
+            <p className={`text-[10px] font-bold uppercase tracking-wider ${theme.textSecondaryClass}`}>Add MCP server</p>
+            <button
+              type="button"
+              onClick={() => setMcpGuideOpen(false)}
+              aria-label="Close"
+              className={`mt-[-2px] inline-flex h-[26px] w-[26px] items-center justify-center rounded-md border ${theme.borderClass} ${theme.textSecondaryClass} hover:bg-black/5 dark:hover:bg-white/5`}
+            >
+              <X size={14} />
+            </button>
+          </div>
+          <p className={`mb-3 text-xs leading-relaxed ${theme.textSecondaryClass}`}>
+            The server runs remotely via HTTP/SSE. Set `x-nag-mcp-token` so tools can authenticate.
           </p>
           <ol className={`mb-3 list-decimal space-y-2 pl-5 text-sm leading-relaxed ${theme.textSecondaryClass}`}>
-            <li>Run the app and keep it live.</li>
-            <li>
-              From <code className="font-mono text-[11px]">zoro-app</code>, run:
-              <div className={`mt-1 rounded-md border p-2 font-mono text-[11px] ${theme.borderClass}`}>
-                NAG_MCP_BASE_URL={appOrigin} NAG_MCP_TOKEN=YOUR_TOKEN node mcp/nag-server.mjs
-              </div>
-            </li>
-            <li>Add this server in Cursor MCP settings (global MCP JSON):</li>
+            <li>In Cursor, open MCP server settings (global MCP JSON).</li>
+            <li>Paste this config, then set your `YOUR_TOKEN`:</li>
           </ol>
-          <div className={`mb-3 rounded-md border p-2 font-mono text-[11px] leading-relaxed ${theme.borderClass}`}>
-            {`"zoro-nags": {\n  "command": "node",\n  "args": ["/ABSOLUTE/PATH/TO/zoro-app/mcp/nag-server.mjs"],\n  "env": {\n    "NAG_MCP_BASE_URL": "${appOrigin}",\n    "NAG_MCP_TOKEN": "YOUR_TOKEN"\n  }\n}`}
-          </div>
+          <pre
+            className={`mb-3 overflow-auto rounded-md border p-2 font-mono text-[11px] leading-relaxed ${theme.borderClass}`}
+          >
+            {`"zoro-nags": {\n  "url": "${NAG_MCP_URL}",\n  "headers": {\n    "x-nag-mcp-token": "${effectiveToken}"\n  }\n}`}
+          </pre>
           <button
             type="button"
-            onClick={() => void copyMcpJson()}
-            className={`mb-3 w-full rounded-lg border py-2.5 text-sm font-semibold ${theme.borderClass} ${theme.textSecondaryClass}`}
+            onClick={() => void copyMcpJson(effectiveToken)}
+            className={`mb-1 w-full rounded-lg py-3 text-sm font-bold ${theme.buttonClass}`}
           >
-            {mcpJsonCopied ? 'Copied full MCP JSON' : 'Copy full MCP JSON'}
-          </button>
-          <p className={`mb-1 text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}>Useful URLs</p>
-          <ul className={`mb-4 space-y-1 text-xs ${theme.textSecondaryClass}`}>
-            <li>
-              <code className="font-mono">{`${appOrigin}/api/nags?token=YOUR_TOKEN&status=all`}</code>
-            </li>
-            <li>
-              <code className="font-mono">{`${appOrigin}/api/nag-parse`}</code>
-            </li>
-          </ul>
-          <button
-            type="button"
-            onClick={() => setMcpGuideOpen(false)}
-            className={`w-full rounded-lg py-2.5 text-sm font-bold ${theme.buttonClass}`}
-          >
-            Close
+            {mcpJsonCopied ? 'Copied' : 'Copy'}
           </button>
         </NagSheet>
       )}

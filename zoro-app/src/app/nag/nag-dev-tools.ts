@@ -63,7 +63,7 @@ export const NAG_LANDING_TOOLS: NagLandingTool[] = [
     mcpName: 'nag_reset_token',
     rowTitle: 'nag-reset-token',
     section: 'auth',
-    description: 'Rotate token and email a fresh /nag link.',
+    description: 'Rotate token and refresh /nag access on this device.',
     method: 'POST',
     path: '/api/auth/nag-reset-token',
     sampleBody: {

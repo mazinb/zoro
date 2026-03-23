@@ -3,7 +3,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { resolveTokenToUserId } from '@/lib/resolve-token';
 import { nagRequireUserId } from '@/lib/nag-auth';
 import { SUPABASE_SERVICE_ROLE_SETUP, tryGetSupabaseServiceRole } from '@/lib/supabase-server';
-import { buildNagAppUrl, nagMagicLinkOrigin, sendNagMagicLinkEmail } from '@/lib/nag-magic-link-mail';
 
 function generateVerificationToken(): string {
   return randomBytes(16).toString('hex');
@@ -11,7 +10,7 @@ function generateVerificationToken(): string {
 
 /**
  * POST { token }
- * Rotates users.verification_token (+ user_data.user_token), then emails fresh /nag link.
+ * Rotates users.verification_token (+ user_data.user_token).
  */
 export async function POST(request: NextRequest) {
   try {
@@ -33,19 +32,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: SUPABASE_SERVICE_ROLE_SETUP }, { status: 503 });
     }
 
-    const { data: userRow, error: rowErr } = await supabase
-      .from('users')
-      .select('email')
-      .eq('id', userId)
-      .maybeSingle();
-    if (rowErr) {
-      return NextResponse.json({ error: rowErr.message }, { status: 500 });
-    }
-    const email = (userRow as { email?: string } | null)?.email?.trim() ?? '';
-    if (!email) {
-      return NextResponse.json({ error: 'Could not find account email.' }, { status: 404 });
-    }
-
     const nextToken = generateVerificationToken();
     const nowIso = new Date().toISOString();
     const { error: tokenErr } = await supabase
@@ -64,22 +50,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: userDataErr.message }, { status: 500 });
     }
 
-    const resendApiKey = process.env.RESEND_API_KEY;
-    if (!resendApiKey) {
-      return NextResponse.json({ error: 'Email service not configured.' }, { status: 500 });
-    }
-    const fromAddress = process.env.RESEND_FROM || 'Zoro <admin@getzoro.com>';
-    const origin = nagMagicLinkOrigin(request);
-    const actionUrl = buildNagAppUrl(origin, nextToken);
-    const sent = await sendNagMagicLinkEmail(email, actionUrl, resendApiKey, fromAddress);
-    if (!sent.ok) {
-      return NextResponse.json({ error: 'Failed to send reset link email.' }, { status: 502 });
-    }
-
     return NextResponse.json({
       success: true,
       token: nextToken,
-      message: 'Token reset. We emailed you a fresh link with the new token.',
+      message: 'Token reset. Your access token has been refreshed on this device.',
     });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Token reset failed';

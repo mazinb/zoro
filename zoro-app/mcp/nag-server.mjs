@@ -18,14 +18,33 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+const __filename = fileURLToPath(import.meta.url);
 config({ path: join(__dirname, '..', '.env.local') });
 config({ path: join(__dirname, '..', '.env') });
 
-const base = (process.env.NAG_MCP_BASE_URL || 'http://localhost:3000').replace(/\/$/, '');
+const base = (
+  process.env.NAG_MCP_BASE_URL ||
+  process.env.NEXT_PUBLIC_BASE_URL ||
+  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '') ||
+  'http://localhost:3000'
+).replace(/\/$/, '');
 
-function resolveToken(explicit) {
+function resolveToken(explicit, extra) {
   const t = typeof explicit === 'string' ? explicit.trim() : '';
   if (t) return t;
+
+  // Optional per-request fallback token for remote MCP servers.
+  const headers = extra?.requestInfo?.headers ?? {};
+  const headerTokenRaw =
+    (typeof headers['x-nag-mcp-token'] === 'string' ? headers['x-nag-mcp-token'] : undefined) ??
+    (typeof headers['X-NAG-MCP-TOKEN'] === 'string' ? headers['X-NAG-MCP-TOKEN'] : undefined);
+
+  const authHeaderRaw = (typeof headers['authorization'] === 'string' ? headers['authorization'] : undefined) ?? '';
+  const authBearer = authHeaderRaw.startsWith('Bearer ') ? authHeaderRaw.slice('Bearer '.length).trim() : '';
+
+  const headerToken = (headerTokenRaw ?? authBearer).trim();
+  if (headerToken) return headerToken;
+
   return (
     (process.env.NAG_MCP_TOKEN || '').trim() ||
     (process.env.NEXT_PUBLIC_NAG_DEV_TOKEN || '').trim() ||
@@ -61,81 +80,85 @@ function jsonResult(data, isError = false) {
   };
 }
 
-const server = new McpServer({
-  name: 'zoro-nags',
-  version: '1.0.0',
-});
+export function createNagMcpServer() {
+  const server = new McpServer({
+    name: 'zoro-nags',
+    version: '1.0.0',
+  });
 
-server.tool(
-  'nag_email_check',
-  'Check if an email is already registered (no email sent).',
-  {
-    email: z.string().email().describe('Email to check'),
-  },
-  async ({ email }) => {
-    const { ok, status, data } = await fetchJson('/api/auth/nag-email-check', {
-      method: 'POST',
-      body: JSON.stringify({ email: email.trim().toLowerCase() }),
-    });
-    return jsonResult(data, !ok || status >= 400);
-  }
-);
-
-server.tool(
-  'nag_request_link',
-  'Create user (if needed) and send a Nags magic link email. Requires user consent; only send when confirm_send=true. Optionally sets user timezone (used for future nags, not existing scheduled next_at). New users must provide name.',
-  {
-    email: z.string().email(),
-    name: z.string().optional().describe('Required when email is not yet registered'),
-    timezone: z.string().optional().describe('Optional IANA timezone to set on the user (used going forward)'),
-    confirm_send: z.boolean().optional().describe('Must be true to actually send the email (requires user consent)'),
-  },
-  async ({ email, name, timezone, confirm_send }) => {
-    if (confirm_send !== true) {
-      return jsonResult(
-        { error: 'User consent required: set confirm_send=true to create/send the magic link.' },
-        true
-      );
+  server.tool(
+    'nag_email_check',
+    'Check if an email is already registered (no email sent).',
+    {
+      email: z.string().email().describe('Email to check'),
+    },
+    async ({ email }) => {
+      const { ok, status, data } = await fetchJson('/api/auth/nag-email-check', {
+        method: 'POST',
+        body: JSON.stringify({ email: email.trim().toLowerCase() }),
+      });
+      return jsonResult(data, !ok || status >= 400);
     }
-    const body = omitEmpty({
-      email: email.trim().toLowerCase(),
-      name: name?.trim(),
-      timezone: timezone?.trim() || undefined,
-    });
-    const { ok, status, data } = await fetchJson('/api/auth/nag-request-link', {
-      method: 'POST',
-      body: JSON.stringify(body),
-    });
-    return jsonResult(data, !ok || status >= 400);
-  }
-);
+  );
 
-server.tool(
-  'nag_parse',
-  'Parse natural language into a schedule draft (uses OpenAI when configured on the app).',
-  {
-    text: z.string().min(1).describe('What the user wants reminded, e.g. mow lawn every Tuesday'),
-    token: z.string().optional().describe('Override NAG_MCP_TOKEN for this call'),
-    default_channel: z.enum(['email', 'whatsapp']).optional(),
-  },
-  async ({ text, token, default_channel }) => {
-    const t = resolveToken(token);
-    if (!t) {
-      return jsonResult({ error: 'token required (argument or NAG_MCP_TOKEN / NEXT_PUBLIC_NAG_DEV_TOKEN)' }, true);
+  server.tool(
+    'nag_request_link',
+    'Create user (if needed) and send a Nags magic link email. Requires user consent; only send when confirm_send=true. Optionally sets user timezone (used for future nags, not existing scheduled next_at). New users must provide name.',
+    {
+      email: z.string().email(),
+      name: z.string().optional().describe('Required when email is not yet registered'),
+      timezone: z.string().optional().describe('Optional IANA timezone to set on the user (used going forward)'),
+      confirm_send: z.boolean().optional().describe('Must be true to actually send the email (requires user consent)'),
+    },
+    async ({ email, name, timezone, confirm_send }) => {
+      if (confirm_send !== true) {
+        return jsonResult(
+          { error: 'User consent required: set confirm_send=true to create/send the magic link.' },
+          true
+        );
+      }
+      const body = omitEmpty({
+        email: email.trim().toLowerCase(),
+        name: name?.trim(),
+        timezone: timezone?.trim() || undefined,
+      });
+      const { ok, status, data } = await fetchJson('/api/auth/nag-request-link', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      });
+      return jsonResult(data, !ok || status >= 400);
     }
-    const { ok, status, data } = await fetchJson('/api/nag-parse', {
-      method: 'POST',
-      body: JSON.stringify(
-        omitEmpty({
-          token: t,
-          text: text.trim(),
-          default_channel: default_channel || 'email',
-        })
-      ),
-    });
-    return jsonResult(data, !ok || status >= 400);
-  }
-);
+  );
+
+  server.tool(
+    'nag_parse',
+    'Parse natural language into a schedule draft (uses OpenAI when configured on the app).',
+    {
+      text: z.string().min(1).describe('What the user wants reminded, e.g. mow lawn every Tuesday'),
+      token: z.string().optional().describe('Override NAG_MCP_TOKEN for this call'),
+      default_channel: z.enum(['email', 'whatsapp']).optional(),
+    },
+    async ({ text, token, default_channel }, extra) => {
+      const t = resolveToken(token, extra);
+      if (!t) {
+        return jsonResult(
+          { error: 'token required (argument or NAG_MCP_TOKEN / NEXT_PUBLIC_NAG_DEV_TOKEN)' },
+          true
+        );
+      }
+      const { ok, status, data } = await fetchJson('/api/nag-parse', {
+        method: 'POST',
+        body: JSON.stringify(
+          omitEmpty({
+            token: t,
+            text: text.trim(),
+            default_channel: default_channel || 'email',
+          })
+        ),
+      });
+      return jsonResult(data, !ok || status >= 400);
+    }
+  );
 
 server.tool(
   'nags_list',
@@ -144,8 +167,8 @@ server.tool(
     token: z.string().optional(),
     status: z.enum(['active', 'archived', 'cancelled', 'all']).optional().default('active'),
   },
-  async ({ token, status }) => {
-    const t = resolveToken(token);
+  async ({ token, status }, extra) => {
+    const t = resolveToken(token, extra);
     if (!t) {
       return jsonResult({ error: 'token required (argument or NAG_MCP_TOKEN)' }, true);
     }
@@ -163,8 +186,8 @@ server.tool(
     nag_id: z.string().uuid().optional().describe('Filter to one nag'),
     limit: z.number().int().min(1).max(200).optional().default(50),
   },
-  async ({ token, nag_id, limit }) => {
-    const t = resolveToken(token);
+  async ({ token, nag_id, limit }, extra) => {
+    const t = resolveToken(token, extra);
     if (!t) return jsonResult({ error: 'token required' }, true);
     const q = new URLSearchParams({ token: t, limit: String(limit ?? 50) });
     if (nag_id) q.set('nag_id', nag_id);
@@ -190,8 +213,8 @@ server.tool(
     nag_until_done: z.boolean().optional().describe('Email only: follow up until user marks done'),
     followup_interval_hours: z.number().int().min(1).max(336).optional().describe('Hours between follow-ups; omit for default from frequency'),
   },
-  async (args) => {
-    const t = resolveToken(args.token);
+  async (args, extra) => {
+    const t = resolveToken(args.token, extra);
     if (!t) return jsonResult({ error: 'token required' }, true);
     const { token: _x, ...rest } = args;
     const body = omitEmpty({ token: t, ...rest });
@@ -226,8 +249,8 @@ server.tool(
       .optional()
       .describe('Mark current cycle done; reschedules to next main occurrence (do not combine with schedule fields)'),
   },
-  async (args) => {
-    const t = resolveToken(args.token);
+  async (args, extra) => {
+    const t = resolveToken(args.token, extra);
     if (!t) return jsonResult({ error: 'token required' }, true);
     const { nag_id, token: _x, ...patch } = args;
     const body = omitEmpty({ token: t, ...patch });
@@ -246,8 +269,8 @@ server.tool(
     nag_id: z.string().uuid(),
     token: z.string().optional(),
   },
-  async ({ nag_id, token }) => {
-    const t = resolveToken(token);
+  async ({ nag_id, token }, extra) => {
+    const t = resolveToken(token, extra);
     if (!t) return jsonResult({ error: 'token required' }, true);
     const q = new URLSearchParams({ token: t });
     const { ok, status, data } = await fetchJson(`/api/nags/${nag_id}?${q}`, { method: 'DELETE' });
@@ -257,12 +280,12 @@ server.tool(
 
 server.tool(
   'nag_reset_token',
-  'Rotate your token and email a fresh /nag link with the new token.',
+    'Rotate your token. The new token is returned (no email is sent).',
   {
     token: z.string().optional(),
   },
-  async ({ token }) => {
-    const t = resolveToken(token);
+  async ({ token }, extra) => {
+    const t = resolveToken(token, extra);
     if (!t) return jsonResult({ error: 'token required' }, true);
     const { ok, status, data } = await fetchJson('/api/auth/nag-reset-token', {
       method: 'POST',
@@ -278,8 +301,8 @@ server.tool(
   {
     token: z.string().optional(),
   },
-  async ({ token }) => {
-    const t = resolveToken(token);
+  async ({ token }, extra) => {
+    const t = resolveToken(token, extra);
     if (!t) return jsonResult({ error: 'token required' }, true);
     const q = new URLSearchParams({ token: t });
     const { ok, status, data } = await fetchJson(`/api/user-data?${q}`, { method: 'GET' });
@@ -294,8 +317,8 @@ server.tool(
     timezone: z.string().min(1).describe('IANA zone e.g. America/New_York'),
     token: z.string().optional(),
   },
-  async ({ timezone, token }) => {
-    const t = resolveToken(token);
+  async ({ timezone, token }, extra) => {
+    const t = resolveToken(token, extra);
     if (!t) return jsonResult({ error: 'token required' }, true);
     const { ok, status, data } = await fetchJson('/api/nag-profile', {
       method: 'PATCH',
@@ -305,5 +328,12 @@ server.tool(
   }
 );
 
-const transport = new StdioServerTransport();
-await server.connect(transport);
+return server;
+}
+
+// Only attach the stdio transport when this module is executed directly.
+if (process.argv[1] && __filename === process.argv[1]) {
+  const server = createNagMcpServer();
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+}
