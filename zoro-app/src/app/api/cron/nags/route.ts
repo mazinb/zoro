@@ -112,6 +112,16 @@ async function runCron(request: NextRequest) {
         .select('email,timezone,verification_token')
         .eq('id', row.user_id)
         .maybeSingle();
+      const { data: userDataRow } = await supabase
+        .from('user_data')
+        .select('shared_data')
+        .eq('user_id', row.user_id)
+        .maybeSingle();
+      const { data: userContextRow } = await supabase
+        .from('user_context')
+        .select('soul_text,user_text')
+        .eq('user_id', row.user_id)
+        .maybeSingle();
 
       const to = userRow?.email;
       const userTz = normalizeNagTimeZone((userRow as { timezone?: string } | null)?.timezone);
@@ -132,6 +142,27 @@ async function runCron(request: NextRequest) {
       const completeUrl = verificationToken
         ? `${appOrigin}/nag?token=${encodeURIComponent(verificationToken)}&complete_nag=${encodeURIComponent(row.id)}`
         : undefined;
+      const shared =
+        userDataRow?.shared_data && typeof userDataRow.shared_data === 'object'
+          ? (userDataRow.shared_data as Record<string, unknown>)
+          : {};
+      const rawOptions =
+        shared.nag_personality_options && typeof shared.nag_personality_options === 'object'
+          ? (shared.nag_personality_options as Record<string, unknown>)
+          : {};
+      const personalityEnabled = shared.nag_personality_enabled === true;
+      const tone = typeof rawOptions.tone === 'string' ? rawOptions.tone : '';
+      const style = typeof rawOptions.style === 'string' ? rawOptions.style : '';
+      const personality = typeof shared.nag_personality === 'string' ? shared.nag_personality.trim() : '';
+      const soulText =
+        typeof userContextRow?.soul_text === 'string' ? userContextRow.soul_text.trim() : '';
+      const userText =
+        typeof userContextRow?.user_text === 'string' ? userContextRow.user_text.trim() : '';
+      const personalityContext = personalityEnabled
+        ? [personality, soulText, userText, tone || style ? `tone=${tone || 'friendly'}, style=${style || 'balanced'}` : '']
+            .filter(Boolean)
+            .join(' | ')
+        : null;
 
       const emailResult = await sendNagEmail({
         to,
@@ -141,12 +172,14 @@ async function runCron(request: NextRequest) {
           nagUntilDone: row.nag_until_done,
           manageUrl,
           completeUrl,
+          personalityContext,
         }),
         text: nagReminderText({
           message: row.message,
           nagUntilDone: row.nag_until_done,
           manageUrl,
           completeUrl,
+          personalityContext,
         }),
       });
 

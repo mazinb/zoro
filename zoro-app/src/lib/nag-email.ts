@@ -52,8 +52,9 @@ export function nagReminderHtml(params: {
   nagUntilDone?: boolean;
   manageUrl?: string;
   completeUrl?: string;
+  personalityContext?: string | null;
 }): string {
-  const { message, nagUntilDone, manageUrl, completeUrl } = params;
+  const { message, nagUntilDone, manageUrl, completeUrl, personalityContext } = params;
   const footer = nagUntilDone
     ? `<p style="color:#64748b;font-size:14px;margin:0">We will keep sending follow-ups until you mark this task done.</p>`
     : `<p style="color:#64748b;font-size:14px;margin:0">You asked us to nag you until it is done. Open your Nags page to manage reminders.</p>`;
@@ -65,10 +66,15 @@ export function nagReminderHtml(params: {
   const manage = manageUrl
     ? `<p style="margin:0 0 6px;color:#475569;font-size:14px">Manage in Zoro: <a href="${escapeHtml(manageUrl)}">Open Nags</a></p>`
     : '';
+  const personalityBlock =
+    personalityContext && personalityContext.trim()
+      ? `<p style="margin:0 0 10px;color:#334155;font-size:13px"><strong>Context:</strong> ${escapeHtml(personalityContext.trim())}</p>`
+      : '';
 
   return [
     `<p style="font-size:16px;margin:0 0 12px">Reminder from Zoro</p>`,
     `<p style="font-size:18px;font-weight:600;margin:0 0 16px">${escapeHtml(message)}</p>`,
+    personalityBlock,
     cta,
     manage,
     footer,
@@ -80,8 +86,9 @@ export function nagReminderText(params: {
   nagUntilDone?: boolean;
   manageUrl?: string;
   completeUrl?: string;
+  personalityContext?: string | null;
 }): string {
-  const { message, nagUntilDone, manageUrl, completeUrl } = params;
+  const { message, nagUntilDone, manageUrl, completeUrl, personalityContext } = params;
   const footer = nagUntilDone
     ? 'Follow-ups continue until you mark this task complete.'
     : 'Manage nags from your Zoro link.';
@@ -93,7 +100,9 @@ export function nagReminderText(params: {
     .filter(Boolean)
     .join('\n');
 
-  return `Reminder from Zoro\n\n${message}\n\n${footer}${links ? `\n\n${links}` : ''}`;
+  const contextLine =
+    personalityContext && personalityContext.trim() ? `Context: ${personalityContext.trim()}\n\n` : '';
+  return `Reminder from Zoro\n\n${message}\n\n${contextLine}${footer}${links ? `\n\n${links}` : ''}`;
 }
 
 export function nagConfirmationHtml(message: string, nextLabel: string): string {

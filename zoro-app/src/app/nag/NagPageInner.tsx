@@ -38,6 +38,19 @@ type Nag = {
   followup_interval_hours?: number | null;
 };
 
+type NagPersonalityOptions = {
+  tone: 'friendly' | 'direct' | 'firm';
+  style: 'short' | 'balanced' | 'detailed';
+};
+
+type NagPersonalityState = {
+  enabled: boolean;
+  personality: string;
+  soulText: string;
+  userText: string;
+  options: NagPersonalityOptions;
+};
+
 const WEEKDAYS = [
   { v: 0, l: 'Mon' },
   { v: 1, l: 'Tue' },
@@ -255,8 +268,23 @@ export function NagPageInner() {
   const [mcpGuideOpen, setMcpGuideOpen] = useState(false);
   const [mcpLandingGuideOpen, setMcpLandingGuideOpen] = useState(false);
   const [mcpJsonCopied, setMcpJsonCopied] = useState(false);
-  const [personalityDraft, setPersonalityDraft] = useState('');
-  const [soulDraft, setSoulDraft] = useState('');
+  const [personalityDraft, setPersonalityDraft] = useState<NagPersonalityState>({
+    enabled: false,
+    personality: '',
+    soulText: '',
+    userText: '',
+    options: { tone: 'friendly', style: 'balanced' },
+  });
+  const [savedPersonality, setSavedPersonality] = useState<NagPersonalityState>({
+    enabled: false,
+    personality: '',
+    soulText: '',
+    userText: '',
+    options: { tone: 'friendly', style: 'balanced' },
+  });
+  const [personalitySaveBusy, setPersonalitySaveBusy] = useState(false);
+  const [personalitySaveNotice, setPersonalitySaveNotice] = useState<string | null>(null);
+  const [personalitySaveError, setPersonalitySaveError] = useState<string | null>(null);
   const [profDraft, setProfDraft] = useState({
     phone: '',
     defaultVia: 'email' as 'email' | 'whatsapp',
@@ -264,6 +292,11 @@ export function NagPageInner() {
   });
 
   const [selectedDevTool, setSelectedDevTool] = useState<NagLandingTool>(() => NAG_LANDING_TOOLS[0]!);
+  const hasPersonalityChanges = useMemo(
+    () => JSON.stringify(personalityDraft) !== JSON.stringify(savedPersonality),
+    [personalityDraft, savedPersonality]
+  );
+
   const [devToolBodyText, setDevToolBodyText] = useState('');
   const [devToolResult, setDevToolResult] = useState<unknown>(null);
   const [devToolBusy, setDevToolBusy] = useState(false);
@@ -443,25 +476,29 @@ export function NagPageInner() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`/api/user-data?token=${encodeURIComponent(effectiveToken)}`);
+        const res = await fetch(`/api/nag-personality?token=${encodeURIComponent(effectiveToken)}`);
         const json = await res.json();
-        if (cancelled) return;
-        const data = json?.data as { shared_data?: Record<string, unknown> } | null | undefined;
-        const shared = data?.shared_data && typeof data.shared_data === 'object' ? data.shared_data : {};
-        const personality =
-          typeof shared.personality === 'string'
-            ? shared.personality
-            : typeof shared.agent_personality === 'string'
-              ? shared.agent_personality
-              : '';
-        const soul =
-          typeof shared.soul === 'string'
-            ? shared.soul
-            : typeof shared.soul_file === 'string'
-              ? shared.soul_file
-              : '';
-        setPersonalityDraft(personality);
-        setSoulDraft(soul);
+        if (!res.ok || cancelled) return;
+        const next: NagPersonalityState = {
+          enabled: json.enabled === true,
+          personality: typeof json.personality === 'string' ? json.personality : '',
+          soulText: typeof json.soul_text === 'string' ? json.soul_text : '',
+          userText: typeof json.user_text === 'string' ? json.user_text : '',
+          options: {
+            tone:
+              json.options?.tone === 'direct' || json.options?.tone === 'firm'
+                ? json.options.tone
+                : 'friendly',
+            style:
+              json.options?.style === 'short' || json.options?.style === 'detailed'
+                ? json.options.style
+                : 'balanced',
+          },
+        };
+        setPersonalityDraft(next);
+        setSavedPersonality(next);
+        setPersonalitySaveNotice(null);
+        setPersonalitySaveError(null);
       } catch {
         /* keep defaults */
       }
@@ -470,6 +507,39 @@ export function NagPageInner() {
       cancelled = true;
     };
   }, [effectiveToken]);
+
+  const savePersonality = async () => {
+    if (!effectiveToken) return;
+    if (!hasPersonalityChanges) return;
+    setPersonalitySaveBusy(true);
+    setPersonalitySaveError(null);
+    setPersonalitySaveNotice(null);
+    try {
+      const res = await fetch('/api/nag-personality', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: effectiveToken,
+          enabled: personalityDraft.enabled,
+          personality: personalityDraft.personality,
+          soul_text: personalityDraft.soulText,
+          user_text: personalityDraft.userText,
+          options: personalityDraft.options,
+        }),
+      });
+      const json = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        setPersonalitySaveError(json.error ?? 'Could not save personality');
+        return;
+      }
+      setSavedPersonality(personalityDraft);
+      setPersonalitySaveNotice('Personality settings saved.');
+    } catch {
+      setPersonalitySaveError('Network error while saving personality');
+    } finally {
+      setPersonalitySaveBusy(false);
+    }
+  };
 
   const copyMcpJson = async (tokenToUse: string) => {
     // Copy exactly the snippet shown in the modal so it can be pasted into `mcp.json`
@@ -1555,28 +1625,133 @@ export function NagPageInner() {
               <label className={`mb-1 mt-5 block text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}>
                 Personality
               </label>
-              <textarea
-                rows={3}
-                value={personalityDraft}
-                onChange={(e) => setPersonalityDraft(e.target.value)}
-                className={`mb-3 w-full rounded-lg border px-3 py-2.5 text-sm ${theme.inputBgClass}`}
-                placeholder="How Zoro should sound and act"
-              />
-              <label className={`mb-1 block text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}>
-                SOUL
-              </label>
-              <textarea
-                rows={6}
-                value={soulDraft}
-                onChange={(e) => setSoulDraft(e.target.value)}
-                className={`mb-4 w-full rounded-lg border px-3 py-2.5 text-sm ${theme.inputBgClass}`}
-                placeholder="Core behavior, personality, and tone"
-              />
+              <div className="mb-3 flex items-center justify-between">
+                <span className={`text-sm font-semibold ${theme.textClass}`}>
+                  {`personality - ${personalityDraft.enabled ? 'enabled' : 'disabled'}`}
+                </span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={personalityDraft.enabled}
+                  onClick={() =>
+                    setPersonalityDraft((p) => ({
+                      ...p,
+                      enabled: !p.enabled,
+                    }))
+                  }
+                  className={`relative inline-flex h-7 w-12 shrink-0 rounded-full transition-colors ${
+                    personalityDraft.enabled ? 'bg-emerald-500' : darkMode ? 'bg-zinc-700' : 'bg-zinc-300'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-5 w-5 translate-y-1 transform rounded-full bg-white shadow transition ${
+                      personalityDraft.enabled ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+              {personalityDraft.enabled && (
+                <>
+                  <label className={`mb-1 block text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}>
+                    Personality
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={personalityDraft.personality}
+                    onChange={(e) =>
+                      setPersonalityDraft((p) => ({
+                        ...p,
+                        personality: e.target.value,
+                      }))
+                    }
+                    className={`mb-3 w-full rounded-lg border px-3 py-2.5 text-sm ${theme.inputBgClass}`}
+                    placeholder="How Zoro should sound and act"
+                  />
+                  <label className={`mb-1 block text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}>
+                    Soul
+                  </label>
+                  <textarea
+                    rows={5}
+                    value={personalityDraft.soulText}
+                    onChange={(e) =>
+                      setPersonalityDraft((p) => ({
+                        ...p,
+                        soulText: e.target.value,
+                      }))
+                    }
+                    className={`mb-3 w-full rounded-lg border px-3 py-2.5 text-sm ${theme.inputBgClass}`}
+                    placeholder="SOUL context"
+                  />
+                  <label className={`mb-1 block text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}>
+                    User
+                  </label>
+                  <textarea
+                    rows={4}
+                    value={personalityDraft.userText}
+                    onChange={(e) =>
+                      setPersonalityDraft((p) => ({
+                        ...p,
+                        userText: e.target.value,
+                      }))
+                    }
+                    className={`mb-3 w-full rounded-lg border px-3 py-2.5 text-sm ${theme.inputBgClass}`}
+                    placeholder="User context"
+                  />
+                  <label className={`mb-1 block text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}>
+                    Tone
+                  </label>
+                  <select
+                    className={`mb-3 w-full rounded-lg border px-3 py-2.5 text-sm ${theme.inputBgClass}`}
+                    value={personalityDraft.options.tone}
+                    onChange={(e) =>
+                      setPersonalityDraft((p) => ({
+                        ...p,
+                        options: {
+                          ...p.options,
+                          tone: e.target.value as NagPersonalityOptions['tone'],
+                        },
+                      }))
+                    }
+                  >
+                    <option value="friendly">Friendly</option>
+                    <option value="direct">Direct</option>
+                    <option value="firm">Firm</option>
+                  </select>
+                  <label className={`mb-1 block text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}>
+                    Style
+                  </label>
+                  <select
+                    className={`mb-4 w-full rounded-lg border px-3 py-2.5 text-sm ${theme.inputBgClass}`}
+                    value={personalityDraft.options.style}
+                    onChange={(e) =>
+                      setPersonalityDraft((p) => ({
+                        ...p,
+                        options: {
+                          ...p.options,
+                          style: e.target.value as NagPersonalityOptions['style'],
+                        },
+                      }))
+                    }
+                  >
+                    <option value="short">Short</option>
+                    <option value="balanced">Balanced</option>
+                    <option value="detailed">Detailed</option>
+                  </select>
+                </>
+              )}
+              {personalitySaveError && (
+                <p className="mb-3 text-sm text-red-600 dark:text-red-400">{personalitySaveError}</p>
+              )}
+              {personalitySaveNotice && (
+                <p className="mb-3 text-sm text-emerald-700 dark:text-emerald-300">{personalitySaveNotice}</p>
+              )}
               <button
                 type="button"
-                className={`w-full rounded-lg py-3 text-sm font-bold ${theme.buttonClass}`}
+                disabled={personalitySaveBusy || !hasPersonalityChanges}
+                onClick={() => void savePersonality()}
+                className={`w-full rounded-lg py-3 text-sm font-bold disabled:opacity-40 ${theme.buttonClass}`}
               >
-                Save personality (coming soon)
+                {personalitySaveBusy ? 'Saving personality…' : 'Save personality'}
               </button>
             </div>
           )}
