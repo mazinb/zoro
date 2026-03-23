@@ -208,17 +208,6 @@ export function NagPageInner() {
     }
   }, []);
 
-  const signOut = useCallback(() => {
-    persistStoredToken('');
-    setForceLogout(true);
-    try {
-      sessionStorage.setItem(NAG_FORCE_LOGOUT, '1');
-    } catch {
-      /* ignore */
-    }
-    router.push('/nag');
-  }, [persistStoredToken, router]);
-
   const { darkMode, toggleDarkMode } = useDarkMode();
   const theme = useThemeClasses(darkMode);
 
@@ -265,6 +254,14 @@ export function NagPageInner() {
 
 
   const [profilePhone, setProfilePhone] = useState('+1 555 010 1234');
+  const [tokenCopied, setTokenCopied] = useState(false);
+  const [tokenResetBusy, setTokenResetBusy] = useState(false);
+  const [tokenResetError, setTokenResetError] = useState<string | null>(null);
+  const [tokenResetNotice, setTokenResetNotice] = useState<string | null>(null);
+  const [mcpGuideOpen, setMcpGuideOpen] = useState(false);
+  const [mcpJsonCopied, setMcpJsonCopied] = useState(false);
+  const [personalityDraft, setPersonalityDraft] = useState('');
+  const [soulDraft, setSoulDraft] = useState('');
   const [profDraft, setProfDraft] = useState({
     phone: '',
     defaultVia: 'email' as 'email' | 'whatsapp',
@@ -384,11 +381,113 @@ export function NagPageInner() {
   const activeList = useMemo(() => nags.filter((n) => n.status === 'active'), [nags]);
   const archivedList = useMemo(() => nags.filter((n) => n.status === 'archived'), [nags]);
   const shown = tab === 'active' ? activeList : archivedList;
+  const appOrigin =
+    typeof window !== 'undefined' ? window.location.origin.replace(/\/$/, '') : 'https://www.getzoro.com';
 
   const openProfile = () => {
     setProfileSaveError(null);
+    setTokenResetError(null);
+    setTokenResetNotice(null);
+    setTokenCopied(false);
     setProfDraft({ phone: profilePhone, defaultVia: defaultChannel, timezone: profileTimezone });
     setSheet('profile');
+  };
+
+  const copyToken = async () => {
+    if (!effectiveToken) return;
+    try {
+      await navigator.clipboard.writeText(effectiveToken);
+      setTokenCopied(true);
+      window.setTimeout(() => setTokenCopied(false), 1400);
+    } catch {
+      setTokenResetError('Could not copy token. Copy it manually.');
+    }
+  };
+
+  const resetToken = async () => {
+    if (!effectiveToken) return;
+    setTokenResetError(null);
+    setTokenResetNotice(null);
+    setTokenResetBusy(true);
+    try {
+      const res = await fetch('/api/auth/nag-reset-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: effectiveToken }),
+      });
+      const json = (await res.json()) as { error?: string; token?: string; message?: string };
+      if (!res.ok) {
+        setTokenResetError(json.error ?? 'Could not reset token.');
+        return;
+      }
+      const nextToken = typeof json.token === 'string' ? json.token.trim() : '';
+      if (nextToken) {
+        persistStoredToken(nextToken);
+        if (urlToken) {
+          const next = new URLSearchParams(searchParams.toString());
+          next.set('token', nextToken);
+          router.replace(`/nag?${next.toString()}`);
+        }
+      }
+      setTokenResetNotice(json.message ?? 'Token reset. We emailed you a fresh link with the new token.');
+    } catch {
+      setTokenResetError('Network error while resetting token.');
+    } finally {
+      setTokenResetBusy(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!effectiveToken) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/user-data?token=${encodeURIComponent(effectiveToken)}`);
+        const json = await res.json();
+        if (cancelled) return;
+        const data = json?.data as { shared_data?: Record<string, unknown> } | null | undefined;
+        const shared = data?.shared_data && typeof data.shared_data === 'object' ? data.shared_data : {};
+        const personality =
+          typeof shared.personality === 'string'
+            ? shared.personality
+            : typeof shared.agent_personality === 'string'
+              ? shared.agent_personality
+              : '';
+        const soul =
+          typeof shared.soul === 'string'
+            ? shared.soul
+            : typeof shared.soul_file === 'string'
+              ? shared.soul_file
+              : '';
+        setPersonalityDraft(personality);
+        setSoulDraft(soul);
+      } catch {
+        /* keep defaults */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [effectiveToken]);
+
+  const copyMcpJson = async () => {
+    const payload = {
+      'zoro-nags': {
+        command: 'node',
+        args: ['/ABSOLUTE/PATH/TO/zoro-app/mcp/nag-server.mjs'],
+        env: {
+          NAG_MCP_BASE_URL: appOrigin,
+          NAG_MCP_TOKEN: 'YOUR_TOKEN',
+        },
+      },
+    };
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+      setMcpJsonCopied(true);
+      window.setTimeout(() => setMcpJsonCopied(false), 1400);
+    } catch {
+      setTokenResetError('Could not copy MCP JSON.');
+    }
   };
 
   const saveProfile = async () => {
@@ -769,10 +868,7 @@ export function NagPageInner() {
           <p className={`mb-3 text-[10px] font-bold uppercase tracking-widest ${theme.textSecondaryClass}`}>
             HTTP API
           </p>
-          <p className={`mb-3 text-[11px] leading-snug ${theme.textSecondaryClass}`}>
-            Same routes in production. Names in monospace match the Nags MCP server when shown; empty means HTTP-only
-            (cron, shared auth).
-          </p>
+          <p className={`mb-3 text-[11px] leading-snug ${theme.textSecondaryClass}`}>Same /api routes.</p>
           <ul className={`rounded-xl border ${theme.borderClass} ${theme.cardBgClass} p-2`} role="list">
             {NAG_LANDING_TOOLS.map((t) => {
               const showSection = t.section !== prevSection;
@@ -844,11 +940,7 @@ export function NagPageInner() {
             </div>
             {!docsOrigin && (
               <p className={`mt-2 text-[11px] leading-relaxed ${theme.textSecondaryClass}`}>
-                In production, <code className="font-mono text-[10px]">YOUR_ORIGIN</code> is your deployed site (e.g.{' '}
-                <code className="font-mono text-[10px]">https://www.getzoro.com</code>). Set{' '}
-                <code className="font-mono text-[10px]">NEXT_PUBLIC_APP_URL</code> or{' '}
-                <code className="font-mono text-[10px]">NEXT_PUBLIC_BASE_URL</code> at build time to preview full URLs
-                here.
+                Set <code className="font-mono text-[10px]">NEXT_PUBLIC_APP_URL</code> to preview full URLs.
               </p>
             )}
 
@@ -893,6 +985,7 @@ export function NagPageInner() {
           <NagNav
             theme={theme}
             darkMode={darkMode}
+            dashboard
             hasToken={false}
             onProfile={() => {}}
             onToggleTheme={toggleDarkMode}
@@ -1079,10 +1172,8 @@ export function NagPageInner() {
                 MCP tools & REST API
               </h2>
               <p className={`mt-3 text-sm leading-relaxed sm:text-[15px] ${theme.textSecondaryClass}`}>
-                Names match the <span className="font-mono text-[12px] text-current/90">zoro-nags</span> MCP server in
-                this repo. Each tool calls one origin-relative route — deploy the same app to production and swap the host;
-                paths stay <code className="font-mono text-[11px]">/api/…</code>. Sample responses below are static (no
-                network).
+                Tool names match <span className="font-mono text-[12px] text-current/90">zoro-nags</span>. Each calls a
+                local <code className="font-mono text-[11px]">/api/…</code> route (no network).
               </p>
             </header>
             <LandingEndpointsPanel />
@@ -1230,7 +1321,6 @@ export function NagPageInner() {
         darkMode={darkMode}
         dashboard
         hasToken
-        onSignOut={signOut}
         onProfile={openProfile}
         onToggleTheme={toggleDarkMode}
       />
@@ -1377,12 +1467,12 @@ export function NagPageInner() {
                   </div>
                 </div>
                 <div className="flex shrink-0 gap-0.5" onClick={(e) => e.stopPropagation()}>
-                  {tab === 'active' && n.nag_until_done && n.channel === 'email' && (
+                  {n.nag_until_done && n.channel === 'email' && (
                     <button
                       type="button"
                       className={`rounded-md border px-2 py-1 text-[10px] font-bold uppercase ${theme.borderClass} ${theme.textClass}`}
                       onClick={() => void markTaskDone(n.id)}
-                      title="Mark task done for this cycle"
+                      title="Mark task done"
                     >
                       Done
                     </button>
@@ -1423,12 +1513,26 @@ export function NagPageInner() {
       </div>
 
       {sheet && (
-        <NagSheet theme={theme} onClose={() => { setSheet(null); setEditingId(null); }}>
+        <NagSheet
+          theme={theme}
+          fullscreen={sheet === 'profile'}
+          onClose={() => {
+            setSheet(null);
+            setEditingId(null);
+          }}
+        >
           {sheet === 'profile' && (
             <div>
-              <p className={`mb-4 text-[10px] font-bold uppercase tracking-wider ${theme.textSecondaryClass}`}>
-                Profile
-              </p>
+              <div className="mb-4 flex items-center justify-between">
+                <p className={`text-[10px] font-bold uppercase tracking-wider ${theme.textSecondaryClass}`}>Profile</p>
+                <button
+                  type="button"
+                  onClick={() => setSheet(null)}
+                  className={`rounded-md border px-3 py-1.5 text-xs font-semibold ${theme.borderClass} ${theme.textSecondaryClass}`}
+                >
+                  Back to dashboard
+                </button>
+              </div>
               <label className={`mb-1 block text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}>
                 Account email (nags send here)
               </label>
@@ -1439,8 +1543,54 @@ export function NagPageInner() {
                 value={profileEmail ?? '—'}
               />
               <p className={`mb-3 text-xs ${theme.textSecondaryClass}`}>
-                From your Zoro account. To change it, update your registration email or contact support.
+                Read-only for now.
               </p>
+              <label className={`mb-1 block text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}>
+                Access token
+              </label>
+              <div className="mb-2 flex items-center gap-2">
+                <input
+                  readOnly
+                  aria-readonly="true"
+                  className={`w-full rounded-lg border px-3 py-2.5 font-mono text-[11px] ${theme.inputBgClass}`}
+                  value={effectiveToken || '—'}
+                />
+                <button
+                  type="button"
+                  onClick={() => void copyToken()}
+                  disabled={!effectiveToken}
+                  className={`shrink-0 rounded-lg border px-3 py-2 text-xs font-semibold disabled:opacity-40 ${theme.borderClass} ${theme.textSecondaryClass}`}
+                >
+                  {tokenCopied ? 'Copied' : 'Copy'}
+                </button>
+              </div>
+              <p className={`mb-2 text-xs leading-relaxed ${theme.textSecondaryClass}`}>
+                This token gives access to your nags. Keep it private.
+              </p>
+              <button
+                type="button"
+                onClick={() => void resetToken()}
+                disabled={tokenResetBusy}
+                className={`mb-2 w-full rounded-lg border py-2.5 text-sm font-semibold disabled:opacity-40 ${theme.borderClass} ${theme.textSecondaryClass}`}
+              >
+                {tokenResetBusy ? 'Resetting…' : 'Reset token'}
+              </button>
+              <p className={`mb-3 text-xs leading-relaxed ${theme.textSecondaryClass}`}>
+                Reset sends a new link to your email and keeps your reminders. Old token access stops immediately.
+              </p>
+              <button
+                type="button"
+                onClick={() => setMcpGuideOpen(true)}
+                className={`mb-4 w-full rounded-lg border py-2.5 text-sm font-semibold ${theme.borderClass} ${theme.textSecondaryClass}`}
+              >
+                Connect via MCP
+              </button>
+              {tokenResetError && (
+                <p className="mb-3 text-sm text-red-600 dark:text-red-400">{tokenResetError}</p>
+              )}
+              {tokenResetNotice && (
+                <p className="mb-3 text-sm text-emerald-700 dark:text-emerald-300">{tokenResetNotice}</p>
+              )}
               <label className={`mb-1 block text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}>
                 Timezone
               </label>
@@ -1496,6 +1646,32 @@ export function NagPageInner() {
                 className={`w-full rounded-lg py-3 text-sm font-bold disabled:opacity-40 ${theme.buttonClass}`}
               >
                 {profileSaving ? 'Saving…' : 'Save'}
+              </button>
+              <label className={`mb-1 mt-5 block text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}>
+                Personality
+              </label>
+              <textarea
+                rows={3}
+                value={personalityDraft}
+                onChange={(e) => setPersonalityDraft(e.target.value)}
+                className={`mb-3 w-full rounded-lg border px-3 py-2.5 text-sm ${theme.inputBgClass}`}
+                placeholder="How Zoro should sound and act"
+              />
+              <label className={`mb-1 block text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}>
+                SOUL
+              </label>
+              <textarea
+                rows={6}
+                value={soulDraft}
+                onChange={(e) => setSoulDraft(e.target.value)}
+                className={`mb-4 w-full rounded-lg border px-3 py-2.5 text-sm ${theme.inputBgClass}`}
+                placeholder="Core behavior, personality, and tone"
+              />
+              <button
+                type="button"
+                className={`w-full rounded-lg py-3 text-sm font-bold ${theme.buttonClass}`}
+              >
+                Save personality (coming soon)
               </button>
             </div>
           )}
@@ -1754,6 +1930,50 @@ export function NagPageInner() {
               )}
             </div>
           )}
+        </NagSheet>
+      )}
+
+      {mcpGuideOpen && (
+        <NagSheet theme={theme} onClose={() => setMcpGuideOpen(false)}>
+          <p className={`mb-2 text-[10px] font-bold uppercase tracking-wider ${theme.textSecondaryClass}`}>
+            Connect via MCP
+          </p>
+          <ol className={`mb-3 list-decimal space-y-2 pl-5 text-sm leading-relaxed ${theme.textSecondaryClass}`}>
+            <li>Run the app and keep it live.</li>
+            <li>
+              From <code className="font-mono text-[11px]">zoro-app</code>, run:
+              <div className={`mt-1 rounded-md border p-2 font-mono text-[11px] ${theme.borderClass}`}>
+                NAG_MCP_BASE_URL={appOrigin} NAG_MCP_TOKEN=YOUR_TOKEN node mcp/nag-server.mjs
+              </div>
+            </li>
+            <li>Add this server in Cursor MCP settings (global MCP JSON):</li>
+          </ol>
+          <div className={`mb-3 rounded-md border p-2 font-mono text-[11px] leading-relaxed ${theme.borderClass}`}>
+            {`"zoro-nags": {\n  "command": "node",\n  "args": ["/ABSOLUTE/PATH/TO/zoro-app/mcp/nag-server.mjs"],\n  "env": {\n    "NAG_MCP_BASE_URL": "${appOrigin}",\n    "NAG_MCP_TOKEN": "YOUR_TOKEN"\n  }\n}`}
+          </div>
+          <button
+            type="button"
+            onClick={() => void copyMcpJson()}
+            className={`mb-3 w-full rounded-lg border py-2.5 text-sm font-semibold ${theme.borderClass} ${theme.textSecondaryClass}`}
+          >
+            {mcpJsonCopied ? 'Copied full MCP JSON' : 'Copy full MCP JSON'}
+          </button>
+          <p className={`mb-1 text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}>Useful URLs</p>
+          <ul className={`mb-4 space-y-1 text-xs ${theme.textSecondaryClass}`}>
+            <li>
+              <code className="font-mono">{`${appOrigin}/api/nags?token=YOUR_TOKEN&status=all`}</code>
+            </li>
+            <li>
+              <code className="font-mono">{`${appOrigin}/api/nag-parse`}</code>
+            </li>
+          </ul>
+          <button
+            type="button"
+            onClick={() => setMcpGuideOpen(false)}
+            className={`w-full rounded-lg py-2.5 text-sm font-bold ${theme.buttonClass}`}
+          >
+            Close
+          </button>
         </NagSheet>
       )}
     </div>

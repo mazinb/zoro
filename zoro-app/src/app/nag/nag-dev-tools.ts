@@ -41,7 +41,7 @@ export const NAG_LANDING_TOOLS: NagLandingTool[] = [
     mcpName: 'nag_email_check',
     rowTitle: 'nag_email_check',
     section: 'auth',
-    description: 'See if an email already has a Zoro account (no email sent).',
+    description: 'Check if an email has an account.',
     method: 'POST',
     path: '/api/auth/nag-email-check',
     sampleBody: { email: 'you@example.com' },
@@ -52,20 +52,31 @@ export const NAG_LANDING_TOOLS: NagLandingTool[] = [
     mcpName: 'nag_request_link',
     rowTitle: 'nag_request_link',
     section: 'auth',
-    description:
-      'Email a magic link to open Nags; creates user + user_data when email is new (name required).',
+    description: 'Email a magic link to open Nags.',
     method: 'POST',
     path: '/api/auth/nag-request-link',
     sampleBody: { email: 'you@example.com', name: 'Alex' },
     mockResponse: () => ({ success: true, created: false }),
   },
   {
+    id: 'auth_nag_reset_token',
+    mcpName: '',
+    rowTitle: 'nag-reset-token',
+    section: 'auth',
+    description: 'Rotate token and email a fresh /nag link.',
+    method: 'POST',
+    path: '/api/auth/nag-reset-token',
+    sampleBody: {
+      token: 'YOUR_TOKEN',
+    },
+    mockResponse: () => ({ success: true, token: 'NEW_TOKEN' }),
+  },
+  {
     id: 'auth_send_magic_link',
     mcpName: '',
-    rowTitle: 'POST /api/auth/send-magic-link',
+    rowTitle: 'send-magic-link',
     section: 'auth',
-    description:
-      'Shared magic link (used by /nag “Get started” when wired). Body: email, redirectPath (e.g. /nag), optional context "nag", inviteIfUnregistered. Not on the Nags MCP server.',
+    description: 'Shared magic link (not on Nags MCP server).',
     method: 'POST',
     path: '/api/auth/send-magic-link',
     sampleBody: {
@@ -81,8 +92,7 @@ export const NAG_LANDING_TOOLS: NagLandingTool[] = [
     mcpName: 'nag_parse',
     rowTitle: 'nag_parse',
     section: 'parse',
-    description:
-      'Turn natural language into a schedule draft (OpenAI on the server when configured). Path is /api/nag-parse (not /api/nags/parse).',
+    description: 'Turn text into a nag draft.',
     method: 'POST',
     path: '/api/nag-parse',
     sampleBody: {
@@ -110,8 +120,7 @@ export const NAG_LANDING_TOOLS: NagLandingTool[] = [
     mcpName: 'nags_list',
     rowTitle: 'nags_list',
     section: 'nags',
-    description:
-      'List nags. Query: token (required), status = active | archived | cancelled | all (default active; all = active + archived, excludes cancelled).',
+    description: 'List nags.',
     method: 'GET',
     path: '/api/nags?token=YOUR_TOKEN&status=all',
     mockResponse: () => ({
@@ -143,8 +152,7 @@ export const NAG_LANDING_TOOLS: NagLandingTool[] = [
     mcpName: 'nags_create',
     rowTitle: 'nags_create',
     section: 'nags',
-    description:
-      'Create a nag. Optional nag_until_done (email): follow-up emails until the user marks done; followup_interval_hours 1–336 or omit for default from frequency.',
+    description: 'Create a nag.',
     method: 'POST',
     path: '/api/nags',
     sampleBody: {
@@ -185,8 +193,7 @@ export const NAG_LANDING_TOOLS: NagLandingTool[] = [
     mcpName: 'nags_update',
     rowTitle: 'nags_update',
     section: 'nags',
-    description:
-      'PATCH: any schedule fields (recomputes next_at when active); status; nag_until_done + followup_interval_hours alone; or task_completed: true alone (marks cycle done, next main occurrence — do not mix with schedule fields).',
+    description: 'Update a nag.',
     method: 'PATCH',
     path: `/api/nags/${MOCK_NAG_ID}`,
     sampleBody: {
@@ -222,8 +229,7 @@ export const NAG_LANDING_TOOLS: NagLandingTool[] = [
     mcpName: 'nags_update',
     rowTitle: 'nags_update · task_completed',
     section: 'nags',
-    description:
-      'Same route as PATCH /api/nags/:id — body only { token, task_completed: true } after a reminder cycle (email “until done” nags).',
+    description: 'Mark an until-done cycle done.',
     method: 'PATCH',
     path: `/api/nags/${MOCK_NAG_ID}`,
     sampleBody: {
@@ -242,7 +248,7 @@ export const NAG_LANDING_TOOLS: NagLandingTool[] = [
     mcpName: 'nags_delete',
     rowTitle: 'nags_delete',
     section: 'nags',
-    description: 'Soft-cancel: sets status to cancelled (token as query param).',
+    description: 'Cancel a nag.',
     method: 'DELETE',
     path: `/api/nags/${MOCK_NAG_ID}?token=YOUR_TOKEN`,
     mockResponse: () => ({
@@ -256,8 +262,7 @@ export const NAG_LANDING_TOOLS: NagLandingTool[] = [
     mcpName: 'nags_sent_log',
     rowTitle: 'nags_sent_log',
     section: 'logs',
-    description:
-      'Reminder send history from user_context.memory_jsonb (outbound rows with nag_id, plus legacy subject Reminder:). Query: token, optional nag_id, limit (1–200, default 50).',
+    description: 'Fetch reminder send history.',
     method: 'GET',
     path: '/api/nags/sent-log?token=YOUR_TOKEN&limit=50',
     mockResponse: () => ({
@@ -295,12 +300,30 @@ export const NAG_LANDING_TOOLS: NagLandingTool[] = [
     }),
   },
   {
+    id: 'user_data_get',
+    mcpName: '',
+    rowTitle: 'user-data',
+    section: 'profile',
+    description: 'Fetch user + shared_data.',
+    method: 'GET',
+    path: '/api/user-data?token=YOUR_TOKEN',
+    mockResponse: () => ({
+      data: {
+        email: 'you@example.com',
+        verification_token: 'YOUR_TOKEN',
+        shared_data: {
+          personality: '…',
+          soul_file: '…',
+        },
+      },
+    }),
+  },
+  {
     id: 'cron_nags',
     mcpName: '',
-    rowTitle: 'POST /api/cron/nags',
+    rowTitle: 'cron/nags',
     section: 'cron',
-    description:
-      'GET or POST. Auth: Authorization: Bearer NAG_DISPATCH_KEY only. Logs each run to nag_dispatch_runs. Schedule from Supabase Cron (see docs/nag/supabase-cron.md).',
+    description: 'Dispatch nags cron handler.',
     method: 'POST',
     path: '/api/cron/nags',
     sampleBody: null,

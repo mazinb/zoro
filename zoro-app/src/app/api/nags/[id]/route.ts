@@ -120,7 +120,8 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ id: s
           { status: 400 }
         );
       }
-      if (row.status !== 'active') {
+      const untilDoneCycle = row.nag_until_done === true && row.channel === 'email';
+      if (row.status !== 'active' && !untilDoneCycle) {
         return NextResponse.json({ error: 'Nag is not active' }, { status: 400 });
       }
       const userTz = await getUserNagTimezone(supabase, userId);
@@ -137,6 +138,9 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ id: s
         next_at: nextAt ? nextAt.toISOString() : null,
         updated_at: new Date().toISOString(),
       };
+      if (row.status !== 'active' && untilDoneCycle) {
+        payload.status = 'active';
+      }
       const { data: updated, error } = await supabase
         .from('nags')
         .update(payload)

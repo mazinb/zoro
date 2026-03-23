@@ -22,8 +22,6 @@ type NagNavProps = {
   hasToken: boolean;
   /** Landing only: full href for "Dashboard" when a token is available (URL, saved, or env). */
   dashboardHref?: string;
-  /** Clear saved token / session before navigating to /nag */
-  onSignOut?: () => void;
   onProfile: () => void;
   onToggleTheme: () => void;
 };
@@ -35,7 +33,6 @@ export function NagNav({
   dashboard,
   hasToken,
   dashboardHref,
-  onSignOut,
   onProfile,
   onToggleTheme,
 }: NagNavProps) {
@@ -56,13 +53,6 @@ export function NagNav({
             >
               Profile
             </button>
-            <Link
-              href="/nag"
-              onClick={() => onSignOut?.()}
-              className={`rounded-md border px-3 py-1.5 text-xs font-semibold ${theme.borderClass} ${theme.textSecondaryClass}`}
-            >
-              Sign out
-            </Link>
           </>
         )}
         {!dashboard && (
@@ -90,21 +80,26 @@ type NagSheetProps = {
   theme: NagThemeClasses;
   onClose: () => void;
   children: React.ReactNode;
+  fullscreen?: boolean;
 };
 
-export function NagSheet({ theme, onClose, children }: NagSheetProps) {
+export function NagSheet({ theme, onClose, children, fullscreen = false }: NagSheetProps) {
   return (
     <div
-      className="fixed inset-0 z-[200] flex items-end justify-center bg-black/50"
+      className={`fixed inset-0 z-[200] bg-black/50 ${fullscreen ? 'flex items-stretch justify-center' : 'flex items-end justify-center'}`}
       onClick={onClose}
       role="presentation"
     >
       <div
-        className={`w-full max-w-[480px] rounded-t-[14px] border p-5 pb-10 ${theme.cardBorderClass} ${theme.cardBgClass}`}
+        className={
+          fullscreen
+            ? `h-full w-full overflow-y-auto border-0 p-6 sm:p-8 ${theme.cardBgClass}`
+            : `w-full max-w-[480px] rounded-t-[14px] border p-5 pb-10 ${theme.cardBorderClass} ${theme.cardBgClass}`
+        }
         onClick={(e) => e.stopPropagation()}
         role="dialog"
       >
-        <div className={`mx-auto mb-5 h-1 w-8 rounded-full ${theme.borderClass} bg-current opacity-30`} />
+        {!fullscreen && <div className={`mx-auto mb-5 h-1 w-8 rounded-full ${theme.borderClass} bg-current opacity-30`} />}
         {children}
       </div>
     </div>

@@ -135,9 +135,7 @@ export function computeNextAfterSend(
         ? row.followup_interval_hours
         : defaultFollowupHoursForFrequency(row.frequency);
     const nextFollow = new Date(sentAt.getTime() + hrs * 60 * 60 * 1000);
-    if (isPastEnd(nextFollow, row.end_type, row.until_date, zone)) {
-      return { next_at: null, status: 'archived', occurrences_remaining: occRem };
-    }
+    // For "nag until done", keep follow-up cycle alive even if the scheduled end date passed.
     return { next_at: nextFollow, occurrences_remaining: occRem };
   }
 
