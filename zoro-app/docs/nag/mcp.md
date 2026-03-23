@@ -75,6 +75,16 @@ Static fallback metadata:
 
 - `/.well-known/mcp/server-card.json`
 
+## Remote HTTP: stateless sessions (Vercel / multi-instance)
+
+`/api/mcp/nags` runs the MCP Streamable HTTP transport in **stateless** mode (no `sessionIdGenerator`).
+
+Earlier versions kept MCP sessions in an in-memory `Map`. On serverless hosts, the next request often hits a **different instance** (or the entry **expires after 15 minutes**). The client still sent `mcp-session-id`, but the server had no matching session, created a **new** transport, and forwarded `tools/list` **without** `initialize` on that transport → **`Bad Request: Server not initialized`**. Disabling/re-enabling MCP forced a fresh `initialize`, which is why it “fixed” itself.
+
+Stateless mode matches how the TypeScript SDK expects serverless to work: **one new transport per HTTP request** (do not reuse). Supabase and other hosted MCPs typically avoid per-process session state the same way.
+
+The route must **not** call `server.close()` right after `handleRequest` returns when the response is **SSE**: the handler resolves before the stream finishes, and closing early can produce flaky errors on the next client POST.
+
 ## Token resolution order
 
 For tool calls requiring auth, token is resolved from:
