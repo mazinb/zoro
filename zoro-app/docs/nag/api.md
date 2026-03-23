@@ -153,8 +153,10 @@ Soft-cancel: sets `status` to `cancelled`.
 
 ## `GET | POST /api/cron/nags`
 
-**Auth:** `Authorization: Bearer <CRON_SECRET>` or query `?secret=<CRON_SECRET>` if `CRON_SECRET` is set.
+**Auth:** `Authorization: Bearer <NAG_DISPATCH_KEY>` only (no query-string secret).
 
-If `CRON_SECRET` is unset (local dev), the route returns 503.
+If `NAG_DISPATCH_KEY` is unset, the route returns **503**.
 
 **Behavior:** For each due `nags` row (`status = active`, `channel = email`, `next_at <= now()`), sends the nag email via Resend, updates `last_sent_at`, advances `next_at` or completes the series (`occurrences_remaining`) or archives one-shot / past-`until_date` nags.
+
+**Monitoring:** Each invocation inserts a row into **`nag_dispatch_runs`** (`ok`, `checked`, `sent`, `failed`, `error`, timestamps). Schedule the job from **Supabase Cron** — see [supabase-cron.md](./supabase-cron.md).

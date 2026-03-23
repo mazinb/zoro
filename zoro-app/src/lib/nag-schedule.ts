@@ -1,6 +1,6 @@
 import { DateTime } from 'luxon';
 import type { NagEndType, NagFrequency, NagRow } from './nag-types';
-import { parseHHMM } from './nag-types';
+import { defaultFollowupHoursForFrequency, parseHHMM } from './nag-types';
 import { DEFAULT_NAG_TIMEZONE, normalizeNagTimeZone } from './nag-timezone';
 
 /** ISO weekday 0 = Monday … 6 = Sunday → Luxon weekday (Monday = 1 … Sunday = 7). */
@@ -126,6 +126,19 @@ export function computeNextAfterSend(
     if (occRem <= 0) {
       return { next_at: null, status: 'archived', occurrences_remaining: 0 };
     }
+  }
+
+  const untilDone = row.nag_until_done === true && row.channel === 'email';
+  if (untilDone) {
+    const hrs =
+      row.followup_interval_hours != null
+        ? row.followup_interval_hours
+        : defaultFollowupHoursForFrequency(row.frequency);
+    const nextFollow = new Date(sentAt.getTime() + hrs * 60 * 60 * 1000);
+    if (isPastEnd(nextFollow, row.end_type, row.until_date, zone)) {
+      return { next_at: null, status: 'archived', occurrences_remaining: occRem };
+    }
+    return { next_at: nextFollow, occurrences_remaining: occRem };
   }
 
   if (row.frequency === 'once') {

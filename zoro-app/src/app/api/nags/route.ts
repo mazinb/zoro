@@ -6,10 +6,10 @@ import { computeInitialNextAt } from '@/lib/nag-schedule';
 import { nagConfirmationHtml, sendNagEmail } from '@/lib/nag-email';
 import { formatNagNextLabel } from '@/lib/nag-timezone';
 import { getUserNagTimezone } from '@/lib/nag-user';
-import { isNagStatus, validateScheduleBody, type NagRow } from '@/lib/nag-types';
+import { isNagStatus, parseNagBehaviorFields, validateScheduleBody, type NagRow } from '@/lib/nag-types';
 
 const SELECT_FIELDS =
-  'id,user_id,message,channel,frequency,time_hhmm,day_of_week,day_of_month,end_type,until_date,occurrences_max,occurrences_remaining,status,next_at,last_sent_at,created_at,updated_at';
+  'id,user_id,message,channel,frequency,time_hhmm,day_of_week,day_of_month,end_type,until_date,occurrences_max,occurrences_remaining,status,next_at,last_sent_at,nag_until_done,followup_interval_hours,created_at,updated_at';
 
 export async function GET(request: NextRequest) {
   try {
@@ -88,6 +88,11 @@ export async function POST(request: NextRequest) {
     }
     const data = v.data;
 
+    const nb = parseNagBehaviorFields(body as Record<string, unknown>);
+    if (!nb.ok) {
+      return NextResponse.json({ error: nb.error }, { status: 400 });
+    }
+
     const userTz = await getUserNagTimezone(supabase, userId);
 
     const nextAt = computeInitialNextAt({
@@ -118,6 +123,8 @@ export async function POST(request: NextRequest) {
       until_date: data.until_date,
       occurrences_max: data.end_type === 'occurrences' ? data.occurrences_max : null,
       occurrences_remaining: data.end_type === 'occurrences' ? data.occurrences_max : null,
+      nag_until_done: nb.nag_until_done,
+      followup_interval_hours: nb.followup_interval_hours,
       status: 'active' as const,
       next_at: nextAt.toISOString(),
     };

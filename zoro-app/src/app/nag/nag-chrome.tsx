@@ -121,6 +121,9 @@ export type NagDraft = {
   end_type: string;
   until_date: string;
   occurrences_max: string;
+  nag_until_done: boolean;
+  /** Empty string = use frequency-based default on the server. */
+  followup_interval_hours: string;
 };
 
 type NagEndEditorProps = {

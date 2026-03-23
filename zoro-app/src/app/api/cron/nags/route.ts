@@ -2,23 +2,49 @@ import { NextRequest, NextResponse } from 'next/server';
 import { SUPABASE_SERVICE_ROLE_SETUP, tryGetSupabaseServiceRole } from '@/lib/supabase-server';
 import { computeNextAfterSend } from '@/lib/nag-schedule';
 import { normalizeNagTimeZone } from '@/lib/nag-timezone';
-import { nagReminderHtml, sendNagEmail } from '@/lib/nag-email';
+import { appendNagOutboundMemory } from '@/lib/nag-memory-log';
+import { nagReminderHtml, nagReminderText, sendNagEmail } from '@/lib/nag-email';
 import type { NagRow } from '@/lib/nag-types';
 
 const SELECT_FIELDS =
-  'id,user_id,message,channel,frequency,time_hhmm,day_of_week,day_of_month,end_type,until_date,occurrences_max,occurrences_remaining,status,next_at,last_sent_at,created_at,updated_at';
+  'id,user_id,message,channel,frequency,time_hhmm,day_of_week,day_of_month,end_type,until_date,occurrences_max,occurrences_remaining,status,next_at,last_sent_at,nag_until_done,followup_interval_hours,created_at,updated_at';
 
-function authorizeCron(request: NextRequest): boolean {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) return false;
+function authorizeDispatch(request: NextRequest): boolean {
+  const key = process.env.NAG_DISPATCH_KEY;
+  if (!key) return false;
 
   const auth = request.headers.get('authorization');
-  if (auth === `Bearer ${secret}`) return true;
+  return auth === `Bearer ${key}`;
+}
 
-  const q = request.nextUrl.searchParams.get('secret');
-  if (q === secret) return true;
-
-  return false;
+async function logDispatchRun(
+  supabase: NonNullable<ReturnType<typeof tryGetSupabaseServiceRole>>,
+  startedAt: string,
+  data: {
+    ok: boolean;
+    checked?: number;
+    sent?: number;
+    failed?: number;
+    error?: string | null;
+  }
+): Promise<void> {
+  try {
+    const { error } = await supabase.from('nag_dispatch_runs').insert({
+      started_at: startedAt,
+      finished_at: new Date().toISOString(),
+      ok: data.ok,
+      checked: data.checked ?? null,
+      sent: data.sent ?? null,
+      failed: data.failed ?? null,
+      error: data.error ?? null,
+      source: 'next_api',
+    });
+    if (error) {
+      console.error('[cron/nags] nag_dispatch_runs insert:', error.message);
+    }
+  } catch (e) {
+    console.error('[cron/nags] nag_dispatch_runs log failed', e);
+  }
 }
 
 export async function GET(request: NextRequest) {
@@ -30,10 +56,15 @@ export async function POST(request: NextRequest) {
 }
 
 async function runCron(request: NextRequest) {
+  const startedAt = new Date().toISOString();
+
   try {
-    if (!authorizeCron(request)) {
-      if (!process.env.CRON_SECRET) {
-        return NextResponse.json({ error: 'CRON_SECRET not configured' }, { status: 503 });
+    if (!authorizeDispatch(request)) {
+      if (!process.env.NAG_DISPATCH_KEY) {
+        return NextResponse.json(
+          { error: 'NAG_DISPATCH_KEY not configured' },
+          { status: 503 }
+        );
       }
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
@@ -53,6 +84,13 @@ async function runCron(request: NextRequest) {
       .order('next_at', { ascending: true });
 
     if (error) {
+      await logDispatchRun(supabase, startedAt, {
+        ok: false,
+        checked: 0,
+        sent: 0,
+        failed: 0,
+        error: error.message,
+      });
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
@@ -74,10 +112,12 @@ async function runCron(request: NextRequest) {
         continue;
       }
 
+      const subject = `Reminder: ${row.message.slice(0, 80)}${row.message.length > 80 ? '…' : ''}`;
       const emailResult = await sendNagEmail({
         to,
-        subject: `Reminder: ${row.message.slice(0, 80)}${row.message.length > 80 ? '…' : ''}`,
-        html: nagReminderHtml(row.message),
+        subject,
+        html: nagReminderHtml(row.message, row.nag_until_done),
+        text: nagReminderText(row.message, row.nag_until_done),
       });
 
       if (!emailResult.ok) {
@@ -87,6 +127,14 @@ async function runCron(request: NextRequest) {
 
       sent += 1;
       const sentAt = new Date();
+      void appendNagOutboundMemory(supabase, row.user_id, {
+        nag_id: row.id,
+        subject,
+        bodyPreview: row.message.slice(0, 400),
+        timestamp: sentAt.toISOString(),
+        ...(emailResult.id ? { resend_id: emailResult.id } : {}),
+      });
+
       const { next_at, status, occurrences_remaining } = computeNextAfterSend(row, sentAt, userTz);
 
       const updatePayload: Record<string, unknown> = {
@@ -101,14 +149,28 @@ async function runCron(request: NextRequest) {
       await supabase.from('nags').update(updatePayload).eq('id', row.id);
     }
 
-    return NextResponse.json({
+    const body = {
       ok: true,
       checked: rows.length,
       sent,
       failed,
+    };
+    await logDispatchRun(supabase, startedAt, {
+      ok: true,
+      checked: body.checked,
+      sent: body.sent,
+      failed: body.failed,
     });
+    return NextResponse.json(body);
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'cron failed';
+    const supabase = tryGetSupabaseServiceRole();
+    if (supabase) {
+      await logDispatchRun(supabase, startedAt, {
+        ok: false,
+        error: msg,
+      });
+    }
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

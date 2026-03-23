@@ -11,7 +11,8 @@
     "test": "jest",
     "listen:forms": "ts-node scripts/form-listener.ts",
     "listen:forms:dev": "nodemon --watch scripts/form-listener.ts --exec \"ts-node scripts/form-listener.ts\"",
-    "mcp:nag": "node mcp/nag-server.mjs"
+    "mcp:nag": "node mcp/nag-server.mjs",
+    "nag:cron": "node scripts/trigger-nag-cron.js"
   },
   "dependencies": {
     "@google/genai": "^1.41.0",

@@ -7,7 +7,7 @@ import { isValidIanaTimezone } from '@/lib/nag-timezone';
 import type { NagRow } from '@/lib/nag-types';
 
 const NAG_SELECT =
-  'id,user_id,message,channel,frequency,time_hhmm,day_of_week,day_of_month,end_type,until_date,occurrences_max,occurrences_remaining,status,next_at,last_sent_at,created_at,updated_at';
+  'id,user_id,message,channel,frequency,time_hhmm,day_of_week,day_of_month,end_type,until_date,occurrences_max,occurrences_remaining,status,next_at,last_sent_at,nag_until_done,followup_interval_hours,created_at,updated_at';
 
 export async function PATCH(request: NextRequest) {
   try {

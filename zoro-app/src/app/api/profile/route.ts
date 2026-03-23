@@ -72,7 +72,11 @@ function pairInboundsWithReplies(
 }> {
   const memory = (Array.isArray(memoryJsonb) ? memoryJsonb : []) as MemoryItem[];
   const outbounds = memory
-    .filter((m) => m.type === 'outbound' && (m.bodyPreview ?? m.body))
+    .filter((m) => {
+      const ext = m as MemoryItem & { nag_id?: string };
+      if (ext.nag_id) return false;
+      return m.type === 'outbound' && (m.bodyPreview ?? m.body);
+    })
     .map((m) => ({ timestamp: m.timestamp || '', bodyPreview: (m.bodyPreview ?? m.body) ?? '' }))
     .sort((a, b) => a.timestamp.localeCompare(b.timestamp));
 

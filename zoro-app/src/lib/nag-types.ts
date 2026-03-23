@@ -26,9 +26,51 @@ export type NagRow = {
   status: NagStatus;
   next_at: string | null;
   last_sent_at: string | null;
+  /** Follow-up emails until the user marks the task done (email channel). */
+  nag_until_done: boolean;
+  /** Hours between sends while nag_until_done; null = default from frequency in app logic. */
+  followup_interval_hours: number | null;
   created_at: string;
   updated_at: string;
 };
+
+export function defaultFollowupHoursForFrequency(frequency: NagFrequency): number {
+  switch (frequency) {
+    case 'daily':
+      return 24;
+    case 'weekly':
+      return 48;
+    case 'monthly':
+      return 168;
+    case 'once':
+      return 12;
+    default:
+      return 24;
+  }
+}
+
+export function parseNagBehaviorFields(body: Record<string, unknown>):
+  | { ok: true; nag_until_done: boolean; followup_interval_hours: number | null }
+  | { ok: false; error: string } {
+  let nag_until_done = false;
+  if (body.nag_until_done === true) nag_until_done = true;
+  if (body.nag_until_done === false) nag_until_done = false;
+
+  let followup_interval_hours: number | null = null;
+  if (body.followup_interval_hours !== undefined && body.followup_interval_hours !== null) {
+    const n = Number(body.followup_interval_hours);
+    if (!Number.isInteger(n) || n < 1 || n > 336) {
+      return { ok: false, error: 'followup_interval_hours must be an integer 1–336 or null' };
+    }
+    followup_interval_hours = n;
+  }
+
+  if (!nag_until_done) {
+    followup_interval_hours = null;
+  }
+
+  return { ok: true, nag_until_done, followup_interval_hours };
+}
 
 export type NagScheduleInput = {
   message: string;

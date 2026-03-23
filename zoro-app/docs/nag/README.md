@@ -14,7 +14,7 @@ Scheduled reminders (“nags”) with email delivery via Resend, natural-languag
 | `OPENAI_API_KEY` | Recommended | `POST /api/nag-parse`; if missing, API returns a safe default draft |
 | `OPENAI_NAG_PARSE_MODEL` | No | Default `gpt-4o-mini` |
 | `NEXT_PUBLIC_NAG_DEV_TOKEN` | No | **Local / dev only:** your real `verification_token` so `/nag` and the sandbox work without pasting the query string. Never use a production secret in a public build. |
-| `CRON_SECRET` | Yes for cron | Bearer token for `/api/cron/nags` |
+| `NAG_DISPATCH_KEY` | Yes for dispatch | Shared secret for `Authorization: Bearer` on `POST /api/cron/nags` (Supabase Cron, local script, etc.) |
 | `GEMINI_API_KEY` | No | Not used by Nag; reserved for future provider swap |
 
 ## User access
@@ -29,14 +29,35 @@ The same endpoint (without `inviteIfUnregistered`) is used elsewhere; see [`/api
 ## Docs in this folder
 
 - [api.md](./api.md) — HTTP endpoints and payloads
+- [supabase-cron.md](./supabase-cron.md) — **Schedule dispatch with Supabase Cron + monitoring**
 - [mcp.md](./mcp.md) — MCP server (Cursor): stdio tools that call the Nag API
-- [schema.md](./schema.md) — Database table and RLS
+- [schema.md](./schema.md) — Database tables and RLS
 
-## Cron (production)
+## Dispatch schedule (Supabase Cron)
 
-The repo includes [`vercel.json`](../../vercel.json) with a cron entry for `/api/cron/nags` every 10 minutes. Set **`CRON_SECRET`** in the Vercel project; Vercel sends `Authorization: Bearer <CRON_SECRET>` when that env var is configured.
+Use **[supabase-cron.md](./supabase-cron.md)** to wire **Supabase Integrations → Cron** (HTTP POST to your Next app) or `pg_net` + `cron.schedule`. The app records each run in **`nag_dispatch_runs`** for monitoring.
 
-Alternatively call `GET` or `POST /api/cron/nags` with `?secret=<CRON_SECRET>`. See [api.md](./api.md).
+**Local:** `npm run nag:cron` (same `Authorization` header as production).
+
+### End-to-end test (email + “until done” follow-ups)
+
+1. **Env:** `NEXT_PUBLIC_SUPABASE_*`, `SUPABASE_SERVICE_ROLE_KEY`, `RESEND_API_KEY`, `NAG_DISPATCH_KEY`, and run the app (`npm run dev` or `npm run build && npm run start`).
+2. **User:** Open `/nag`, sign in with magic link, set Profile timezone if needed.
+3. **Create a nag:** Email channel, enable **Nag until I mark it done**, pick a short follow-up interval in the UI (minimum explicit API interval is **1 hour**).
+4. **Make it due now:** In Supabase SQL Editor:
+
+   ```sql
+   update nags
+   set next_at = now() - interval '1 minute'
+   where id = 'YOUR_NAG_UUID';
+   ```
+
+5. **Run dispatch:** `npm run nag:cron` — check email, `nags` row, and `nag_dispatch_runs`.
+6. **Second follow-up:** Set `next_at` in the past again, run `npm run nag:cron` again.
+7. **Finish:** Tap **Done** on `/nag` or `PATCH` with `task_completed: true`.
+8. **Sent log:** “Recent reminder emails” / `GET /api/nags/sent-log` when `user_context` exists.
+
+If `user_context` is missing for the user, reminder emails still send; the memory append is skipped until that row exists.
 
 ## Timezone
 

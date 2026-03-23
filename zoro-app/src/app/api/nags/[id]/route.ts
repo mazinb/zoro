@@ -10,13 +10,14 @@ import {
   isNagFrequency,
   isNagStatus,
   parseHHMM,
+  parseNagBehaviorFields,
   validateScheduleBody,
   type NagRow,
   type NagScheduleInput,
 } from '@/lib/nag-types';
 
 const SELECT_FIELDS =
-  'id,user_id,message,channel,frequency,time_hhmm,day_of_week,day_of_month,end_type,until_date,occurrences_max,occurrences_remaining,status,next_at,last_sent_at,created_at,updated_at';
+  'id,user_id,message,channel,frequency,time_hhmm,day_of_week,day_of_month,end_type,until_date,occurrences_max,occurrences_remaining,status,next_at,last_sent_at,nag_until_done,followup_interval_hours,created_at,updated_at';
 
 function mergeSchedule(existing: NagRow, body: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {
@@ -112,19 +113,76 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ id: s
     ] as const;
     const hasScheduleUpdate = scheduleKeys.some((k) => body[k] !== undefined);
 
-    if (typeof body.status === 'string' && isNagStatus(body.status) && !hasScheduleUpdate) {
+    if (body.task_completed === true) {
+      if (hasScheduleUpdate) {
+        return NextResponse.json(
+          { error: 'task_completed cannot be combined with schedule fields in one request' },
+          { status: 400 }
+        );
+      }
+      if (row.status !== 'active') {
+        return NextResponse.json({ error: 'Nag is not active' }, { status: 400 });
+      }
       const userTz = await getUserNagTimezone(supabase, userId);
-      const payload: Record<string, unknown> = { status: body.status };
-      if (body.status === 'active' && row.status !== 'active') {
-        const nextAt = computeInitialNextAt({
-          frequency: row.frequency,
-          time_hhmm: row.time_hhmm,
-          day_of_week: row.day_of_week,
-          day_of_month: row.day_of_month,
-          until_date: row.until_date,
-          timeZone: userTz,
-        });
-        payload.next_at = nextAt ? nextAt.toISOString() : null;
+      const nextAt = computeInitialNextAt({
+        frequency: row.frequency,
+        time_hhmm: row.time_hhmm,
+        day_of_week: row.day_of_week,
+        day_of_month: row.day_of_month,
+        until_date: row.until_date,
+        from: new Date(),
+        timeZone: userTz,
+      });
+      const payload: Record<string, unknown> = {
+        next_at: nextAt ? nextAt.toISOString() : null,
+        updated_at: new Date().toISOString(),
+      };
+      const { data: updated, error } = await supabase
+        .from('nags')
+        .update(payload)
+        .eq('id', id)
+        .eq('user_id', userId)
+        .select(SELECT_FIELDS)
+        .single();
+
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+      return NextResponse.json(updated);
+    }
+
+    const wantsNagBehavior =
+      body.nag_until_done !== undefined || body.followup_interval_hours !== undefined;
+    const wantsStatus = typeof body.status === 'string' && isNagStatus(body.status);
+
+    if (!hasScheduleUpdate && (wantsStatus || wantsNagBehavior)) {
+      let behavior: { nag_until_done: boolean; followup_interval_hours: number | null } | null = null;
+      if (wantsNagBehavior) {
+        const b = parseNagBehaviorFields(body as Record<string, unknown>);
+        if (!b.ok) {
+          return NextResponse.json({ error: b.error }, { status: 400 });
+        }
+        behavior = b;
+      }
+      const userTz = await getUserNagTimezone(supabase, userId);
+      const payload: Record<string, unknown> = { updated_at: new Date().toISOString() };
+      if (wantsStatus) {
+        payload.status = body.status;
+        if (body.status === 'active' && row.status !== 'active') {
+          const nextAt = computeInitialNextAt({
+            frequency: row.frequency,
+            time_hhmm: row.time_hhmm,
+            day_of_week: row.day_of_week,
+            day_of_month: row.day_of_month,
+            until_date: row.until_date,
+            timeZone: userTz,
+          });
+          payload.next_at = nextAt ? nextAt.toISOString() : null;
+        }
+      }
+      if (behavior) {
+        payload.nag_until_done = behavior.nag_until_done;
+        payload.followup_interval_hours = behavior.followup_interval_hours;
       }
       const { data: updated, error } = await supabase
         .from('nags')
@@ -185,6 +243,15 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ id: s
 
     if (row.status === 'active') {
       updatePayload.next_at = nextAt ? nextAt.toISOString() : null;
+    }
+
+    if (wantsNagBehavior) {
+      const b = parseNagBehaviorFields(body as Record<string, unknown>);
+      if (!b.ok) {
+        return NextResponse.json({ error: b.error }, { status: 400 });
+      }
+      updatePayload.nag_until_done = b.nag_until_done;
+      updatePayload.followup_interval_hours = b.followup_interval_hours;
     }
 
     const { data: updated, error } = await supabase

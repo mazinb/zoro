@@ -21,6 +21,8 @@ Applied via Supabase migration **`create_nags_table`** (`apply_migration`). Incl
 | `status` | text | `active` \| `archived` \| `cancelled` |
 | `next_at` | timestamptz | Next scheduled send (email cron) |
 | `last_sent_at` | timestamptz | |
+| `nag_until_done` | boolean | Follow-up emails until user marks done (email channel) |
+| `followup_interval_hours` | smallint | Hours between follow-ups; null = default from frequency |
 | `created_at` | timestamptz | default `now()` |
 | `updated_at` | timestamptz | default `now()` |
 
@@ -32,3 +34,25 @@ Applied via Supabase migration **`create_nags_table`** (`apply_migration`). Incl
 ## RLS
 
 `ENABLE ROW LEVEL SECURITY` with **no** policies for `anon` / `authenticated`. Application code uses the **service role** client only after validating the user token in Next.js API routes.
+
+---
+
+# `nag_dispatch_runs` table
+
+Migration **`nag_dispatch_runs_monitoring`**. One row per **`/api/cron/nags`** run for operations monitoring.
+
+| Column | Type | Notes |
+|--------|------|--------|
+| `id` | uuid PK | |
+| `started_at` | timestamptz | When the handler began |
+| `finished_at` | timestamptz | When the handler finished |
+| `ok` | boolean | Handler completed without uncaught error |
+| `checked` | int | Due nags considered |
+| `sent` | int | Emails accepted by Resend |
+| `failed` | int | Skipped or send failures |
+| `error` | text | Set when `ok = false` |
+| `source` | text | default `next_api` |
+
+## RLS
+
+Enabled with **no** policies for `anon` / `authenticated`. Inserts use the **service role** from Next.js. Query in the Supabase SQL Editor as project owner.

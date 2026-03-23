@@ -33,6 +33,8 @@ type Nag = {
   occurrences_remaining: number | null;
   status: string;
   next_at: string | null;
+  nag_until_done?: boolean;
+  followup_interval_hours?: number | null;
 };
 
 const WEEKDAYS = [
@@ -45,6 +47,41 @@ const WEEKDAYS = [
   { v: 6, l: 'Sun' },
 ];
 
+function followupOptionsForFrequency(frequency: string): { value: string; label: string }[] {
+  switch (frequency) {
+    case 'daily':
+      return [
+        { value: '', label: 'Default (24h)' },
+        { value: '6', label: 'Every 6h' },
+        { value: '12', label: 'Every 12h' },
+        { value: '24', label: 'Every 24h' },
+      ];
+    case 'weekly':
+      return [
+        { value: '', label: 'Default (48h)' },
+        { value: '24', label: 'Daily' },
+        { value: '48', label: 'Every 2 days' },
+        { value: '168', label: 'Weekly' },
+      ];
+    case 'monthly':
+      return [
+        { value: '', label: 'Default (weekly)' },
+        { value: '72', label: 'Every 3 days' },
+        { value: '168', label: 'Weekly' },
+        { value: '336', label: 'Every 2 weeks' },
+      ];
+    case 'once':
+      return [
+        { value: '', label: 'Default (12h)' },
+        { value: '6', label: 'Every 6h' },
+        { value: '12', label: 'Every 12h' },
+        { value: '24', label: 'Every 24h' },
+      ];
+    default:
+      return [{ value: '', label: 'Default' }];
+  }
+}
+
 function emptyDraft(): NagDraft {
   return {
     message: '',
@@ -56,6 +93,8 @@ function emptyDraft(): NagDraft {
     end_type: 'forever',
     until_date: '',
     occurrences_max: '5',
+    nag_until_done: false,
+    followup_interval_hours: '',
   };
 }
 
@@ -70,6 +109,9 @@ function draftFromParse(d: Record<string, unknown>): NagDraft {
     end_type: String(d.end_type ?? 'forever'),
     until_date: d.until_date ? String(d.until_date) : '',
     occurrences_max: d.occurrences_max != null ? String(d.occurrences_max) : '5',
+    nag_until_done: d.nag_until_done === true,
+    followup_interval_hours:
+      typeof d.followup_interval_hours === 'number' ? String(d.followup_interval_hours) : '',
   };
 }
 
@@ -84,6 +126,11 @@ function nagToDraft(n: Nag): NagDraft {
     end_type: n.end_type,
     until_date: n.until_date ?? '',
     occurrences_max: n.occurrences_max != null ? String(n.occurrences_max) : '5',
+    nag_until_done: n.nag_until_done === true,
+    followup_interval_hours:
+      n.followup_interval_hours != null && n.followup_interval_hours !== undefined
+        ? String(n.followup_interval_hours)
+        : '',
   };
 }
 
@@ -190,6 +237,10 @@ export function NagPageInner() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  const [sentLog, setSentLog] = useState<
+    { nag_id: string | null; sent_at: string; subject: string | null; body_preview: string | null }[]
+  >([]);
+
   const [tab, setTab] = useState<'active' | 'archived'>('active');
 
   const [getStartedOpen, setGetStartedOpen] = useState(false);
@@ -219,7 +270,7 @@ export function NagPageInner() {
     timezone: 'UTC',
   });
 
-  const [selectedDevTool, setSelectedDevTool] = useState<NagLandingTool>(NAG_LANDING_TOOLS[0]);
+  const [selectedDevTool, setSelectedDevTool] = useState<NagLandingTool>(() => NAG_LANDING_TOOLS[0]!);
   const [devToolBodyText, setDevToolBodyText] = useState('');
   const [devToolResult, setDevToolResult] = useState<unknown>(null);
   const [devToolBusy, setDevToolBusy] = useState(false);
@@ -254,9 +305,28 @@ export function NagPageInner() {
     }
   }, [effectiveToken]);
 
+  const fetchSentLog = useCallback(async () => {
+    if (!effectiveToken) return;
+    try {
+      const res = await fetch(
+        `/api/nags/sent-log?token=${encodeURIComponent(effectiveToken)}&limit=40`
+      );
+      const json = (await res.json()) as {
+        log?: { nag_id: string | null; sent_at: string; subject: string | null; body_preview: string | null }[];
+      };
+      if (res.ok) setSentLog(json.log ?? []);
+    } catch {
+      /* ignore */
+    }
+  }, [effectiveToken]);
+
   useEffect(() => {
     if (effectiveToken) void fetchNags();
   }, [effectiveToken, fetchNags]);
+
+  useEffect(() => {
+    if (effectiveToken) void fetchSentLog();
+  }, [effectiveToken, fetchSentLog]);
 
   const activeList = useMemo(() => nags.filter((n) => n.status === 'active'), [nags]);
   const archivedList = useMemo(() => nags.filter((n) => n.status === 'archived'), [nags]);
@@ -354,18 +424,26 @@ export function NagPageInner() {
     }
   };
 
-  const buildSchedulePayload = () => ({
-    message: draft.message.trim(),
-    channel: draft.channel,
-    frequency: draft.frequency,
-    time_hhmm: draft.time_hhmm,
-    day_of_week: draft.frequency === 'weekly' ? draft.day_of_week : null,
-    day_of_month: draft.frequency === 'monthly' ? draft.day_of_month : null,
-    end_type: draft.end_type,
-    until_date: draft.end_type === 'until_date' || draft.frequency === 'once' ? draft.until_date || null : null,
-    occurrences_max:
-      draft.end_type === 'occurrences' ? Number(draft.occurrences_max) || 5 : null,
-  });
+  const buildSchedulePayload = () => {
+    const emailEscalate = draft.channel === 'email' && draft.nag_until_done;
+    const followRaw = draft.followup_interval_hours.trim();
+    const followNum = followRaw === '' ? null : Number(followRaw);
+    return {
+      message: draft.message.trim(),
+      channel: draft.channel,
+      frequency: draft.frequency,
+      time_hhmm: draft.time_hhmm,
+      day_of_week: draft.frequency === 'weekly' ? draft.day_of_week : null,
+      day_of_month: draft.frequency === 'monthly' ? draft.day_of_month : null,
+      end_type: draft.end_type,
+      until_date: draft.end_type === 'until_date' || draft.frequency === 'once' ? draft.until_date || null : null,
+      occurrences_max:
+        draft.end_type === 'occurrences' ? Number(draft.occurrences_max) || 5 : null,
+      nag_until_done: emailEscalate,
+      followup_interval_hours:
+        emailEscalate && followNum !== null && !Number.isNaN(followNum) ? followNum : null,
+    };
+  };
 
   const buildCreateBody = () => ({
     token: effectiveToken,
@@ -389,6 +467,7 @@ export function NagPageInner() {
       setSheet(null);
       setCompose('');
       await fetchNags();
+      await fetchSentLog();
     } finally {
       setSaving(false);
     }
@@ -411,8 +490,28 @@ export function NagPageInner() {
       setSheet(null);
       setEditingId(null);
       await fetchNags();
+      await fetchSentLog();
     } finally {
       setSaving(false);
+    }
+  };
+
+  const markTaskDone = async (id: string) => {
+    if (!effectiveToken) return;
+    try {
+      const res = await fetch(`/api/nags/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: effectiveToken, task_completed: true }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setLoadError(apiErrorMessage(res.status, json));
+        return;
+      }
+      await fetchNags();
+    } catch {
+      setLoadError('Network error');
     }
   };
 
@@ -626,14 +725,18 @@ export function NagPageInner() {
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-12 lg:gap-10">
         <div className="lg:col-span-5">
           <p className={`mb-3 text-[10px] font-bold uppercase tracking-widest ${theme.textSecondaryClass}`}>
-            MCP tools
+            HTTP API
+          </p>
+          <p className={`mb-3 text-[11px] leading-snug ${theme.textSecondaryClass}`}>
+            Same routes in production. Names in monospace match the Nags MCP server when shown; empty means HTTP-only
+            (cron, shared auth).
           </p>
           <ul className={`rounded-xl border ${theme.borderClass} ${theme.cardBgClass} p-2`} role="list">
             {NAG_LANDING_TOOLS.map((t) => {
               const showSection = t.section !== prevSection;
               prevSection = t.section;
               return (
-                <React.Fragment key={t.mcpName}>
+                <React.Fragment key={t.id}>
                   {showSection && (
                     <li className="list-none px-2 pb-2 pt-3 first:pt-1">
                       <span
@@ -651,17 +754,17 @@ export function NagPageInner() {
                         setDevToolResult(null);
                       }}
                       className={`flex w-full items-start gap-2.5 rounded-lg px-2 py-2.5 text-left transition-colors ${
-                        selectedDevTool.mcpName === t.mcpName
+                        selectedDevTool.id === t.id
                           ? `${theme.accentBgClass} ${theme.textClass}`
                           : `hover:bg-black/5 dark:hover:bg-white/5 ${theme.textSecondaryClass}`
                       }`}
                     >
                       <span className={methodPillClass(t.method)}>{t.method}</span>
                       <span className="min-w-0 flex-1">
-                        <span className="block font-mono text-[12px] font-semibold leading-tight">{t.mcpName}</span>
+                        <span className="block font-mono text-[12px] font-semibold leading-tight">{t.rowTitle}</span>
                         <span
                           className={`mt-1 block text-[11px] leading-snug ${
-                            selectedDevTool.mcpName === t.mcpName ? 'opacity-95' : 'opacity-80'
+                            selectedDevTool.id === t.id ? 'opacity-95' : 'opacity-80'
                           }`}
                         >
                           {t.description}
@@ -683,9 +786,14 @@ export function NagPageInner() {
             <div className="mb-4 flex flex-wrap items-center gap-2 border-b border-current/10 pb-4">
               <span className={methodPillClass(selectedDevTool.method)}>{selectedDevTool.method}</span>
               <span className={`font-mono text-[13px] font-semibold sm:text-sm ${theme.textClass}`}>
-                {selectedDevTool.mcpName}
+                {selectedDevTool.rowTitle}
               </span>
             </div>
+            {selectedDevTool.mcpName.trim() && selectedDevTool.mcpName !== selectedDevTool.rowTitle && (
+              <p className={`mb-3 text-[11px] ${theme.textSecondaryClass}`}>
+                MCP tool: <span className="font-mono">{selectedDevTool.mcpName}</span>
+              </p>
+            )}
             <p className={`mb-4 text-sm leading-relaxed ${theme.textSecondaryClass}`}>{selectedDevTool.description}</p>
             <div
               className={`overflow-x-auto rounded-lg border px-3 py-2.5 font-mono text-[11px] leading-relaxed ${theme.borderClass} ${darkMode ? 'bg-black/30' : 'bg-black/[0.03]'}`}
@@ -721,7 +829,7 @@ export function NagPageInner() {
               onClick={() => void runLandingMockTool()}
               className={`mt-5 w-full rounded-lg py-3 text-sm font-bold disabled:opacity-40 sm:w-auto sm:px-8 ${theme.buttonClass}`}
             >
-              {devToolBusy ? '…' : `Show sample response · ${selectedDevTool.mcpName}`}
+              {devToolBusy ? '…' : `Show sample response · ${selectedDevTool.rowTitle}`}
             </button>
             <pre
               className={`mt-4 max-h-80 overflow-auto rounded-lg border p-4 text-[11px] leading-relaxed ${theme.borderClass} ${darkMode ? 'bg-black/25' : 'bg-black/[0.02]'} ${theme.textClass}`}
@@ -1159,6 +1267,33 @@ export function NagPageInner() {
           </button>
         </div>
 
+        {sentLog.length > 0 && (
+          <div className={`mb-4 rounded-[14px] border p-3 ${theme.borderClass} ${theme.cardBgClass}`}>
+            <p className={`mb-2 text-[10px] font-bold uppercase tracking-wider ${theme.textSecondaryClass}`}>
+              Recent reminder emails
+            </p>
+            <p className={`mb-2 text-[11px] leading-snug ${theme.textSecondaryClass}`}>
+              Pulled from your Zoro outbound email log (same memory as the assistant). New sends appear after
+              delivery.
+            </p>
+            <ul className="max-h-40 space-y-2 overflow-y-auto text-xs">
+              {sentLog.map((e, idx) => (
+                <li key={`${e.sent_at}-${idx}`} className={`border-b pb-2 last:border-0 ${theme.borderClass}`}>
+                  <div className={`font-medium ${theme.textClass}`}>
+                    {formatNext(e.sent_at, profileTimezone)}
+                  </div>
+                  {e.subject && (
+                    <div className={`truncate ${theme.textSecondaryClass}`}>{e.subject}</div>
+                  )}
+                  {e.body_preview && (
+                    <div className={`mt-0.5 line-clamp-2 ${theme.textSecondaryClass}`}>{e.body_preview}</div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
         <div className={`rounded-[14px] border px-4 py-1 ${theme.borderClass} ${theme.cardBgClass}`}>
           {loadingList ? (
             <p className={`py-8 text-center text-sm ${theme.textSecondaryClass}`}>Loading…</p>
@@ -1193,6 +1328,11 @@ export function NagPageInner() {
                     </span>
                     <span className={theme.textSecondaryClass}>{n.frequency}</span>
                     <span className={theme.textSecondaryClass}>{endLabel(n)}</span>
+                    {n.nag_until_done && n.channel === 'email' && (
+                      <span className={`rounded-full border border-amber-500/40 px-2 py-0.5 text-amber-700 dark:text-amber-300 ${theme.borderClass}`}>
+                        until done
+                      </span>
+                    )}
                     {tab === 'active' && (
                       <span className={theme.textSecondaryClass}>
                         next {formatNext(n.next_at, profileTimezone)}
@@ -1201,6 +1341,16 @@ export function NagPageInner() {
                   </div>
                 </div>
                 <div className="flex shrink-0 gap-0.5" onClick={(e) => e.stopPropagation()}>
+                  {tab === 'active' && n.nag_until_done && n.channel === 'email' && (
+                    <button
+                      type="button"
+                      className={`rounded-md border px-2 py-1 text-[10px] font-bold uppercase ${theme.borderClass} ${theme.textClass}`}
+                      onClick={() => void markTaskDone(n.id)}
+                      title="Mark task done for this cycle"
+                    >
+                      Done
+                    </button>
+                  )}
                   {tab === 'active' ? (
                     <button
                       type="button"
@@ -1348,6 +1498,18 @@ export function NagPageInner() {
                               ? `${draft.occurrences_max}×`
                               : draft.until_date || '—',
                         ],
+                        ...(draft.channel === 'email'
+                          ? ([
+                              [
+                                'Until done',
+                                draft.nag_until_done
+                                  ? followupOptionsForFrequency(draft.frequency).find(
+                                      (o) => o.value === draft.followup_interval_hours
+                                    )?.label ?? 'Default'
+                                  : 'Off',
+                              ],
+                            ] as const)
+                          : []),
                       ] as const
                     ).map(([k, v], i) => (
                       <div key={`${i}-${k}`} className={`min-w-[70px] flex-1 rounded-lg p-2.5 ${theme.accentBgClass}`}>
@@ -1416,7 +1578,18 @@ export function NagPageInner() {
                       <select
                         className={`w-full rounded-lg border px-3 py-2.5 text-sm ${theme.inputBgClass}`}
                         value={draft.frequency}
-                        onChange={(e) => setDraft((d) => ({ ...d, frequency: e.target.value }))}
+                        onChange={(e) => {
+                          const nf = e.target.value;
+                          setDraft((d) => {
+                            const opts = followupOptionsForFrequency(nf).map((x) => x.value);
+                            const keep = opts.includes(d.followup_interval_hours);
+                            return {
+                              ...d,
+                              frequency: nf,
+                              followup_interval_hours: keep ? d.followup_interval_hours : '',
+                            };
+                          });
+                        }}
                       >
                         {['daily', 'weekly', 'monthly', 'once'].map((f) => (
                           <option key={f} value={f}>
@@ -1469,13 +1642,67 @@ export function NagPageInner() {
                     </div>
                   )}
                   <NagEndEditor theme={theme} draft={draft} setDraft={setDraft} />
+                  {draft.channel === 'email' && (
+                    <div className="mb-4">
+                      <label
+                        className={`mb-2 flex cursor-pointer items-start gap-2 text-sm ${theme.textClass}`}
+                      >
+                        <input
+                          type="checkbox"
+                          className="mt-0.5"
+                          checked={draft.nag_until_done}
+                          onChange={(e) =>
+                            setDraft((d) => ({
+                              ...d,
+                              nag_until_done: e.target.checked,
+                              followup_interval_hours: e.target.checked ? d.followup_interval_hours : '',
+                            }))
+                          }
+                        />
+                        <span>
+                          <span className="font-semibold">Nag until I mark it done</span>
+                          <span className={`mt-0.5 block text-xs font-normal ${theme.textSecondaryClass}`}>
+                            After each reminder, send follow-ups on the interval below until you tap Mark done.
+                          </span>
+                        </span>
+                      </label>
+                      {draft.nag_until_done && (
+                        <div className="mt-2">
+                          <label
+                            className={`mb-1 block text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}
+                          >
+                            Follow-up interval
+                          </label>
+                          <select
+                            className={`w-full rounded-lg border px-3 py-2.5 text-sm ${theme.inputBgClass}`}
+                            value={draft.followup_interval_hours}
+                            onChange={(e) =>
+                              setDraft((d) => ({ ...d, followup_interval_hours: e.target.value }))
+                            }
+                          >
+                            {followupOptionsForFrequency(draft.frequency).map((o, oi) => (
+                              <option key={`${oi}-${o.value}-${o.label}`} value={o.value}>
+                                {o.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                    </div>
+                  )}
                   <label className={`mb-1 block text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}>Channel</label>
                   <div className={`mb-4 flex rounded-lg p-0.5 ${theme.accentBgClass}`}>
                     {(['email', 'whatsapp'] as const).map((v) => (
                       <button
                         key={v}
                         type="button"
-                        onClick={() => setDraft((d) => ({ ...d, channel: v }))}
+                        onClick={() =>
+                          setDraft((d) => ({
+                            ...d,
+                            channel: v,
+                            ...(v !== 'email' ? { nag_until_done: false, followup_interval_hours: '' } : {}),
+                          }))
+                        }
                         className={`flex-1 rounded-md py-2 text-xs font-semibold ${
                           draft.channel === v ? `${theme.cardBgClass} ${theme.textClass}` : theme.textSecondaryClass
                         }`}

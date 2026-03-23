@@ -147,6 +147,24 @@ server.tool(
 );
 
 server.tool(
+  'nags_sent_log',
+  'List recent nag reminder emails from user_context.memory_jsonb (outbound entries with nag_id or Reminder: subject).',
+  {
+    token: z.string().optional(),
+    nag_id: z.string().uuid().optional().describe('Filter to one nag'),
+    limit: z.number().int().min(1).max(200).optional().default(50),
+  },
+  async ({ token, nag_id, limit }) => {
+    const t = resolveToken(token);
+    if (!t) return jsonResult({ error: 'token required' }, true);
+    const q = new URLSearchParams({ token: t, limit: String(limit ?? 50) });
+    if (nag_id) q.set('nag_id', nag_id);
+    const { ok, status, data } = await fetchJson(`/api/nags/sent-log?${q}`, { method: 'GET' });
+    return jsonResult(data, !ok || status >= 400);
+  }
+);
+
+server.tool(
   'nags_create',
   'Create a new nag.',
   {
@@ -160,6 +178,8 @@ server.tool(
     end_type: z.enum(['forever', 'until_date', 'occurrences']),
     until_date: z.string().optional().describe('YYYY-MM-DD if until_date or once'),
     occurrences_max: z.number().int().positive().optional(),
+    nag_until_done: z.boolean().optional().describe('Email only: follow up until user marks done'),
+    followup_interval_hours: z.number().int().min(1).max(336).optional().describe('Hours between follow-ups; omit for default from frequency'),
   },
   async (args) => {
     const t = resolveToken(args.token);
@@ -190,6 +210,12 @@ server.tool(
     until_date: z.string().optional(),
     occurrences_max: z.number().int().positive().optional(),
     status: z.enum(['active', 'archived', 'cancelled']).optional(),
+    nag_until_done: z.boolean().optional(),
+    followup_interval_hours: z.number().int().min(1).max(336).nullable().optional(),
+    task_completed: z
+      .boolean()
+      .optional()
+      .describe('Mark current cycle done; reschedules to next main occurrence (do not combine with schedule fields)'),
   },
   async (args) => {
     const t = resolveToken(args.token);
