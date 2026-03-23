@@ -987,10 +987,10 @@ export function NagPageInner() {
               Get started
             </p>
             <h2 className={`mb-4 text-[clamp(1.35rem,4vw,2rem)] font-extrabold tracking-tight ${theme.textClass}`}>
-              Type your email, then open your private link.
+              Get your private link
             </h2>
             <p className={`mb-6 max-w-[520px] text-sm leading-relaxed ${theme.textSecondaryClass}`}>
-              We&apos;ll check if you already have an account, then send one email link on this device.
+              We&apos;ll check if you already have an account and email a link with your token.
             </p>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
               <div className="flex-1">
