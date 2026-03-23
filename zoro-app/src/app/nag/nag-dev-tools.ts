@@ -60,7 +60,7 @@ export const NAG_LANDING_TOOLS: NagLandingTool[] = [
   },
   {
     id: 'auth_nag_reset_token',
-    mcpName: '',
+    mcpName: 'nag_reset_token',
     rowTitle: 'nag-reset-token',
     section: 'auth',
     description: 'Rotate token and email a fresh /nag link.',
@@ -301,7 +301,7 @@ export const NAG_LANDING_TOOLS: NagLandingTool[] = [
   },
   {
     id: 'user_data_get',
-    mcpName: '',
+    mcpName: 'user_data_get',
     rowTitle: 'user-data',
     section: 'profile',
     description: 'Fetch user + shared_data.',

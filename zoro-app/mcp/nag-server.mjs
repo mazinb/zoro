@@ -247,6 +247,38 @@ server.tool(
 );
 
 server.tool(
+  'nag_reset_token',
+  'Rotate your token and email a fresh /nag link with the new token.',
+  {
+    token: z.string().optional(),
+  },
+  async ({ token }) => {
+    const t = resolveToken(token);
+    if (!t) return jsonResult({ error: 'token required' }, true);
+    const { ok, status, data } = await fetchJson('/api/auth/nag-reset-token', {
+      method: 'POST',
+      body: JSON.stringify({ token: t }),
+    });
+    return jsonResult(data, !ok || status >= 400);
+  }
+);
+
+server.tool(
+  'user_data_get',
+  'Fetch user + shared_data by token.',
+  {
+    token: z.string().optional(),
+  },
+  async ({ token }) => {
+    const t = resolveToken(token);
+    if (!t) return jsonResult({ error: 'token required' }, true);
+    const q = new URLSearchParams({ token: t });
+    const { ok, status, data } = await fetchJson(`/api/user-data?${q}`, { method: 'GET' });
+    return jsonResult(data, !ok || status >= 400);
+  }
+);
+
+server.tool(
   'nag_profile_set_timezone',
   'Update user IANA timezone (recomputes active nags).',
   {
