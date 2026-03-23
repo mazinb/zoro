@@ -16,51 +16,293 @@
   "tools": [
     {
       "name": "nag_email_check",
-      "description": "Check whether an email is already registered before sending auth links."
+      "description": "Check whether an email is already registered before sending auth links.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "description": "Email to check",
+            "format": "email"
+          }
+        },
+        "required": ["email"]
+      }
     },
     {
       "name": "nag_request_link",
-      "description": "Create account if needed and send a magic-link email (requires confirm_send=true)."
+      "description": "Create account if needed and send a magic-link email (requires confirm_send=true).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "description": "Email address to authenticate",
+            "format": "email"
+          },
+          "name": {
+            "type": "string",
+            "description": "Required when email is not yet registered"
+          },
+          "timezone": {
+            "type": "string",
+            "description": "Optional IANA timezone to set on the user (e.g. America/New_York)"
+          },
+          "confirm_send": {
+            "type": "boolean",
+            "description": "Must be true to actually send the magic-link email (user consent required)"
+          }
+        },
+        "required": ["email", "confirm_send"]
+      }
     },
     {
       "name": "nag_auth_email",
-      "description": "Email-first sign-in/signup helper that sends a magic link (requires confirm_send=true)."
+      "description": "Email-first sign-in/signup helper that sends a magic link (requires confirm_send=true).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "description": "Email address to authenticate",
+            "format": "email"
+          },
+          "name": {
+            "type": "string",
+            "description": "Required only if email is not registered yet"
+          },
+          "timezone": {
+            "type": "string",
+            "description": "Optional IANA timezone for signup/profile"
+          },
+          "confirm_send": {
+            "type": "boolean",
+            "description": "Must be true to send the magic link email (user consent required)"
+          }
+        },
+        "required": ["email", "confirm_send"]
+      }
     },
     {
       "name": "nag_parse",
-      "description": "Parse natural language into a schedule draft."
+      "description": "Parse natural language into a schedule draft.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "description": "What the user wants reminded (e.g. mow lawn every Tuesday)"
+          },
+          "token": {
+            "type": "string",
+            "description": "Optional auth token override (users.verification_token). Usually provided via x-nag-mcp-token config."
+          },
+          "default_channel": {
+            "type": "string",
+            "description": "Default delivery channel for the draft",
+            "enum": ["email", "whatsapp"]
+          }
+        },
+        "required": ["text"]
+      }
     },
     {
       "name": "nags_list",
-      "description": "List nags by status."
+      "description": "List nags by status.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "Auth token (users.verification_token). Usually provided via x-nag-mcp-token config."
+          },
+          "status": {
+            "type": "string",
+            "description": "Nag status filter",
+            "enum": ["active", "archived", "cancelled", "all"],
+            "default": "active"
+          }
+        }
+      }
     },
     {
       "name": "nags_sent_log",
-      "description": "List recent sent reminder emails from user memory log."
+      "description": "List recent sent reminder emails from user memory log.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "Auth token (users.verification_token). Usually provided via x-nag-mcp-token config."
+          },
+          "nag_id": {
+            "type": "string",
+            "description": "Optional filter to a single nag UUID"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Max number of log entries to return (1-200)",
+            "minimum": 1,
+            "maximum": 200,
+            "default": 50
+          }
+        }
+      }
     },
     {
       "name": "nags_create",
-      "description": "Create a nag reminder."
+      "description": "Create a nag reminder.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "Auth token (users.verification_token). Usually provided via x-nag-mcp-token config."
+          },
+          "message": {
+            "type": "string",
+            "description": "Reminder message body"
+          },
+          "channel": {
+            "type": "string",
+            "description": "Delivery channel",
+            "enum": ["email", "whatsapp"]
+          },
+          "frequency": {
+            "type": "string",
+            "description": "Reminder frequency",
+            "enum": ["daily", "weekly", "monthly", "once"]
+          },
+          "time_hhmm": {
+            "type": "string",
+            "description": "24h time HH:MM in user timezone",
+            "example": "17:00"
+          },
+          "day_of_week": {
+            "type": "integer",
+            "description": "Weekly only: 0=Mon … 6=Sun",
+            "minimum": 0,
+            "maximum": 6
+          },
+          "day_of_month": {
+            "type": "integer",
+            "description": "Monthly only: day of month (1-31)",
+            "minimum": 1,
+            "maximum": 31
+          },
+          "end_type": {
+            "type": "string",
+            "description": "End condition",
+            "enum": ["forever", "until_date", "occurrences"]
+          },
+          "until_date": {
+            "type": "string",
+            "description": "Required when end_type is until_date or once. Format: YYYY-MM-DD"
+          },
+          "occurrences_max": {
+            "type": "integer",
+            "description": "Required when end_type is occurrences. Max number of occurrences (>0).",
+            "minimum": 1
+          },
+          "nag_until_done": {
+            "type": "boolean",
+            "description": "Email only: continue follow-ups until user marks it done"
+          },
+          "followup_interval_hours": {
+            "type": "integer",
+            "description": "Hours between follow-ups (1-336). Omit for default from frequency.",
+            "minimum": 1,
+            "maximum": 336
+          }
+        },
+        "required": ["message", "channel", "frequency", "time_hhmm", "end_type"]
+      }
     },
     {
       "name": "nags_update",
-      "description": "Update a nag (schedule/message/status/task completion)."
+      "description": "Update a nag (schedule/message/status/task completion).",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nag_id": {
+            "type": "string",
+            "description": "Nag UUID to update"
+          },
+          "token": {
+            "type": "string",
+            "description": "Auth token (users.verification_token). Usually provided via x-nag-mcp-token config."
+          },
+          "message": { "type": "string", "description": "Updated reminder message" },
+          "channel": { "type": "string", "description": "Delivery channel", "enum": ["email", "whatsapp"] },
+          "frequency": { "type": "string", "description": "Reminder frequency", "enum": ["daily", "weekly", "monthly", "once"] },
+          "time_hhmm": { "type": "string", "description": "24h time HH:MM in user timezone" },
+          "day_of_week": { "type": "integer", "description": "Weekly only: 0=Mon … 6=Sun", "minimum": 0, "maximum": 6 },
+          "day_of_month": { "type": "integer", "description": "Monthly only: day of month (1-31)", "minimum": 1, "maximum": 31 },
+          "end_type": { "type": "string", "description": "End condition", "enum": ["forever", "until_date", "occurrences"] },
+          "until_date": { "type": "string", "description": "YYYY-MM-DD when end_type requires it" },
+          "occurrences_max": { "type": "integer", "description": "Occurrences max when end_type=occurrences", "minimum": 1 },
+          "status": { "type": "string", "description": "Update nag lifecycle state", "enum": ["active", "archived", "cancelled"] },
+          "nag_until_done": { "type": "boolean", "description": "Email only: follow up until user marks done" },
+          "followup_interval_hours": {
+            "type": ["integer", "null"],
+            "description": "Hours between follow-ups (1-336) or null to clear",
+            "minimum": 1,
+            "maximum": 336
+          },
+          "task_completed": { "type": "boolean", "description": "Mark current cycle done; reschedules to next main occurrence (do not combine with schedule fields)" }
+        },
+        "required": ["nag_id"]
+      }
     },
     {
       "name": "nags_delete",
-      "description": "Cancel a nag reminder."
+      "description": "Cancel a nag reminder.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "nag_id": { "type": "string", "description": "Nag UUID to cancel" },
+          "token": { "type": "string", "description": "Auth token (users.verification_token). Usually provided via x-nag-mcp-token config." }
+        },
+        "required": ["nag_id"]
+      }
     },
     {
       "name": "nag_reset_token",
-      "description": "Rotate a user's nag token."
+      "description": "Rotate a user's nag token.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "Auth token (users.verification_token). Usually provided via x-nag-mcp-token config."
+          }
+        }
+      }
     },
     {
       "name": "user_data_get",
-      "description": "Fetch user profile and shared_data."
+      "description": "Fetch user profile and shared_data.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "Auth token (users.verification_token). Usually provided via x-nag-mcp-token config."
+          }
+        }
+      }
     },
     {
       "name": "nag_profile_set_timezone",
-      "description": "Set user timezone for future scheduling."
+      "description": "Set user timezone for future scheduling.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "timezone": { "type": "string", "description": "IANA timezone e.g. America/New_York" },
+          "token": { "type": "string", "description": "Auth token (users.verification_token). Usually provided via x-nag-mcp-token config." }
+        },
+        "required": ["timezone"]
+      }
     }
   ],
   "resources": [
