@@ -17,6 +17,11 @@
     {
       "name": "nag_email_check",
       "description": "Check whether an email is already registered before sending auth links.",
+      "annotations": {
+        "title": "Check Nag Email",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      },
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -32,6 +37,10 @@
     {
       "name": "nag_request_link",
       "description": "Create account if needed and send a magic-link email (requires confirm_send=true).",
+      "annotations": {
+        "title": "Request Nag Magic Link",
+        "openWorldHint": true
+      },
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -59,6 +68,10 @@
     {
       "name": "nag_auth_email",
       "description": "Email-first sign-in/signup helper that sends a magic link (requires confirm_send=true).",
+      "annotations": {
+        "title": "Authenticate by Email",
+        "openWorldHint": true
+      },
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -86,6 +99,11 @@
     {
       "name": "nag_parse",
       "description": "Parse natural language into a schedule draft.",
+      "annotations": {
+        "title": "Parse Reminder Text",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      },
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -109,6 +127,11 @@
     {
       "name": "nags_list",
       "description": "List nags by status.",
+      "annotations": {
+        "title": "List Nags",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      },
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -128,6 +151,11 @@
     {
       "name": "nags_sent_log",
       "description": "List recent sent reminder emails from user memory log.",
+      "annotations": {
+        "title": "List Sent Log",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      },
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -152,6 +180,9 @@
     {
       "name": "nags_create",
       "description": "Create a nag reminder.",
+      "annotations": {
+        "title": "Create Nag"
+      },
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -221,6 +252,10 @@
     {
       "name": "nags_update",
       "description": "Update a nag (schedule/message/status/task completion).",
+      "annotations": {
+        "title": "Update Nag",
+        "idempotentHint": true
+      },
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -257,6 +292,11 @@
     {
       "name": "nags_delete",
       "description": "Cancel a nag reminder.",
+      "annotations": {
+        "title": "Cancel Nag",
+        "destructiveHint": true,
+        "idempotentHint": true
+      },
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -269,6 +309,10 @@
     {
       "name": "nag_reset_token",
       "description": "Rotate a user's nag token.",
+      "annotations": {
+        "title": "Reset Nag Token",
+        "destructiveHint": true
+      },
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -282,6 +326,11 @@
     {
       "name": "user_data_get",
       "description": "Fetch user profile and shared_data.",
+      "annotations": {
+        "title": "Get User Data",
+        "readOnlyHint": true,
+        "idempotentHint": true
+      },
       "inputSchema": {
         "type": "object",
         "properties": {
@@ -295,6 +344,10 @@
     {
       "name": "nag_profile_set_timezone",
       "description": "Set user timezone for future scheduling.",
+      "annotations": {
+        "title": "Set Nag Timezone",
+        "idempotentHint": true
+      },
       "inputSchema": {
         "type": "object",
         "properties": {
