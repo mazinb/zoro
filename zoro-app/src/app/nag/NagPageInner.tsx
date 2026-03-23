@@ -894,7 +894,7 @@ export function NagPageInner() {
               onClick={() => void runLandingMockTool()}
               className={`mt-5 w-full rounded-lg py-3 text-sm font-bold disabled:opacity-40 sm:w-auto sm:px-8 ${theme.buttonClass}`}
             >
-              {devToolBusy ? '…' : `Show sample response · ${selectedDevTool.rowTitle}`}
+              {devToolBusy ? '…' : `Response · ${selectedDevTool.rowTitle}`}
             </button>
             <pre
               className={`mt-4 max-h-80 overflow-auto rounded-lg border p-4 text-[11px] leading-relaxed ${theme.borderClass} ${darkMode ? 'bg-black/25' : 'bg-black/[0.02]'} ${theme.textClass}`}
@@ -977,6 +977,49 @@ export function NagPageInner() {
                   <div className={`text-xs leading-relaxed ${theme.textSecondaryClass}`}>{body}</div>
                 </div>
               ))}
+            </div>
+          </div>
+        </section>
+
+        <section className={`px-5 py-16 ${theme.borderClass} ${darkMode ? 'bg-[#09090c]' : 'bg-[#f5f5f7]'}`}>
+          <div className="mx-auto max-w-[680px]">
+            <p className={`mb-2 text-[10px] font-bold uppercase tracking-widest ${theme.textSecondaryClass}`}>
+              Get started
+            </p>
+            <h2 className={`mb-4 text-[clamp(1.35rem,4vw,2rem)] font-extrabold tracking-tight ${theme.textClass}`}>
+              Type your email, then open your private link.
+            </h2>
+            <p className={`mb-6 max-w-[520px] text-sm leading-relaxed ${theme.textSecondaryClass}`}>
+              We&apos;ll check if you already have an account, then send one email link on this device.
+            </p>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+              <div className="flex-1">
+                <label className={`mb-1 block text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}>
+                  Email
+                </label>
+                <input
+                  type="email"
+                  autoComplete="email"
+                  placeholder="you@example.com"
+                  className={`w-full rounded-lg border px-3 py-2.5 text-sm ${theme.inputBgClass}`}
+                  value={getStartedEmail}
+                  onChange={(e) => setGetStartedEmail(e.target.value)}
+                />
+              </div>
+              <button
+                type="button"
+                disabled={getStartedCheckBusy || !getStartedEmail.trim()}
+                onClick={() => {
+                  setGetStartedOpen(true);
+                  setGetStartedPhase('email');
+                  setGetStartedStatus(null);
+                  setGetStartedName('');
+                  void checkGetStartedEmail();
+                }}
+                className={`rounded-lg px-7 py-3 text-sm font-bold disabled:opacity-40 ${theme.buttonClass}`}
+              >
+                {getStartedCheckBusy ? 'Checking…' : 'Continue'}
+              </button>
             </div>
           </div>
         </section>
