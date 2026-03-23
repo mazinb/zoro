@@ -6,6 +6,7 @@ import {
   nagMagicLinkOrigin,
   sendNagMagicLinkEmail,
 } from '@/lib/nag-magic-link-mail';
+import { DEFAULT_NAG_TIMEZONE, isValidIanaTimezone } from '@/lib/nag-timezone';
 
 function generateVerificationToken(): string {
   return randomBytes(16).toString('hex');
@@ -21,6 +22,11 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({}));
     const email = String(body?.email ?? '').trim().toLowerCase();
     const nameRaw = body?.name != null ? String(body.name).trim() : '';
+    const tzRaw = typeof body.timezone === 'string' ? body.timezone.trim() : '';
+    if (tzRaw && !isValidIanaTimezone(tzRaw)) {
+      return NextResponse.json({ error: 'Invalid IANA timezone' }, { status: 400 });
+    }
+    const timezoneToSet = tzRaw ? tzRaw : null;
 
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return NextResponse.json({ error: 'Valid email is required.' }, { status: 400 });
@@ -62,11 +68,23 @@ export async function POST(request: NextRequest) {
         token = generateVerificationToken();
         const { error: upErr } = await supabase
           .from('users')
-          .update({ verification_token: token })
+          .update({
+            verification_token: token,
+            ...(timezoneToSet ? { timezone: timezoneToSet, updated_at: new Date().toISOString() } : {}),
+          })
           .eq('id', userId);
         if (upErr) {
           console.error('[nag-request-link] token update:', upErr.message);
           return NextResponse.json({ error: 'Could not issue link.' }, { status: 500 });
+        }
+      } else if (timezoneToSet) {
+        const { error: upErr } = await supabase
+          .from('users')
+          .update({ timezone: timezoneToSet, updated_at: new Date().toISOString() })
+          .eq('id', userId);
+        if (upErr) {
+          console.error('[nag-request-link] timezone update:', upErr.message);
+          return NextResponse.json({ error: 'Could not update timezone.' }, { status: 500 });
         }
       }
     } else {
@@ -86,6 +104,7 @@ export async function POST(request: NextRequest) {
         .insert({
           email,
           verification_token: token,
+          timezone: timezoneToSet ?? DEFAULT_NAG_TIMEZONE,
           checkin_frequency: 'monthly',
           next_checkin_due: nextCheckinDue.toISOString(),
         })

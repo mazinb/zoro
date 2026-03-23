@@ -52,10 +52,10 @@ export const NAG_LANDING_TOOLS: NagLandingTool[] = [
     mcpName: 'nag_request_link',
     rowTitle: 'nag_request_link',
     section: 'auth',
-    description: 'Email a magic link to open Nags.',
+    description: 'Create user (if needed) and send a Nags magic link email (requires user consent: confirm_send=true).',
     method: 'POST',
     path: '/api/auth/nag-request-link',
-    sampleBody: { email: 'you@example.com', name: 'Alex' },
+    sampleBody: { email: 'you@example.com', name: 'Alex', timezone: 'America/New_York', confirm_send: true },
     mockResponse: () => ({ success: true, created: false }),
   },
   {
@@ -282,7 +282,7 @@ export const NAG_LANDING_TOOLS: NagLandingTool[] = [
     mcpName: 'nag_profile_set_timezone',
     rowTitle: 'nag_profile_set_timezone',
     section: 'profile',
-    description: 'Set user IANA timezone; recomputes next_at for every active nag.',
+    description: 'Set user IANA timezone for future scheduling (does not change already-scheduled next_at).',
     method: 'PATCH',
     path: '/api/nag-profile',
     sampleBody: {

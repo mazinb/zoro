@@ -3,6 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { Moon, Sun } from 'lucide-react';
+import { ZoroLogo } from '@/components/ZoroLogo';
 
 export type NagThemeClasses = {
   borderClass: string;
@@ -40,8 +41,12 @@ export function NagNav({
     <nav
       className={`sticky top-0 z-[99] flex h-[52px] items-center justify-between border-b px-5 ${theme.borderClass} ${darkMode ? 'bg-[#09090c]' : 'bg-[#f5f5f7]'}`}
     >
-      <Link href="/" className={`cursor-pointer text-[15px] font-extrabold tracking-tight ${theme.textClass}`}>
-        Zoro
+      <Link
+        href="/"
+        className={`flex items-center ${theme.textClass} cursor-pointer`}
+        aria-label="Zoro"
+      >
+        <ZoroLogo className="h-7" isDark={darkMode} />
       </Link>
       <div className="flex items-center gap-2">
         {dashboard && hasToken && (

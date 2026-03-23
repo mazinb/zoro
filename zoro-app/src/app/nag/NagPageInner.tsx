@@ -1166,15 +1166,26 @@ export function NagPageInner() {
               <p className={`mb-2 text-[10px] font-bold uppercase tracking-widest ${theme.textSecondaryClass}`}>
                 Developers
               </p>
-              <h2
-                className={`text-[clamp(1.5rem,4vw,2.25rem)] font-extrabold leading-tight tracking-tight ${theme.textClass}`}
-              >
-                MCP tools & REST API
-              </h2>
-              <p className={`mt-3 text-sm leading-relaxed sm:text-[15px] ${theme.textSecondaryClass}`}>
-                Tool names match <span className="font-mono text-[12px] text-current/90">zoro-nags</span>. Each calls a
-                local <code className="font-mono text-[11px]">/api/…</code> route (no network).
-              </p>
+              <div className="flex items-start gap-2">
+                <h2
+                  className={`text-[clamp(1.5rem,4vw,2.25rem)] font-extrabold leading-tight tracking-tight ${theme.textClass}`}
+                >
+                  MCP tools & REST API
+                </h2>
+                <button
+                  type="button"
+                  title="Connect via MCP"
+                  aria-label="Connect via MCP"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setMcpGuideOpen(true);
+                  }}
+                  className={`flex h-[26px] w-[26px] items-center justify-center rounded-md text-xs font-black ${theme.borderClass} ${theme.textSecondaryClass} hover:bg-black/5 dark:hover:bg-white/5`}
+                >
+                  ?
+                </button>
+              </div>
             </header>
             <LandingEndpointsPanel />
           </div>

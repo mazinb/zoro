@@ -83,15 +83,24 @@ server.tool(
 
 server.tool(
   'nag_request_link',
-  'Send magic link to open Nags. New users must provide name.',
+  'Create user (if needed) and send a Nags magic link email. Requires user consent; only send when confirm_send=true. Optionally sets user timezone (used for future nags, not existing scheduled next_at). New users must provide name.',
   {
     email: z.string().email(),
     name: z.string().optional().describe('Required when email is not yet registered'),
+    timezone: z.string().optional().describe('Optional IANA timezone to set on the user (used going forward)'),
+    confirm_send: z.boolean().optional().describe('Must be true to actually send the email (requires user consent)'),
   },
-  async ({ email, name }) => {
+  async ({ email, name, timezone, confirm_send }) => {
+    if (confirm_send !== true) {
+      return jsonResult(
+        { error: 'User consent required: set confirm_send=true to create/send the magic link.' },
+        true
+      );
+    }
     const body = omitEmpty({
       email: email.trim().toLowerCase(),
       name: name?.trim(),
+      timezone: timezone?.trim() || undefined,
     });
     const { ok, status, data } = await fetchJson('/api/auth/nag-request-link', {
       method: 'POST',
@@ -280,7 +289,7 @@ server.tool(
 
 server.tool(
   'nag_profile_set_timezone',
-  'Update user IANA timezone (recomputes active nags).',
+  'Set user IANA timezone for future scheduling (does not change already-scheduled next_at).',
   {
     timezone: z.string().min(1).describe('IANA zone e.g. America/New_York'),
     token: z.string().optional(),
