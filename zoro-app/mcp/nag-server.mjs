@@ -101,6 +101,127 @@ export function createNagMcpServer() {
     version: '1.0.0',
   });
 
+  // Runtime resource capabilities for MCP clients (including Smithery scans).
+  server.resource(
+    'nag_api_reference',
+    'zoro://nag/docs/api',
+    { description: 'Nag HTTP API payloads and behavior', mimeType: 'text/markdown' },
+    async () => ({
+      contents: [
+        {
+          uri: 'zoro://nag/docs/api',
+          mimeType: 'text/markdown',
+          text: [
+            '# Zoro Nags API',
+            '',
+            '- Start auth: `nag_email_check` -> `nag_auth_email` (confirm_send=true).',
+            '- For authenticated operations, provide token via `x-nag-mcp-token` or `Authorization: Bearer <token>`.',
+            '- Core tools: `nag_parse`, `nags_list`, `nags_create`, `nags_update`, `nags_delete`.',
+          ].join('\n'),
+        },
+      ],
+    })
+  );
+
+  server.resource(
+    'nag_auth_guide',
+    'zoro://nag/docs/auth',
+    { description: 'Token and email auth model for zoro-nags', mimeType: 'text/markdown' },
+    async () => ({
+      contents: [
+        {
+          uri: 'zoro://nag/docs/auth',
+          mimeType: 'text/markdown',
+          text: [
+            '# Zoro Nags Auth',
+            '',
+            '- Email-first onboarding: `nag_email_check`, then `nag_auth_email`.',
+            '- Existing users receive a magic link email to `/nag?token=...`.',
+            '- Use `nag_reset_token` to rotate compromised tokens.',
+            '- Tool-level `token` argument always overrides header/env fallback.',
+          ].join('\n'),
+        },
+      ],
+    })
+  );
+
+  // Runtime prompt capabilities for MCP clients (including Smithery scans).
+  server.prompt(
+    'nag_onboard_user',
+    'Onboard a user and send magic link',
+    {
+      email: z.string().email().describe('User email'),
+      name: z.string().optional().describe('Required for first-time signup'),
+    },
+    async ({ email, name }) => ({
+      description: 'Onboard user with consented magic-link flow.',
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text: [
+              `Help this user start using Zoro Nags: ${email}.`,
+              '1) Call nag_email_check.',
+              '2) If not registered, collect name then call nag_auth_email with confirm_send=true.',
+              '3) If registered, call nag_auth_email with confirm_send=true.',
+              name ? `Provided name for signup: ${name}` : 'Ask for name only if the account does not exist.',
+            ].join('\n'),
+          },
+        },
+      ],
+    })
+  );
+
+  server.prompt(
+    'nag_create_from_text',
+    'Parse natural language then create nag',
+    {
+      request_text: z.string().min(1).describe('Natural language reminder request'),
+      channel: z.enum(['email', 'whatsapp']).optional().describe('Preferred default channel'),
+    },
+    async ({ request_text, channel }) => ({
+      description: 'Parse then create a nag from plain English.',
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text: [
+              `Create a reminder from this request: ${request_text}`,
+              `Use default channel: ${channel || 'email'}.`,
+              'Workflow: call nag_parse -> confirm draft fields -> call nags_create.',
+            ].join('\n'),
+          },
+        },
+      ],
+    })
+  );
+
+  server.prompt(
+    'nag_triage_overdue',
+    'Review active nags and suggest cleanup',
+    {
+      include_archived: z.boolean().optional().describe('Include archived nags in review'),
+    },
+    async ({ include_archived }) => ({
+      description: 'List nags and recommend updates for overdue/noisy reminders.',
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text: [
+              'Review this user nag setup and suggest improvements.',
+              `List status to inspect: ${include_archived ? 'all' : 'active'}.`,
+              'Call nags_list first, then suggest message/schedule/follow-up changes and apply with nags_update if user confirms.',
+            ].join('\n'),
+          },
+        },
+      ],
+    })
+  );
+
   server.tool(
     'nag_email_check',
     'Check if an email is already registered (no email sent).',

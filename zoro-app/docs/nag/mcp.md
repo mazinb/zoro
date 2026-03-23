@@ -154,6 +154,8 @@ Notes:
   - `nag_request_link` / `nag_auth_email` (sign up if needed + send magic link email)
   - `nag_reset_token` (rotate token after sign-in)
 
+If Smithery shows `Warning: No config schema provided`, re-publish with the `--config-schema` flag above (or pass `configSchema` in deployment payload). This warning is from publish configuration, not MCP tool discovery.
+
 ### Signup + email auth flow (recommended UX)
 
 1. Ask for email.
@@ -173,3 +175,8 @@ Use it as fallback metadata when automated scan cannot fully introspect auth-gat
 - `serverInfo`, auth scheme, and tool list
 - a `resources` section
 - a `prompts` section for capability scoring
+
+Runtime MCP capabilities are also implemented in `mcp/nag-server.mjs`:
+
+- `resources/list` + `resources/read`
+- `prompts/list` + `prompts/get`
