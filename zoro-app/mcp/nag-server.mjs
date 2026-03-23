@@ -29,20 +29,35 @@ const base = (
   'http://localhost:3000'
 ).replace(/\/$/, '');
 
+function getHeaderValue(headers, keys) {
+  for (const key of keys) {
+    const value = headers[key];
+    if (typeof value === 'string' && value.trim()) return value.trim();
+  }
+  return '';
+}
+
 function resolveToken(explicit, extra) {
   const t = typeof explicit === 'string' ? explicit.trim() : '';
   if (t) return t;
 
   // Optional per-request fallback token for remote MCP servers.
   const headers = extra?.requestInfo?.headers ?? {};
-  const headerTokenRaw =
-    (typeof headers['x-nag-mcp-token'] === 'string' ? headers['x-nag-mcp-token'] : undefined) ??
-    (typeof headers['X-NAG-MCP-TOKEN'] === 'string' ? headers['X-NAG-MCP-TOKEN'] : undefined);
+  const headerTokenRaw = getHeaderValue(headers, [
+    'x-nag-mcp-token',
+    'X-NAG-MCP-TOKEN',
+    'x-nag-token',
+    'X-NAG-TOKEN',
+    // Smithery/session config style aliases (header keys can vary by client casing behavior)
+    'nagMcpToken',
+    'nagmcptoken',
+    'nag_token',
+  ]);
 
-  const authHeaderRaw = (typeof headers['authorization'] === 'string' ? headers['authorization'] : undefined) ?? '';
+  const authHeaderRaw = getHeaderValue(headers, ['authorization', 'Authorization']);
   const authBearer = authHeaderRaw.startsWith('Bearer ') ? authHeaderRaw.slice('Bearer '.length).trim() : '';
 
-  const headerToken = (headerTokenRaw ?? authBearer).trim();
+  const headerToken = (headerTokenRaw || authBearer).trim();
   if (headerToken) return headerToken;
 
   return (
@@ -114,6 +129,35 @@ export function createNagMcpServer() {
       if (confirm_send !== true) {
         return jsonResult(
           { error: 'User consent required: set confirm_send=true to create/send the magic link.' },
+          true
+        );
+      }
+      const body = omitEmpty({
+        email: email.trim().toLowerCase(),
+        name: name?.trim(),
+        timezone: timezone?.trim() || undefined,
+      });
+      const { ok, status, data } = await fetchJson('/api/auth/nag-request-link', {
+        method: 'POST',
+        body: JSON.stringify(body),
+      });
+      return jsonResult(data, !ok || status >= 400);
+    }
+  );
+
+  server.tool(
+    'nag_auth_email',
+    'Email-first auth helper: creates user if needed and sends magic link. Existing users can omit name.',
+    {
+      email: z.string().email().describe('Email address to authenticate'),
+      name: z.string().optional().describe('Required only if email is not registered yet'),
+      timezone: z.string().optional().describe('Optional IANA timezone for signup/profile'),
+      confirm_send: z.boolean().optional().describe('Must be true to send the magic link email'),
+    },
+    async ({ email, name, timezone, confirm_send }) => {
+      if (confirm_send !== true) {
+        return jsonResult(
+          { error: 'User consent required: set confirm_send=true to send sign-in/signup magic link.' },
           true
         );
       }

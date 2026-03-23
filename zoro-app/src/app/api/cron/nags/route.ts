@@ -4,6 +4,7 @@ import { computeNextAfterSend } from '@/lib/nag-schedule';
 import { normalizeNagTimeZone } from '@/lib/nag-timezone';
 import { appendNagOutboundMemory } from '@/lib/nag-memory-log';
 import { nagReminderHtml, nagReminderText, sendNagEmail } from '@/lib/nag-email';
+import { sendNagWhatsapp } from '@/lib/nag-whatsapp';
 import type { NagRow } from '@/lib/nag-types';
 
 const SELECT_FIELDS =
@@ -87,7 +88,6 @@ async function runCron(request: NextRequest) {
       .from('nags')
       .select(SELECT_FIELDS)
       .eq('status', 'active')
-      .eq('channel', 'email')
       .lte('next_at', nowIso)
       .order('next_at', { ascending: true });
 
@@ -164,26 +164,53 @@ async function runCron(request: NextRequest) {
             .join(' | ')
         : null;
 
-      const emailResult = await sendNagEmail({
-        to,
-        subject,
-        html: nagReminderHtml({
-          message: row.message,
-          nagUntilDone: row.nag_until_done,
-          manageUrl,
-          completeUrl,
-          personalityContext,
-        }),
-        text: nagReminderText({
-          message: row.message,
-          nagUntilDone: row.nag_until_done,
-          manageUrl,
-          completeUrl,
-          personalityContext,
-        }),
-      });
-
-      if (!emailResult.ok) {
+      let providerId: string | undefined;
+      if (row.channel === 'email') {
+        const emailResult = await sendNagEmail({
+          to,
+          subject,
+          html: nagReminderHtml({
+            message: row.message,
+            nagUntilDone: row.nag_until_done,
+            manageUrl,
+            completeUrl,
+            personalityContext,
+          }),
+          text: nagReminderText({
+            message: row.message,
+            nagUntilDone: row.nag_until_done,
+            manageUrl,
+            completeUrl,
+            personalityContext,
+          }),
+        });
+        if (!emailResult.ok) {
+          failed += 1;
+          continue;
+        }
+        providerId = emailResult.id;
+      } else if (row.channel === 'whatsapp') {
+        const { data: latestSubmission } = await supabase
+          .from('form_submissions')
+          .select('phone,email')
+          .eq('email', to)
+          .not('phone', 'is', null)
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        const phone =
+          typeof latestSubmission?.phone === 'string' ? latestSubmission.phone.trim() : '';
+        if (!phone) {
+          failed += 1;
+          continue;
+        }
+        const waResult = await sendNagWhatsapp({ to: phone, text: row.message });
+        if (!waResult.ok) {
+          failed += 1;
+          continue;
+        }
+        providerId = waResult.messageId;
+      } else {
         failed += 1;
         continue;
       }
@@ -195,7 +222,7 @@ async function runCron(request: NextRequest) {
         subject,
         bodyPreview: row.message.slice(0, 400),
         timestamp: sentAt.toISOString(),
-        ...(emailResult.id ? { resend_id: emailResult.id } : {}),
+        ...(providerId ? { resend_id: providerId } : {}),
       });
 
       const { next_at, status, occurrences_remaining } = computeNextAfterSend(row, sentAt, userTz);

@@ -157,6 +157,22 @@ Soft-cancel: sets `status` to `cancelled`.
 
 If `NAG_DISPATCH_KEY` is unset, the route returns **503**.
 
-**Behavior:** For each due `nags` row (`status = active`, `channel = email`, `next_at <= now()`), sends the nag email via Resend, updates `last_sent_at`, advances `next_at` or completes the series (`occurrences_remaining`) or archives one-shot / past-`until_date` nags.
+**Behavior:** For each due `nags` row (`status = active`, `next_at <= now()`), dispatches by channel:
+
+- `email` → sends via Resend
+- `whatsapp` → sends via Evolution API (`/message/sendText/{instance}`), using the latest non-null `form_submissions.phone` for the nag owner email
+
+After a successful send, it updates `last_sent_at`, advances `next_at`, decrements `occurrences_remaining` when applicable, and archives completed one-shot / past-`until_date` nags.
 
 **Monitoring:** Each invocation inserts a row into **`nag_dispatch_runs`** (`ok`, `checked`, `sent`, `failed`, `error`, timestamps). Schedule the job from **Supabase Cron** — see [supabase-cron.md](./supabase-cron.md).
+
+---
+
+## `POST /api/webhooks/evolution`
+
+Receives Evolution API webhook events for connection/message telemetry.
+
+- If `EVOLUTION_WEBHOOK_SECRET` is set, the route requires either:
+  - `x-webhook-secret: <secret>` header, or
+  - `Authorization: Bearer <secret>`
+- Current behavior is intentionally lightweight: accepts and logs `event` + `instance`, returns `{ ok: true }`.

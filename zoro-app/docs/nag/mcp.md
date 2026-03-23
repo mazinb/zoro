@@ -118,3 +118,46 @@ Most tools accept an optional `token` argument; if omitted, `NAG_MCP_TOKEN` or `
 ## See also
 
 - [api.md](./api.md) — HTTP payloads and behavior
+
+## Smithery publish format (URL-hosted MCP)
+
+Use the MCP HTTP endpoint from this app:
+
+- `https://<your-domain>/api/mcp/nags`
+
+Smithery URL publishing docs:
+
+- [Publish](https://smithery.ai/docs/build/publish)
+- [Connect API](https://smithery.ai/docs/use/connect-api)
+
+### Minimal publish command
+
+```bash
+smithery mcp publish "https://<your-domain>/api/mcp/nags" -n @your-org/zoro-nags
+```
+
+### Recommended config schema (token as header)
+
+For Smithery session configuration, provide a schema so users can set auth once:
+
+```bash
+smithery mcp publish "https://<your-domain>/api/mcp/nags" \
+  -n @your-org/zoro-nags \
+  --config-schema '{"type":"object","properties":{"nagMcpToken":{"type":"string","title":"Nag MCP token","description":"users.verification_token from Zoro magic link","x-from":"header","x-header-name":"x-nag-mcp-token"}}}'
+```
+
+Notes:
+
+- MCP tool calls will accept token via `x-nag-mcp-token`, `Authorization: Bearer <token>`, and aliases (`x-nag-token`, `nagMcpToken`).
+- If users do not have a token yet, use onboarding tools first:
+  - `nag_email_check` (check registration)
+  - `nag_request_link` / `nag_auth_email` (sign up if needed + send magic link email)
+  - `nag_reset_token` (rotate token after sign-in)
+
+### Signup + email auth flow (recommended UX)
+
+1. Ask for email.
+2. Call `nag_email_check`.
+3. Call `nag_auth_email` with `confirm_send=true` (and `name` only for new users).
+4. User opens email link and receives their tokened session in Zoro.
+5. Save token as MCP header config (`x-nag-mcp-token`) for future tool calls.

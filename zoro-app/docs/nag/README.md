@@ -1,6 +1,6 @@
 # Nag feature
 
-Scheduled reminders (“nags”) with email delivery via Resend, natural-language scheduling via OpenAI, and persistence in Supabase (`nags` table).
+Scheduled reminders ("nags") with delivery via Resend (email) and Evolution API (WhatsApp), natural-language scheduling via OpenAI, and persistence in Supabase (`nags` table).
 
 ## Environment variables
 
@@ -15,6 +15,11 @@ Scheduled reminders (“nags”) with email delivery via Resend, natural-languag
 | `OPENAI_NAG_PARSE_MODEL` | No | Default `gpt-4o-mini` |
 | `NEXT_PUBLIC_NAG_DEV_TOKEN` | No | **Local / dev only:** your real `verification_token` so `/nag` and the sandbox work without pasting the query string. Never use a production secret in a public build. |
 | `NAG_DISPATCH_KEY` | Yes for dispatch | Shared secret for `Authorization: Bearer` on `POST /api/cron/nags` (Supabase Cron, local script, etc.) |
+| `EVOLUTION_API_BASE_URL` | Yes for WhatsApp | Evolution API server base URL |
+| `EVOLUTION_API_KEY` | Yes for WhatsApp | Evolution API key (`apikey` header) |
+| `EVOLUTION_API_INSTANCE` | Yes for WhatsApp | Evolution instance name (e.g. `zoro-nags`) |
+| `EVOLUTION_API_TIMEOUT_MS` | No | WhatsApp send timeout in milliseconds (default `15000`) |
+| `EVOLUTION_WEBHOOK_SECRET` | Recommended | Secret for `/api/webhooks/evolution` (`x-webhook-secret` or Bearer auth) |
 | `GEMINI_API_KEY` | No | Not used by Nag; reserved for future provider swap |
 
 ## User access
@@ -32,6 +37,7 @@ The same endpoint (without `inviteIfUnregistered`) is used elsewhere; see [`/api
 - [supabase-cron.md](./supabase-cron.md) — **Schedule dispatch with Supabase Cron + monitoring**
 - [mcp.md](./mcp.md) — MCP server (Cursor): stdio tools that call the Nag API
 - [schema.md](./schema.md) — Database tables and RLS
+- [whatsapp-evolution.md](./whatsapp-evolution.md) — Evolution hosting, dashboard options, and WhatsApp setup
 
 ## Dispatch schedule (Supabase Cron)
 
