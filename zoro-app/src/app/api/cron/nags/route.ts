@@ -9,6 +9,14 @@ import type { NagRow } from '@/lib/nag-types';
 const SELECT_FIELDS =
   'id,user_id,message,channel,frequency,time_hhmm,day_of_week,day_of_month,end_type,until_date,occurrences_max,occurrences_remaining,status,next_at,last_sent_at,nag_until_done,followup_interval_hours,created_at,updated_at';
 
+function nagAppOrigin(): string {
+  const raw =
+    process.env.NEXT_PUBLIC_APP_URL ||
+    process.env.NEXT_PUBLIC_BASE_URL ||
+    'https://www.getzoro.com';
+  return raw.replace(/\/$/, '');
+}
+
 function authorizeDispatch(request: NextRequest): boolean {
   const key = process.env.NAG_DISPATCH_KEY;
   if (!key) return false;
@@ -101,7 +109,7 @@ async function runCron(request: NextRequest) {
     for (const row of rows) {
       const { data: userRow } = await supabase
         .from('users')
-        .select('email,timezone')
+        .select('email,timezone,verification_token')
         .eq('id', row.user_id)
         .maybeSingle();
 
@@ -113,11 +121,33 @@ async function runCron(request: NextRequest) {
       }
 
       const subject = `Reminder: ${row.message.slice(0, 80)}${row.message.length > 80 ? '…' : ''}`;
+      const verificationToken =
+        typeof (userRow as { verification_token?: string } | null)?.verification_token === 'string'
+          ? ((userRow as { verification_token?: string }).verification_token || '').trim()
+          : '';
+      const appOrigin = nagAppOrigin();
+      const manageUrl = verificationToken
+        ? `${appOrigin}/nag?token=${encodeURIComponent(verificationToken)}`
+        : `${appOrigin}/nag`;
+      const completeUrl = verificationToken
+        ? `${appOrigin}/nag?token=${encodeURIComponent(verificationToken)}&complete_nag=${encodeURIComponent(row.id)}`
+        : undefined;
+
       const emailResult = await sendNagEmail({
         to,
         subject,
-        html: nagReminderHtml(row.message, row.nag_until_done),
-        text: nagReminderText(row.message, row.nag_until_done),
+        html: nagReminderHtml({
+          message: row.message,
+          nagUntilDone: row.nag_until_done,
+          manageUrl,
+          completeUrl,
+        }),
+        text: nagReminderText({
+          message: row.message,
+          nagUntilDone: row.nag_until_done,
+          manageUrl,
+          completeUrl,
+        }),
       });
 
       if (!emailResult.ok) {

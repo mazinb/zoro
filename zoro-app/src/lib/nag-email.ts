@@ -47,22 +47,53 @@ export async function sendNagEmail(params: {
   }
 }
 
-export function nagReminderHtml(message: string, nagUntilDone?: boolean): string {
+export function nagReminderHtml(params: {
+  message: string;
+  nagUntilDone?: boolean;
+  manageUrl?: string;
+  completeUrl?: string;
+}): string {
+  const { message, nagUntilDone, manageUrl, completeUrl } = params;
   const footer = nagUntilDone
-    ? `<p style="color:#64748b;font-size:14px;margin:0">We’ll keep sending follow-ups until you open your Nags page and mark this task done.</p>`
-    : `<p style="color:#64748b;font-size:14px;margin:0">You asked us to nag you until it’s done. Reply to this thread or open your Zoro link to manage nags.</p>`;
+    ? `<p style="color:#64748b;font-size:14px;margin:0">We will keep sending follow-ups until you mark this task done.</p>`
+    : `<p style="color:#64748b;font-size:14px;margin:0">You asked us to nag you until it is done. Open your Nags page to manage reminders.</p>`;
+
+  const cta = completeUrl
+    ? `<p style="margin:20px 0 10px"><a href="${escapeHtml(completeUrl)}" style="display:inline-block;background:#16a34a;color:#fff;text-decoration:none;padding:10px 16px;border-radius:8px;font-weight:700">Mark complete</a></p>`
+    : '';
+
+  const manage = manageUrl
+    ? `<p style="margin:0 0 6px;color:#475569;font-size:14px">Manage in Zoro: <a href="${escapeHtml(manageUrl)}">Open Nags</a></p>`
+    : '';
+
   return [
     `<p style="font-size:16px;margin:0 0 12px">Reminder from Zoro</p>`,
     `<p style="font-size:18px;font-weight:600;margin:0 0 16px">${escapeHtml(message)}</p>`,
+    cta,
+    manage,
     footer,
   ].join('');
 }
 
-export function nagReminderText(message: string, nagUntilDone?: boolean): string {
+export function nagReminderText(params: {
+  message: string;
+  nagUntilDone?: boolean;
+  manageUrl?: string;
+  completeUrl?: string;
+}): string {
+  const { message, nagUntilDone, manageUrl, completeUrl } = params;
   const footer = nagUntilDone
-    ? 'Follow-ups continue until you mark this task done on your Nags page (use the link from your email).'
+    ? 'Follow-ups continue until you mark this task complete.'
     : 'Manage nags from your Zoro link.';
-  return `Reminder from Zoro\n\n${message}\n\n${footer}`;
+
+  const links = [
+    completeUrl ? `Mark complete: ${completeUrl}` : null,
+    manageUrl ? `Open nags: ${manageUrl}` : null,
+  ]
+    .filter(Boolean)
+    .join('\n');
+
+  return `Reminder from Zoro\n\n${message}\n\n${footer}${links ? `\n\n${links}` : ''}`;
 }
 
 export function nagConfirmationHtml(message: string, nextLabel: string): string {

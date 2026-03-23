@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useDarkMode } from '@/hooks/useDarkMode';
 import { useThemeClasses } from '@/hooks/useThemeClasses';
@@ -168,6 +168,8 @@ export function NagPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const urlToken = searchParams.get('token')?.trim() ?? '';
+  const completeNagFromUrl = searchParams.get('complete_nag')?.trim() ?? '';
+  const completedFromUrl = searchParams.get('completed') === '1';
   const envDevToken = (process.env.NEXT_PUBLIC_NAG_DEV_TOKEN ?? '').trim();
 
   const [storedToken, setStoredToken] = useState('');
@@ -227,6 +229,7 @@ export function NagPageInner() {
   const [profileSaving, setProfileSaving] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loadingList, setLoadingList] = useState(false);
+  const [completionNotice, setCompletionNotice] = useState<string | null>(null);
 
   const [compose, setCompose] = useState('');
   const [defaultChannel, setDefaultChannel] = useState<'email' | 'whatsapp'>('email');
@@ -240,6 +243,7 @@ export function NagPageInner() {
   const [sentLog, setSentLog] = useState<
     { nag_id: string | null; sent_at: string; subject: string | null; body_preview: string | null }[]
   >([]);
+  const completionHandledRef = useRef<string>('');
 
   const [tab, setTab] = useState<'active' | 'archived'>('active');
 
@@ -259,9 +263,6 @@ export function NagPageInner() {
   const [landCheckBusy, setLandCheckBusy] = useState(false);
   const [landSendBusy, setLandSendBusy] = useState(false);
 
-  /** Last natural-language line used for Schedule / Re-parse */
-  const [parseSourceText, setParseSourceText] = useState('');
-  const [reparsing, setReparsing] = useState(false);
 
   const [profilePhone, setProfilePhone] = useState('+1 555 010 1234');
   const [profDraft, setProfDraft] = useState({
@@ -327,6 +328,58 @@ export function NagPageInner() {
   useEffect(() => {
     if (effectiveToken) void fetchSentLog();
   }, [effectiveToken, fetchSentLog]);
+
+  useEffect(() => {
+    if (completedFromUrl) {
+      setCompletionNotice('Marked complete. Nice work - follow-ups are paused until the next scheduled cycle.');
+    }
+  }, [completedFromUrl]);
+
+  useEffect(() => {
+    const nagId = completeNagFromUrl;
+    if (!nagId || !effectiveToken) return;
+
+    const key = `${effectiveToken}:${nagId}`;
+    if (completionHandledRef.current === key) return;
+    completionHandledRef.current = key;
+
+    let cancelled = false;
+
+    const run = async () => {
+      try {
+        const res = await fetch(`/api/nags/${nagId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: effectiveToken, task_completed: true }),
+        });
+        const json = await res.json();
+        if (!res.ok) {
+          if (!cancelled) setLoadError(apiErrorMessage(res.status, json));
+          return;
+        }
+        if (!cancelled) {
+          setCompletionNotice(
+            'Task marked complete from your email link. Follow-ups are paused until the next scheduled cycle.'
+          );
+          await fetchNags();
+          await fetchSentLog();
+          const next = new URLSearchParams(searchParams.toString());
+          next.delete('complete_nag');
+          next.set('completed', '1');
+          if (urlToken) next.set('token', urlToken);
+          router.replace(`/nag?${next.toString()}`);
+        }
+      } catch {
+        if (!cancelled) setLoadError('Could not mark task complete from link. Please try again.');
+      }
+    };
+
+    void run();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [completeNagFromUrl, effectiveToken, fetchNags, fetchSentLog, router, searchParams, urlToken]);
 
   const activeList = useMemo(() => nags.filter((n) => n.status === 'active'), [nags]);
   const archivedList = useMemo(() => nags.filter((n) => n.status === 'archived'), [nags]);
@@ -406,21 +459,10 @@ export function NagPageInner() {
     try {
       const ok = await parseTextIntoDraft(compose.trim());
       if (ok) {
-        setParseSourceText(compose.trim());
         setSheet('confirm');
       }
     } finally {
       setParsing(false);
-    }
-  };
-
-  const reparseFromDescription = async () => {
-    if (!parseSourceText.trim()) return;
-    setReparsing(true);
-    try {
-      await parseTextIntoDraft(parseSourceText.trim(), { keepEditingId: editingId != null });
-    } finally {
-      setReparsing(false);
     }
   };
 
@@ -919,14 +961,8 @@ export function NagPageInner() {
           className={`border-t px-5 py-16 ${theme.borderClass} ${darkMode ? 'bg-[#09090c]' : 'bg-[#f5f5f7]'}`}
         >
           <div className={`mx-auto max-w-[480px] rounded-xl border p-6 ${theme.borderClass} ${theme.cardBgClass}`}>
-            <p className={`mb-2 text-[10px] font-bold uppercase tracking-widest ${theme.textSecondaryClass}`}>
-              Sign in
-            </p>
-            <h2 className={`mb-2 text-xl font-bold ${theme.textClass}`}>Enter your email</h2>
-            <p className={`mb-5 text-sm leading-relaxed ${theme.textSecondaryClass}`}>
-              No password — we&apos;ll email you a private link to open Nags. New here? We&apos;ll ask for your first name
-              next.
-            </p>
+            <p className={`mb-2 text-[10px] font-bold uppercase tracking-widest ${theme.textSecondaryClass}`}>Sign in</p>
+            <h2 className={`mb-5 text-xl font-bold ${theme.textClass}`}>Email</h2>
 
             {landPhase === 'email' && (
               <>
@@ -977,7 +1013,7 @@ export function NagPageInner() {
             {landPhase === 'new' && (
               <>
                 <p className={`mb-4 text-sm leading-relaxed ${theme.textSecondaryClass}`}>
-                  New email — add your first name, then we create your account and send the link.
+                  Add your first name to create your account and get your link.
                 </p>
                 <label className={`mb-1 block text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}>Name</label>
                 <input
@@ -1074,11 +1110,7 @@ export function NagPageInner() {
 
             {getStartedPhase === 'email' && (
               <>
-                <h2 className={`mb-2 text-lg font-bold ${theme.textClass}`}>Your email</h2>
-                <p className={`mb-4 text-sm leading-relaxed ${theme.textSecondaryClass}`}>
-                  We check whether you already have a Zoro account. Next step depends on that — no password, just a link in
-                  your inbox.
-                </p>
+                <h2 className={`mb-4 text-lg font-bold ${theme.textClass}`}>Your email</h2>
                 <label className={`mb-1 block text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}>Email</label>
                 <input
                   type="email"
@@ -1208,6 +1240,11 @@ export function NagPageInner() {
             {loadError}
           </p>
         )}
+        {completionNotice && (
+          <p className="mb-4 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-700 dark:text-emerald-300">
+            {completionNotice}
+          </p>
+        )}
         <div className={`mb-4 rounded-[14px] border p-4 ${theme.borderClass} ${theme.cardBgClass}`}>
           <textarea
             rows={2}
@@ -1310,7 +1347,6 @@ export function NagPageInner() {
                   if (tab === 'active') {
                     setDraft(nagToDraft(n));
                     setEditingId(n.id);
-                    setParseSourceText(n.message);
                     setSheet('edit');
                   }
                 }}
@@ -1538,24 +1574,6 @@ export function NagPageInner() {
 
               {sheet === 'edit' && (
                 <>
-                  <label className={`mb-1 block text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}>
-                    Describe schedule
-                  </label>
-                  <textarea
-                    rows={2}
-                    className={`mb-2 w-full rounded-lg border px-3 py-2.5 text-sm ${theme.inputBgClass}`}
-                    placeholder="e.g. mow the lawn every Wednesday at 5pm"
-                    value={parseSourceText}
-                    onChange={(e) => setParseSourceText(e.target.value)}
-                  />
-                  <button
-                    type="button"
-                    disabled={reparsing || !parseSourceText.trim()}
-                    onClick={() => void reparseFromDescription()}
-                    className={`mb-4 w-full rounded-lg border py-2.5 text-sm font-semibold disabled:opacity-40 ${theme.borderClass} ${theme.textClass}`}
-                  >
-                    {reparsing ? 'Parsing…' : 'Re-parse from text'}
-                  </button>
                   <label className={`mb-1 block text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}>Task</label>
                   <input
                     className={`mb-3 w-full rounded-lg border px-3 py-2.5 text-sm ${theme.inputBgClass}`}
