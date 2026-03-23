@@ -791,7 +791,7 @@ export function NagPageInner() {
 
   const LandingEndpointsPanel = () => {
     let prevSection = '';
-    const fullUrl = (path: string) => (docsOrigin ? `${docsOrigin}${path}` : `YOUR_ORIGIN${path}`);
+    const fullUrl = (path: string) => `${docsOrigin || 'https://www.getzoro.com'}${path}`;
 
     return (
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-12 lg:gap-10">
@@ -869,12 +869,6 @@ export function NagPageInner() {
             >
               <span className={`select-all ${theme.textClass}`}>{fullUrl(selectedDevTool.path)}</span>
             </div>
-            {!docsOrigin && (
-              <p className={`mt-2 text-[11px] leading-relaxed ${theme.textSecondaryClass}`}>
-                Set <code className="font-mono text-[10px]">NEXT_PUBLIC_APP_URL</code> to preview full URLs.
-              </p>
-            )}
-
             {selectedDevTool.sampleBody != null && Object.keys(selectedDevTool.sampleBody).length > 0 && (
               <label className={`mt-5 block ${theme.textSecondaryClass}`}>
                 <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide">Sample body (JSON)</span>
@@ -923,12 +917,12 @@ export function NagPageInner() {
           />
           <section className="px-5 py-20 text-center">
             <h1 className={`mx-auto max-w-[min(100%,420px)] text-[clamp(2rem,8vw,3.75rem)] font-black leading-tight tracking-tight ${theme.textClass}`}>
-              Nags that
+              Reminders that
               <br />
               actually work.
             </h1>
             <p className={`mx-auto mt-4 max-w-sm text-[15px] leading-relaxed ${theme.textSecondaryClass}`}>
-              Tell Zoro what to remind you. It nags you via WhatsApp or email until you&apos;re done.
+              Tell Zoro what you need to do and it will nag you till it is get&apos;s done
             </p>
             <div className="mt-8 flex flex-wrap justify-center gap-3">
               <button
@@ -946,7 +940,7 @@ export function NagPageInner() {
               </a>
             </div>
             <p className={`mt-4 text-[11px] opacity-50 ${theme.textSecondaryClass}`}>
-              For you: email link. For devs: endpoint reference below.
+              Password-less secure login. You are always in control
             </p>
           </section>
 
@@ -960,9 +954,9 @@ export function NagPageInner() {
             </h2>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               {[
-                ['1', 'Tell Zoro', 'Type anything natural. Zoro figures out the schedule.'],
-                ['2', 'Confirm', 'Review parsed time, frequency, and end date.'],
-                ['3', 'Get nagged', 'WhatsApp or email until done or date passes.'],
+                ['1', 'Tell Zoro', 'Describe what needs to be done and by when'],
+                ['2', 'Confirm', 'You are always in control, update at any time'],
+                ['3', 'Get nagged', 'Get nagged until you say that you are done'],
               ].map(([n, title, body]) => (
                 <div
                   key={n}

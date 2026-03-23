@@ -1,11 +1,11 @@
 /**
  * Landing reference: MCP tool names align with `mcp/nag-server.mjs` where present.
- * Extra rows document HTTP-only routes (cron, shared auth). Sample responses are static (no network).
+ * Extra rows document HTTP-only routes. Sample responses are static (no network).
  */
 
 const MOCK_NAG_ID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
 
-export type NagLandingSection = 'auth' | 'parse' | 'nags' | 'logs' | 'profile' | 'cron';
+export type NagLandingSection = 'auth' | 'nags' | 'logs' | 'profile';
 
 export type NagLandingTool = {
   /** Stable key for React lists (unique). */
@@ -24,11 +24,9 @@ export type NagLandingTool = {
 
 const sectionLabel: Record<NagLandingSection, string> = {
   auth: 'Auth & onboarding',
-  parse: 'Parse',
   nags: 'Nags CRUD',
   logs: 'Delivery log',
   profile: 'Profile',
-  cron: 'Cron (server)',
 };
 
 export function landingSectionTitle(s: NagLandingSection): string {
@@ -86,34 +84,6 @@ export const NAG_LANDING_TOOLS: NagLandingTool[] = [
       inviteIfUnregistered: true,
     },
     mockResponse: () => ({ success: true, registered: true }),
-  },
-  {
-    id: 'nag_parse',
-    mcpName: 'nag_parse',
-    rowTitle: 'nag_parse',
-    section: 'parse',
-    description: 'Turn text into a nag draft.',
-    method: 'POST',
-    path: '/api/nag-parse',
-    sampleBody: {
-      token: 'YOUR_TOKEN',
-      text: 'Remind me to file GST every month on the 15th at 10am until 2026-12-31',
-      default_channel: 'email',
-    },
-    mockResponse: () => ({
-      draft: {
-        message: 'File GST',
-        channel: 'email',
-        frequency: 'monthly',
-        time_hhmm: '10:00',
-        day_of_week: null,
-        day_of_month: 15,
-        end_type: 'until_date',
-        until_date: '2026-12-31',
-        occurrences_max: null,
-        parse_fallback: false,
-      },
-    }),
   },
   {
     id: 'nags_list',
@@ -316,22 +286,6 @@ export const NAG_LANDING_TOOLS: NagLandingTool[] = [
           soul_file: '…',
         },
       },
-    }),
-  },
-  {
-    id: 'cron_nags',
-    mcpName: '',
-    rowTitle: 'cron/nags',
-    section: 'cron',
-    description: 'Dispatch nags cron handler.',
-    method: 'POST',
-    path: '/api/cron/nags',
-    sampleBody: null,
-    mockResponse: () => ({
-      ok: true,
-      checked: 3,
-      sent: 2,
-      failed: 0,
     }),
   },
 ];
