@@ -1,0 +1,87 @@
+{
+  "serverInfo": {
+    "name": "zoro-nags",
+    "version": "1.0.0"
+  },
+  "description": "Zoro Nags MCP server for email/WhatsApp reminders, scheduling, and profile timezone management.",
+  "homepage": "https://www.getzoro.com/nag",
+  "icon": "https://www.getzoro.com/icon-dark.png",
+  "authentication": {
+    "required": true,
+    "schemes": [
+      "bearer"
+    ],
+    "instructions": "Provide users.verification_token via x-nag-mcp-token header or Authorization: Bearer <token>. Use nag_auth_email to send a sign-in magic link."
+  },
+  "tools": [
+    {
+      "name": "nag_email_check",
+      "description": "Check whether an email is already registered before sending auth links."
+    },
+    {
+      "name": "nag_request_link",
+      "description": "Create account if needed and send a magic-link email (requires confirm_send=true)."
+    },
+    {
+      "name": "nag_auth_email",
+      "description": "Email-first sign-in/signup helper that sends a magic link (requires confirm_send=true)."
+    },
+    {
+      "name": "nag_parse",
+      "description": "Parse natural language into a schedule draft."
+    },
+    {
+      "name": "nags_list",
+      "description": "List nags by status."
+    },
+    {
+      "name": "nags_sent_log",
+      "description": "List recent sent reminder emails from user memory log."
+    },
+    {
+      "name": "nags_create",
+      "description": "Create a nag reminder."
+    },
+    {
+      "name": "nags_update",
+      "description": "Update a nag (schedule/message/status/task completion)."
+    },
+    {
+      "name": "nags_delete",
+      "description": "Cancel a nag reminder."
+    },
+    {
+      "name": "nag_reset_token",
+      "description": "Rotate a user's nag token."
+    },
+    {
+      "name": "user_data_get",
+      "description": "Fetch user profile and shared_data."
+    },
+    {
+      "name": "nag_profile_set_timezone",
+      "description": "Set user timezone for future scheduling."
+    }
+  ],
+  "resources": [
+    {
+      "name": "nag_api_reference",
+      "uri": "https://www.getzoro.com/docs/nag/api",
+      "description": "HTTP API behavior, payloads, and error semantics."
+    }
+  ],
+  "prompts": [
+    {
+      "name": "nag_onboard_user",
+      "description": "Onboard a user by checking email registration and sending a magic link."
+    },
+    {
+      "name": "nag_create_from_text",
+      "description": "Turn a plain-English reminder request into a draft, then create the nag."
+    },
+    {
+      "name": "nag_triage_overdue",
+      "description": "Review active nags, identify overdue or noisy items, and suggest updates."
+    }
+  ]
+}

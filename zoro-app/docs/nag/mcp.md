@@ -161,3 +161,15 @@ Notes:
 3. Call `nag_auth_email` with `confirm_send=true` (and `name` only for new users).
 4. User opens email link and receives their tokened session in Zoro.
 5. Save token as MCP header config (`x-nag-mcp-token`) for future tool calls.
+
+### Server metadata for Smithery scans
+
+This app now serves a static server card at:
+
+- `/.well-known/mcp/server-card.json`
+
+Use it as fallback metadata when automated scan cannot fully introspect auth-gated flows. It includes:
+
+- `serverInfo`, auth scheme, and tool list
+- a `resources` section
+- a `prompts` section for capability scoring
