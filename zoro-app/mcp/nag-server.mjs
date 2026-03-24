@@ -461,7 +461,9 @@ server.tool(
     task_completed: z
       .boolean()
       .optional()
-      .describe('Mark current cycle done; reschedules to next main occurrence (do not combine with schedule fields)'),
+      .describe(
+        'Mark current cycle done: archives the nag and stores the next would-be run time (restore via status active). Do not combine with schedule fields.'
+      ),
   },
   {
     title: 'Update Nag',

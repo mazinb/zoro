@@ -96,7 +96,7 @@ export function extractFrequencyHint(text: string): FrequencyHint | null {
   return null;
 }
 
-type GroundingBody = {
+export type GroundingBody = {
   message: string;
   channel: string;
   frequency: string;

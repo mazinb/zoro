@@ -5,11 +5,11 @@ import { SUPABASE_SERVICE_ROLE_SETUP, tryGetSupabaseServiceRole } from '@/lib/su
 import { computeInitialNextAt } from '@/lib/nag-schedule';
 import { nagConfirmationHtml, sendNagEmail } from '@/lib/nag-email';
 import { formatNagNextLabel } from '@/lib/nag-timezone';
-import { getUserNagTimezone } from '@/lib/nag-user';
+import { getNagUserFlags, getUserNagTimezone, requireVerifiedWebhookForUser } from '@/lib/nag-user';
 import { isNagStatus, parseNagBehaviorFields, validateScheduleBody, type NagRow } from '@/lib/nag-types';
 
 const SELECT_FIELDS =
-  'id,user_id,message,channel,frequency,time_hhmm,day_of_week,day_of_month,end_type,until_date,occurrences_max,occurrences_remaining,status,next_at,last_sent_at,nag_until_done,followup_interval_hours,created_at,updated_at';
+  'id,user_id,message,channel,webhook_id,frequency,time_hhmm,day_of_week,day_of_month,end_type,until_date,occurrences_max,occurrences_remaining,status,next_at,last_sent_at,nag_until_done,followup_interval_hours,created_at,updated_at';
 
 export async function GET(request: NextRequest) {
   try {
@@ -45,15 +45,28 @@ export async function GET(request: NextRequest) {
 
     const { data: userRow } = await supabase
       .from('users')
-      .select('email,timezone')
+      .select('email,timezone,nag_developer')
       .eq('id', userId)
       .maybeSingle();
+
+    const nagDeveloper = Boolean((userRow as { nag_developer?: boolean } | null)?.nag_developer);
+    let webhooks: { id: string; url: string; verified_at: string | null; created_at: string }[] = [];
+    if (nagDeveloper) {
+      const { data: wh } = await supabase
+        .from('nag_webhooks')
+        .select('id,url,verified_at,created_at')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: true });
+      webhooks = (wh ?? []) as typeof webhooks;
+    }
 
     return NextResponse.json({
       nags: nags ?? [],
       profile: {
         email: userRow?.email ?? null,
         timezone: (userRow as { timezone?: string } | null)?.timezone ?? 'UTC',
+        nag_developer: nagDeveloper,
+        webhooks,
       },
     });
   } catch (e) {
@@ -88,9 +101,29 @@ export async function POST(request: NextRequest) {
     }
     const data = v.data;
 
-    const nb = parseNagBehaviorFields(body as Record<string, unknown>);
+    let nb = parseNagBehaviorFields(body as Record<string, unknown>);
     if (!nb.ok) {
       return NextResponse.json({ error: nb.error }, { status: 400 });
+    }
+    if (v.data.channel !== 'email') {
+      nb = { ok: true, nag_until_done: false, followup_interval_hours: null };
+    }
+
+    const flags = await getNagUserFlags(supabase, userId);
+    if (v.data.channel === 'whatsapp' && flags.nag_developer) {
+      return NextResponse.json(
+        { error: 'Developer mode: delivery is email or a verified webhook only.' },
+        { status: 400 }
+      );
+    }
+    if (v.data.channel === 'webhook') {
+      if (!flags.nag_developer) {
+        return NextResponse.json({ error: 'Webhooks require developer mode.' }, { status: 403 });
+      }
+      const whOk = await requireVerifiedWebhookForUser(supabase, userId, v.data.webhook_id!);
+      if (!whOk.ok) {
+        return NextResponse.json({ error: whOk.error }, { status: whOk.status });
+      }
     }
 
     const userTz = await getUserNagTimezone(supabase, userId);
@@ -115,6 +148,7 @@ export async function POST(request: NextRequest) {
       user_id: userId,
       message: data.message,
       channel: data.channel,
+      webhook_id: data.channel === 'webhook' ? data.webhook_id : null,
       frequency: data.frequency,
       time_hhmm: data.time_hhmm,
       day_of_week: data.day_of_week,

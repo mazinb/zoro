@@ -114,6 +114,8 @@ export function NagSheet({ theme, onClose, children, fullscreen = false }: NagSh
 export type NagDraft = {
   message: string;
   channel: string;
+  /** Required when channel is webhook (verified endpoint id). */
+  webhook_id: string;
   frequency: string;
   time_hhmm: string;
   day_of_week: number | null;

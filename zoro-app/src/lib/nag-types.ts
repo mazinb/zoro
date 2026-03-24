@@ -1,8 +1,15 @@
 export const NAG_FREQUENCIES = ['daily', 'weekly', 'monthly', 'once'] as const;
 export type NagFrequency = (typeof NAG_FREQUENCIES)[number];
 
-export const NAG_CHANNELS = ['email', 'whatsapp'] as const;
+export const NAG_CHANNELS = ['email', 'whatsapp', 'webhook'] as const;
 export type NagChannel = (typeof NAG_CHANNELS)[number];
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export function isUuid(v: string): boolean {
+  return UUID_RE.test(v.trim());
+}
 
 export const NAG_END_TYPES = ['forever', 'until_date', 'occurrences'] as const;
 export type NagEndType = (typeof NAG_END_TYPES)[number];
@@ -15,6 +22,8 @@ export type NagRow = {
   user_id: string;
   message: string;
   channel: NagChannel;
+  /** Set when channel is webhook. */
+  webhook_id: string | null;
   frequency: NagFrequency;
   time_hhmm: string;
   day_of_week: number | null;
@@ -75,6 +84,7 @@ export function parseNagBehaviorFields(body: Record<string, unknown>):
 export type NagScheduleInput = {
   message: string;
   channel: NagChannel;
+  webhook_id: string | null;
   frequency: NagFrequency;
   time_hhmm: string;
   day_of_week: number | null;
@@ -122,6 +132,13 @@ export function validateScheduleBody(
 
   const channelRaw = typeof body.channel === 'string' ? body.channel : 'email';
   if (!isNagChannel(channelRaw)) return { ok: false, error: 'invalid channel' };
+
+  let webhook_id: string | null = null;
+  if (channelRaw === 'webhook') {
+    const wid = typeof body.webhook_id === 'string' ? body.webhook_id.trim() : '';
+    if (!isUuid(wid)) return { ok: false, error: 'webhook_id must be a valid UUID when channel is webhook' };
+    webhook_id = wid;
+  }
 
   const freqRaw = typeof body.frequency === 'string' ? body.frequency : '';
   if (!isNagFrequency(freqRaw)) return { ok: false, error: 'invalid frequency' };
@@ -180,6 +197,7 @@ export function validateScheduleBody(
     data: {
       message,
       channel: channelRaw,
+      webhook_id,
       frequency: freqRaw,
       time_hhmm,
       day_of_week,

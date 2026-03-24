@@ -3,12 +3,13 @@ import { resolveTokenToUserId } from '@/lib/resolve-token';
 import { nagRequireUserId } from '@/lib/nag-auth';
 import { SUPABASE_SERVICE_ROLE_SETUP, tryGetSupabaseServiceRole } from '@/lib/supabase-server';
 import { computeInitialNextAt } from '@/lib/nag-schedule';
-import { getUserNagTimezone } from '@/lib/nag-user';
+import { getNagUserFlags, getUserNagTimezone, requireVerifiedWebhookForUser } from '@/lib/nag-user';
 import {
   isNagChannel,
   isNagEndType,
   isNagFrequency,
   isNagStatus,
+  isUuid,
   parseHHMM,
   parseNagBehaviorFields,
   validateScheduleBody,
@@ -17,12 +18,13 @@ import {
 } from '@/lib/nag-types';
 
 const SELECT_FIELDS =
-  'id,user_id,message,channel,frequency,time_hhmm,day_of_week,day_of_month,end_type,until_date,occurrences_max,occurrences_remaining,status,next_at,last_sent_at,nag_until_done,followup_interval_hours,created_at,updated_at';
+  'id,user_id,message,channel,webhook_id,frequency,time_hhmm,day_of_week,day_of_month,end_type,until_date,occurrences_max,occurrences_remaining,status,next_at,last_sent_at,nag_until_done,followup_interval_hours,created_at,updated_at';
 
 function mergeSchedule(existing: NagRow, body: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {
     message: existing.message,
     channel: existing.channel,
+    webhook_id: existing.webhook_id ?? null,
     frequency: existing.frequency,
     time_hhmm: existing.time_hhmm,
     day_of_week: existing.day_of_week,
@@ -33,7 +35,18 @@ function mergeSchedule(existing: NagRow, body: Record<string, unknown>): Record<
   };
 
   if (typeof body.message === 'string') out.message = body.message;
-  if (typeof body.channel === 'string' && isNagChannel(body.channel)) out.channel = body.channel;
+  if (typeof body.channel === 'string' && isNagChannel(body.channel)) {
+    out.channel = body.channel;
+    if (body.channel !== 'webhook') {
+      out.webhook_id = null;
+    }
+  }
+  if (body.webhook_id === null || body.webhook_id === '') {
+    out.webhook_id = null;
+  } else if (typeof body.webhook_id === 'string') {
+    const t = body.webhook_id.trim();
+    if (isUuid(t)) out.webhook_id = t;
+  }
   if (typeof body.frequency === 'string' && isNagFrequency(body.frequency)) out.frequency = body.frequency;
   if (typeof body.time_hhmm === 'string' && parseHHMM(body.time_hhmm)) out.time_hhmm = body.time_hhmm;
   if (body.day_of_week !== undefined) {
@@ -120,8 +133,7 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ id: s
           { status: 400 }
         );
       }
-      const untilDoneCycle = row.nag_until_done === true && row.channel === 'email';
-      if (row.status !== 'active' && !untilDoneCycle) {
+      if (row.status !== 'active') {
         return NextResponse.json({ error: 'Nag is not active' }, { status: 400 });
       }
       const userTz = await getUserNagTimezone(supabase, userId);
@@ -135,12 +147,10 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ id: s
         timeZone: userTz,
       });
       const payload: Record<string, unknown> = {
+        status: 'archived',
         next_at: nextAt ? nextAt.toISOString() : null,
         updated_at: new Date().toISOString(),
       };
-      if (row.status !== 'active' && untilDoneCycle) {
-        payload.status = 'active';
-      }
       const { data: updated, error } = await supabase
         .from('nags')
         .update(payload)
@@ -162,6 +172,9 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ id: s
     if (!hasScheduleUpdate && (wantsStatus || wantsNagBehavior)) {
       let behavior: { nag_until_done: boolean; followup_interval_hours: number | null } | null = null;
       if (wantsNagBehavior) {
+        if (row.channel !== 'email') {
+          return NextResponse.json({ error: 'Follow-up reminders are email-only.' }, { status: 400 });
+        }
         const b = parseNagBehaviorFields(body as Record<string, unknown>);
         if (!b.ok) {
           return NextResponse.json({ error: b.error }, { status: 400 });
@@ -209,6 +222,23 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ id: s
     }
     const data: NagScheduleInput = v.data;
 
+    const flags = await getNagUserFlags(supabase, userId);
+    if (data.channel === 'whatsapp' && flags.nag_developer) {
+      return NextResponse.json(
+        { error: 'Developer mode: delivery is email or a verified webhook only.' },
+        { status: 400 }
+      );
+    }
+    if (data.channel === 'webhook') {
+      if (!flags.nag_developer) {
+        return NextResponse.json({ error: 'Webhooks require developer mode.' }, { status: 403 });
+      }
+      const whOk = await requireVerifiedWebhookForUser(supabase, userId, data.webhook_id!);
+      if (!whOk.ok) {
+        return NextResponse.json({ error: whOk.error }, { status: whOk.status });
+      }
+    }
+
     const userTz = await getUserNagTimezone(supabase, userId);
 
     const nextAt = computeInitialNextAt({
@@ -230,6 +260,7 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ id: s
     const updatePayload: Record<string, unknown> = {
       message: data.message,
       channel: data.channel,
+      webhook_id: data.channel === 'webhook' ? data.webhook_id : null,
       frequency: data.frequency,
       time_hhmm: data.time_hhmm,
       day_of_week: data.day_of_week,
@@ -249,7 +280,10 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ id: s
       updatePayload.next_at = nextAt ? nextAt.toISOString() : null;
     }
 
-    if (wantsNagBehavior) {
+    if (data.channel !== 'email') {
+      updatePayload.nag_until_done = false;
+      updatePayload.followup_interval_hours = null;
+    } else if (wantsNagBehavior) {
       const b = parseNagBehaviorFields(body as Record<string, unknown>);
       if (!b.ok) {
         return NextResponse.json({ error: b.error }, { status: 400 });

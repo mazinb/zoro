@@ -1,4 +1,4 @@
-import type { NagChannel, NagEndType, NagFrequency, NagScheduleInput } from './nag-types';
+import type { NagChannel, NagEndType, NagFrequency } from './nag-types';
 import {
   isNagChannel,
   isNagEndType,
@@ -12,6 +12,7 @@ import {
   extractFrequencyHint,
   extractTaskMessage,
   extractTimeHHMMFromText,
+  type GroundingBody,
 } from './nag-parse-heuristics';
 
 function buildSystem(profileTimeZone: string): string {
@@ -66,7 +67,8 @@ function fallbackDraft(text: string, defaultChannel: NagChannel): ParseDraft {
 
   return {
     message,
-    channel: defaultChannel,
+    channel: defaultChannel === 'webhook' ? 'email' : defaultChannel,
+    webhook_id: null,
     frequency,
     time_hhmm: time,
     day_of_week: frequency === 'weekly' ? day_of_week : null,
@@ -83,8 +85,9 @@ function openAiJsonToBody(
   defaultChannel: NagChannel
 ): Record<string, unknown> {
   const message = typeof raw.message === 'string' ? raw.message.trim() : '';
-  const channel: NagChannel =
+  let channel: NagChannel =
     typeof raw.channel === 'string' && isNagChannel(raw.channel) ? raw.channel : defaultChannel;
+  if (channel === 'webhook') channel = defaultChannel === 'webhook' ? 'email' : defaultChannel;
 
   const frequency: NagFrequency =
     typeof raw.frequency === 'string' && isNagFrequency(raw.frequency) ? raw.frequency : 'weekly';
@@ -129,6 +132,7 @@ function openAiJsonToBody(
   return {
     message,
     channel,
+    webhook_id: null,
     frequency,
     time_hhmm,
     day_of_week,
@@ -195,8 +199,8 @@ export async function parseNagTextWithOpenAI(
       bodyRaw.message =
         extractTaskMessage(text).trim() || text.trim().slice(0, 200) || 'Reminder';
     }
-    const grounded = applyHeuristicGrounding(text, bodyRaw as NagScheduleInput);
-    const validated = validateScheduleBody(grounded);
+    const grounded = applyHeuristicGrounding(text, bodyRaw as GroundingBody);
+    const validated = validateScheduleBody({ ...grounded, webhook_id: null });
     if (!validated.ok) {
       console.warn('[nag-parse] validate after OpenAI:', validated.error);
       return fallbackDraft(text, defaultChannel);

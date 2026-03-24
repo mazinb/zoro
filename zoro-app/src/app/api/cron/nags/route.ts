@@ -5,10 +5,11 @@ import { normalizeNagTimeZone } from '@/lib/nag-timezone';
 import { appendNagOutboundMemory } from '@/lib/nag-memory-log';
 import { nagReminderHtml, nagReminderText, sendNagEmail } from '@/lib/nag-email';
 import { sendNagWhatsapp } from '@/lib/nag-whatsapp';
+import { postUserWebhook } from '@/lib/nag-webhook-http';
 import type { NagRow } from '@/lib/nag-types';
 
 const SELECT_FIELDS =
-  'id,user_id,message,channel,frequency,time_hhmm,day_of_week,day_of_month,end_type,until_date,occurrences_max,occurrences_remaining,status,next_at,last_sent_at,nag_until_done,followup_interval_hours,created_at,updated_at';
+  'id,user_id,message,channel,webhook_id,frequency,time_hhmm,day_of_week,day_of_month,end_type,until_date,occurrences_max,occurrences_remaining,status,next_at,last_sent_at,nag_until_done,followup_interval_hours,created_at,updated_at';
 
 function nagAppOrigin(): string {
   const raw =
@@ -130,7 +131,10 @@ async function runCron(request: NextRequest) {
         continue;
       }
 
-      const subject = `Reminder: ${row.message.slice(0, 80)}${row.message.length > 80 ? '…' : ''}`;
+      const subject =
+        row.channel === 'webhook'
+          ? `Webhook: ${row.message.slice(0, 80)}${row.message.length > 80 ? '…' : ''}`
+          : `Reminder: ${row.message.slice(0, 80)}${row.message.length > 80 ? '…' : ''}`;
       const verificationToken =
         typeof (userRow as { verification_token?: string } | null)?.verification_token === 'string'
           ? ((userRow as { verification_token?: string }).verification_token || '').trim()
@@ -210,6 +214,31 @@ async function runCron(request: NextRequest) {
           continue;
         }
         providerId = waResult.messageId;
+      } else if (row.channel === 'webhook' && row.webhook_id) {
+        const { data: hook } = await supabase
+          .from('nag_webhooks')
+          .select('url, secret, verified_at')
+          .eq('id', row.webhook_id)
+          .eq('user_id', row.user_id)
+          .maybeSingle();
+        if (!hook?.url || !hook.secret || !hook.verified_at) {
+          failed += 1;
+          continue;
+        }
+        const whResult = await postUserWebhook(hook.url, hook.secret, {
+          type: 'zoro.nag',
+          nag_id: row.id,
+          message: row.message,
+          next_at: row.next_at,
+          manage_url: manageUrl,
+          complete_url: completeUrl ?? null,
+          sent_at: new Date().toISOString(),
+        });
+        if (!whResult.ok) {
+          failed += 1;
+          continue;
+        }
+        providerId = `webhook:${whResult.status}`;
       } else {
         failed += 1;
         continue;

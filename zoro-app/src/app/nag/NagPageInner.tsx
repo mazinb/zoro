@@ -24,6 +24,7 @@ type Nag = {
   id: string;
   message: string;
   channel: string;
+  webhook_id?: string | null;
   frequency: string;
   time_hhmm: string;
   day_of_week: number | null;
@@ -62,6 +63,21 @@ const WEEKDAYS = [
 ];
 
 const NAG_MCP_URL = 'https://www.getzoro.com/api/mcp/nags';
+
+/** Accept raw verification_token or a URL/query containing token= */
+function extractTokenFromNagInput(raw: string): string {
+  const t = raw.trim();
+  if (!t) return '';
+  const m = /[?&]token=([^&]+)/.exec(t);
+  if (m?.[1]) {
+    try {
+      return decodeURIComponent(m[1].replace(/\+/g, ' ')).trim();
+    } catch {
+      return m[1].trim();
+    }
+  }
+  return t;
+}
 
 function followupOptionsForFrequency(frequency: string): { value: string; label: string }[] {
   switch (frequency) {
@@ -102,6 +118,7 @@ function emptyDraft(): NagDraft {
   return {
     message: '',
     channel: 'email',
+    webhook_id: '',
     frequency: 'weekly',
     time_hhmm: '10:00',
     day_of_week: 4,
@@ -118,6 +135,7 @@ function draftFromParse(d: Record<string, unknown>): NagDraft {
   return {
     message: String(d.message ?? ''),
     channel: String(d.channel ?? 'email'),
+    webhook_id: typeof d.webhook_id === 'string' ? d.webhook_id : '',
     frequency: String(d.frequency ?? 'weekly'),
     time_hhmm: String(d.time_hhmm ?? '10:00'),
     day_of_week: typeof d.day_of_week === 'number' ? d.day_of_week : null,
@@ -135,6 +153,7 @@ function nagToDraft(n: Nag): NagDraft {
   return {
     message: n.message,
     channel: n.channel,
+    webhook_id: typeof n.webhook_id === 'string' ? n.webhook_id : '',
     frequency: n.frequency,
     time_hhmm: n.time_hhmm,
     day_of_week: n.day_of_week,
@@ -168,6 +187,31 @@ function endLabel(n: Nag): string {
   if (n.end_type === 'forever') return 'forever';
   if (n.end_type === 'occurrences') return `${n.occurrences_remaining ?? n.occurrences_max ?? '?'}× left`;
   return n.until_date ? `until ${n.until_date}` : 'until …';
+}
+
+type NagWebhookRow = { id: string; url: string; verified_at: string | null; created_at: string };
+
+function shortHookUrl(u: string, max = 40): string {
+  if (u.length <= max) return u;
+  return `${u.slice(0, max - 1)}…`;
+}
+
+function viaLabel(n: Nag, hooks: NagWebhookRow[]): string {
+  if (n.channel === 'webhook' && n.webhook_id) {
+    const h = hooks.find((x) => x.id === n.webhook_id);
+    return h ? shortHookUrl(h.url) : 'Webhook';
+  }
+  if (n.channel === 'whatsapp') return 'WhatsApp';
+  return 'Email';
+}
+
+function draftViaLabel(d: NagDraft, hooks: NagWebhookRow[]): string {
+  if (d.channel === 'webhook' && d.webhook_id) {
+    const h = hooks.find((x) => x.id === d.webhook_id);
+    return h ? shortHookUrl(h.url, 28) : 'Webhook';
+  }
+  if (d.channel === 'whatsapp') return 'WhatsApp';
+  return 'Email';
 }
 
 function apiErrorMessage(status: number, json: { error?: string }): string {
@@ -205,9 +249,11 @@ export function NagPageInner() {
     setForceLogout(false);
     try {
       sessionStorage.removeItem(NAG_FORCE_LOGOUT);
+      sessionStorage.setItem(NAG_TOKEN_STORAGE, urlToken.trim());
     } catch {
       /* ignore */
     }
+    setStoredToken(urlToken.trim());
   }, [urlToken]);
 
   const effectiveToken =
@@ -229,6 +275,8 @@ export function NagPageInner() {
 
   const [nags, setNags] = useState<Nag[]>([]);
   const [profileEmail, setProfileEmail] = useState<string | null>(null);
+  const [nagDeveloper, setNagDeveloper] = useState(false);
+  const [profileWebhooks, setProfileWebhooks] = useState<NagWebhookRow[]>([]);
   const [profileTimezone, setProfileTimezone] = useState('UTC');
   const [profileSaveError, setProfileSaveError] = useState<string | null>(null);
   const [profileSaving, setProfileSaving] = useState(false);
@@ -245,9 +293,17 @@ export function NagPageInner() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const [sentLog, setSentLog] = useState<
-    { nag_id: string | null; sent_at: string; subject: string | null; body_preview: string | null }[]
-  >([]);
+  type ReminderLogEntry = {
+    nag_id: string | null;
+    sent_at: string;
+    subject: string | null;
+    body_preview: string | null;
+  };
+  const [profileReminderLog, setProfileReminderLog] = useState<ReminderLogEntry[]>([]);
+  const [profileReminderLogLoading, setProfileReminderLogLoading] = useState(false);
+  const [profileReminderLogError, setProfileReminderLogError] = useState<string | null>(null);
+  const [profileReminderLogOpen, setProfileReminderLogOpen] = useState(false);
+  const [restoreConfirmNag, setRestoreConfirmNag] = useState<Nag | null>(null);
   const completionHandledRef = useRef<string>('');
 
   const [tab, setTab] = useState<'active' | 'archived'>('active');
@@ -289,6 +345,7 @@ export function NagPageInner() {
     phone: '',
     defaultVia: 'email' as 'email' | 'whatsapp',
     timezone: 'UTC',
+    developerMode: false,
   });
 
   const [selectedDevTool, setSelectedDevTool] = useState<NagLandingTool>(() => NAG_LANDING_TOOLS[0]!);
@@ -300,7 +357,18 @@ export function NagPageInner() {
   const [devToolBodyText, setDevToolBodyText] = useState('');
   const [devToolResult, setDevToolResult] = useState<unknown>(null);
   const [devToolBusy, setDevToolBusy] = useState(false);
-  const [firstNagId, setFirstNagId] = useState<string | null>(null);
+
+  const [devSheetOpen, setDevSheetOpen] = useState(false);
+  const [devSheetEmail, setDevSheetEmail] = useState('');
+  const [devSheetSending, setDevSheetSending] = useState(false);
+  const [devSheetMessage, setDevSheetMessage] = useState<'idle' | 'sent' | 'not_registered' | 'error'>('idle');
+  const [devSheetError, setDevSheetError] = useState<string | null>(null);
+  const [devSheetPaste, setDevSheetPaste] = useState('');
+  const [devSheetPasteError, setDevSheetPasteError] = useState<string | null>(null);
+  const [webhookUrlInput, setWebhookUrlInput] = useState('');
+  const [webhookAddBusy, setWebhookAddBusy] = useState(false);
+  const [webhookRowBusy, setWebhookRowBusy] = useState<string | null>(null);
+  const [hookMsg, setHookMsg] = useState<string | null>(null);
 
   const openMcpGuide = useCallback(() => {
     setMcpGuideOpen(true);
@@ -320,13 +388,17 @@ export function NagPageInner() {
       }
       setNags(json.nags ?? []);
       setProfileEmail(json.profile?.email ?? null);
+      setNagDeveloper(Boolean(json.profile?.nag_developer));
+      setProfileWebhooks(
+        Array.isArray(json.profile?.webhooks)
+          ? (json.profile.webhooks as NagWebhookRow[])
+          : []
+      );
       setProfileTimezone(
         typeof json.profile?.timezone === 'string' && json.profile.timezone.trim()
           ? json.profile.timezone.trim()
           : 'UTC'
       );
-      const first = (json.nags ?? [])[0]?.id;
-      if (first) setFirstNagId(first);
     } catch {
       setLoadError('Network error');
       setNags([]);
@@ -335,18 +407,26 @@ export function NagPageInner() {
     }
   }, [effectiveToken]);
 
-  const fetchSentLog = useCallback(async () => {
+  const loadProfileReminderLog = useCallback(async () => {
     if (!effectiveToken) return;
+    setProfileReminderLogLoading(true);
+    setProfileReminderLogError(null);
     try {
       const res = await fetch(
         `/api/nags/sent-log?token=${encodeURIComponent(effectiveToken)}&limit=40`
       );
-      const json = (await res.json()) as {
-        log?: { nag_id: string | null; sent_at: string; subject: string | null; body_preview: string | null }[];
-      };
-      if (res.ok) setSentLog(json.log ?? []);
+      const json = (await res.json()) as { error?: string; log?: ReminderLogEntry[] };
+      if (!res.ok) {
+        setProfileReminderLogError(json.error ?? `Could not load log (${res.status})`);
+        setProfileReminderLog([]);
+        return;
+      }
+      setProfileReminderLog(json.log ?? []);
     } catch {
-      /* ignore */
+      setProfileReminderLogError('Network error while loading reminder log.');
+      setProfileReminderLog([]);
+    } finally {
+      setProfileReminderLogLoading(false);
     }
   }, [effectiveToken]);
 
@@ -355,12 +435,16 @@ export function NagPageInner() {
   }, [effectiveToken, fetchNags]);
 
   useEffect(() => {
-    if (effectiveToken) void fetchSentLog();
-  }, [effectiveToken, fetchSentLog]);
+    if (nagDeveloper && defaultChannel === 'whatsapp') {
+      setDefaultChannel('email');
+    }
+  }, [nagDeveloper, defaultChannel]);
 
   useEffect(() => {
     if (completedFromUrl) {
-      setCompletionNotice('Marked complete. Nice work - follow-ups are paused until the next scheduled cycle.');
+      setCompletionNotice(
+        'Marked complete. The nag is in Archived — open that tab if you want to restore it or delete it.'
+      );
     }
   }, [completedFromUrl]);
 
@@ -388,10 +472,11 @@ export function NagPageInner() {
         }
         if (!cancelled) {
           setCompletionNotice(
-            'Task marked complete from your email link. Follow-ups are paused until the next scheduled cycle.'
+            'Task marked complete from your email link. It is in Archived — open that tab to restore or delete.'
           );
+          setTab('archived');
           await fetchNags();
-          await fetchSentLog();
+          if (profileReminderLogOpen) void loadProfileReminderLog();
           const next = new URLSearchParams(searchParams.toString());
           next.delete('complete_nag');
           next.set('completed', '1');
@@ -408,7 +493,16 @@ export function NagPageInner() {
     return () => {
       cancelled = true;
     };
-  }, [completeNagFromUrl, effectiveToken, fetchNags, fetchSentLog, router, searchParams, urlToken]);
+  }, [
+    completeNagFromUrl,
+    effectiveToken,
+    fetchNags,
+    loadProfileReminderLog,
+    profileReminderLogOpen,
+    router,
+    searchParams,
+    urlToken,
+  ]);
 
   const activeList = useMemo(() => nags.filter((n) => n.status === 'active'), [nags]);
   const archivedList = useMemo(() => nags.filter((n) => n.status === 'archived'), [nags]);
@@ -421,7 +515,16 @@ export function NagPageInner() {
     setTokenResetError(null);
     setTokenResetNotice(null);
     setTokenCopied(false);
-    setProfDraft({ phone: profilePhone, defaultVia: defaultChannel, timezone: profileTimezone });
+    setProfileReminderLogOpen(false);
+    setProfileReminderLog([]);
+    setProfileReminderLogError(null);
+    setHookMsg(null);
+    setProfDraft({
+      phone: profilePhone,
+      defaultVia: nagDeveloper ? 'email' : defaultChannel,
+      timezone: profileTimezone,
+      developerMode: nagDeveloper,
+    });
     setSheet('profile');
   };
 
@@ -563,16 +666,25 @@ export function NagPageInner() {
       const res = await fetch('/api/nag-profile', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: effectiveToken, timezone: profDraft.timezone }),
+        body: JSON.stringify({
+          token: effectiveToken,
+          timezone: profDraft.timezone,
+          nag_developer: profDraft.developerMode,
+        }),
       });
-      const json = (await res.json()) as { error?: string };
+      const json = (await res.json()) as { error?: string; nag_developer?: boolean };
       if (!res.ok) {
-        setProfileSaveError(json.error ?? 'Could not save timezone');
+        setProfileSaveError(json.error ?? 'Could not save profile');
         return;
       }
       setProfileTimezone(profDraft.timezone);
       setProfilePhone(profDraft.phone);
-      setDefaultChannel(profDraft.defaultVia);
+      setDefaultChannel(profDraft.developerMode ? 'email' : profDraft.defaultVia);
+      if (typeof json.nag_developer === 'boolean') {
+        setNagDeveloper(json.nag_developer);
+      } else {
+        setNagDeveloper(profDraft.developerMode);
+      }
       setSheet(null);
       await fetchNags();
     } catch {
@@ -594,7 +706,7 @@ export function NagPageInner() {
           body: JSON.stringify({
             token: effectiveToken,
             text,
-            default_channel: defaultChannel,
+            default_channel: nagDeveloper ? 'email' : defaultChannel,
           }),
         });
         const json = await res.json();
@@ -603,7 +715,8 @@ export function NagPageInner() {
           return false;
         }
         const d = draftFromParse(json.draft ?? {});
-        d.channel = defaultChannel;
+        d.channel = nagDeveloper ? 'email' : defaultChannel;
+        if (d.channel !== 'webhook') d.webhook_id = '';
         setDraft(d);
         if (!opts?.keepEditingId) {
           setEditingId(null);
@@ -614,7 +727,7 @@ export function NagPageInner() {
         return false;
       }
     },
-    [effectiveToken, defaultChannel]
+    [effectiveToken, defaultChannel, nagDeveloper]
   );
 
   const onSchedule = async () => {
@@ -634,7 +747,7 @@ export function NagPageInner() {
     const emailEscalate = draft.channel === 'email' && draft.nag_until_done;
     const followRaw = draft.followup_interval_hours.trim();
     const followNum = followRaw === '' ? null : Number(followRaw);
-    return {
+    const payload: Record<string, unknown> = {
       message: draft.message.trim(),
       channel: draft.channel,
       frequency: draft.frequency,
@@ -649,6 +762,11 @@ export function NagPageInner() {
       followup_interval_hours:
         emailEscalate && followNum !== null && !Number.isNaN(followNum) ? followNum : null,
     };
+    if (draft.channel === 'webhook') {
+      const w = draft.webhook_id.trim();
+      if (w) payload.webhook_id = w;
+    }
+    return payload;
   };
 
   const buildCreateBody = () => ({
@@ -673,7 +791,7 @@ export function NagPageInner() {
       setSheet(null);
       setCompose('');
       await fetchNags();
-      await fetchSentLog();
+      if (profileReminderLogOpen) void loadProfileReminderLog();
     } finally {
       setSaving(false);
     }
@@ -696,7 +814,7 @@ export function NagPageInner() {
       setSheet(null);
       setEditingId(null);
       await fetchNags();
-      await fetchSentLog();
+      if (profileReminderLogOpen) void loadProfileReminderLog();
     } finally {
       setSaving(false);
     }
@@ -715,7 +833,10 @@ export function NagPageInner() {
         setLoadError(apiErrorMessage(res.status, json));
         return;
       }
+      setCompletionNotice('Marked done. Moved to Archived — switch tabs to restore or delete.');
+      setTab('archived');
       await fetchNags();
+      if (profileReminderLogOpen) void loadProfileReminderLog();
     } catch {
       setLoadError('Network error');
     }
@@ -729,16 +850,30 @@ export function NagPageInner() {
       body: JSON.stringify({ token: effectiveToken, status: 'archived' }),
     });
     await fetchNags();
+    setTab('archived');
   };
 
-  const restoreNag = async (id: string) => {
-    if (!effectiveToken) return;
-    await fetch(`/api/nags/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token: effectiveToken, status: 'active' }),
-    });
-    await fetchNags();
+  const confirmRestoreNag = async () => {
+    const id = restoreConfirmNag?.id;
+    if (!effectiveToken || !id) return;
+    try {
+      const res = await fetch(`/api/nags/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: effectiveToken, status: 'active' }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setLoadError(apiErrorMessage(res.status, json));
+        return;
+      }
+      setRestoreConfirmNag(null);
+      setTab('active');
+      setCompletionNotice('Restored to Active. Next send time was recalculated from your schedule.');
+      await fetchNags();
+    } catch {
+      setLoadError('Network error');
+    }
   };
 
   const deleteNag = async (id: string) => {
@@ -782,6 +917,155 @@ export function NagPageInner() {
       setGetStartedStatus('Network error.');
     } finally {
       setGetStartedCheckBusy(false);
+    }
+  };
+
+  const handleDevSheetMagicLink = useCallback(async () => {
+    const email = devSheetEmail.trim().toLowerCase();
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setDevSheetError('Valid email required.');
+      return;
+    }
+    setDevSheetSending(true);
+    setDevSheetError(null);
+    setDevSheetMessage('idle');
+    try {
+      const res = await fetch('/api/auth/send-magic-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, redirectPath: '/nag', context: 'nag' }),
+      });
+      const json = (await res.json()) as { error?: string; registered?: boolean };
+      if (!res.ok) {
+        setDevSheetMessage('error');
+        setDevSheetError(json.error ?? 'Something went wrong.');
+        return;
+      }
+      if (json.registered === false) {
+        setDevSheetMessage('not_registered');
+        setDevSheetError(null);
+        return;
+      }
+      setDevSheetMessage('sent');
+      setDevSheetError(null);
+    } catch (e) {
+      setDevSheetMessage('error');
+      setDevSheetError(e instanceof Error ? e.message : 'Failed to send link.');
+    } finally {
+      setDevSheetSending(false);
+    }
+  }, [devSheetEmail]);
+
+  const applyDevSheetToken = useCallback(() => {
+    const token = extractTokenFromNagInput(devSheetPaste);
+    if (!token) {
+      setDevSheetPasteError('Token or ?token= link required.');
+      return;
+    }
+    setDevSheetPasteError(null);
+    setForceLogout(false);
+    try {
+      sessionStorage.removeItem(NAG_FORCE_LOGOUT);
+    } catch {
+      /* ignore */
+    }
+    persistStoredToken(token);
+    setDevSheetOpen(false);
+    router.replace(`/nag?token=${encodeURIComponent(token)}`);
+  }, [devSheetPaste, persistStoredToken, router]);
+
+  const addWebhook = async () => {
+    const u = webhookUrlInput.trim();
+    if (!effectiveToken || !u) return;
+    setHookMsg(null);
+    setWebhookAddBusy(true);
+    try {
+      const res = await fetch('/api/nag-webhooks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: effectiveToken, url: u }),
+      });
+      const json = (await res.json()) as { error?: string; verify_hint?: string };
+      if (!res.ok) {
+        setHookMsg(json.error ?? 'Could not add webhook.');
+        return;
+      }
+      setWebhookUrlInput('');
+      setHookMsg(typeof json.verify_hint === 'string' ? 'Added. Verify to enable.' : 'Added.');
+      await fetchNags();
+    } catch {
+      setHookMsg('Network error.');
+    } finally {
+      setWebhookAddBusy(false);
+    }
+  };
+
+  const verifyWebhookRow = async (id: string) => {
+    if (!effectiveToken) return;
+    setHookMsg(null);
+    setWebhookRowBusy(id);
+    try {
+      const res = await fetch(`/api/nag-webhooks/${id}/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: effectiveToken }),
+      });
+      const json = (await res.json()) as { error?: string; detail?: string };
+      if (!res.ok) {
+        setHookMsg(json.detail ?? json.error ?? 'Verify failed.');
+        return;
+      }
+      setHookMsg('Verified.');
+      await fetchNags();
+    } catch {
+      setHookMsg('Network error.');
+    } finally {
+      setWebhookRowBusy(null);
+    }
+  };
+
+  const pingWebhookRow = async (id: string) => {
+    if (!effectiveToken) return;
+    setHookMsg(null);
+    setWebhookRowBusy(id);
+    try {
+      const res = await fetch(`/api/nag-webhooks/${id}/ping`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: effectiveToken }),
+      });
+      const json = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        setHookMsg(json.error ?? 'Ping failed.');
+        return;
+      }
+      setHookMsg('Ping OK.');
+    } catch {
+      setHookMsg('Network error.');
+    } finally {
+      setWebhookRowBusy(null);
+    }
+  };
+
+  const deleteWebhookRow = async (id: string) => {
+    if (!effectiveToken) return;
+    setHookMsg(null);
+    setWebhookRowBusy(id);
+    try {
+      const res = await fetch(`/api/nag-webhooks/${id}?token=${encodeURIComponent(effectiveToken)}`, {
+        method: 'DELETE',
+      });
+      const json = (await res.json()) as { error?: string };
+      if (!res.ok) {
+        setHookMsg(json.error ?? 'Could not remove.');
+        return;
+      }
+      setHookMsg('Removed.');
+      await fetchNags();
+    } catch {
+      setHookMsg('Network error.');
+    } finally {
+      setWebhookRowBusy(null);
     }
   };
 
@@ -1002,12 +1286,18 @@ export function NagPageInner() {
               >
                 Get started
               </button>
-              <a
-                href="#developer"
+              <button
+                type="button"
+                onClick={() => {
+                  setDevSheetOpen(true);
+                  setDevSheetMessage('idle');
+                  setDevSheetError(null);
+                  setDevSheetPasteError(null);
+                }}
                 className={`rounded-lg border px-7 py-3 text-sm font-bold ${theme.borderClass} ${theme.textSecondaryClass}`}
               >
                 Developers
-              </a>
+              </button>
             </div>
             <p className={`mt-4 text-[11px] opacity-50 ${theme.textSecondaryClass}`}>
               Password-less secure login. You are always in control
@@ -1116,6 +1406,7 @@ export function NagPageInner() {
               </button>
               </div>
             </header>
+
             <LandingEndpointsPanel />
           </div>
         </section>
@@ -1251,6 +1542,75 @@ export function NagPageInner() {
           </NagSheet>
         )}
 
+        {devSheetOpen && (
+          <NagSheet
+            theme={theme}
+            onClose={() => {
+              setDevSheetOpen(false);
+              setDevSheetMessage('idle');
+              setDevSheetError(null);
+            }}
+          >
+            <p className={`mb-1 text-[10px] font-bold uppercase tracking-wider ${theme.textSecondaryClass}`}>
+              Developers
+            </p>
+            <h2 className={`mb-2 text-lg font-bold ${theme.textClass}`}>By devs, for devs</h2>
+            <p className={`mb-4 text-sm leading-relaxed ${theme.textSecondaryClass}`}>
+              Same magic link as everyone else, or paste a token. HTTPS webhooks live in Profile after you enable developer
+              mode.
+            </p>
+            <label className={`mb-1 block text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}>Email</label>
+            <input
+              type="email"
+              autoComplete="email"
+              placeholder="you@example.com"
+              className={`mb-2 w-full rounded-lg border px-3 py-2.5 text-sm ${theme.inputBgClass}`}
+              value={devSheetEmail}
+              onChange={(e) => {
+                setDevSheetEmail(e.target.value);
+                setDevSheetMessage('idle');
+                setDevSheetError(null);
+              }}
+            />
+            {devSheetError && <p className="mb-2 text-sm text-red-500">{devSheetError}</p>}
+            {devSheetMessage === 'not_registered' && (
+              <p className={`mb-2 text-xs ${theme.textSecondaryClass}`}>Not on Zoro yet — use Get started on the page.</p>
+            )}
+            {devSheetMessage === 'sent' && (
+              <p className={`mb-2 text-xs ${theme.textSecondaryClass}`}>Link sent. Check your inbox.</p>
+            )}
+            <button
+              type="button"
+              disabled={devSheetSending || !devSheetEmail.trim()}
+              onClick={() => void handleDevSheetMagicLink()}
+              className={`mb-4 w-full rounded-lg py-3 text-sm font-bold disabled:opacity-40 ${theme.buttonClass}`}
+            >
+              {devSheetSending ? 'Sending…' : 'Email magic link'}
+            </button>
+            <label className={`mb-1 block text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}>Token</label>
+            <textarea
+              rows={2}
+              spellCheck={false}
+              placeholder="token or …/nag?token=…"
+              className={`mb-2 w-full rounded-lg border px-3 py-2 font-mono text-[11px] ${theme.inputBgClass}`}
+              value={devSheetPaste}
+              onChange={(e) => {
+                setDevSheetPaste(e.target.value);
+                setDevSheetPasteError(null);
+              }}
+            />
+            {devSheetPasteError && <p className="mb-2 text-sm text-red-500">{devSheetPasteError}</p>}
+            <button
+              type="button"
+              disabled={!devSheetPaste.trim()}
+              onClick={() => applyDevSheetToken()}
+              className={`w-full rounded-lg py-3 text-sm font-bold disabled:opacity-40 ${theme.buttonClass}`}
+            >
+              Continue
+            </button>
+          </NagSheet>
+        )}
+
         {mcpLandingGuideOpen && (
           <NagSheet theme={theme} onClose={() => setMcpLandingGuideOpen(false)}>
             <div className="mb-3 flex items-start justify-between gap-2">
@@ -1321,7 +1681,7 @@ export function NagPageInner() {
           <div className={`my-3 h-px ${theme.borderClass} bg-current opacity-20`} />
           <div className="flex flex-wrap items-center gap-2">
             <div className={`flex rounded-md p-0.5 ${theme.accentBgClass}`}>
-              {(['whatsapp', 'email'] as const).map((v) => (
+              {(nagDeveloper ? (['email'] as const) : (['whatsapp', 'email'] as const)).map((v) => (
                 <button
                   key={v}
                   type="button"
@@ -1335,7 +1695,7 @@ export function NagPageInner() {
               ))}
             </div>
             <span className={`min-w-0 flex-1 truncate text-[11px] ${theme.textSecondaryClass}`}>
-              {defaultChannel === 'whatsapp' ? profilePhone : profileEmail ?? '—'}
+              {nagDeveloper || defaultChannel === 'email' ? profileEmail ?? '—' : profilePhone}
             </span>
             <button
               type="button"
@@ -1369,33 +1729,6 @@ export function NagPageInner() {
           </button>
         </div>
 
-        {sentLog.length > 0 && (
-          <div className={`mb-4 rounded-[14px] border p-3 ${theme.borderClass} ${theme.cardBgClass}`}>
-            <p className={`mb-2 text-[10px] font-bold uppercase tracking-wider ${theme.textSecondaryClass}`}>
-              Recent reminder emails
-            </p>
-            <p className={`mb-2 text-[11px] leading-snug ${theme.textSecondaryClass}`}>
-              Pulled from your Zoro outbound email log (same memory as the assistant). New sends appear after
-              delivery.
-            </p>
-            <ul className="max-h-40 space-y-2 overflow-y-auto text-xs">
-              {sentLog.map((e, idx) => (
-                <li key={`${e.sent_at}-${idx}`} className={`border-b pb-2 last:border-0 ${theme.borderClass}`}>
-                  <div className={`font-medium ${theme.textClass}`}>
-                    {formatNext(e.sent_at, profileTimezone)}
-                  </div>
-                  {e.subject && (
-                    <div className={`truncate ${theme.textSecondaryClass}`}>{e.subject}</div>
-                  )}
-                  {e.body_preview && (
-                    <div className={`mt-0.5 line-clamp-2 ${theme.textSecondaryClass}`}>{e.body_preview}</div>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
         <div className={`rounded-[14px] border px-4 py-1 ${theme.borderClass} ${theme.cardBgClass}`}>
           {loadingList ? (
             <p className={`py-8 text-center text-sm ${theme.textSecondaryClass}`}>Loading…</p>
@@ -1425,7 +1758,7 @@ export function NagPageInner() {
                   </div>
                   <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px]">
                     <span className={`rounded-full border px-2 py-0.5 uppercase ${theme.borderClass} ${theme.textSecondaryClass}`}>
-                      {n.channel}
+                      {viaLabel(n, profileWebhooks)}
                     </span>
                     <span className={theme.textSecondaryClass}>{n.frequency}</span>
                     <span className={theme.textSecondaryClass}>{endLabel(n)}</span>
@@ -1465,8 +1798,8 @@ export function NagPageInner() {
                     <button
                       type="button"
                       className={`px-1 text-lg ${theme.textClass}`}
-                      onClick={() => restoreNag(n.id)}
-                      title="Restore"
+                      onClick={() => setRestoreConfirmNag(n)}
+                      title="Restore to active"
                     >
                       ↑
                     </button>
@@ -1586,31 +1919,138 @@ export function NagPageInner() {
                   </option>
                 ))}
               </select>
-              <label className={`mb-1 block text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}>
-                WhatsApp number
-              </label>
-              <input
-                className={`mb-3 w-full rounded-lg border px-3 py-2.5 text-sm ${theme.inputBgClass}`}
-                value={profDraft.phone}
-                onChange={(e) => setProfDraft((p) => ({ ...p, phone: e.target.value }))}
-              />
-              <label className={`mb-1 block text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}>
-                Default channel
-              </label>
-              <div className={`mb-4 flex rounded-lg p-0.5 ${theme.accentBgClass}`}>
-                {(['whatsapp', 'email'] as const).map((v) => (
-                  <button
-                    key={v}
-                    type="button"
-                    onClick={() => setProfDraft((p) => ({ ...p, defaultVia: v }))}
-                    className={`flex-1 rounded-md py-2 text-xs font-semibold ${
-                      profDraft.defaultVia === v ? `${theme.cardBgClass} ${theme.textClass}` : theme.textSecondaryClass
+              <div className="mb-4 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className={`text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}>Developer mode</p>
+                  <p className={`text-xs leading-snug ${theme.textSecondaryClass}`}>Email + verified HTTPS webhooks only.</p>
+                </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={profDraft.developerMode}
+                  onClick={() =>
+                    setProfDraft((p) => ({
+                      ...p,
+                      developerMode: !p.developerMode,
+                      defaultVia: !p.developerMode ? 'email' : p.defaultVia,
+                    }))
+                  }
+                  className={`relative inline-flex h-7 w-12 shrink-0 rounded-full transition-colors ${
+                    profDraft.developerMode ? 'bg-emerald-500' : darkMode ? 'bg-zinc-700' : 'bg-zinc-300'
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-5 w-5 translate-y-1 transform rounded-full bg-white shadow transition ${
+                      profDraft.developerMode ? 'translate-x-6' : 'translate-x-1'
                     }`}
-                  >
-                    {v === 'whatsapp' ? 'WhatsApp' : 'Email'}
-                  </button>
-                ))}
+                  />
+                </button>
               </div>
+
+              {!profDraft.developerMode && (
+                <>
+                  <label className={`mb-1 block text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}>
+                    WhatsApp number
+                  </label>
+                  <input
+                    className={`mb-3 w-full rounded-lg border px-3 py-2.5 text-sm ${theme.inputBgClass}`}
+                    value={profDraft.phone}
+                    onChange={(e) => setProfDraft((p) => ({ ...p, phone: e.target.value }))}
+                  />
+                  <label className={`mb-1 block text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}>
+                    Default channel
+                  </label>
+                  <div className={`mb-4 flex rounded-lg p-0.5 ${theme.accentBgClass}`}>
+                    {(['whatsapp', 'email'] as const).map((v) => (
+                      <button
+                        key={v}
+                        type="button"
+                        onClick={() => setProfDraft((p) => ({ ...p, defaultVia: v }))}
+                        className={`flex-1 rounded-md py-2 text-xs font-semibold ${
+                          profDraft.defaultVia === v ? `${theme.cardBgClass} ${theme.textClass}` : theme.textSecondaryClass
+                        }`}
+                      >
+                        {v === 'whatsapp' ? 'WhatsApp' : 'Email'}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {profDraft.developerMode && !nagDeveloper && (
+                <p className={`mb-3 text-xs text-amber-700 dark:text-amber-300`}>Save once to enable webhooks.</p>
+              )}
+
+              {profDraft.developerMode && nagDeveloper && (
+                <div className={`mb-4 rounded-lg border p-3 ${theme.borderClass}`}>
+                  <p className={`mb-2 text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}>Webhooks</p>
+                  <p className={`mb-2 text-[11px] leading-snug ${theme.textSecondaryClass}`}>
+                    POST JSON echoes <span className="font-mono">challenge</span> for verify; header{' '}
+                    <span className="font-mono">X-Zoro-Webhook-Secret</span>.
+                  </p>
+                  {hookMsg && <p className={`mb-2 text-xs ${theme.textClass}`}>{hookMsg}</p>}
+                  <div className="mb-2 flex gap-2">
+                    <input
+                      type="url"
+                      placeholder="https://…"
+                      className={`min-w-0 flex-1 rounded-lg border px-2 py-2 text-xs ${theme.inputBgClass}`}
+                      value={webhookUrlInput}
+                      onChange={(e) => setWebhookUrlInput(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      disabled={webhookAddBusy || !webhookUrlInput.trim()}
+                      onClick={() => void addWebhook()}
+                      className={`shrink-0 rounded-lg px-3 py-2 text-xs font-bold disabled:opacity-40 ${theme.buttonClass}`}
+                    >
+                      {webhookAddBusy ? '…' : 'Add'}
+                    </button>
+                  </div>
+                  <ul className="space-y-2">
+                    {profileWebhooks.map((h) => (
+                      <li
+                        key={h.id}
+                        className={`flex flex-col gap-1.5 rounded-md border px-2 py-2 text-[11px] ${theme.borderClass}`}
+                      >
+                        <span className={`truncate font-mono ${theme.textSecondaryClass}`}>{shortHookUrl(h.url, 48)}</span>
+                        <div className="flex flex-wrap gap-1">
+                          {!h.verified_at ? (
+                            <button
+                              type="button"
+                              disabled={webhookRowBusy === h.id}
+                              onClick={() => void verifyWebhookRow(h.id)}
+                              className={`rounded border px-2 py-1 text-[10px] font-bold ${theme.borderClass} ${theme.textClass}`}
+                            >
+                              Verify
+                            </button>
+                          ) : (
+                            <span className="text-emerald-600 dark:text-emerald-400">Verified</span>
+                          )}
+                          {h.verified_at && (
+                            <button
+                              type="button"
+                              disabled={webhookRowBusy === h.id}
+                              onClick={() => void pingWebhookRow(h.id)}
+                              className={`rounded border px-2 py-1 text-[10px] font-bold ${theme.borderClass} ${theme.textSecondaryClass}`}
+                            >
+                              Ping
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            disabled={webhookRowBusy === h.id}
+                            onClick={() => void deleteWebhookRow(h.id)}
+                            className={`rounded border px-2 py-1 text-[10px] font-bold ${theme.borderClass} text-red-600 dark:text-red-400`}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               {profileSaveError && (
                 <p className="mb-3 text-sm text-red-600 dark:text-red-400">{profileSaveError}</p>
               )}
@@ -1753,6 +2193,72 @@ export function NagPageInner() {
               >
                 {personalitySaveBusy ? 'Saving personality…' : 'Save personality'}
               </button>
+
+              <p className={`mb-2 mt-8 text-[10px] font-bold uppercase tracking-wider ${theme.textSecondaryClass}`}>
+                Reminder log
+              </p>
+              <p className={`mb-3 text-xs leading-relaxed ${theme.textSecondaryClass}`}>
+                Emails we sent for your nags. Nothing loads until you tap below — we do not prefetch this list.
+              </p>
+              {!profileReminderLogOpen ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProfileReminderLogOpen(true);
+                    void loadProfileReminderLog();
+                  }}
+                  className={`w-full rounded-lg border py-2.5 text-sm font-semibold ${theme.borderClass} ${theme.textSecondaryClass}`}
+                >
+                  Show reminder log
+                </button>
+              ) : (
+                <>
+                  {profileReminderLogLoading && (
+                    <p className={`mb-3 text-sm ${theme.textSecondaryClass}`}>Loading…</p>
+                  )}
+                  {profileReminderLogError && (
+                    <p className="mb-3 text-sm text-red-600 dark:text-red-400">{profileReminderLogError}</p>
+                  )}
+                  {!profileReminderLogLoading &&
+                    profileReminderLog.length === 0 &&
+                    !profileReminderLogError && (
+                      <p className={`mb-3 text-sm ${theme.textSecondaryClass}`}>No entries yet.</p>
+                    )}
+                  {profileReminderLog.length > 0 && (
+                    <ul className={`mb-3 max-h-52 space-y-2 overflow-y-auto rounded-lg border p-2 text-xs ${theme.borderClass}`}>
+                      {profileReminderLog.map((e, idx) => (
+                        <li
+                          key={`${e.sent_at}-${idx}`}
+                          className={`border-b pb-2 last:border-0 ${theme.borderClass}`}
+                        >
+                          <div className={`font-medium ${theme.textClass}`}>
+                            {formatNext(e.sent_at, profileTimezone)}
+                          </div>
+                          {e.subject && (
+                            <div className={`truncate ${theme.textSecondaryClass}`}>{e.subject}</div>
+                          )}
+                          {e.body_preview && (
+                            <div className={`mt-0.5 line-clamp-2 ${theme.textSecondaryClass}`}>
+                              {e.body_preview}
+                            </div>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setProfileReminderLogOpen(false);
+                      setProfileReminderLog([]);
+                      setProfileReminderLogError(null);
+                    }}
+                    className={`w-full rounded-lg border py-2 text-xs font-semibold ${theme.borderClass} ${theme.textSecondaryClass}`}
+                  >
+                    Hide reminder log
+                  </button>
+                </>
+              )}
             </div>
           )}
 
@@ -1767,7 +2273,7 @@ export function NagPageInner() {
                   <div className="mb-4 flex flex-wrap gap-2">
                     {(
                       [
-                        ['Via', draft.channel === 'whatsapp' ? 'WhatsApp' : 'Email'],
+                        ['Via', draftViaLabel(draft, profileWebhooks)],
                         ['Freq', draft.frequency],
                         ...(draft.frequency === 'weekly' && draft.day_of_week != null
                           ? ([
@@ -1812,7 +2318,9 @@ export function NagPageInner() {
                   </div>
                   <button
                     type="button"
-                    disabled={saving}
+                    disabled={
+                      saving || (draft.channel === 'webhook' && !draft.webhook_id.trim())
+                    }
                     onClick={confirmCreate}
                     className={`mb-2 w-full rounded-lg py-3 text-sm font-bold disabled:opacity-40 ${theme.buttonClass}`}
                   >
@@ -1965,29 +2473,77 @@ export function NagPageInner() {
                     </div>
                   )}
                   <label className={`mb-1 block text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}>Channel</label>
-                  <div className={`mb-4 flex rounded-lg p-0.5 ${theme.accentBgClass}`}>
-                    {(['email', 'whatsapp'] as const).map((v) => (
+                  <div className={`mb-4 flex flex-wrap gap-0.5 rounded-lg p-0.5 ${theme.accentBgClass}`}>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setDraft((d) => ({
+                          ...d,
+                          channel: 'email',
+                          webhook_id: '',
+                        }))
+                      }
+                      className={`rounded-md px-2 py-2 text-xs font-semibold ${
+                        draft.channel === 'email'
+                          ? `${theme.cardBgClass} ${theme.textClass}`
+                          : theme.textSecondaryClass
+                      }`}
+                    >
+                      Email
+                    </button>
+                    {!nagDeveloper && (
                       <button
-                        key={v}
                         type="button"
                         onClick={() =>
                           setDraft((d) => ({
                             ...d,
-                            channel: v,
-                            ...(v !== 'email' ? { nag_until_done: false, followup_interval_hours: '' } : {}),
+                            channel: 'whatsapp',
+                            webhook_id: '',
+                            nag_until_done: false,
+                            followup_interval_hours: '',
                           }))
                         }
-                        className={`flex-1 rounded-md py-2 text-xs font-semibold ${
-                          draft.channel === v ? `${theme.cardBgClass} ${theme.textClass}` : theme.textSecondaryClass
+                        className={`rounded-md px-2 py-2 text-xs font-semibold ${
+                          draft.channel === 'whatsapp'
+                            ? `${theme.cardBgClass} ${theme.textClass}`
+                            : theme.textSecondaryClass
                         }`}
                       >
-                        {v === 'whatsapp' ? 'WhatsApp' : 'Email'}
+                        WhatsApp
                       </button>
-                    ))}
+                    )}
+                    {nagDeveloper &&
+                      profileWebhooks
+                        .filter((h) => h.verified_at)
+                        .map((h) => (
+                          <button
+                            key={h.id}
+                            type="button"
+                            onClick={() =>
+                              setDraft((d) => ({
+                                ...d,
+                                channel: 'webhook',
+                                webhook_id: h.id,
+                                nag_until_done: false,
+                                followup_interval_hours: '',
+                              }))
+                            }
+                            className={`max-w-[140px] truncate rounded-md px-2 py-2 text-xs font-semibold ${
+                              draft.channel === 'webhook' && draft.webhook_id === h.id
+                                ? `${theme.cardBgClass} ${theme.textClass}`
+                                : theme.textSecondaryClass
+                            }`}
+                            title={h.url}
+                          >
+                            {shortHookUrl(h.url, 20)}
+                          </button>
+                        ))}
                   </div>
                   <button
                     type="button"
-                    disabled={saving}
+                    disabled={
+                      saving || (draft.channel === 'webhook' && !draft.webhook_id.trim())
+                    }
                     onClick={() => (editingId ? saveEdit() : confirmCreate())}
                     className={`w-full rounded-lg py-3 text-sm font-bold disabled:opacity-40 ${theme.buttonClass}`}
                   >
@@ -2010,6 +2566,45 @@ export function NagPageInner() {
               )}
             </div>
           )}
+        </NagSheet>
+      )}
+
+      {restoreConfirmNag && (
+        <NagSheet theme={theme} onClose={() => setRestoreConfirmNag(null)}>
+          <p className={`mb-2 text-[10px] font-bold uppercase tracking-wider ${theme.textSecondaryClass}`}>
+            Restore to active
+          </p>
+          <p className={`mb-4 text-sm leading-relaxed ${theme.textSecondaryClass}`}>
+            This nag will leave Archived and return to your Active list. We will recalculate the next send time from
+            your schedule and reminders can resume (including follow-ups if &quot;until done&quot; is on).
+          </p>
+          <div className={`mb-4 rounded-xl border p-3 ${theme.borderClass} ${theme.cardBgClass}`}>
+            <p className={`mb-2 text-sm font-semibold ${theme.textClass}`}>{restoreConfirmNag.message}</p>
+            <div className="flex flex-wrap gap-2 text-[11px]">
+              <span className={`rounded-full border px-2 py-0.5 uppercase ${theme.borderClass} ${theme.textSecondaryClass}`}>
+                {viaLabel(restoreConfirmNag, profileWebhooks)}
+              </span>
+              <span className={theme.textSecondaryClass}>{restoreConfirmNag.frequency}</span>
+              <span className={theme.textSecondaryClass}>{endLabel(restoreConfirmNag)}</span>
+            </div>
+            {restoreConfirmNag.nag_until_done && restoreConfirmNag.channel === 'email' && (
+              <p className={`mt-2 text-[11px] ${theme.textSecondaryClass}`}>Follow-up emails until done: on</p>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => void confirmRestoreNag()}
+            className={`mb-2 w-full rounded-lg py-3 text-sm font-bold ${theme.buttonClass}`}
+          >
+            Confirm restore
+          </button>
+          <button
+            type="button"
+            onClick={() => setRestoreConfirmNag(null)}
+            className={`w-full rounded-lg border py-3 text-sm font-semibold ${theme.borderClass} ${theme.textSecondaryClass}`}
+          >
+            Cancel
+          </button>
         </NagSheet>
       )}
 
