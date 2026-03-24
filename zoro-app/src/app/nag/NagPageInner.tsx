@@ -205,12 +205,9 @@ export function NagPageInner() {
   const completedFromUrl = searchParams.get('completed') === '1';
   const envDevToken = (process.env.NEXT_PUBLIC_NAG_DEV_TOKEN ?? '').trim();
 
-  const [storedToken, setStoredToken] = useState('');
   const [forceLogout, setForceLogout] = useState(false);
   useEffect(() => {
     try {
-      const s = sessionStorage.getItem(NAG_TOKEN_STORAGE);
-      if (s?.trim()) setStoredToken(s.trim());
       if (sessionStorage.getItem(NAG_FORCE_LOGOUT) === '1') setForceLogout(true);
     } catch {
       /* private mode */
@@ -226,22 +223,11 @@ export function NagPageInner() {
     } catch {
       /* ignore */
     }
-    setStoredToken(urlToken.trim());
   }, [urlToken]);
 
-  const effectiveToken =
-    urlToken || (!forceLogout && (storedToken || envDevToken)) || '';
-
-  const persistStoredToken = useCallback((raw: string) => {
-    const v = raw.trim();
-    setStoredToken(v);
-    try {
-      if (v) sessionStorage.setItem(NAG_TOKEN_STORAGE, v);
-      else sessionStorage.removeItem(NAG_TOKEN_STORAGE);
-    } catch {
-      /* ignore */
-    }
-  }, []);
+  // Intentional: require an explicit token in URL (or env dev token) for /nag.
+  // We do not auto-sign-in from prior sessionStorage tokens.
+  const effectiveToken = urlToken || (!forceLogout && envDevToken) || '';
 
   const { darkMode, toggleDarkMode } = useDarkMode();
   const theme = useThemeClasses(darkMode);
@@ -497,7 +483,11 @@ export function NagPageInner() {
       }
       const nextToken = typeof json.token === 'string' ? json.token.trim() : '';
       if (nextToken) {
-        persistStoredToken(nextToken);
+        try {
+          sessionStorage.setItem(NAG_TOKEN_STORAGE, nextToken);
+        } catch {
+          /* ignore */
+        }
         if (urlToken) {
           const next = new URLSearchParams(searchParams.toString());
           next.set('token', nextToken);
@@ -1388,9 +1378,6 @@ export function NagPageInner() {
         onToggleTheme={toggleDarkMode}
       />
       <div className="mx-auto max-w-[500px] px-5 py-8 pb-24">
-        <div className="mb-4">
-          <SmitheryConnectBar compact darkMode={darkMode} token={effectiveToken} />
-        </div>
         {loadError && (
           <p className="mb-4 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-600 dark:text-red-400">
             {loadError}
@@ -1547,6 +1534,10 @@ export function NagPageInner() {
               </div>
             ))
           )}
+        </div>
+
+        <div className="mt-4">
+          <SmitheryConnectBar darkMode={darkMode} token={effectiveToken} />
         </div>
 
       </div>

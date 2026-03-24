@@ -58,8 +58,8 @@ Smithery docs:
 
 For users without token preconfigured:
 
-1. `nag_email_check`
-2. `nag_auth_email` with `confirm_send=true` (`name` only for new users)
+1. `onboarding.email_check`
+2. `onboarding.auth_email` with `confirm_send=true` (`name` only for new users)
 3. User opens magic link email
 4. Save token into MCP header config (`x-nag-mcp-token`)
 

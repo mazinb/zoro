@@ -1,8 +1,8 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
-import { ExternalLink, KeyRound } from 'lucide-react';
+import { Copy, ExternalLink, KeyRound } from 'lucide-react';
 
 type SmitheryConnectBarProps = {
   compact?: boolean;
@@ -10,7 +10,7 @@ type SmitheryConnectBarProps = {
   darkMode: boolean;
 };
 
-const BASE_USAGE_URL = 'https://smithery.ai/servers/zoro/nag#usage';
+const BASE_USAGE_URL = 'https://smithery.ai/servers/zoro/nag';
 
 function buildUsageUrl(token?: string | null): string {
   const t = token?.trim();
@@ -20,6 +20,19 @@ function buildUsageUrl(token?: string | null): string {
 
 export function SmitheryConnectBar({ compact = false, token, darkMode }: SmitheryConnectBarProps) {
   const usageUrl = buildUsageUrl(token);
+  const trimmedToken = token?.trim() ?? '';
+  const [copiedToken, setCopiedToken] = useState(false);
+
+  const copyText = async (text: string) => {
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedToken(true);
+      window.setTimeout(() => setCopiedToken(false), 1200);
+    } catch {
+      // Ignore clipboard errors silently.
+    }
+  };
 
   return (
     <div
@@ -47,10 +60,24 @@ export function SmitheryConnectBar({ compact = false, token, darkMode }: Smither
               <p className={`mt-1 text-sm leading-snug ${darkMode ? 'text-slate-100' : 'text-slate-800'}`}>
                 Use your personal token when connecting this server in Smithery so requests are scoped to your account.
               </p>
-              <p className={`mt-2 inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-mono ${darkMode ? 'bg-black/30 text-slate-200' : 'bg-white text-slate-700'}`}>
-                <KeyRound className="h-3.5 w-3.5" />
-                token=YOUR_TOKEN
-              </p>
+              <div className="mt-2 inline-flex items-center gap-1.5">
+                <p className={`inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-mono ${darkMode ? 'bg-black/30 text-slate-200' : 'bg-white text-slate-700'}`}>
+                  <KeyRound className="h-3.5 w-3.5" />
+                  {trimmedToken ? `token=${trimmedToken}` : 'token=YOUR_TOKEN'}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => void copyText(trimmedToken || 'YOUR_TOKEN')}
+                  className={`inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] font-semibold transition ${
+                    darkMode ? 'bg-white/10 text-slate-200 hover:bg-white/20' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'
+                  }`}
+                  aria-label="Copy token"
+                  title="Copy token"
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                  {copiedToken ? 'Copied' : 'Copy'}
+                </button>
+              </div>
             </>
           )}
         </div>

@@ -4,7 +4,7 @@ import { resolveTokenToUserId } from '@/lib/resolve-token';
 import { nagRequireUserId } from '@/lib/nag-auth';
 import { SUPABASE_SERVICE_ROLE_SETUP, tryGetSupabaseServiceRole } from '@/lib/supabase-server';
 
-const MAX_WEBHOOKS = 5;
+const MAX_WEBHOOKS = 10;
 
 function isHttpsUrl(s: string): boolean {
   try {

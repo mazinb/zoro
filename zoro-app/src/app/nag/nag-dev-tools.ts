@@ -5,7 +5,7 @@
 
 const MOCK_NAG_ID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
 
-export type NagLandingSection = 'auth' | 'nags' | 'logs' | 'profile';
+export type NagLandingSection = 'auth' | 'webhooks' | 'nags' | 'logs' | 'profile';
 
 export type NagLandingTool = {
   /** Stable key for React lists (unique). */
@@ -24,6 +24,7 @@ export type NagLandingTool = {
 
 const sectionLabel: Record<NagLandingSection, string> = {
   auth: 'Auth & onboarding',
+  webhooks: 'Webhooks',
   nags: 'Nags CRUD',
   logs: 'Delivery log',
   profile: 'Profile',
@@ -36,8 +37,8 @@ export function landingSectionTitle(s: NagLandingSection): string {
 export const NAG_LANDING_TOOLS: NagLandingTool[] = [
   {
     id: 'auth_nag_email_check',
-    mcpName: 'nag_email_check',
-    rowTitle: 'nag_email_check',
+    mcpName: 'onboarding.email_check',
+    rowTitle: 'onboarding.email_check',
     section: 'auth',
     description: 'Check if an email has an account.',
     method: 'POST',
@@ -47,8 +48,8 @@ export const NAG_LANDING_TOOLS: NagLandingTool[] = [
   },
   {
     id: 'auth_nag_request_link',
-    mcpName: 'nag_request_link',
-    rowTitle: 'nag_request_link',
+    mcpName: 'onboarding.request_link',
+    rowTitle: 'onboarding.request_link',
     section: 'auth',
     description: 'Create user (if needed) and send a Nags magic link email (requires user consent: confirm_send=true).',
     method: 'POST',
@@ -58,8 +59,8 @@ export const NAG_LANDING_TOOLS: NagLandingTool[] = [
   },
   {
     id: 'auth_nag_reset_token',
-    mcpName: 'nag_reset_token',
-    rowTitle: 'nag-reset-token',
+    mcpName: 'profile.reset_token',
+    rowTitle: 'profile.reset_token',
     section: 'auth',
     description: 'Rotate token and refresh /nag access on this device.',
     method: 'POST',
@@ -86,9 +87,68 @@ export const NAG_LANDING_TOOLS: NagLandingTool[] = [
     mockResponse: () => ({ success: true, registered: true }),
   },
   {
+    id: 'webhooks_list',
+    mcpName: 'webhooks.list',
+    rowTitle: 'webhooks.list',
+    section: 'webhooks',
+    description: 'List webhooks for the authenticated user token.',
+    method: 'GET',
+    path: '/api/nag-webhooks?token=YOUR_TOKEN',
+    mockResponse: () => ({
+      webhooks: [{ id: '11111111-2222-4333-8444-555555555555', url: 'https://example.com/hooks/zoro', verified_at: null }],
+    }),
+  },
+  {
+    id: 'webhooks_register',
+    mcpName: 'webhooks.register',
+    rowTitle: 'webhooks.register',
+    section: 'webhooks',
+    description: 'Register an HTTPS webhook endpoint (max 10 per user).',
+    method: 'POST',
+    path: '/api/nag-webhooks',
+    sampleBody: { token: 'YOUR_TOKEN', url: 'https://example.com/hooks/zoro' },
+    mockResponse: () => ({
+      webhook: { id: '11111111-2222-4333-8444-555555555555', url: 'https://example.com/hooks/zoro', verified_at: null },
+      verify_hint:
+        'We POST {"type":"zoro.verification","challenge":"<token>"} with header X-Zoro-Webhook-Secret. Respond 200 JSON {"challenge":"<same token>"}.',
+    }),
+  },
+  {
+    id: 'webhooks_verify',
+    mcpName: 'webhooks.verify',
+    rowTitle: 'webhooks.verify',
+    section: 'webhooks',
+    description: 'Verify webhook challenge handshake.',
+    method: 'POST',
+    path: '/api/nag-webhooks/11111111-2222-4333-8444-555555555555/verify',
+    sampleBody: { token: 'YOUR_TOKEN' },
+    mockResponse: () => ({ ok: true, verified_at: '2026-03-24T10:00:00.000Z' }),
+  },
+  {
+    id: 'webhooks_ping',
+    mcpName: 'webhooks.ping',
+    rowTitle: 'webhooks.ping',
+    section: 'webhooks',
+    description: 'Send a ping test to a verified webhook.',
+    method: 'POST',
+    path: '/api/nag-webhooks/11111111-2222-4333-8444-555555555555/ping',
+    sampleBody: { token: 'YOUR_TOKEN' },
+    mockResponse: () => ({ ok: true, status: 200 }),
+  },
+  {
+    id: 'webhooks_delete',
+    mcpName: 'webhooks.delete',
+    rowTitle: 'webhooks.delete',
+    section: 'webhooks',
+    description: 'Delete a webhook registration.',
+    method: 'DELETE',
+    path: '/api/nag-webhooks/11111111-2222-4333-8444-555555555555?token=YOUR_TOKEN',
+    mockResponse: () => ({ ok: true }),
+  },
+  {
     id: 'nags_list',
-    mcpName: 'nags_list',
-    rowTitle: 'nags_list',
+    mcpName: 'nags.list',
+    rowTitle: 'nags.list',
     section: 'nags',
     description: 'List nags.',
     method: 'GET',
@@ -119,8 +179,8 @@ export const NAG_LANDING_TOOLS: NagLandingTool[] = [
   },
   {
     id: 'nags_create',
-    mcpName: 'nags_create',
-    rowTitle: 'nags_create',
+    mcpName: 'nags.create',
+    rowTitle: 'nags.create',
     section: 'nags',
     description: 'Create a nag.',
     method: 'POST',
@@ -160,8 +220,8 @@ export const NAG_LANDING_TOOLS: NagLandingTool[] = [
   },
   {
     id: 'nags_update',
-    mcpName: 'nags_update',
-    rowTitle: 'nags_update',
+    mcpName: 'nags.update',
+    rowTitle: 'nags.update',
     section: 'nags',
     description: 'Update a nag.',
     method: 'PATCH',
@@ -196,8 +256,8 @@ export const NAG_LANDING_TOOLS: NagLandingTool[] = [
   },
   {
     id: 'nags_task_completed',
-    mcpName: 'nags_update',
-    rowTitle: 'nags_update · task_completed',
+    mcpName: 'nags.update',
+    rowTitle: 'nags.update · task_completed',
     section: 'nags',
     description: 'Mark an until-done cycle done.',
     method: 'PATCH',
@@ -215,8 +275,8 @@ export const NAG_LANDING_TOOLS: NagLandingTool[] = [
   },
   {
     id: 'nags_delete',
-    mcpName: 'nags_delete',
-    rowTitle: 'nags_delete',
+    mcpName: 'nags.delete',
+    rowTitle: 'nags.delete',
     section: 'nags',
     description: 'Cancel a nag.',
     method: 'DELETE',
@@ -229,8 +289,8 @@ export const NAG_LANDING_TOOLS: NagLandingTool[] = [
   },
   {
     id: 'nags_sent_log',
-    mcpName: 'nags_sent_log',
-    rowTitle: 'nags_sent_log',
+    mcpName: 'nags.sent_log',
+    rowTitle: 'nags.sent_log',
     section: 'logs',
     description: 'Fetch reminder send history.',
     method: 'GET',
@@ -249,8 +309,8 @@ export const NAG_LANDING_TOOLS: NagLandingTool[] = [
   },
   {
     id: 'nag_profile',
-    mcpName: 'nag_profile_set_timezone',
-    rowTitle: 'nag_profile_set_timezone',
+    mcpName: 'profile.set_timezone',
+    rowTitle: 'profile.set_timezone',
     section: 'profile',
     description: 'Set user IANA timezone for future scheduling (does not change already-scheduled next_at).',
     method: 'PATCH',
@@ -271,8 +331,8 @@ export const NAG_LANDING_TOOLS: NagLandingTool[] = [
   },
   {
     id: 'user_data_get',
-    mcpName: 'user_data_get',
-    rowTitle: 'user-data',
+    mcpName: 'profile.get_user_data',
+    rowTitle: 'profile.get_user_data',
     section: 'profile',
     description: 'Fetch user + shared_data.',
     method: 'GET',
