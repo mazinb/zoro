@@ -3,7 +3,6 @@ import { randomBytes } from 'crypto';
 import { resolveTokenToUserId } from '@/lib/resolve-token';
 import { nagRequireUserId } from '@/lib/nag-auth';
 import { SUPABASE_SERVICE_ROLE_SETUP, tryGetSupabaseServiceRole } from '@/lib/supabase-server';
-import { getNagUserFlags } from '@/lib/nag-user';
 
 const MAX_WEBHOOKS = 5;
 
@@ -31,11 +30,6 @@ export async function GET(request: NextRequest) {
     const supabase = tryGetSupabaseServiceRole();
     if (!supabase) {
       return NextResponse.json({ error: SUPABASE_SERVICE_ROLE_SETUP }, { status: 503 });
-    }
-
-    const { nag_developer } = await getNagUserFlags(supabase, auth.userId);
-    if (!nag_developer) {
-      return NextResponse.json({ error: 'Enable developer mode in Profile first.' }, { status: 403 });
     }
 
     const { data, error } = await supabase
@@ -77,11 +71,6 @@ export async function POST(request: NextRequest) {
     const supabase = tryGetSupabaseServiceRole();
     if (!supabase) {
       return NextResponse.json({ error: SUPABASE_SERVICE_ROLE_SETUP }, { status: 503 });
-    }
-
-    const { nag_developer } = await getNagUserFlags(supabase, auth.userId);
-    if (!nag_developer) {
-      return NextResponse.json({ error: 'Enable developer mode in Profile first.' }, { status: 403 });
     }
 
     const { count, error: cErr } = await supabase

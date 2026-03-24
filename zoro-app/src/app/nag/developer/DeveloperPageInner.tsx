@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { NagNav } from '../nag-chrome';
+import { SmitheryConnectBar } from '@/components/nag/SmitheryConnectBar';
 import { useDarkMode } from '@/hooks/useDarkMode';
 import { useThemeClasses } from '@/hooks/useThemeClasses';
 
@@ -297,6 +298,10 @@ export function DeveloperPageInner() {
         onToggleTheme={toggleDarkMode}
       />
       <main className="mx-auto max-w-[560px] px-5 py-8 pb-20">
+        <div className="mb-4">
+          <SmitheryConnectBar darkMode={darkMode} token={effectiveToken || null} />
+        </div>
+
         <div className={`mb-4 rounded-[14px] border p-4 ${theme.borderClass} ${theme.cardBgClass}`}>
           <p className={`mb-1 text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}>Developer settings</p>
           <p className={`mb-3 text-sm ${theme.textSecondaryClass}`}>{email ?? '—'}</p>

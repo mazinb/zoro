@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { resolveTokenToUserId } from '@/lib/resolve-token';
 import { nagRequireUserId } from '@/lib/nag-auth';
 import { SUPABASE_SERVICE_ROLE_SETUP, tryGetSupabaseServiceRole } from '@/lib/supabase-server';
-import { getNagUserFlags } from '@/lib/nag-user';
 
 export async function DELETE(
   request: NextRequest,
@@ -24,11 +23,6 @@ export async function DELETE(
     const supabase = tryGetSupabaseServiceRole();
     if (!supabase) {
       return NextResponse.json({ error: SUPABASE_SERVICE_ROLE_SETUP }, { status: 503 });
-    }
-
-    const { nag_developer } = await getNagUserFlags(supabase, auth.userId);
-    if (!nag_developer) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
     const { error } = await supabase

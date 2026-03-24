@@ -6,6 +6,7 @@ import { useDarkMode } from '@/hooks/useDarkMode';
 import { useThemeClasses } from '@/hooks/useThemeClasses';
 import { NagEndEditor, NagNav, NagSheet, type NagDraft } from './nag-chrome';
 import { NAG_LANDING_TOOLS, landingSectionTitle, type NagLandingTool } from './nag-dev-tools';
+import { SmitheryConnectBar } from '@/components/nag/SmitheryConnectBar';
 import { HelpCircle, X } from 'lucide-react';
 
 const NAG_TOKEN_STORAGE = 'nag_dev_token';
@@ -1048,6 +1049,9 @@ export function NagPageInner() {
             <p className={`mt-4 text-[11px] opacity-50 ${theme.textSecondaryClass}`}>
               Password-less secure login. You are always in control
             </p>
+            <div className="mx-auto mt-6 max-w-[680px] text-left">
+              <SmitheryConnectBar compact darkMode={darkMode} />
+            </div>
           </section>
 
         <section className={`border-y px-5 py-16 ${theme.borderClass} ${darkMode ? 'bg-[#111115]' : 'bg-white'}`}>
@@ -1384,6 +1388,9 @@ export function NagPageInner() {
         onToggleTheme={toggleDarkMode}
       />
       <div className="mx-auto max-w-[500px] px-5 py-8 pb-24">
+        <div className="mb-4">
+          <SmitheryConnectBar compact darkMode={darkMode} token={effectiveToken} />
+        </div>
         {loadError && (
           <p className="mb-4 rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-600 dark:text-red-400">
             {loadError}

@@ -11,7 +11,7 @@
     "schemes": [
       "bearer"
     ],
-    "instructions": "Provide users.verification_token via x-nag-mcp-token header or Authorization: Bearer <token>. Use nag_auth_email to send a sign-in magic link."
+    "instructions": "Provide any valid user-assigned token via x-nag-mcp-token or Authorization: Bearer <token>. Use nag_auth_email to send a sign-in magic link if needed."
   },
   "tools": [
     {
@@ -377,6 +377,10 @@
     {
       "name": "nag_triage_overdue",
       "description": "Review active nags, identify overdue or noisy items, and suggest updates."
+    },
+    {
+      "name": "nag_register_webhook",
+      "description": "Register, verify, and ping a webhook using the user token against /api/nag-webhooks endpoints."
     }
   ]
 }

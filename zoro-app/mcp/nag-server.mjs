@@ -117,6 +117,7 @@ export function createNagMcpServer() {
             '- Start auth: `nag_email_check` -> `nag_auth_email` (confirm_send=true).',
             '- For authenticated operations, provide token via `x-nag-mcp-token` or `Authorization: Bearer <token>`.',
             '- Core tools: `nag_parse`, `nags_list`, `nags_create`, `nags_update`, `nags_delete`.',
+            '- Webhook flow (token-scoped): `POST /api/nag-webhooks` -> `POST /api/nag-webhooks/{id}/verify` -> optional `POST /api/nag-webhooks/{id}/ping`.',
           ].join('\n'),
         },
       ],
@@ -191,6 +192,35 @@ export function createNagMcpServer() {
               `Create a reminder from this request: ${request_text}`,
               `Use default channel: ${channel || 'email'}.`,
               'Workflow: call nag_parse -> confirm draft fields -> call nags_create.',
+            ].join('\n'),
+          },
+        },
+      ],
+    })
+  );
+
+  server.prompt(
+    'nag_register_webhook',
+    'Register and verify a webhook endpoint',
+    {
+      webhook_url: z.string().url().describe('HTTPS endpoint that will receive webhook events'),
+      token: z.string().optional().describe('Auth token override if not set in MCP headers'),
+    },
+    async ({ webhook_url, token }) => ({
+      description: 'Create, verify, and smoke-test a user webhook with concise status output.',
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text: [
+              `Register this webhook endpoint: ${webhook_url}`,
+              token ? `Use token override: ${token}` : 'Use configured x-nag-mcp-token / Authorization bearer token.',
+              'Flow:',
+              '1) POST /api/nag-webhooks with { token?, url }',
+              '2) POST /api/nag-webhooks/{id}/verify with { token? }',
+              '3) POST /api/nag-webhooks/{id}/ping with { token? }',
+              'Return ids and verification/ping result; if any step fails, return exact API error and stop.',
             ].join('\n'),
           },
         },
