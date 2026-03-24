@@ -1,4 +1,4 @@
-import type { NagChannel, NagEndType, NagFrequency } from './nag-types';
+import type { NagChannel, NagEndType, NagFrequency, NagScheduleInput } from './nag-types';
 import {
   isNagChannel,
   isNagEndType,

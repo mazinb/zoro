@@ -39,19 +39,6 @@ type Nag = {
   followup_interval_hours?: number | null;
 };
 
-type NagPersonalityOptions = {
-  tone: 'friendly' | 'direct' | 'firm';
-  style: 'short' | 'balanced' | 'detailed';
-};
-
-type NagPersonalityState = {
-  enabled: boolean;
-  personality: string;
-  soulText: string;
-  userText: string;
-  options: NagPersonalityOptions;
-};
-
 const WEEKDAYS = [
   { v: 0, l: 'Mon' },
   { v: 1, l: 'Tue' },
@@ -63,21 +50,6 @@ const WEEKDAYS = [
 ];
 
 const NAG_MCP_URL = 'https://www.getzoro.com/api/mcp/nags';
-
-/** Accept raw verification_token or a URL/query containing token= */
-function extractTokenFromNagInput(raw: string): string {
-  const t = raw.trim();
-  if (!t) return '';
-  const m = /[?&]token=([^&]+)/.exec(t);
-  if (m?.[1]) {
-    try {
-      return decodeURIComponent(m[1].replace(/\+/g, ' ')).trim();
-    } catch {
-      return m[1].trim();
-    }
-  }
-  return t;
-}
 
 function followupOptionsForFrequency(frequency: string): { value: string; label: string }[] {
   switch (frequency) {
@@ -324,35 +296,13 @@ export function NagPageInner() {
   const [mcpGuideOpen, setMcpGuideOpen] = useState(false);
   const [mcpLandingGuideOpen, setMcpLandingGuideOpen] = useState(false);
   const [mcpJsonCopied, setMcpJsonCopied] = useState(false);
-  const [personalityDraft, setPersonalityDraft] = useState<NagPersonalityState>({
-    enabled: false,
-    personality: '',
-    soulText: '',
-    userText: '',
-    options: { tone: 'friendly', style: 'balanced' },
-  });
-  const [savedPersonality, setSavedPersonality] = useState<NagPersonalityState>({
-    enabled: false,
-    personality: '',
-    soulText: '',
-    userText: '',
-    options: { tone: 'friendly', style: 'balanced' },
-  });
-  const [personalitySaveBusy, setPersonalitySaveBusy] = useState(false);
-  const [personalitySaveNotice, setPersonalitySaveNotice] = useState<string | null>(null);
-  const [personalitySaveError, setPersonalitySaveError] = useState<string | null>(null);
   const [profDraft, setProfDraft] = useState({
     phone: '',
     defaultVia: 'email' as 'email' | 'whatsapp',
     timezone: 'UTC',
-    developerMode: false,
   });
-
+  const [resetTokenConfirm, setResetTokenConfirm] = useState(false);
   const [selectedDevTool, setSelectedDevTool] = useState<NagLandingTool>(() => NAG_LANDING_TOOLS[0]!);
-  const hasPersonalityChanges = useMemo(
-    () => JSON.stringify(personalityDraft) !== JSON.stringify(savedPersonality),
-    [personalityDraft, savedPersonality]
-  );
 
   const [devToolBodyText, setDevToolBodyText] = useState('');
   const [devToolResult, setDevToolResult] = useState<unknown>(null);
@@ -363,13 +313,6 @@ export function NagPageInner() {
   const [devSheetSending, setDevSheetSending] = useState(false);
   const [devSheetMessage, setDevSheetMessage] = useState<'idle' | 'sent' | 'not_registered' | 'error'>('idle');
   const [devSheetError, setDevSheetError] = useState<string | null>(null);
-  const [devSheetPaste, setDevSheetPaste] = useState('');
-  const [devSheetPasteError, setDevSheetPasteError] = useState<string | null>(null);
-  const [webhookUrlInput, setWebhookUrlInput] = useState('');
-  const [webhookAddBusy, setWebhookAddBusy] = useState(false);
-  const [webhookRowBusy, setWebhookRowBusy] = useState<string | null>(null);
-  const [hookMsg, setHookMsg] = useState<string | null>(null);
-
   const openMcpGuide = useCallback(() => {
     setMcpGuideOpen(true);
   }, []);
@@ -507,23 +450,19 @@ export function NagPageInner() {
   const activeList = useMemo(() => nags.filter((n) => n.status === 'active'), [nags]);
   const archivedList = useMemo(() => nags.filter((n) => n.status === 'archived'), [nags]);
   const shown = tab === 'active' ? activeList : archivedList;
-  const appOrigin =
-    typeof window !== 'undefined' ? window.location.origin.replace(/\/$/, '') : 'https://www.getzoro.com';
-
   const openProfile = () => {
     setProfileSaveError(null);
     setTokenResetError(null);
     setTokenResetNotice(null);
     setTokenCopied(false);
+    setResetTokenConfirm(false);
     setProfileReminderLogOpen(false);
     setProfileReminderLog([]);
     setProfileReminderLogError(null);
-    setHookMsg(null);
     setProfDraft({
       phone: profilePhone,
-      defaultVia: nagDeveloper ? 'email' : defaultChannel,
+      defaultVia: defaultChannel,
       timezone: profileTimezone,
-      developerMode: nagDeveloper,
     });
     setSheet('profile');
   };
@@ -574,76 +513,6 @@ export function NagPageInner() {
     }
   };
 
-  useEffect(() => {
-    if (!effectiveToken) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch(`/api/nag-personality?token=${encodeURIComponent(effectiveToken)}`);
-        const json = await res.json();
-        if (!res.ok || cancelled) return;
-        const next: NagPersonalityState = {
-          enabled: json.enabled === true,
-          personality: typeof json.personality === 'string' ? json.personality : '',
-          soulText: typeof json.soul_text === 'string' ? json.soul_text : '',
-          userText: typeof json.user_text === 'string' ? json.user_text : '',
-          options: {
-            tone:
-              json.options?.tone === 'direct' || json.options?.tone === 'firm'
-                ? json.options.tone
-                : 'friendly',
-            style:
-              json.options?.style === 'short' || json.options?.style === 'detailed'
-                ? json.options.style
-                : 'balanced',
-          },
-        };
-        setPersonalityDraft(next);
-        setSavedPersonality(next);
-        setPersonalitySaveNotice(null);
-        setPersonalitySaveError(null);
-      } catch {
-        /* keep defaults */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [effectiveToken]);
-
-  const savePersonality = async () => {
-    if (!effectiveToken) return;
-    if (!hasPersonalityChanges) return;
-    setPersonalitySaveBusy(true);
-    setPersonalitySaveError(null);
-    setPersonalitySaveNotice(null);
-    try {
-      const res = await fetch('/api/nag-personality', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          token: effectiveToken,
-          enabled: personalityDraft.enabled,
-          personality: personalityDraft.personality,
-          soul_text: personalityDraft.soulText,
-          user_text: personalityDraft.userText,
-          options: personalityDraft.options,
-        }),
-      });
-      const json = (await res.json()) as { error?: string };
-      if (!res.ok) {
-        setPersonalitySaveError(json.error ?? 'Could not save personality');
-        return;
-      }
-      setSavedPersonality(personalityDraft);
-      setPersonalitySaveNotice('Personality settings saved.');
-    } catch {
-      setPersonalitySaveError('Network error while saving personality');
-    } finally {
-      setPersonalitySaveBusy(false);
-    }
-  };
-
   const copyMcpJson = async (tokenToUse: string) => {
     // Copy exactly the snippet shown in the modal so it can be pasted into `mcp.json`
     // under `mcpServers` without extra wrapping braces.
@@ -666,25 +535,16 @@ export function NagPageInner() {
       const res = await fetch('/api/nag-profile', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          token: effectiveToken,
-          timezone: profDraft.timezone,
-          nag_developer: profDraft.developerMode,
-        }),
+        body: JSON.stringify({ token: effectiveToken, timezone: profDraft.timezone }),
       });
-      const json = (await res.json()) as { error?: string; nag_developer?: boolean };
+      const json = (await res.json()) as { error?: string };
       if (!res.ok) {
-        setProfileSaveError(json.error ?? 'Could not save profile');
+        setProfileSaveError(json.error ?? 'Could not save timezone');
         return;
       }
       setProfileTimezone(profDraft.timezone);
       setProfilePhone(profDraft.phone);
-      setDefaultChannel(profDraft.developerMode ? 'email' : profDraft.defaultVia);
-      if (typeof json.nag_developer === 'boolean') {
-        setNagDeveloper(json.nag_developer);
-      } else {
-        setNagDeveloper(profDraft.developerMode);
-      }
+      setDefaultChannel(profDraft.defaultVia);
       setSheet(null);
       await fetchNags();
     } catch {
@@ -933,7 +793,7 @@ export function NagPageInner() {
       const res = await fetch('/api/auth/send-magic-link', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, redirectPath: '/nag', context: 'nag' }),
+        body: JSON.stringify({ email, redirectPath: '/nag/developer', context: 'nag' }),
       });
       const json = (await res.json()) as { error?: string; registered?: boolean };
       if (!res.ok) {
@@ -955,119 +815,6 @@ export function NagPageInner() {
       setDevSheetSending(false);
     }
   }, [devSheetEmail]);
-
-  const applyDevSheetToken = useCallback(() => {
-    const token = extractTokenFromNagInput(devSheetPaste);
-    if (!token) {
-      setDevSheetPasteError('Token or ?token= link required.');
-      return;
-    }
-    setDevSheetPasteError(null);
-    setForceLogout(false);
-    try {
-      sessionStorage.removeItem(NAG_FORCE_LOGOUT);
-    } catch {
-      /* ignore */
-    }
-    persistStoredToken(token);
-    setDevSheetOpen(false);
-    router.replace(`/nag?token=${encodeURIComponent(token)}`);
-  }, [devSheetPaste, persistStoredToken, router]);
-
-  const addWebhook = async () => {
-    const u = webhookUrlInput.trim();
-    if (!effectiveToken || !u) return;
-    setHookMsg(null);
-    setWebhookAddBusy(true);
-    try {
-      const res = await fetch('/api/nag-webhooks', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: effectiveToken, url: u }),
-      });
-      const json = (await res.json()) as { error?: string; verify_hint?: string };
-      if (!res.ok) {
-        setHookMsg(json.error ?? 'Could not add webhook.');
-        return;
-      }
-      setWebhookUrlInput('');
-      setHookMsg(typeof json.verify_hint === 'string' ? 'Added. Verify to enable.' : 'Added.');
-      await fetchNags();
-    } catch {
-      setHookMsg('Network error.');
-    } finally {
-      setWebhookAddBusy(false);
-    }
-  };
-
-  const verifyWebhookRow = async (id: string) => {
-    if (!effectiveToken) return;
-    setHookMsg(null);
-    setWebhookRowBusy(id);
-    try {
-      const res = await fetch(`/api/nag-webhooks/${id}/verify`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: effectiveToken }),
-      });
-      const json = (await res.json()) as { error?: string; detail?: string };
-      if (!res.ok) {
-        setHookMsg(json.detail ?? json.error ?? 'Verify failed.');
-        return;
-      }
-      setHookMsg('Verified.');
-      await fetchNags();
-    } catch {
-      setHookMsg('Network error.');
-    } finally {
-      setWebhookRowBusy(null);
-    }
-  };
-
-  const pingWebhookRow = async (id: string) => {
-    if (!effectiveToken) return;
-    setHookMsg(null);
-    setWebhookRowBusy(id);
-    try {
-      const res = await fetch(`/api/nag-webhooks/${id}/ping`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: effectiveToken }),
-      });
-      const json = (await res.json()) as { error?: string };
-      if (!res.ok) {
-        setHookMsg(json.error ?? 'Ping failed.');
-        return;
-      }
-      setHookMsg('Ping OK.');
-    } catch {
-      setHookMsg('Network error.');
-    } finally {
-      setWebhookRowBusy(null);
-    }
-  };
-
-  const deleteWebhookRow = async (id: string) => {
-    if (!effectiveToken) return;
-    setHookMsg(null);
-    setWebhookRowBusy(id);
-    try {
-      const res = await fetch(`/api/nag-webhooks/${id}?token=${encodeURIComponent(effectiveToken)}`, {
-        method: 'DELETE',
-      });
-      const json = (await res.json()) as { error?: string };
-      if (!res.ok) {
-        setHookMsg(json.error ?? 'Could not remove.');
-        return;
-      }
-      setHookMsg('Removed.');
-      await fetchNags();
-    } catch {
-      setHookMsg('Network error.');
-    } finally {
-      setWebhookRowBusy(null);
-    }
-  };
 
   const sendNagAccessEmail = async (name?: string) => {
     const em = getStartedEmail.trim().toLowerCase();
@@ -1292,7 +1039,6 @@ export function NagPageInner() {
                   setDevSheetOpen(true);
                   setDevSheetMessage('idle');
                   setDevSheetError(null);
-                  setDevSheetPasteError(null);
                 }}
                 className={`rounded-lg border px-7 py-3 text-sm font-bold ${theme.borderClass} ${theme.textSecondaryClass}`}
               >
@@ -1556,8 +1302,7 @@ export function NagPageInner() {
             </p>
             <h2 className={`mb-2 text-lg font-bold ${theme.textClass}`}>By devs, for devs</h2>
             <p className={`mb-4 text-sm leading-relaxed ${theme.textSecondaryClass}`}>
-              Same magic link as everyone else, or paste a token. HTTPS webhooks live in Profile after you enable developer
-              mode.
+              Use your email magic link. HTTPS webhooks live in Profile after you enable developer mode.
             </p>
             <label className={`mb-1 block text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}>Email</label>
             <input
@@ -1583,30 +1328,9 @@ export function NagPageInner() {
               type="button"
               disabled={devSheetSending || !devSheetEmail.trim()}
               onClick={() => void handleDevSheetMagicLink()}
-              className={`mb-4 w-full rounded-lg py-3 text-sm font-bold disabled:opacity-40 ${theme.buttonClass}`}
-            >
-              {devSheetSending ? 'Sending…' : 'Email magic link'}
-            </button>
-            <label className={`mb-1 block text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}>Token</label>
-            <textarea
-              rows={2}
-              spellCheck={false}
-              placeholder="token or …/nag?token=…"
-              className={`mb-2 w-full rounded-lg border px-3 py-2 font-mono text-[11px] ${theme.inputBgClass}`}
-              value={devSheetPaste}
-              onChange={(e) => {
-                setDevSheetPaste(e.target.value);
-                setDevSheetPasteError(null);
-              }}
-            />
-            {devSheetPasteError && <p className="mb-2 text-sm text-red-500">{devSheetPasteError}</p>}
-            <button
-              type="button"
-              disabled={!devSheetPaste.trim()}
-              onClick={() => applyDevSheetToken()}
               className={`w-full rounded-lg py-3 text-sm font-bold disabled:opacity-40 ${theme.buttonClass}`}
             >
-              Continue
+              {devSheetSending ? 'Sending…' : 'Email magic link'}
             </button>
           </NagSheet>
         )}
@@ -1875,16 +1599,38 @@ export function NagPageInner() {
               <p className={`mb-2 text-xs leading-relaxed ${theme.textSecondaryClass}`}>
                 This token gives access to your nags. Keep it private.
               </p>
-              <button
-                type="button"
-                onClick={() => void resetToken()}
-                disabled={tokenResetBusy}
-                className={`mb-2 w-full rounded-lg border py-2.5 text-sm font-semibold disabled:opacity-40 ${theme.borderClass} ${theme.textSecondaryClass}`}
-              >
-                {tokenResetBusy ? 'Resetting…' : 'Reset token'}
-              </button>
+              <div className="mb-2 flex items-center gap-2">
+                {!resetTokenConfirm ? (
+                  <button
+                    type="button"
+                    onClick={() => setResetTokenConfirm(true)}
+                    disabled={tokenResetBusy}
+                    className={`shrink-0 rounded-lg border px-3 py-2 text-xs font-semibold disabled:opacity-40 ${theme.borderClass} ${theme.textSecondaryClass}`}
+                  >
+                    Reset
+                  </button>
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => void resetToken()}
+                      disabled={tokenResetBusy}
+                      className={`shrink-0 rounded-lg border px-3 py-2 text-xs font-semibold disabled:opacity-40 border-red-500/40 text-red-600 dark:text-red-300`}
+                    >
+                      {tokenResetBusy ? 'Resetting…' : 'Confirm reset'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setResetTokenConfirm(false)}
+                      className={`shrink-0 rounded-lg border px-3 py-2 text-xs font-semibold ${theme.borderClass} ${theme.textSecondaryClass}`}
+                    >
+                      Cancel
+                    </button>
+                  </>
+                )}
+              </div>
               <p className={`mb-3 text-xs leading-relaxed ${theme.textSecondaryClass}`}>
-                Reset rotates your access token on this device and keeps your reminders. Old token access stops immediately.
+                Reset rotates your access token and invalidates old token access immediately.
               </p>
               <button
                 type="button"
@@ -1919,137 +1665,45 @@ export function NagPageInner() {
                   </option>
                 ))}
               </select>
-              <div className="mb-4 flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className={`text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}>Developer mode</p>
-                  <p className={`text-xs leading-snug ${theme.textSecondaryClass}`}>Email + verified HTTPS webhooks only.</p>
-                </div>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={profDraft.developerMode}
-                  onClick={() =>
-                    setProfDraft((p) => ({
-                      ...p,
-                      developerMode: !p.developerMode,
-                      defaultVia: !p.developerMode ? 'email' : p.defaultVia,
-                    }))
-                  }
-                  className={`relative inline-flex h-7 w-12 shrink-0 rounded-full transition-colors ${
-                    profDraft.developerMode ? 'bg-emerald-500' : darkMode ? 'bg-zinc-700' : 'bg-zinc-300'
-                  }`}
-                >
-                  <span
-                    className={`inline-block h-5 w-5 translate-y-1 transform rounded-full bg-white shadow transition ${
-                      profDraft.developerMode ? 'translate-x-6' : 'translate-x-1'
+              <button
+                type="button"
+                onClick={() =>
+                  router.push(
+                    effectiveToken
+                      ? `/nag/developer?token=${encodeURIComponent(effectiveToken)}`
+                      : '/nag/developer'
+                  )
+                }
+                className={`mb-4 w-full rounded-lg border py-2.5 text-sm font-semibold ${theme.borderClass} ${theme.textSecondaryClass}`}
+              >
+                Developer settings
+              </button>
+
+              <label className={`mb-1 block text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}>
+                WhatsApp number
+              </label>
+              <input
+                className={`mb-3 w-full rounded-lg border px-3 py-2.5 text-sm ${theme.inputBgClass}`}
+                value={profDraft.phone}
+                onChange={(e) => setProfDraft((p) => ({ ...p, phone: e.target.value }))}
+              />
+              <label className={`mb-1 block text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}>
+                Default channel
+              </label>
+              <div className={`mb-4 flex rounded-lg p-0.5 ${theme.accentBgClass}`}>
+                {(['whatsapp', 'email'] as const).map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => setProfDraft((p) => ({ ...p, defaultVia: v }))}
+                    className={`flex-1 rounded-md py-2 text-xs font-semibold ${
+                      profDraft.defaultVia === v ? `${theme.cardBgClass} ${theme.textClass}` : theme.textSecondaryClass
                     }`}
-                  />
-                </button>
+                  >
+                    {v === 'whatsapp' ? 'WhatsApp' : 'Email'}
+                  </button>
+                ))}
               </div>
-
-              {!profDraft.developerMode && (
-                <>
-                  <label className={`mb-1 block text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}>
-                    WhatsApp number
-                  </label>
-                  <input
-                    className={`mb-3 w-full rounded-lg border px-3 py-2.5 text-sm ${theme.inputBgClass}`}
-                    value={profDraft.phone}
-                    onChange={(e) => setProfDraft((p) => ({ ...p, phone: e.target.value }))}
-                  />
-                  <label className={`mb-1 block text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}>
-                    Default channel
-                  </label>
-                  <div className={`mb-4 flex rounded-lg p-0.5 ${theme.accentBgClass}`}>
-                    {(['whatsapp', 'email'] as const).map((v) => (
-                      <button
-                        key={v}
-                        type="button"
-                        onClick={() => setProfDraft((p) => ({ ...p, defaultVia: v }))}
-                        className={`flex-1 rounded-md py-2 text-xs font-semibold ${
-                          profDraft.defaultVia === v ? `${theme.cardBgClass} ${theme.textClass}` : theme.textSecondaryClass
-                        }`}
-                      >
-                        {v === 'whatsapp' ? 'WhatsApp' : 'Email'}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-
-              {profDraft.developerMode && !nagDeveloper && (
-                <p className={`mb-3 text-xs text-amber-700 dark:text-amber-300`}>Save once to enable webhooks.</p>
-              )}
-
-              {profDraft.developerMode && nagDeveloper && (
-                <div className={`mb-4 rounded-lg border p-3 ${theme.borderClass}`}>
-                  <p className={`mb-2 text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}>Webhooks</p>
-                  <p className={`mb-2 text-[11px] leading-snug ${theme.textSecondaryClass}`}>
-                    POST JSON echoes <span className="font-mono">challenge</span> for verify; header{' '}
-                    <span className="font-mono">X-Zoro-Webhook-Secret</span>.
-                  </p>
-                  {hookMsg && <p className={`mb-2 text-xs ${theme.textClass}`}>{hookMsg}</p>}
-                  <div className="mb-2 flex gap-2">
-                    <input
-                      type="url"
-                      placeholder="https://…"
-                      className={`min-w-0 flex-1 rounded-lg border px-2 py-2 text-xs ${theme.inputBgClass}`}
-                      value={webhookUrlInput}
-                      onChange={(e) => setWebhookUrlInput(e.target.value)}
-                    />
-                    <button
-                      type="button"
-                      disabled={webhookAddBusy || !webhookUrlInput.trim()}
-                      onClick={() => void addWebhook()}
-                      className={`shrink-0 rounded-lg px-3 py-2 text-xs font-bold disabled:opacity-40 ${theme.buttonClass}`}
-                    >
-                      {webhookAddBusy ? '…' : 'Add'}
-                    </button>
-                  </div>
-                  <ul className="space-y-2">
-                    {profileWebhooks.map((h) => (
-                      <li
-                        key={h.id}
-                        className={`flex flex-col gap-1.5 rounded-md border px-2 py-2 text-[11px] ${theme.borderClass}`}
-                      >
-                        <span className={`truncate font-mono ${theme.textSecondaryClass}`}>{shortHookUrl(h.url, 48)}</span>
-                        <div className="flex flex-wrap gap-1">
-                          {!h.verified_at ? (
-                            <button
-                              type="button"
-                              disabled={webhookRowBusy === h.id}
-                              onClick={() => void verifyWebhookRow(h.id)}
-                              className={`rounded border px-2 py-1 text-[10px] font-bold ${theme.borderClass} ${theme.textClass}`}
-                            >
-                              Verify
-                            </button>
-                          ) : (
-                            <span className="text-emerald-600 dark:text-emerald-400">Verified</span>
-                          )}
-                          {h.verified_at && (
-                            <button
-                              type="button"
-                              disabled={webhookRowBusy === h.id}
-                              onClick={() => void pingWebhookRow(h.id)}
-                              className={`rounded border px-2 py-1 text-[10px] font-bold ${theme.borderClass} ${theme.textSecondaryClass}`}
-                            >
-                              Ping
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            disabled={webhookRowBusy === h.id}
-                            onClick={() => void deleteWebhookRow(h.id)}
-                            className={`rounded border px-2 py-1 text-[10px] font-bold ${theme.borderClass} text-red-600 dark:text-red-400`}
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
 
               {profileSaveError && (
                 <p className="mb-3 text-sm text-red-600 dark:text-red-400">{profileSaveError}</p>
@@ -2062,138 +1716,6 @@ export function NagPageInner() {
               >
                 {profileSaving ? 'Saving…' : 'Save'}
               </button>
-              <label className={`mb-1 mt-5 block text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}>
-                Personality
-              </label>
-              <div className="mb-3 flex items-center justify-between">
-                <span className={`text-sm font-semibold ${theme.textClass}`}>
-                  {`personality - ${personalityDraft.enabled ? 'enabled' : 'disabled'}`}
-                </span>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={personalityDraft.enabled}
-                  onClick={() =>
-                    setPersonalityDraft((p) => ({
-                      ...p,
-                      enabled: !p.enabled,
-                    }))
-                  }
-                  className={`relative inline-flex h-7 w-12 shrink-0 rounded-full transition-colors ${
-                    personalityDraft.enabled ? 'bg-emerald-500' : darkMode ? 'bg-zinc-700' : 'bg-zinc-300'
-                  }`}
-                >
-                  <span
-                    className={`inline-block h-5 w-5 translate-y-1 transform rounded-full bg-white shadow transition ${
-                      personalityDraft.enabled ? 'translate-x-6' : 'translate-x-1'
-                    }`}
-                  />
-                </button>
-              </div>
-              {personalityDraft.enabled && (
-                <>
-                  <label className={`mb-1 block text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}>
-                    Personality
-                  </label>
-                  <textarea
-                    rows={3}
-                    value={personalityDraft.personality}
-                    onChange={(e) =>
-                      setPersonalityDraft((p) => ({
-                        ...p,
-                        personality: e.target.value,
-                      }))
-                    }
-                    className={`mb-3 w-full rounded-lg border px-3 py-2.5 text-sm ${theme.inputBgClass}`}
-                    placeholder="How Zoro should sound and act"
-                  />
-                  <label className={`mb-1 block text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}>
-                    Soul
-                  </label>
-                  <textarea
-                    rows={5}
-                    value={personalityDraft.soulText}
-                    onChange={(e) =>
-                      setPersonalityDraft((p) => ({
-                        ...p,
-                        soulText: e.target.value,
-                      }))
-                    }
-                    className={`mb-3 w-full rounded-lg border px-3 py-2.5 text-sm ${theme.inputBgClass}`}
-                    placeholder="SOUL context"
-                  />
-                  <label className={`mb-1 block text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}>
-                    User
-                  </label>
-                  <textarea
-                    rows={4}
-                    value={personalityDraft.userText}
-                    onChange={(e) =>
-                      setPersonalityDraft((p) => ({
-                        ...p,
-                        userText: e.target.value,
-                      }))
-                    }
-                    className={`mb-3 w-full rounded-lg border px-3 py-2.5 text-sm ${theme.inputBgClass}`}
-                    placeholder="User context"
-                  />
-                  <label className={`mb-1 block text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}>
-                    Tone
-                  </label>
-                  <select
-                    className={`mb-3 w-full rounded-lg border px-3 py-2.5 text-sm ${theme.inputBgClass}`}
-                    value={personalityDraft.options.tone}
-                    onChange={(e) =>
-                      setPersonalityDraft((p) => ({
-                        ...p,
-                        options: {
-                          ...p.options,
-                          tone: e.target.value as NagPersonalityOptions['tone'],
-                        },
-                      }))
-                    }
-                  >
-                    <option value="friendly">Friendly</option>
-                    <option value="direct">Direct</option>
-                    <option value="firm">Firm</option>
-                  </select>
-                  <label className={`mb-1 block text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}>
-                    Style
-                  </label>
-                  <select
-                    className={`mb-4 w-full rounded-lg border px-3 py-2.5 text-sm ${theme.inputBgClass}`}
-                    value={personalityDraft.options.style}
-                    onChange={(e) =>
-                      setPersonalityDraft((p) => ({
-                        ...p,
-                        options: {
-                          ...p.options,
-                          style: e.target.value as NagPersonalityOptions['style'],
-                        },
-                      }))
-                    }
-                  >
-                    <option value="short">Short</option>
-                    <option value="balanced">Balanced</option>
-                    <option value="detailed">Detailed</option>
-                  </select>
-                </>
-              )}
-              {personalitySaveError && (
-                <p className="mb-3 text-sm text-red-600 dark:text-red-400">{personalitySaveError}</p>
-              )}
-              {personalitySaveNotice && (
-                <p className="mb-3 text-sm text-emerald-700 dark:text-emerald-300">{personalitySaveNotice}</p>
-              )}
-              <button
-                type="button"
-                disabled={personalitySaveBusy || !hasPersonalityChanges}
-                onClick={() => void savePersonality()}
-                className={`w-full rounded-lg py-3 text-sm font-bold disabled:opacity-40 ${theme.buttonClass}`}
-              >
-                {personalitySaveBusy ? 'Saving personality…' : 'Save personality'}
-              </button>
-
               <p className={`mb-2 mt-8 text-[10px] font-bold uppercase tracking-wider ${theme.textSecondaryClass}`}>
                 Reminder log
               </p>
