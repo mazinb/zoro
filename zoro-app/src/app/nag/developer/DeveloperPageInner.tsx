@@ -4,10 +4,15 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { NagNav } from '../nag-chrome';
 import { SmitheryConnectBar } from '@/components/nag/SmitheryConnectBar';
+import { McpConnectSnippet } from '@/components/mcp/McpConnectSnippet';
+import { McpLandingToolsExplorer } from '@/components/mcp/McpLandingToolsExplorer';
 import { useDarkMode } from '@/hooks/useDarkMode';
 import { useThemeClasses } from '@/hooks/useThemeClasses';
+import { NAG_LANDING_TOOLS, landingSectionTitle } from '../nag-dev-tools';
 
 const NAG_TOKEN_STORAGE = 'nag_dev_token';
+const PUBLIC_ORIGIN = ((process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_BASE_URL || '').trim() || 'https://www.getzoro.com').replace(/\/$/, '');
+const NAGS_MCP_URL = `${PUBLIC_ORIGIN}/api/mcp/nags`;
 
 type NagWebhookRow = { id: string; url: string; verified_at: string | null; created_at: string };
 type NagPersonalityOptions = { tone: 'friendly' | 'direct' | 'firm'; style: 'short' | 'balanced' | 'detailed' };
@@ -497,6 +502,26 @@ export function DeveloperPageInner() {
           >
             {personalitySaveBusy ? 'Saving personality…' : 'Save personality'}
           </button>
+        </div>
+
+        <div className={`mt-4 rounded-[14px] border p-4 ${theme.borderClass} ${theme.cardBgClass}`}>
+          <p className={`mb-2 text-[10px] font-bold uppercase ${theme.textSecondaryClass}`}>Connect MCP</p>
+          <p className={`mb-3 text-xs leading-relaxed ${theme.textSecondaryClass}`}>
+            Use the HTTP MCP endpoint and set header <span className="font-mono">token</span> (legacy <span className="font-mono">x-nag-mcp-token</span> still works).
+          </p>
+          <McpConnectSnippet serverKey="zoro-nags" url={NAGS_MCP_URL} token={effectiveToken || null} />
+        </div>
+
+        <div className="mt-4">
+          <McpLandingToolsExplorer
+            tools={NAG_LANDING_TOOLS}
+            sectionTitle={landingSectionTitle}
+            theme={theme}
+            darkMode={darkMode}
+            docsOrigin={PUBLIC_ORIGIN}
+            title="Tools available"
+            subtitle="Browse MCP tool names + matching HTTP routes."
+          />
         </div>
 
         {loading && <p className={`mt-3 text-sm ${theme.textSecondaryClass}`}>Loading…</p>}

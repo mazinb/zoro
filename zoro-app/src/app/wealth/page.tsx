@@ -6,8 +6,13 @@ import { Moon, Sun } from 'lucide-react';
 import { ZoroLogo } from '@/components/ZoroLogo';
 import { useDarkMode } from '@/hooks/useDarkMode';
 import { useThemeClasses } from '@/hooks/useThemeClasses';
+import { McpConnectSnippet } from '@/components/mcp/McpConnectSnippet';
+import { McpLandingToolsExplorer } from '@/components/mcp/McpLandingToolsExplorer';
+import { WEALTH_LANDING_TOOLS, wealthSectionTitle } from './wealth-dev-tools';
 
 const WEALTH_TOKEN_KEY = 'zoro_wealth_token';
+const PUBLIC_ORIGIN = ((process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_BASE_URL || '').trim() || 'https://www.getzoro.com').replace(/\/$/, '');
+const WEALTH_MCP_URL = `${PUBLIC_ORIGIN}/api/mcp/wealth`;
 
 function WealthLanding() {
   const router = useRouter();
@@ -177,6 +182,26 @@ function WealthLanding() {
             </button>
           </div>
         </div>
+
+        <section className="mt-10">
+          <p className={`mb-2 text-[10px] font-bold uppercase tracking-widest ${theme.textSecondaryClass}`}>Developers</p>
+          <h2 className={`mb-3 text-lg font-bold ${theme.textClass}`}>MCP tools & groups</h2>
+          <p className={`mb-4 text-sm ${theme.textSecondaryClass}`}>
+            Wealth MCP is token-required. Configure it in Cursor with an HTTP MCP URL and your Zoro token.
+          </p>
+          <div className="mb-6">
+            <McpConnectSnippet serverKey="zoro-wealth" url={WEALTH_MCP_URL} token={null} />
+          </div>
+          <McpLandingToolsExplorer
+            tools={WEALTH_LANDING_TOOLS}
+            sectionTitle={wealthSectionTitle}
+            theme={theme}
+            darkMode={darkMode}
+            docsOrigin={PUBLIC_ORIGIN}
+            title="HTTP API"
+            subtitle="Tools map to the same /api routes."
+          />
+        </section>
       </main>
     </div>
   );
