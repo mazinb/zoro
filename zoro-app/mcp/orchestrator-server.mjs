@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Zoro Orchestrator MCP — cross-domain summary + magic link email.
+ * Zoro Orchestrator MCP — prompt-first router + lightweight status + onboarding.
  * Env: NAG_MCP_BASE_URL, NAG_MCP_TOKEN (same as zoro-nags).
  */
 
@@ -16,12 +16,16 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 config({ path: join(__dirname, '..', '.env.local') });
 config({ path: join(__dirname, '..', '.env') });
 
-const base = (
-  process.env.NAG_MCP_BASE_URL ||
-  process.env.NEXT_PUBLIC_BASE_URL ||
-  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '') ||
-  'http://localhost:3000'
-).replace(/\/$/, '');
+function resolveOrigin(fallback) {
+  return (
+    process.env.NAG_MCP_BASE_URL ||
+    process.env.NEXT_PUBLIC_BASE_URL ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '') ||
+    fallback
+  ).replace(/\/$/, '');
+}
+
+const base = resolveOrigin('http://localhost:3000');
 
 async function fetchJson(path, init = {}) {
   const url = path.startsWith('http') ? path : `${base}${path}`;
@@ -51,10 +55,12 @@ export function createOrchestratorMcpServer() {
     version: '1.0.0',
   });
 
+  const publicOrigin = resolveOrigin('https://www.getzoro.com');
+
   server.resource(
     'orchestrator_guide',
     'zoro://orchestrator/docs',
-    { description: 'Orchestrator tools', mimeType: 'text/markdown' },
+    { description: 'How orchestrator is used', mimeType: 'text/markdown' },
     async () => ({
       contents: [
         {
@@ -63,10 +69,14 @@ export function createOrchestratorMcpServer() {
           text: [
             '# Zoro Orchestrator MCP',
             '',
-            '- **orchestrator.landing_routes** — public, no-token start links for onboarding and discovery.',
-            '- **orchestrator.summary** — goals progress flags, wealth flags, counts, deep-link paths with token.',
-            '- **orchestrator.goals_detail** — `user_data` slices per goal (save/home/invest/insurance/tax/retirement) + wealth filled flags.',
-            '- **orchestrator.send_magic_link** — email the user a link with `?token=` for a path (e.g. /expenses, /retire). Requires confirm_send=true.',
+            'Prompt-first router for choosing the next MCP (Wealth vs Goals).',
+            '',
+            'Rules:',
+            '- Orchestrator never calls Nags directly.',
+            '- Switch to Wealth/Goals for actual work; switch to Nags only if user explicitly wants reminder scheduling.',
+            '',
+            'Docs:',
+            '- `zoro-app/docs/mcp/orchestrator-smithery.md` (Smithery description)',
           ].join('\n'),
         },
       ],
@@ -74,8 +84,36 @@ export function createOrchestratorMcpServer() {
   );
 
   server.tool(
+    'orchestrator.server_catalog',
+    'Return MCP endpoints and recommended server keys.',
+    {},
+    {
+      title: 'MCP server catalog',
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+    async () =>
+      jsonResult({
+        success: true,
+        origin: publicOrigin,
+        mcp: {
+          orchestrator: { key: 'zoro-orchestrator', url: `${publicOrigin}/api/mcp/orchestrator` },
+          goals: { key: 'zoro-goals', url: `${publicOrigin}/api/mcp/goals` },
+          wealth: { key: 'zoro-wealth', url: `${publicOrigin}/api/mcp/wealth` },
+          nags: { key: 'zoro-nags', url: `${publicOrigin}/api/mcp/nags` },
+        },
+        notes: [
+          'Each MCP is a different URL.',
+          'Orchestrator routes to Wealth/Goals; it does not call Nags directly.',
+        ],
+      })
+  );
+
+  server.tool(
     'orchestrator.landing_routes',
-    'Public no-token routes to start the experience. Use send_magic_link only when access to user data is needed.',
+    'Public no-token routes to start the experience.',
     {},
     {
       title: 'Landing routes',
@@ -105,15 +143,15 @@ export function createOrchestratorMcpServer() {
         },
         notes: [
           'Start on public landing routes without token.',
-          'Use orchestrator.send_magic_link to deliver tokenized links only when personalized data/actions are needed.',
-          'orchestrator.summary and orchestrator.goals_detail require token.',
+          'Use orchestrator.send_magic_link (with confirm_send=true) only with user consent.',
+          'orchestrator.summary requires token.',
         ],
       })
   );
 
   server.tool(
     'orchestrator.summary',
-    'Cross-domain snapshot: which goals/wealth areas have data, nag/reminder counts, canonical URLs with token.',
+    'Cross-domain snapshot: which goals/wealth areas have data + tokenized deep links.',
     {
       token: z.string().optional().describe('users.verification_token'),
     },
@@ -134,40 +172,13 @@ export function createOrchestratorMcpServer() {
   );
 
   server.tool(
-    'orchestrator.goals_detail',
-    'Fetch goal form JSON from user_data (optional fields= save,home,invest,insurance,tax,retirement comma list; omit for all). Includes wealth_data_filled for GoalDataGate.',
-    {
-      token: z.string().optional(),
-      fields: z
-        .string()
-        .optional()
-        .describe('Comma-separated: save,home,invest,insurance,tax,retirement'),
-    },
-    {
-      title: 'Goals detail',
-      readOnlyHint: true,
-      destructiveHint: false,
-      idempotentHint: true,
-      openWorldHint: false,
-    },
-    async ({ token, fields }, extra) => {
-      const t = resolveToken(token, extra);
-      if (!t) return jsonResult({ error: 'token required' }, true);
-      const q = new URLSearchParams({ token: t });
-      if (fields?.trim()) q.set('fields', fields.trim());
-      const { ok, status, data } = await fetchJson(`/api/goals/detail?${q}`, { method: 'GET' });
-      return jsonResult(data, !ok || status >= 400);
-    }
-  );
-
-  server.tool(
     'orchestrator.send_magic_link',
     'Send magic link email so the user can open a path with their token (uses /api/auth/send-magic-link).',
     {
       email: z.string().email(),
       redirectPath: z
         .string()
-        .describe('App path e.g. /expenses, /income, /assets, /retire, /nag'),
+        .describe('App path e.g. /wealth, /goals, /expenses, /save'),
       confirm_send: z.boolean().optional().describe('Must be true to send email'),
     },
     {
@@ -198,13 +209,13 @@ export function createOrchestratorMcpServer() {
 
   server.prompt(
     'orchestrator.start_here',
-    'Choose the right orchestrator tool for user intent',
+    'Route the user to the right MCP server',
     {
       goal: z.string().min(1).describe('What the user wants to do'),
       has_token: z.boolean().optional().describe('Whether a user token is already available'),
     },
     async ({ goal, has_token }) => ({
-      description: 'Route user intent to landing_routes, summary/goals_detail, or send_magic_link.',
+      description: 'Decide whether to use orchestrator tools or switch to zoro-wealth/zoro-goals.',
       messages: [
         {
           role: 'user',
@@ -213,11 +224,11 @@ export function createOrchestratorMcpServer() {
             text: [
               `User request: ${goal}`,
               `Token available: ${has_token === true ? 'yes' : 'no/unknown'}.`,
-              'Flow:',
-              '1) If token is missing or unknown, call orchestrator.landing_routes first.',
-              '2) If user needs personalized status, call orchestrator.summary.',
-              '3) If user specifically needs full goal form payloads, call orchestrator.goals_detail.',
-              '4) If the user needs account access, ask consent and call orchestrator.send_magic_link with confirm_send=true.',
+              'Decide next step:',
+              '- If token is missing, use orchestrator.landing_routes and (with consent) orchestrator.send_magic_link.',
+              '- If token exists, use orchestrator.summary if you need a cross-domain snapshot.',
+              '- Route wealth intent to zoro-wealth; route goal intent to zoro-goals.',
+              '- Do not call zoro-nags unless the user explicitly wants reminder scheduling.',
             ].join('\n'),
           },
         },
@@ -234,7 +245,7 @@ export function createOrchestratorMcpServer() {
       confirm_send: z.boolean().optional().describe('Must be true to actually send'),
     },
     async ({ email, redirectPath, confirm_send }) => ({
-      description: 'Consent-first email onboarding with magic link delivery.',
+      description: 'Consent-first magic link delivery.',
       messages: [
         {
           role: 'user',
@@ -245,9 +256,9 @@ export function createOrchestratorMcpServer() {
               `Preferred redirect path: ${redirectPath || '/nag'}.`,
               `Consent to send now: ${confirm_send === true ? 'yes' : 'not confirmed yet'}.`,
               'Flow:',
-              '1) Call orchestrator.landing_routes for no-token public routes.',
+              '1) Call orchestrator.landing_routes.',
               '2) If consent is true, call orchestrator.send_magic_link with confirm_send=true.',
-              '3) If consent is not true, do not send. Ask for explicit approval first.',
+              '3) If consent is not true, do not send.',
             ].join('\n'),
           },
         },
@@ -273,34 +284,8 @@ export function createOrchestratorMcpServer() {
               'Call orchestrator.summary and return:',
               '- completed vs missing areas',
               '- suggested next page path',
-              '- 1-2 recommended reminders to keep momentum.',
-              'If user asks for deep goal JSON, call orchestrator.goals_detail next.',
-            ].join('\n'),
-          },
-        },
-      ],
-    })
-  );
-
-  server.prompt(
-    'orchestrator.goal_data_drilldown',
-    'Fetch detailed goal payloads for selected forms',
-    {
-      token: z.string().optional(),
-      fields: z.string().optional().describe('Comma-separated goal fields (save,home,invest,insurance,tax,retirement)'),
-    },
-    async ({ token, fields }) => ({
-      description: 'Run goals detail query from orchestrator and format actionable next steps.',
-      messages: [
-        {
-          role: 'user',
-          content: {
-            type: 'text',
-            text: [
-              token ? `Use this token override: ${token}` : 'Use configured token header/env.',
-              `Requested goal fields: ${fields || 'all'}.`,
-              'Call orchestrator.goals_detail and summarize what is filled vs missing.',
-              'If user also asks wealth-only analytics, route to zoro-wealth tools.',
+              '- next MCP server to use (zoro-wealth or zoro-goals)',
+              '- 1-2 suggested next actions (do not schedule nags unless user asked).',
             ].join('\n'),
           },
         },
