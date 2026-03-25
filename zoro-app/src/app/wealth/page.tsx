@@ -4,7 +4,6 @@ import React, { Suspense, useEffect, useMemo, useState, useCallback } from 'reac
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Moon, Sun } from 'lucide-react';
 import { ZoroLogo } from '@/components/ZoroLogo';
-import { SmitheryConnectBar } from '@/components/nag/SmitheryConnectBar';
 import { useDarkMode } from '@/hooks/useDarkMode';
 import { useThemeClasses } from '@/hooks/useThemeClasses';
 
@@ -22,14 +21,12 @@ function WealthLanding() {
   const [gateSending, setGateSending] = useState(false);
   const [gateMessage, setGateMessage] = useState<'idle' | 'sent' | 'not_registered' | 'error'>('idle');
   const [gateError, setGateError] = useState<string | null>(null);
-  const [smitheryToken, setSmitheryToken] = useState<string | null>(null);
 
   const redirectPath = useMemo(() => '/expenses', []);
 
   useEffect(() => {
     if (!tokenFromQuery) return;
     try {
-      setSmitheryToken(tokenFromQuery);
       sessionStorage.setItem(WEALTH_TOKEN_KEY, tokenFromQuery);
     } catch {
       // ignore; sessionStorage might be blocked
@@ -37,18 +34,6 @@ function WealthLanding() {
     // Wealth is spread across /expenses, /income, /assets; default entry is /expenses.
     router.replace(`${redirectPath}?token=${encodeURIComponent(tokenFromQuery)}`);
   }, [redirectPath, router, tokenFromQuery]);
-
-  useEffect(() => {
-    // If the user already opened a magic link on this device, keep the token ready
-    // so the Smithery server links auto-scope requests.
-    try {
-      const stored = sessionStorage.getItem(WEALTH_TOKEN_KEY);
-      const trimmed = stored?.trim();
-      if (trimmed) setSmitheryToken(trimmed);
-    } catch {
-      // ignore; sessionStorage might be blocked
-    }
-  }, []);
 
   const handleSendMagicLink = useCallback(async () => {
     const email = gateEmail.trim().toLowerCase();
@@ -172,25 +157,6 @@ function WealthLanding() {
           >
             {gateSending ? 'Sending…' : 'Send me the link'}
           </button>
-        </div>
-
-        <div className={`text-sm ${theme.textSecondaryClass} mb-6`}>
-          <p className={`text-sm font-medium ${theme.textClass}`}>Connect Zoro MCP servers in Smithery</p>
-          <div className="mt-3 space-y-3">
-            <SmitheryConnectBar compact darkMode={darkMode} token={smitheryToken} server="nag" />
-            <SmitheryConnectBar compact darkMode={darkMode} token={smitheryToken} server="wealth" />
-            <SmitheryConnectBar compact darkMode={darkMode} token={smitheryToken} server="goals" />
-            <SmitheryConnectBar
-              compact
-              darkMode={darkMode}
-              token={smitheryToken}
-              server="orchestrator"
-            />
-          </div>
-          <p className="mt-3 text-xs">
-            Wealth/Goals/Orchestrator typically require a token for user-scoped tools. Nag supports public
-            onboarding routes, but user tools still use your token.
-          </p>
         </div>
 
         <div className={`text-sm ${theme.textSecondaryClass}`}>

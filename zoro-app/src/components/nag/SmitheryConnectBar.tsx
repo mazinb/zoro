@@ -6,28 +6,20 @@ import { Copy, ExternalLink, KeyRound } from 'lucide-react';
 
 type SmitheryConnectBarProps = {
   compact?: boolean;
-  server?: string;
   token?: string | null;
   darkMode: boolean;
 };
 
-const BASE_USAGE_URL = 'https://smithery.ai/servers/zoro';
+const BASE_USAGE_URL = 'https://smithery.ai/servers/zoro/nag';
 
-function buildUsageUrl(server: string, token?: string | null): string {
-  const serverSlug = server.trim() || 'nag';
-  const base = `${BASE_USAGE_URL}/${encodeURIComponent(serverSlug)}`;
+function buildUsageUrl(token?: string | null): string {
   const t = token?.trim();
-  if (!t) return base;
-  return `${base}?token=${encodeURIComponent(t)}`;
+  if (!t) return BASE_USAGE_URL;
+  return `${BASE_USAGE_URL}?token=${encodeURIComponent(t)}`;
 }
 
-export function SmitheryConnectBar({
-  compact = false,
-  server = 'nag',
-  token,
-  darkMode,
-}: SmitheryConnectBarProps) {
-  const usageUrl = buildUsageUrl(server, token);
+export function SmitheryConnectBar({ compact = false, token, darkMode }: SmitheryConnectBarProps) {
+  const usageUrl = buildUsageUrl(token);
   const trimmedToken = token?.trim() ?? '';
   const [copiedToken, setCopiedToken] = useState(false);
 
