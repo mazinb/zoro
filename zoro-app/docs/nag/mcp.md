@@ -106,6 +106,13 @@ Each MCP is a **different URL**. If you publish “wealth” but point Smithery 
 
 Use the same `token` header config schema as above when publishing each server.
 
+Auth behavior by server:
+
+- `zoro-nags`: can start without token (`onboarding.*`, `onboarding.landing_routes`), token required for user data/actions.
+- `zoro-orchestrator`: can start without token (`orchestrator.landing_routes`, `orchestrator.send_magic_link`), token required for summary/detail tools.
+- `zoro-wealth`: token required for all tools.
+- `zoro-goals`: token required for all tools.
+
 ## Security
 
 - Never commit real tokens in repo or shared config snippets.

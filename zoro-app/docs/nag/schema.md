@@ -23,6 +23,10 @@ Applied via Supabase migration **`create_nags_table`** (`apply_migration`). Incl
 | `last_sent_at` | timestamptz | |
 | `nag_until_done` | boolean | Follow-up emails until user marks done (email channel) |
 | `followup_interval_hours` | smallint | Hours between follow-ups; null = default from frequency |
+| `linked_domain` | text | Optional link domain: `wealth` or `goal` |
+| `linked_key` | text | Optional linked item key (`expenses`,`income`,`assets`,`save`,`home`,`invest`,`insurance`,`tax`,`retire`) |
+| `linked_label` | text | Optional UI label for the linked item |
+| `linked_path` | text | Optional app path for deep-linking (must start with `/`) |
 | `created_at` | timestamptz | default `now()` |
 | `updated_at` | timestamptz | default `now()` |
 

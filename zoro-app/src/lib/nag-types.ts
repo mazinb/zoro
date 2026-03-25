@@ -17,6 +17,9 @@ export type NagEndType = (typeof NAG_END_TYPES)[number];
 export const NAG_STATUSES = ['active', 'archived', 'cancelled'] as const;
 export type NagStatus = (typeof NAG_STATUSES)[number];
 
+export const NAG_LINK_DOMAINS = ['wealth', 'goal'] as const;
+export type NagLinkDomain = (typeof NAG_LINK_DOMAINS)[number];
+
 export type NagRow = {
   id: string;
   user_id: string;
@@ -39,9 +42,62 @@ export type NagRow = {
   nag_until_done: boolean;
   /** Hours between sends while nag_until_done; null = default from frequency in app logic. */
   followup_interval_hours: number | null;
+  /** Optional domain link so this nag can point to a specific wealth/goal item. */
+  linked_domain: NagLinkDomain | null;
+  /** Item key within the linked domain (e.g. expenses/save). */
+  linked_key: string | null;
+  /** Optional UI-friendly label for the linked item. */
+  linked_label: string | null;
+  /** Optional app path for direct navigation (e.g. /expenses, /save). */
+  linked_path: string | null;
   created_at: string;
   updated_at: string;
 };
+
+const LINKED_KEYS: Record<NagLinkDomain, readonly string[]> = {
+  wealth: ['expenses', 'income', 'assets'],
+  goal: ['save', 'home', 'invest', 'insurance', 'tax', 'retire'],
+};
+
+export function parseNagLinkFields(
+  body: Record<string, unknown>
+): { ok: true; linked_domain: NagLinkDomain | null; linked_key: string | null; linked_label: string | null; linked_path: string | null } | { ok: false; error: string } {
+  const rawDomain = typeof body.linked_domain === 'string' ? body.linked_domain.trim().toLowerCase() : '';
+  const rawKey = typeof body.linked_key === 'string' ? body.linked_key.trim().toLowerCase() : '';
+  const rawLabel = typeof body.linked_label === 'string' ? body.linked_label.trim() : '';
+  const rawPath = typeof body.linked_path === 'string' ? body.linked_path.trim() : '';
+
+  const wantsUnlink =
+    body.linked_domain === null ||
+    body.linked_key === null ||
+    body.linked_path === null ||
+    body.linked_label === null;
+  if (!rawDomain && !rawKey && !rawLabel && !rawPath) {
+    return { ok: true, linked_domain: null, linked_key: null, linked_label: null, linked_path: null };
+  }
+  if (wantsUnlink && !rawDomain && !rawKey) {
+    return { ok: true, linked_domain: null, linked_key: null, linked_label: null, linked_path: null };
+  }
+
+  if (!rawDomain || !(NAG_LINK_DOMAINS as readonly string[]).includes(rawDomain)) {
+    return { ok: false, error: 'linked_domain must be wealth or goal when setting a link' };
+  }
+  const domain = rawDomain as NagLinkDomain;
+  if (!rawKey || !LINKED_KEYS[domain].includes(rawKey)) {
+    return { ok: false, error: `linked_key is invalid for linked_domain=${domain}` };
+  }
+  if (rawPath && !rawPath.startsWith('/')) {
+    return { ok: false, error: 'linked_path must start with /' };
+  }
+
+  return {
+    ok: true,
+    linked_domain: domain,
+    linked_key: rawKey,
+    linked_label: rawLabel || null,
+    linked_path: rawPath || null,
+  };
+}
 
 export function defaultFollowupHoursForFrequency(frequency: NagFrequency): number {
   switch (frequency) {

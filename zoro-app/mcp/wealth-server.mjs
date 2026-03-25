@@ -151,6 +151,7 @@ export function createWealthMcpServer() {
     'wealth.currency_rates',
     'List stored FX rates (optional month=YYYY-MM per /api/currency-rates).',
     {
+      token: z.string().optional(),
       month: z.string().optional().describe('YYYY-MM for one month; omit for rolling window'),
     },
     {
@@ -160,8 +161,10 @@ export function createWealthMcpServer() {
       idempotentHint: true,
       openWorldHint: false,
     },
-    async ({ month }) => {
-      const q = new URLSearchParams();
+    async ({ token, month }, extra) => {
+      const t = resolveToken(token, extra);
+      if (!t) return jsonResult({ error: 'token required' }, true);
+      const q = new URLSearchParams({ token: t });
       if (month?.trim()) q.set('month', month.trim());
       const qs = q.toString();
       const { ok, status, data } = await fetchJson(`/api/currency-rates${qs ? `?${qs}` : ''}`, {
@@ -191,6 +194,132 @@ export function createWealthMcpServer() {
       const { ok, status, data } = await fetchJson(`/api/currency-rates/coverage?${q}`, { method: 'GET' });
       return jsonResult(data, !ok || status >= 400);
     }
+  );
+
+  server.prompt(
+    'wealth.start_with_user_data',
+    'Get wealth profile baseline before deeper calls',
+    {
+      token: z.string().optional(),
+    },
+    async ({ token }) => ({
+      description: 'Load wealth baseline and route cross-domain requests to orchestrator.',
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text: [
+              token ? `Use this token override: ${token}` : 'Use configured token header/env.',
+              'Call wealth.user_data first to establish baseline.',
+              'If user asks about goals + wealth together, switch to zoro-orchestrator (orchestrator.summary).',
+            ].join('\n'),
+          },
+        },
+      ],
+    })
+  );
+
+  server.prompt(
+    'wealth.review_monthly_expenses',
+    'Inspect monthly spending buckets',
+    {
+      token: z.string().optional(),
+      month: z.string().optional().describe('YYYY-MM-01 month key'),
+    },
+    async ({ token, month }) => ({
+      description: 'Fetch monthly expenses and highlight major categories.',
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text: [
+              token ? `Use this token override: ${token}` : 'Use configured token header/env.',
+              `Target month: ${month || 'latest available/list all months first'}.`,
+              'Call wealth.expenses_monthly and summarize top categories + anomalies.',
+              'If user asks for reminders or broader planning, route to zoro-orchestrator.',
+            ].join('\n'),
+          },
+        },
+      ],
+    })
+  );
+
+  server.prompt(
+    'wealth.review_estimates',
+    'Analyze expense estimate snapshots',
+    {
+      token: z.string().optional(),
+      latest: z.boolean().optional(),
+    },
+    async ({ token, latest }) => ({
+      description: 'Fetch estimate snapshots and suggest next actions.',
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text: [
+              token ? `Use this token override: ${token}` : 'Use configured token header/env.',
+              `Latest only: ${latest === true ? 'yes' : 'no'}.`,
+              'Call wealth.expenses_estimates, then summarize trend direction and biggest drivers.',
+              'For goal impact questions, route to zoro-orchestrator.',
+            ].join('\n'),
+          },
+        },
+      ],
+    })
+  );
+
+  server.prompt(
+    'wealth.check_currency_rates',
+    'Inspect available FX rates for reporting',
+    {
+      token: z.string().optional(),
+      month: z.string().optional().describe('YYYY-MM optional'),
+    },
+    async ({ token, month }) => ({
+      description: 'Fetch FX rates and return concise coverage notes.',
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text: [
+              token ? `Use this token override: ${token}` : 'Use configured token header/env.',
+              `Month filter: ${month || 'none'}.`,
+              'Call wealth.currency_rates and summarize base currencies + date coverage.',
+              'If there are missing conversions, also call wealth.currency_coverage.',
+            ].join('\n'),
+          },
+        },
+      ],
+    })
+  );
+
+  server.prompt(
+    'wealth.find_currency_gaps',
+    'Find missing FX pairs impacting user data',
+    {
+      token: z.string().optional(),
+    },
+    async ({ token }) => ({
+      description: 'Identify FX coverage gaps and recommend what to backfill.',
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text: [
+              token ? `Use this token override: ${token}` : 'Use configured token header/env.',
+              'Call wealth.currency_coverage and return missing month/currency pairs.',
+              'If user asks for next-step prioritization across goals/reminders, route to zoro-orchestrator.',
+            ].join('\n'),
+          },
+        },
+      ],
+    })
   );
 
   return server;

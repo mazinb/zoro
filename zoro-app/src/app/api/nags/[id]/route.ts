@@ -12,13 +12,14 @@ import {
   isUuid,
   parseHHMM,
   parseNagBehaviorFields,
+  parseNagLinkFields,
   validateScheduleBody,
   type NagRow,
   type NagScheduleInput,
 } from '@/lib/nag-types';
 
 const SELECT_FIELDS =
-  'id,user_id,message,channel,webhook_id,frequency,time_hhmm,day_of_week,day_of_month,end_type,until_date,occurrences_max,occurrences_remaining,status,next_at,last_sent_at,nag_until_done,followup_interval_hours,created_at,updated_at';
+  'id,user_id,message,channel,webhook_id,frequency,time_hhmm,day_of_week,day_of_month,end_type,until_date,occurrences_max,occurrences_remaining,status,next_at,last_sent_at,nag_until_done,followup_interval_hours,linked_domain,linked_key,linked_label,linked_path,created_at,updated_at';
 
 function mergeSchedule(existing: NagRow, body: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {
@@ -32,6 +33,10 @@ function mergeSchedule(existing: NagRow, body: Record<string, unknown>): Record<
     end_type: existing.end_type,
     until_date: existing.until_date,
     occurrences_max: existing.occurrences_max,
+    linked_domain: existing.linked_domain,
+    linked_key: existing.linked_key,
+    linked_label: existing.linked_label,
+    linked_path: existing.linked_path,
   };
 
   if (typeof body.message === 'string') out.message = body.message;
@@ -73,6 +78,10 @@ function mergeSchedule(existing: NagRow, body: Record<string, unknown>): Record<
     const n = Number(body.occurrences_max);
     if (Number.isInteger(n) && n >= 1) out.occurrences_max = n;
   }
+  if (body.linked_domain !== undefined) out.linked_domain = body.linked_domain;
+  if (body.linked_key !== undefined) out.linked_key = body.linked_key;
+  if (body.linked_label !== undefined) out.linked_label = body.linked_label;
+  if (body.linked_path !== undefined) out.linked_path = body.linked_path;
 
   return out;
 }
@@ -123,6 +132,10 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ id: s
       'end_type',
       'until_date',
       'occurrences_max',
+      'linked_domain',
+      'linked_key',
+      'linked_label',
+      'linked_path',
     ] as const;
     const hasScheduleUpdate = scheduleKeys.some((k) => body[k] !== undefined);
 
@@ -221,6 +234,10 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ id: s
       return NextResponse.json({ error: v.error }, { status: 400 });
     }
     const data: NagScheduleInput = v.data;
+    const link = parseNagLinkFields(merged);
+    if (!link.ok) {
+      return NextResponse.json({ error: link.error }, { status: 400 });
+    }
 
     const flags = await getNagUserFlags(supabase, userId);
     if (data.channel === 'whatsapp' && flags.nag_developer) {
@@ -268,6 +285,10 @@ export async function PATCH(request: NextRequest, ctx: { params: Promise<{ id: s
       end_type: data.end_type,
       until_date: data.until_date,
       occurrences_max: data.end_type === 'occurrences' ? data.occurrences_max : null,
+      linked_domain: link.linked_domain,
+      linked_key: link.linked_key,
+      linked_label: link.linked_label,
+      linked_path: link.linked_path,
     };
 
     if (data.end_type === 'occurrences') {

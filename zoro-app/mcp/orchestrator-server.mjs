@@ -63,6 +63,7 @@ export function createOrchestratorMcpServer() {
           text: [
             '# Zoro Orchestrator MCP',
             '',
+            '- **orchestrator.landing_routes** — public, no-token start links for onboarding and discovery.',
             '- **orchestrator.summary** — goals progress flags, wealth flags, counts, deep-link paths with token.',
             '- **orchestrator.goals_detail** — `user_data` slices per goal (save/home/invest/insurance/tax/retirement) + wealth filled flags.',
             '- **orchestrator.send_magic_link** — email the user a link with `?token=` for a path (e.g. /expenses, /retire). Requires confirm_send=true.',
@@ -70,6 +71,42 @@ export function createOrchestratorMcpServer() {
         },
       ],
     })
+  );
+
+  server.tool(
+    'orchestrator.landing_routes',
+    'Public no-token routes to start the experience. Use send_magic_link only when access to user data is needed.',
+    {},
+    {
+      title: 'Landing routes',
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+    async () =>
+      jsonResult({
+        success: true,
+        token_required: false,
+        routes: {
+          nag: '/nag',
+          nag_developer: '/nag/developer',
+          expenses: '/expenses',
+          income: '/income',
+          assets: '/assets',
+          save: '/save',
+          home: '/home',
+          invest: '/invest',
+          insurance: '/insurance',
+          tax: '/tax',
+          retire: '/retire',
+        },
+        notes: [
+          'Start on public landing routes without token.',
+          'Use orchestrator.send_magic_link to deliver tokenized links only when personalized data/actions are needed.',
+          'orchestrator.summary and orchestrator.goals_detail require token.',
+        ],
+      })
   );
 
   server.tool(
@@ -155,6 +192,118 @@ export function createOrchestratorMcpServer() {
       });
       return jsonResult(data, !ok || status >= 400);
     }
+  );
+
+  server.prompt(
+    'orchestrator.start_here',
+    'Choose the right orchestrator tool for user intent',
+    {
+      goal: z.string().min(1).describe('What the user wants to do'),
+      has_token: z.boolean().optional().describe('Whether a user token is already available'),
+    },
+    async ({ goal, has_token }) => ({
+      description: 'Route user intent to landing_routes, summary/goals_detail, or send_magic_link.',
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text: [
+              `User request: ${goal}`,
+              `Token available: ${has_token === true ? 'yes' : 'no/unknown'}.`,
+              'Flow:',
+              '1) If token is missing or unknown, call orchestrator.landing_routes first.',
+              '2) If user needs personalized status, call orchestrator.summary.',
+              '3) If user specifically needs full goal form payloads, call orchestrator.goals_detail.',
+              '4) If the user needs account access, ask consent and call orchestrator.send_magic_link with confirm_send=true.',
+            ].join('\n'),
+          },
+        },
+      ],
+    })
+  );
+
+  server.prompt(
+    'orchestrator.onboarding_email_link',
+    'Onboard user and send access link by email',
+    {
+      email: z.string().email().describe('User email'),
+      redirectPath: z.string().optional().describe('Destination route (defaults to /nag)'),
+      confirm_send: z.boolean().optional().describe('Must be true to actually send'),
+    },
+    async ({ email, redirectPath, confirm_send }) => ({
+      description: 'Consent-first email onboarding with magic link delivery.',
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text: [
+              `Help onboard this user by email: ${email}.`,
+              `Preferred redirect path: ${redirectPath || '/nag'}.`,
+              `Consent to send now: ${confirm_send === true ? 'yes' : 'not confirmed yet'}.`,
+              'Flow:',
+              '1) Call orchestrator.landing_routes for no-token public routes.',
+              '2) If consent is true, call orchestrator.send_magic_link with confirm_send=true.',
+              '3) If consent is not true, do not send. Ask for explicit approval first.',
+            ].join('\n'),
+          },
+        },
+      ],
+    })
+  );
+
+  server.prompt(
+    'orchestrator.review_progress',
+    'Summarize wealth and goals progress',
+    {
+      token: z.string().optional().describe('users.verification_token'),
+    },
+    async ({ token }) => ({
+      description: 'Generate a concise progress review from orchestrator summary.',
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text: [
+              token ? `Use this token override: ${token}` : 'Use configured token header/env.',
+              'Call orchestrator.summary and return:',
+              '- completed vs missing areas',
+              '- suggested next page path',
+              '- 1-2 recommended reminders to keep momentum.',
+              'If user asks for deep goal JSON, call orchestrator.goals_detail next.',
+            ].join('\n'),
+          },
+        },
+      ],
+    })
+  );
+
+  server.prompt(
+    'orchestrator.goal_data_drilldown',
+    'Fetch detailed goal payloads for selected forms',
+    {
+      token: z.string().optional(),
+      fields: z.string().optional().describe('Comma-separated goal fields (save,home,invest,insurance,tax,retirement)'),
+    },
+    async ({ token, fields }) => ({
+      description: 'Run goals detail query from orchestrator and format actionable next steps.',
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text: [
+              token ? `Use this token override: ${token}` : 'Use configured token header/env.',
+              `Requested goal fields: ${fields || 'all'}.`,
+              'Call orchestrator.goals_detail and summarize what is filled vs missing.',
+              'If user also asks wealth-only analytics, route to zoro-wealth tools.',
+            ].join('\n'),
+          },
+        },
+      ],
+    })
   );
 
   return server;

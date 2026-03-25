@@ -7,11 +7,11 @@
   "homepage": "https://www.getzoro.com/nag",
   "icon": "https://www.getzoro.com/icon-dark.png",
   "authentication": {
-    "required": true,
+    "required": false,
     "schemes": [
       "bearer"
     ],
-    "instructions": "Provide any valid user-assigned token via HTTP header token (preferred), Authorization: Bearer <token>, or legacy x-nag-mcp-token. Use onboarding.auth_email to send a sign-in magic link if needed."
+    "instructions": "Token is optional for onboarding/landing tools and required for user-data actions. Provide it via HTTP header token (preferred), Authorization: Bearer <token>, or legacy x-nag-mcp-token. Use onboarding.auth_email to send a sign-in magic link if needed."
   },
   "tools": [
     {

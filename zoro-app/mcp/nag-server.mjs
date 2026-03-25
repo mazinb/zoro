@@ -77,6 +77,7 @@ export function createNagMcpServer() {
           text: [
             '# Zoro Nags API',
             '',
+            '- Start without token: `onboarding.landing_routes` + `onboarding.email_check` / `onboarding.auth_email`.',
             '- Start auth: `onboarding.email_check` -> `onboarding.auth_email` (confirm_send=true).',
             '- For authenticated operations, send header `token` (preferred), or `Authorization: Bearer <token>`, or legacy `x-nag-mcp-token`.',
             '- Core tools: `nags.parse`, `nags.list`, `nags.create`, `nags.update`, `nags.delete`.',
@@ -110,6 +111,33 @@ export function createNagMcpServer() {
     })
   );
 
+  server.tool(
+    'onboarding.landing_routes',
+    'Public no-token routes for starting Nag onboarding. Use auth_email when a tokenized magic link is needed.',
+    {},
+    {
+      title: 'Nag landing routes',
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+    async () =>
+      jsonResult({
+        success: true,
+        token_required: false,
+        routes: {
+          nag: '/nag',
+          nag_developer: '/nag/developer',
+        },
+        next_steps: [
+          'Check account with onboarding.email_check.',
+          'Send consented magic link with onboarding.auth_email (confirm_send=true).',
+          'Use tokenized links only for authenticated operations.',
+        ],
+      })
+  );
+
   // Runtime prompt capabilities for MCP clients (including Smithery scans).
   server.prompt(
     'onboarding.onboard_user',
@@ -130,7 +158,41 @@ export function createNagMcpServer() {
               '1) Call onboarding.email_check.',
               '2) If not registered, collect name then call onboarding.auth_email with confirm_send=true.',
               '3) If registered, call onboarding.auth_email with confirm_send=true.',
+              '4) For broader cross-domain status/navigation, route to zoro-orchestrator tools.',
               name ? `Provided name for signup: ${name}` : 'Ask for name only if the account does not exist.',
+            ].join('\n'),
+          },
+        },
+      ],
+    })
+  );
+
+  server.prompt(
+    'onboarding.email_link_helper',
+    'Consent-first helper to send magic link email',
+    {
+      email: z.string().email().describe('User email'),
+      name: z.string().optional().describe('Only needed for first-time signup'),
+      timezone: z.string().optional().describe('Optional IANA timezone'),
+      confirm_send: z.boolean().optional().describe('Must be true before sending'),
+    },
+    async ({ email, name, timezone, confirm_send }) => ({
+      description: 'Use this prompt when user needs a sign-in email link.',
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text: [
+              `User email: ${email}`,
+              `Name provided: ${name || 'none'}`,
+              `Timezone: ${timezone || 'none'}`,
+              `Consent to send now: ${confirm_send === true ? 'yes' : 'not confirmed yet'}`,
+              'Flow:',
+              '1) Call onboarding.email_check.',
+              '2) If consent is true, call onboarding.auth_email with confirm_send=true.',
+              '3) If consent is not true, ask for explicit permission before sending.',
+              '4) If the user wants wealth/goals coordination after onboarding, route to zoro-orchestrator.',
             ].join('\n'),
           },
         },
@@ -490,6 +552,14 @@ server.tool(
     token: z.string().optional().describe('Auth token override (users.verification_token)'),
     message: z.string().min(1).describe('Reminder message body'),
     channel: z.enum(['email', 'whatsapp', 'webhook']).describe('Delivery channel'),
+    linked_domain: z.enum(['wealth', 'goal']).optional().nullable().describe('Optional domain link for this reminder'),
+    linked_key: z
+      .enum(['expenses', 'income', 'assets', 'save', 'home', 'invest', 'insurance', 'tax', 'retire'])
+      .optional()
+      .nullable()
+      .describe('Optional linked item key (wealth: expenses/income/assets, goal: save/home/invest/insurance/tax/retire)'),
+    linked_label: z.string().optional().nullable().describe('Optional custom label for UI, e.g. "Emergency Fund"'),
+    linked_path: z.string().optional().nullable().describe('Optional app path for quick jump, e.g. /expenses or /save'),
     webhook_id: z.string().uuid().optional().describe('Required when channel=webhook'),
     frequency: z.enum(['daily', 'weekly', 'monthly', 'once']).describe('Reminder frequency'),
     time_hhmm: z.string().describe('24h HH:MM in user timezone'),
@@ -529,6 +599,14 @@ server.tool(
     token: z.string().optional().describe('Auth token override (users.verification_token)'),
     message: z.string().optional().describe('Updated reminder message'),
     channel: z.enum(['email', 'whatsapp', 'webhook']).optional().describe('Updated delivery channel'),
+    linked_domain: z.enum(['wealth', 'goal']).optional().nullable().describe('Link domain (or null to clear link)'),
+    linked_key: z
+      .enum(['expenses', 'income', 'assets', 'save', 'home', 'invest', 'insurance', 'tax', 'retire'])
+      .optional()
+      .nullable()
+      .describe('Linked item key (or null to clear link)'),
+    linked_label: z.string().optional().nullable().describe('Optional custom label (or null to clear)'),
+    linked_path: z.string().optional().nullable().describe('Optional app path like /expenses (or null to clear)'),
     webhook_id: z.string().uuid().nullable().optional().describe('Webhook UUID when channel=webhook; null clears'),
     frequency: z.enum(['daily', 'weekly', 'monthly', 'once']).optional().describe('Updated reminder frequency'),
     time_hhmm: z.string().optional().describe('Updated 24h HH:MM time in user timezone'),

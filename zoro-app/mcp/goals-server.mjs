@@ -138,6 +138,56 @@ export function createGoalsMcpServer() {
     }
   );
 
+  server.prompt(
+    'goals.quick_overview',
+    'Get goal completion snapshot and links',
+    {
+      token: z.string().optional(),
+    },
+    async ({ token }) => ({
+      description: 'Fetch goal overview for fast progress visibility.',
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text: [
+              token ? `Use this token override: ${token}` : 'Use configured token header/env.',
+              'Call goals.overview and summarize complete vs incomplete goal areas.',
+              'If user asks wealth+goals combined strategy, route to zoro-orchestrator.',
+            ].join('\n'),
+          },
+        },
+      ],
+    })
+  );
+
+  server.prompt(
+    'goals.fetch_detail',
+    'Get full goal-form payloads',
+    {
+      token: z.string().optional(),
+      fields: z.string().optional().describe('Comma-separated: save,home,invest,insurance,tax,retirement'),
+    },
+    async ({ token, fields }) => ({
+      description: 'Fetch goal detail payloads and map missing sections.',
+      messages: [
+        {
+          role: 'user',
+          content: {
+            type: 'text',
+            text: [
+              token ? `Use this token override: ${token}` : 'Use configured token header/env.',
+              `Fields requested: ${fields || 'all'}.`,
+              'Call goals.detail and identify what data is missing for completion.',
+              'If request includes reminders or onboarding links, route to zoro-orchestrator or zoro-nags.',
+            ].join('\n'),
+          },
+        },
+      ],
+    })
+  );
+
   return server;
 }
 
