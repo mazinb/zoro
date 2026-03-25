@@ -73,7 +73,7 @@ Runtime capabilities in `mcp/nag-server.mjs`:
 
 Static fallback metadata:
 
-- `/.well-known/mcp/server-card.json`
+- Not used (intentionally removed) so each `/api/mcp/*` endpoint is discovered from its own runtime metadata.
 
 ## Remote HTTP: stateless sessions (Vercel / multi-instance)
 
