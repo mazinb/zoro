@@ -15,8 +15,8 @@ export function goalsSectionTitle(s: string): string {
 export const GOALS_LANDING_TOOLS: McpLandingTool[] = [
   {
     id: 'goals.overview',
-    mcpName: 'overview',
-    rowTitle: 'overview',
+    mcpName: 'goals.overview',
+    rowTitle: 'goals.overview',
     section: 'overview',
     description: 'Snapshot: which goal forms have data + tokenized URLs.',
     method: 'GET',
@@ -32,8 +32,8 @@ export const GOALS_LANDING_TOOLS: McpLandingTool[] = [
   },
   {
     id: 'goals.detail_goal_save',
-    mcpName: 'detail_goal',
-    rowTitle: 'detail_goal · save',
+    mcpName: 'goals.detail_goal',
+    rowTitle: 'goals.detail_goal · save',
     section: 'detail',
     description: 'Fetch full answers for the Save goal + `wealth_data_filled` for GoalDataGate.',
     method: 'GET',
@@ -50,8 +50,8 @@ export const GOALS_LANDING_TOOLS: McpLandingTool[] = [
   },
   {
     id: 'goals.detail_goal_home',
-    mcpName: 'detail_goal',
-    rowTitle: 'detail_goal · home',
+    mcpName: 'goals.detail_goal',
+    rowTitle: 'goals.detail_goal · home',
     section: 'detail',
     description: 'Fetch full answers for the Home (big purchase) goal + `wealth_data_filled` for GoalDataGate.',
     method: 'GET',
@@ -68,8 +68,8 @@ export const GOALS_LANDING_TOOLS: McpLandingTool[] = [
   },
   {
     id: 'goals.detail_goal_invest',
-    mcpName: 'detail_goal',
-    rowTitle: 'detail_goal · invest',
+    mcpName: 'goals.detail_goal',
+    rowTitle: 'goals.detail_goal · invest',
     section: 'detail',
     description: 'Fetch full answers for the Invest goal + `wealth_data_filled` for GoalDataGate.',
     method: 'GET',
@@ -86,8 +86,8 @@ export const GOALS_LANDING_TOOLS: McpLandingTool[] = [
   },
   {
     id: 'goals.detail_goal_insurance',
-    mcpName: 'detail_goal',
-    rowTitle: 'detail_goal · insurance',
+    mcpName: 'goals.detail_goal',
+    rowTitle: 'goals.detail_goal · insurance',
     section: 'detail',
     description: 'Fetch full answers for the Insurance goal + `wealth_data_filled` (may be unused) for GoalDataGate.',
     method: 'GET',
@@ -104,8 +104,8 @@ export const GOALS_LANDING_TOOLS: McpLandingTool[] = [
   },
   {
     id: 'goals.detail_goal_tax',
-    mcpName: 'detail_goal',
-    rowTitle: 'detail_goal · tax',
+    mcpName: 'goals.detail_goal',
+    rowTitle: 'goals.detail_goal · tax',
     section: 'detail',
     description: 'Fetch full answers for the Tax goal + `wealth_data_filled` for GoalDataGate.',
     method: 'GET',
@@ -122,8 +122,8 @@ export const GOALS_LANDING_TOOLS: McpLandingTool[] = [
   },
   {
     id: 'goals.detail_goal_retirement',
-    mcpName: 'detail_goal',
-    rowTitle: 'detail_goal · retirement',
+    mcpName: 'goals.detail_goal',
+    rowTitle: 'goals.detail_goal · retirement',
     section: 'detail',
     description: 'Fetch full answers for the Retirement goal + `wealth_data_filled` for GoalDataGate.',
     method: 'GET',
@@ -142,8 +142,8 @@ export const GOALS_LANDING_TOOLS: McpLandingTool[] = [
   // Save/onboarding tools: these write `user_data` columns via /api/user-data
   {
     id: 'goals.save.save_more',
-    mcpName: 'save_more_save',
-    rowTitle: 'save_more_save',
+    mcpName: 'goals.save_more_save',
+    rowTitle: 'goals.save_more_save',
     section: 'save',
     description: 'Save the Save-More goal (POSTs to /api/user-data with formType save_more).',
     method: 'POST',
@@ -153,8 +153,8 @@ export const GOALS_LANDING_TOOLS: McpLandingTool[] = [
   },
   {
     id: 'goals.home.save_big_purchase',
-    mcpName: 'big_purchase_save',
-    rowTitle: 'big_purchase_save',
+    mcpName: 'goals.big_purchase_save',
+    rowTitle: 'goals.big_purchase_save',
     section: 'save',
     description: 'Save the Big-Purchase (Home) goal (POSTs to /api/user-data with formType big_purchase).',
     method: 'POST',
@@ -164,8 +164,8 @@ export const GOALS_LANDING_TOOLS: McpLandingTool[] = [
   },
   {
     id: 'goals.invest.save_invest',
-    mcpName: 'invest_save',
-    rowTitle: 'invest_save',
+    mcpName: 'goals.invest_save',
+    rowTitle: 'goals.invest_save',
     section: 'save',
     description: 'Save the Invest goal (POSTs to /api/user-data with formType invest).',
     method: 'POST',
@@ -175,8 +175,8 @@ export const GOALS_LANDING_TOOLS: McpLandingTool[] = [
   },
   {
     id: 'goals.insurance.save_insurance',
-    mcpName: 'insurance_save',
-    rowTitle: 'insurance_save',
+    mcpName: 'goals.insurance_save',
+    rowTitle: 'goals.insurance_save',
     section: 'save',
     description: 'Save the Insurance goal (POSTs to /api/user-data with formType insurance).',
     method: 'POST',
@@ -186,8 +186,8 @@ export const GOALS_LANDING_TOOLS: McpLandingTool[] = [
   },
   {
     id: 'goals.tax.save_tax',
-    mcpName: 'tax_save',
-    rowTitle: 'tax_save',
+    mcpName: 'goals.tax_save',
+    rowTitle: 'goals.tax_save',
     section: 'save',
     description: 'Save the Tax goal (POSTs to /api/user-data with formType tax).',
     method: 'POST',
@@ -197,8 +197,8 @@ export const GOALS_LANDING_TOOLS: McpLandingTool[] = [
   },
   {
     id: 'goals.retirement.save_retirement',
-    mcpName: 'retirement_save',
-    rowTitle: 'retirement_save',
+    mcpName: 'goals.retirement_save',
+    rowTitle: 'goals.retirement_save',
     section: 'save',
     description: 'Save the Retirement goal (POSTs to /api/user-data with formType retirement).',
     method: 'POST',

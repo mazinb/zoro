@@ -4,15 +4,17 @@ export type WealthLandingSection =
   | 'data'
   | 'expenses'
   | 'income'
-  | 'asset'
-  | 'other';
+  | 'assets'
+  | 'reminders'
+  | 'fx';
 
 const sectionLabel: Record<WealthLandingSection, string> = {
   data: 'Data',
   expenses: 'Expenses',
   income: 'Income',
-  asset: 'Assets',
-  other: 'Other',
+  assets: 'Assets',
+  reminders: 'Reminders',
+  fx: 'FX',
 };
 
 export function wealthSectionTitle(s: string): string {
@@ -22,8 +24,8 @@ export function wealthSectionTitle(s: string): string {
 export const WEALTH_LANDING_TOOLS: McpLandingTool[] = [
   {
     id: 'wealth.user_data',
-    mcpName: 'data.user_data',
-    rowTitle: 'data.user_data',
+    mcpName: 'wealth.user_data',
+    rowTitle: 'wealth.user_data',
     section: 'data',
     description: 'Load the full `user_data` row used across wealth + goals.',
     method: 'GET',
@@ -32,8 +34,8 @@ export const WEALTH_LANDING_TOOLS: McpLandingTool[] = [
   },
   {
     id: 'wealth.expenses_monthly',
-    mcpName: 'expenses.monthly',
-    rowTitle: 'expenses.monthly',
+    mcpName: 'wealth.expenses.monthly',
+    rowTitle: 'wealth.expenses.monthly',
     section: 'expenses',
     description: 'Get monthly expense buckets for one month, or list stored months.',
     method: 'GET',
@@ -42,8 +44,8 @@ export const WEALTH_LANDING_TOOLS: McpLandingTool[] = [
   },
   {
     id: 'wealth.expenses_estimates',
-    mcpName: 'expenses.estimates',
-    rowTitle: 'expenses.estimates',
+    mcpName: 'wealth.expenses.estimates',
+    rowTitle: 'wealth.expenses.estimates',
     section: 'expenses',
     description: 'List expense estimate snapshots (or latest only).',
     method: 'GET',
@@ -52,8 +54,8 @@ export const WEALTH_LANDING_TOOLS: McpLandingTool[] = [
   },
   {
     id: 'wealth.expenses.set_estimates',
-    mcpName: 'expenses.set_estimates',
-    rowTitle: 'expenses.set_estimates',
+    mcpName: 'wealth.expenses.set_estimates',
+    rowTitle: 'wealth.expenses.set_estimates',
     section: 'expenses',
     description: 'Save expense estimate buckets (client must supply totals; no server-side parsing).',
     method: 'POST',
@@ -76,8 +78,8 @@ export const WEALTH_LANDING_TOOLS: McpLandingTool[] = [
   },
   {
     id: 'wealth.expenses.save_monthly_actuals_totals',
-    mcpName: 'expenses.save_monthly_actuals_totals',
-    rowTitle: 'expenses.save_monthly_actuals_totals',
+    mcpName: 'wealth.expenses.save_monthly_actuals_totals',
+    rowTitle: 'wealth.expenses.save_monthly_actuals_totals',
     section: 'expenses',
     description: 'Save a month’s actual expense totals (category totals only).',
     method: 'POST',
@@ -101,8 +103,8 @@ export const WEALTH_LANDING_TOOLS: McpLandingTool[] = [
   },
   {
     id: 'wealth.income.save',
-    mcpName: 'income.save',
-    rowTitle: 'income.save',
+    mcpName: 'wealth.income.save',
+    rowTitle: 'wealth.income.save',
     section: 'income',
     description: 'Save income answers (client supplies structured values).',
     method: 'POST',
@@ -117,9 +119,9 @@ export const WEALTH_LANDING_TOOLS: McpLandingTool[] = [
   },
   {
     id: 'wealth.assets.save',
-    mcpName: 'asset.save',
-    rowTitle: 'asset.save',
-    section: 'asset',
+    mcpName: 'wealth.assets.save',
+    rowTitle: 'wealth.assets.save',
+    section: 'assets',
     description: 'Save assets + liabilities (client supplies structured values).',
     method: 'POST',
     path: '/api/user-data',
@@ -133,9 +135,9 @@ export const WEALTH_LANDING_TOOLS: McpLandingTool[] = [
   },
   {
     id: 'wealth.reminders.list',
-    mcpName: 'other.reminders.list',
-    rowTitle: 'other.reminders.list',
-    section: 'other',
+    mcpName: 'wealth.reminders.list',
+    rowTitle: 'wealth.reminders.list',
+    section: 'reminders',
     description: 'List reminders created via the main-site “Add reminder” widget.',
     method: 'GET',
     path: '/api/reminders?token=YOUR_TOKEN',
@@ -143,9 +145,9 @@ export const WEALTH_LANDING_TOOLS: McpLandingTool[] = [
   },
   {
     id: 'wealth.reminders.create',
-    mcpName: 'other.reminders.create',
-    rowTitle: 'other.reminders.create',
-    section: 'other',
+    mcpName: 'wealth.reminders.create',
+    rowTitle: 'wealth.reminders.create',
+    section: 'reminders',
     description: 'Create a lightweight reminder (for email/WhatsApp/webhooks schedules use Nags).',
     method: 'POST',
     path: '/api/reminders',
@@ -154,9 +156,9 @@ export const WEALTH_LANDING_TOOLS: McpLandingTool[] = [
   },
   {
     id: 'wealth.reminders.delete',
-    mcpName: 'other.reminders.delete',
-    rowTitle: 'other.reminders.delete',
-    section: 'other',
+    mcpName: 'wealth.reminders.delete',
+    rowTitle: 'wealth.reminders.delete',
+    section: 'reminders',
     description: 'Delete a reminder row by id.',
     method: 'DELETE',
     path: '/api/reminders?token=YOUR_TOKEN&id=REMINDER_ID',
@@ -164,9 +166,9 @@ export const WEALTH_LANDING_TOOLS: McpLandingTool[] = [
   },
   {
     id: 'wealth.currency_rates',
-    mcpName: 'other.currency_rates',
-    rowTitle: 'other.currency_rates',
-    section: 'other',
+    mcpName: 'wealth.fx.rates',
+    rowTitle: 'wealth.fx.rates',
+    section: 'fx',
     description: 'List stored FX rates (optional month=YYYY-MM).',
     method: 'GET',
     path: '/api/currency-rates?token=YOUR_TOKEN&month=2026-03',
@@ -174,9 +176,9 @@ export const WEALTH_LANDING_TOOLS: McpLandingTool[] = [
   },
   {
     id: 'wealth.currency_coverage',
-    mcpName: 'other.currency_coverage',
-    rowTitle: 'other.currency_coverage',
-    section: 'other',
+    mcpName: 'wealth.fx.coverage',
+    rowTitle: 'wealth.fx.coverage',
+    section: 'fx',
     description: 'Report missing (month, currency) FX pairs for the user.',
     method: 'GET',
     path: '/api/currency-rates/coverage?token=YOUR_TOKEN',

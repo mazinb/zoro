@@ -95,11 +95,11 @@ export function createGoalsMcpServer() {
           text: [
             '# Zoro Goals MCP',
             '',
-            '- **overview** — boolean flags per goal + deep links (`/save`, `/home`, `/invest`, `/insurance`, `/tax`, `/retire`).',
-            '- **detail** — full `user_data` JSON per goal + `wealth_data_filled` (for GoalDataGate).',
-            '- **detail_goal** — same as `detail`, but restricted to exactly one goal via `goal`.',
-            '- **upsert_goal** — generic create/update for one goal (writes `user_data` via `/api/user-data`).',
-            '- **clear_goal** — clear one goal’s answers (preserves `shared_data`).',
+            '- **goals.overview** — boolean flags per goal + deep links (`/save`, `/home`, `/invest`, `/insurance`, `/tax`, `/retire`).',
+            '- **goals.detail** — full `user_data` JSON per goal + `wealth_data_filled` (for GoalDataGate).',
+            '- **goals.detail_goal** — same as `goals.detail`, but restricted to exactly one goal via `goal`.',
+            '- **goals.upsert_goal** — generic create/update for one goal (writes `user_data` via `/api/user-data`).',
+            '- **goals.clear_goal** — clear one goal’s answers (preserves `shared_data`).',
             '',
             '## Save-only onboarding tools (client LLM parses)',
             '',
@@ -115,7 +115,7 @@ export function createGoalsMcpServer() {
   );
 
   server.tool(
-    'overview',
+    'goals.overview',
     'Light snapshot: which goal forms have data + tokenized URLs (from orchestrator summary).',
     {
       token: z.string().optional(),
@@ -151,7 +151,7 @@ export function createGoalsMcpServer() {
   );
 
   server.tool(
-    'detail',
+    'goals.detail',
     'Full goal answers from user_data (optional fields= save,home,invest,insurance,tax,retirement; omit=all).',
     {
       token: z.string().optional(),
@@ -178,7 +178,7 @@ export function createGoalsMcpServer() {
   );
 
   server.tool(
-    'detail_goal',
+    'goals.detail_goal',
     'Full goal answers from user_data for one goal, plus `wealth_data_filled` (for GoalDataGate).',
     {
       token: z.string().optional(),
@@ -201,7 +201,7 @@ export function createGoalsMcpServer() {
   );
 
   server.tool(
-    'upsert_goal',
+    'goals.upsert_goal',
     'Create/update one goal by goal id (writes to /api/user-data). Payload is stored as the goal’s *_answers JSON.',
     {
       token: z.string().optional(),
@@ -253,7 +253,7 @@ export function createGoalsMcpServer() {
   );
 
   server.tool(
-    'clear_goal',
+    'goals.clear_goal',
     'Clear one goal’s answers (sets that goal’s *_answers to null) while preserving shared_data.',
     {
       token: z.string().optional(),
@@ -294,7 +294,7 @@ export function createGoalsMcpServer() {
   );
 
   server.tool(
-    'save_more_save',
+    'goals.save_more_save',
     'Save the Save More Consistently goal answers (client LLM must supply JSON; server does not parse).',
     {
       token: z.string().optional(),
@@ -340,7 +340,7 @@ export function createGoalsMcpServer() {
   );
 
   server.tool(
-    'big_purchase_save',
+    'goals.big_purchase_save',
     'Save the Big Purchase goal answers (client LLM must supply JSON; server does not parse).',
     {
       token: z.string().optional(),
@@ -382,7 +382,7 @@ export function createGoalsMcpServer() {
   );
 
   server.tool(
-    'invest_save',
+    'goals.invest_save',
     'Save the Invest Smarter goal answers (client LLM must supply JSON; server does not parse).',
     {
       token: z.string().optional(),
@@ -425,7 +425,7 @@ export function createGoalsMcpServer() {
   );
 
   server.tool(
-    'insurance_save',
+    'goals.insurance_save',
     'Save the Insurance goal answers (client LLM must supply JSON; server does not parse).',
     {
       token: z.string().optional(),
@@ -466,7 +466,7 @@ export function createGoalsMcpServer() {
   );
 
   server.tool(
-    'tax_save',
+    'goals.tax_save',
     'Save the Tax goal answers (client LLM must supply JSON; server does not parse).',
     {
       token: z.string().optional(),
@@ -511,7 +511,7 @@ export function createGoalsMcpServer() {
   );
 
   server.tool(
-    'retirement_save',
+    'goals.retirement_save',
     'Save the Retirement goal answers (client LLM must supply JSON; server does not parse).',
     {
       token: z.string().optional(),
@@ -580,7 +580,7 @@ export function createGoalsMcpServer() {
             type: 'text',
             text: [
               token ? `Use this token override: ${token}` : 'Use configured token header/env.',
-              'Call overview and summarize complete vs incomplete goal areas.',
+              'Call goals.overview and summarize complete vs incomplete goal areas.',
               'If user asks wealth+goals combined strategy, route to zoro-orchestrator.',
             ].join('\n'),
           },
@@ -606,7 +606,7 @@ export function createGoalsMcpServer() {
             text: [
               token ? `Use this token override: ${token}` : 'Use configured token header/env.',
               `Fields requested: ${fields || 'all'}.`,
-              'Call detail and identify what data is missing for completion.',
+              'Call goals.detail and identify what data is missing for completion.',
               'If request includes reminders or onboarding links, route to zoro-orchestrator or zoro-nags.',
             ].join('\n'),
           },
@@ -617,7 +617,7 @@ export function createGoalsMcpServer() {
 
   server.prompt(
     'onboarding_save_more_payload',
-    'Onboard the /save flow: produce JSON payload then call save_more_save',
+    'Onboard the /save flow: produce JSON payload then call goals.save_more_save',
     {
       token: z.string().optional(),
     },
@@ -634,7 +634,7 @@ export function createGoalsMcpServer() {
               'CRITICAL CONTRACT',
               '- Do NOT call any server-side parse endpoints.',
               '- You MUST output JSON ONLY (no prose) that matches the tool schema.',
-              '- After producing the JSON, call the tool `save_more_save` with that payload.',
+              '- After producing the JSON, call the tool `goals.save_more_save` with that payload.',
               '',
               'INPUTS YOU MAY ASK FOR (in UI order):',
               '1) currency (3-letter code like "USD")',
@@ -705,7 +705,7 @@ export function createGoalsMcpServer() {
 
   server.prompt(
     'onboarding_big_purchase_payload',
-    'Onboard the /home flow: produce JSON payload then call big_purchase_save',
+    'Onboard the /home flow: produce JSON payload then call goals.big_purchase_save',
     {
       token: z.string().optional(),
     },
@@ -722,7 +722,7 @@ export function createGoalsMcpServer() {
               'CRITICAL CONTRACT',
               '- Do NOT call any server-side parse endpoints.',
               '- You MUST output JSON ONLY (no prose) that matches the tool schema.',
-              '- After producing the JSON, call the tool `big_purchase_save` with that payload.',
+              '- After producing the JSON, call the tool `goals.big_purchase_save` with that payload.',
               '',
               'FIELDS (UI order + common option strings):',
               '- currency (3-letter code like "USD")',
@@ -771,7 +771,7 @@ export function createGoalsMcpServer() {
 
   server.prompt(
     'onboarding_invest_payload',
-    'Onboard the /invest flow: produce JSON payload then call invest_save',
+    'Onboard the /invest flow: produce JSON payload then call goals.invest_save',
     {
       token: z.string().optional(),
     },
@@ -788,7 +788,7 @@ export function createGoalsMcpServer() {
               'CRITICAL CONTRACT',
               '- Do NOT call any server-side parse endpoints.',
               '- You MUST output JSON ONLY (no prose) that matches the tool schema.',
-              '- After producing the JSON, call the tool `invest_save` with that payload.',
+              '- After producing the JSON, call the tool `goals.invest_save` with that payload.',
               '',
               'FIELDS (UI order + common option strings):',
               '- currency (3-letter code like "USD")',
@@ -848,7 +848,7 @@ export function createGoalsMcpServer() {
 
   server.prompt(
     'onboarding_insurance_payload',
-    'Onboard the /insurance flow: produce JSON payload then call insurance_save',
+    'Onboard the /insurance flow: produce JSON payload then call goals.insurance_save',
     {
       token: z.string().optional(),
     },
@@ -865,7 +865,7 @@ export function createGoalsMcpServer() {
               'CRITICAL CONTRACT',
               '- Do NOT call any server-side parse endpoints.',
               '- You MUST output JSON ONLY (no prose) that matches the tool schema.',
-              '- After producing the JSON, call the tool `insurance_save` with that payload.',
+              '- After producing the JSON, call the tool `goals.insurance_save` with that payload.',
               '',
               'FIELDS (UI order + option strings):',
               '- householdSize (numeric string, e.g. "1", "2", "4")',
@@ -919,7 +919,7 @@ export function createGoalsMcpServer() {
 
   server.prompt(
     'onboarding_tax_payload',
-    'Onboard the /tax flow: produce JSON payload then call tax_save',
+    'Onboard the /tax flow: produce JSON payload then call goals.tax_save',
     {
       token: z.string().optional(),
     },
@@ -936,7 +936,7 @@ export function createGoalsMcpServer() {
               'CRITICAL CONTRACT',
               '- Do NOT call any server-side parse endpoints.',
               '- You MUST output JSON ONLY (no prose) that matches the tool schema.',
-              '- After producing the JSON, call the tool `tax_save` with that payload.',
+              '- After producing the JSON, call the tool `goals.tax_save` with that payload.',
               '',
               'FIELDS (UI order + option strings):',
               '- currency (3-letter code like "USD")',
@@ -988,7 +988,7 @@ export function createGoalsMcpServer() {
 
   server.prompt(
     'onboarding_retirement_payload',
-    'Onboard the /retire flow: produce JSON payload then call retirement_save',
+    'Onboard the /retire flow: produce JSON payload then call goals.retirement_save',
     {
       token: z.string().optional(),
     },
@@ -1005,7 +1005,7 @@ export function createGoalsMcpServer() {
               'CRITICAL CONTRACT',
               '- Do NOT call any server-side parse endpoints.',
               '- You MUST output JSON ONLY (no prose) that matches the tool schema.',
-              '- After producing the JSON, call the tool `retirement_save` with that payload.',
+              '- After producing the JSON, call the tool `goals.retirement_save` with that payload.',
               '',
               'FIELDS (UI order):',
               '- lifestyle (free text; e.g., "comfortable", "minimal", "luxury")',

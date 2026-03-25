@@ -58,8 +58,8 @@ Smithery docs:
 
 For users without token preconfigured:
 
-1. `onboarding.email_check`
-2. `onboarding.auth_email` with `confirm_send=true` (`name` only for new users)
+1. `nags.onboarding.email_check`
+2. `nags.onboarding.auth_email` with `confirm_send=true` (`name` only for new users)
 3. User opens magic link email
 4. Save token into MCP header config (`token`; legacy `x-nag-mcp-token` still accepted)
 
@@ -108,7 +108,7 @@ Use the same `token` header config schema as above when publishing each server.
 
 Auth behavior by server:
 
-- `zoro-nags`: can start without token (`onboarding.*`, `onboarding.landing_routes`), token required for user data/actions.
+- `zoro-nags`: can start without token (`nags.onboarding.*`, `nags.onboarding.landing_routes`), token required for user data/actions.
 - `zoro-orchestrator`: can start without token (`orchestrator.landing_routes`, `orchestrator.send_magic_link`), token required for summary/detail tools.
 - `zoro-wealth`: token required for all tools.
 - `zoro-goals`: token required for all tools.

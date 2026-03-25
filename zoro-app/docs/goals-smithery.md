@@ -2,9 +2,9 @@
 
 Goals MCP provides tooling for the six goal flows (`/save`, `/home`, `/invest`, `/insurance`, `/tax`, `/retire`):
 
-- `overview`: boolean flags per goal + tokenized deep-link paths
-- `detail` / `detail_goal`: full `user_data` slices per goal (optionally limited to selected fields)
-- `upsert_goal` / `clear_goal`: CRUD for goal answers (writes to `user_data`)
+- `goals.overview`: boolean flags per goal + tokenized deep-link paths
+- `goals.detail` / `goals.detail_goal`: full `user_data` slices per goal (optionally limited to selected fields)
+- `goals.upsert_goal` / `goals.clear_goal`: CRUD for goal answers (writes to `user_data`)
 - Prompts for “save-only onboarding” JSON payload generation (client LLM parses)
 
 ## How it fits with Orchestrator + Wealth

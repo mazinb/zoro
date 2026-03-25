@@ -77,12 +77,12 @@ export function createNagMcpServer() {
           text: [
             '# Zoro Nags API',
             '',
-            '- Start without token: `onboarding.landing_routes` + `onboarding.email_check` / `onboarding.auth_email`.',
-            '- Start auth: `onboarding.email_check` -> `onboarding.auth_email` (confirm_send=true).',
+            '- Start without token: `nags.onboarding.landing_routes` + `nags.onboarding.email_check` / `nags.onboarding.auth_email`.',
+            '- Start auth: `nags.onboarding.email_check` -> `nags.onboarding.auth_email` (confirm_send=true).',
             '- For authenticated operations, send header `token` (preferred), or `Authorization: Bearer <token>`, or legacy `x-nag-mcp-token`.',
             '- Core tools: `nags.parse`, `nags.list`, `nags.create`, `nags.update`, `nags.delete`.',
-            '- Main-site reminders (wealth pages): `reminders.list`, `reminders.create`, `reminders.delete` → `/api/reminders`.',
-            '- Webhook tools: `webhooks.register`, `webhooks.verify`, `webhooks.ping`, `webhooks.list`, `webhooks.delete`.',
+            '- Main-site reminders (wealth pages): `nags.reminders.list`, `nags.reminders.create`, `nags.reminders.delete` → `/api/reminders`.',
+            '- Webhook tools: `nags.webhooks.register`, `nags.webhooks.verify`, `nags.webhooks.ping`, `nags.webhooks.list`, `nags.webhooks.delete`.',
           ].join('\n'),
         },
       ],
@@ -101,9 +101,9 @@ export function createNagMcpServer() {
           text: [
             '# Zoro Nags Auth',
             '',
-            '- Email-first onboarding: `onboarding.email_check`, then `onboarding.auth_email`.',
+            '- Email-first onboarding: `nags.onboarding.email_check`, then `nags.onboarding.auth_email`.',
             '- Existing users receive a magic link email to `/nag?token=...`.',
-            '- Use `profile.reset_token` to rotate compromised tokens.',
+            '- Use `nags.profile.reset_token` to rotate compromised tokens.',
             '- Tool-level `token` argument always overrides header/env fallback.',
           ].join('\n'),
         },
@@ -112,7 +112,7 @@ export function createNagMcpServer() {
   );
 
   server.tool(
-    'onboarding.landing_routes',
+    'nags.onboarding.landing_routes',
     'Public no-token routes for starting Nag onboarding. Use auth_email when a tokenized magic link is needed.',
     {},
     {
@@ -155,9 +155,9 @@ export function createNagMcpServer() {
             type: 'text',
             text: [
               `Help this user start using Zoro Nags: ${email}.`,
-              '1) Call onboarding.email_check.',
-              '2) If not registered, collect name then call onboarding.auth_email with confirm_send=true.',
-              '3) If registered, call onboarding.auth_email with confirm_send=true.',
+              '1) Call nags.onboarding.email_check.',
+              '2) If not registered, collect name then call nags.onboarding.auth_email with confirm_send=true.',
+              '3) If registered, call nags.onboarding.auth_email with confirm_send=true.',
               '4) For broader cross-domain status/navigation, route to zoro-orchestrator tools.',
               name ? `Provided name for signup: ${name}` : 'Ask for name only if the account does not exist.',
             ].join('\n'),
@@ -189,8 +189,8 @@ export function createNagMcpServer() {
               `Timezone: ${timezone || 'none'}`,
               `Consent to send now: ${confirm_send === true ? 'yes' : 'not confirmed yet'}`,
               'Flow:',
-              '1) Call onboarding.email_check.',
-              '2) If consent is true, call onboarding.auth_email with confirm_send=true.',
+              '1) Call nags.onboarding.email_check.',
+              '2) If consent is true, call nags.onboarding.auth_email with confirm_send=true.',
               '3) If consent is not true, ask for explicit permission before sending.',
               '4) If the user wants wealth/goals coordination after onboarding, route to zoro-orchestrator.',
             ].join('\n'),
@@ -243,9 +243,9 @@ export function createNagMcpServer() {
               `Register this webhook endpoint: ${webhook_url}`,
               token ? `Use token override: ${token}` : 'Use header `token`, Authorization Bearer, or legacy x-nag-mcp-token.',
               'Flow:',
-              '1) Call webhooks.register',
-              '2) Call webhooks.verify',
-              '3) Call webhooks.ping (optional)',
+              '1) Call nags.webhooks.register',
+              '2) Call nags.webhooks.verify',
+              '3) Call nags.webhooks.ping (optional)',
               'Return ids and verification/ping result; if any step fails, return exact API error and stop.',
             ].join('\n'),
           },
@@ -279,7 +279,7 @@ export function createNagMcpServer() {
   );
 
   server.tool(
-    'onboarding.email_check',
+    'nags.onboarding.email_check',
     'Check if an email is already registered (no email sent).',
     {
       email: z.string().email().describe('Email to check'),
@@ -301,7 +301,7 @@ export function createNagMcpServer() {
   );
 
   server.tool(
-    'onboarding.request_link',
+    'nags.onboarding.request_link',
     'Create user (if needed) and send a Nags magic link email. Requires user consent; only send when confirm_send=true. Optionally sets user timezone (used for future nags, not existing scheduled next_at). New users must provide name.',
     {
       email: z.string().email(),
@@ -337,7 +337,7 @@ export function createNagMcpServer() {
   );
 
   server.tool(
-    'onboarding.auth_email',
+    'nags.onboarding.auth_email',
     'Email-first auth helper: creates user if needed and sends magic link. Existing users can omit name.',
     {
       email: z.string().email().describe('Email address to authenticate'),
@@ -435,7 +435,7 @@ server.tool(
 );
 
 server.tool(
-  'reminders.list',
+  'nags.reminders.list',
   'List main-site recurring reminders (income/assets/expenses context) from the `reminders` table.',
   {
     token: z.string().optional().describe('Auth token override (users.verification_token)'),
@@ -457,7 +457,7 @@ server.tool(
 );
 
 server.tool(
-  'reminders.create',
+  'nags.reminders.create',
   'Create a main-site reminder (same as AddReminderForm on /income, /assets, /expenses). Not the same row type as `nags`.',
   {
     token: z.string().optional(),
@@ -498,7 +498,7 @@ server.tool(
 );
 
 server.tool(
-  'reminders.delete',
+  'nags.reminders.delete',
   'Delete a main-site reminder row by id (from reminders.list).',
   {
     reminder_id: z.string().uuid().describe('Reminder UUID'),
@@ -669,7 +669,7 @@ server.tool(
 );
 
 server.tool(
-  'profile.reset_token',
+  'nags.profile.reset_token',
     'Rotate your token. The new token is returned (no email is sent).',
   {
     token: z.string().optional().describe('Current auth token to rotate'),
@@ -693,7 +693,7 @@ server.tool(
 );
 
 server.tool(
-  'profile.get_user_data',
+  'nags.profile.get_user_data',
   'Fetch user + shared_data by token.',
   {
     token: z.string().optional().describe('Auth token override (users.verification_token)'),
@@ -715,7 +715,7 @@ server.tool(
 );
 
 server.tool(
-  'webhooks.list',
+  'nags.webhooks.list',
   'List registered webhooks for the authenticated user.',
   {
     token: z.string().optional().describe('Auth token override (users.verification_token or user_data.user_token)'),
@@ -737,7 +737,7 @@ server.tool(
 );
 
 server.tool(
-  'webhooks.register',
+  'nags.webhooks.register',
   'Register a webhook endpoint for the authenticated user. HTTPS required. Max 10 webhooks per user.',
   {
     url: z.string().url().describe('Webhook endpoint URL (must be HTTPS)'),
@@ -762,7 +762,7 @@ server.tool(
 );
 
 server.tool(
-  'webhooks.verify',
+  'nags.webhooks.verify',
   'Verify a registered webhook by sending challenge payload and expecting challenge echo in JSON.',
   {
     webhook_id: z.string().uuid().describe('Webhook UUID to verify'),
@@ -787,7 +787,7 @@ server.tool(
 );
 
 server.tool(
-  'webhooks.ping',
+  'nags.webhooks.ping',
   'Send test ping event to a verified webhook.',
   {
     webhook_id: z.string().uuid().describe('Webhook UUID to ping'),
@@ -812,7 +812,7 @@ server.tool(
 );
 
 server.tool(
-  'webhooks.delete',
+  'nags.webhooks.delete',
   'Delete a webhook registration.',
   {
     webhook_id: z.string().uuid().describe('Webhook UUID to delete'),
@@ -835,7 +835,7 @@ server.tool(
 );
 
 server.tool(
-  'profile.set_timezone',
+  'nags.profile.set_timezone',
   'Set user IANA timezone for future scheduling (does not change already-scheduled next_at).',
   {
     timezone: z.string().min(1).describe('IANA zone e.g. America/New_York'),
