@@ -64,6 +64,11 @@ export function createNagMcpServer() {
     version: '1.0.0',
   });
 
+  function registerToolWithAliases(toolName, aliases, description, schema, hints, handler) {
+    server.tool(toolName, description, schema, hints, handler);
+    for (const alias of aliases) server.tool(alias, description, schema, hints, handler);
+  }
+
   // Runtime resource capabilities for MCP clients (including Smithery scans).
   server.resource(
     'nag_api_reference',
@@ -278,8 +283,9 @@ export function createNagMcpServer() {
     })
   );
 
-  server.tool(
+  registerToolWithAliases(
     'nags.onboarding.email_check',
+    ['nags_onboarding_email_check'],
     'Check if an email is already registered (no email sent).',
     {
       email: z.string().email().describe('Email to check'),
@@ -372,8 +378,9 @@ export function createNagMcpServer() {
     }
   );
 
-  server.tool(
+  registerToolWithAliases(
     'nags.parse',
+    ['nags_parse'],
     'Parse natural language into a schedule draft (uses OpenAI when configured on the app).',
     {
       text: z.string().min(1).describe('What the user wants reminded, e.g. mow lawn every Tuesday'),
