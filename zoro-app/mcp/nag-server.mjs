@@ -117,6 +117,7 @@ export function createNagMcpServer() {
             '- Start auth: `onboarding.email_check` -> `onboarding.auth_email` (confirm_send=true).',
             '- For authenticated operations, provide token via `x-nag-mcp-token` or `Authorization: Bearer <token>`.',
             '- Core tools: `nags.parse`, `nags.list`, `nags.create`, `nags.update`, `nags.delete`.',
+            '- Main-site reminders (wealth pages): `reminders.list`, `reminders.create`, `reminders.delete` → `/api/reminders`.',
             '- Webhook tools: `webhooks.register`, `webhooks.verify`, `webhooks.ping`, `webhooks.list`, `webhooks.delete`.',
           ].join('\n'),
         },
@@ -405,6 +406,92 @@ server.tool(
     const q = new URLSearchParams({ token: t, status: status || 'active' });
     const { ok, data } = await fetchJson(`/api/nags?${q}`, { method: 'GET' });
     return jsonResult(data, !ok);
+  }
+);
+
+server.tool(
+  'reminders.list',
+  'List main-site recurring reminders (income/assets/expenses context) from the `reminders` table.',
+  {
+    token: z.string().optional().describe('Auth token override (users.verification_token)'),
+  },
+  {
+    title: 'List reminders',
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
+  async ({ token }, extra) => {
+    const t = resolveToken(token, extra);
+    if (!t) return jsonResult({ error: 'token required' }, true);
+    const q = new URLSearchParams({ token: t });
+    const { ok, status, data } = await fetchJson(`/api/reminders?${q}`, { method: 'GET' });
+    return jsonResult(data, !ok || status >= 400);
+  }
+);
+
+server.tool(
+  'reminders.create',
+  'Create a main-site reminder (same as AddReminderForm on /income, /assets, /expenses). Not the same row type as `nags`.',
+  {
+    token: z.string().optional(),
+    description: z.string().min(1).describe('Reminder label'),
+    context: z.enum(['income', 'assets', 'expenses']),
+    recurrence: z.enum(['monthly', 'quarterly', 'annually']).optional().default('monthly'),
+    recurrence_day: z.number().int().min(1).max(31).optional(),
+    recurrence_week: z.number().int().min(1).max(4).optional(),
+    recurrence_month: z.number().int().min(1).max(12).optional(),
+    priority: z.string().optional(),
+  },
+  {
+    title: 'Create reminder',
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: false,
+    openWorldHint: false,
+  },
+  async (args, extra) => {
+    const t = resolveToken(args.token, extra);
+    if (!t) return jsonResult({ error: 'token required' }, true);
+    const { token: _tok, ...body } = args;
+    const { ok, status, data } = await fetchJson('/api/reminders', {
+      method: 'POST',
+      body: JSON.stringify({
+        token: t,
+        description: body.description,
+        context: body.context,
+        recurrence: body.recurrence,
+        recurrence_day: body.recurrence_day,
+        recurrence_week: body.recurrence_week,
+        recurrence_month: body.recurrence_month,
+        priority: body.priority,
+      }),
+    });
+    return jsonResult(data, !ok || status >= 400);
+  }
+);
+
+server.tool(
+  'reminders.delete',
+  'Delete a main-site reminder row by id (from reminders.list).',
+  {
+    reminder_id: z.string().uuid().describe('Reminder UUID'),
+    token: z.string().optional(),
+  },
+  {
+    title: 'Delete reminder',
+    readOnlyHint: false,
+    destructiveHint: true,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
+  async ({ reminder_id, token }, extra) => {
+    const t = resolveToken(token, extra);
+    if (!t) return jsonResult({ error: 'token required' }, true);
+    const q = new URLSearchParams({ token: t, id: reminder_id });
+    const { ok, status, data } = await fetchJson(`/api/reminders?${q}`, { method: 'DELETE' });
+    return jsonResult(data, !ok || status >= 400);
   }
 );
 

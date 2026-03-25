@@ -12,6 +12,9 @@
     "listen:forms": "ts-node scripts/form-listener.ts",
     "listen:forms:dev": "nodemon --watch scripts/form-listener.ts --exec \"ts-node scripts/form-listener.ts\"",
     "mcp:nag": "node mcp/nag-server.mjs",
+    "mcp:wealth": "node mcp/wealth-server.mjs",
+    "mcp:orchestrator": "node mcp/orchestrator-server.mjs",
+    "mcp:goals": "node mcp/goals-server.mjs",
     "nag:cron": "node scripts/trigger-nag-cron.js"
   },
   "dependencies": {

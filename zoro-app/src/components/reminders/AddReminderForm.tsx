@@ -146,6 +146,17 @@ export function AddReminderForm({ token, context, defaultDescription, darkMode, 
             placeholder={defaultDescription}
             className={`w-full px-2 py-1.5 rounded border text-sm mb-2 ${darkMode ? 'bg-slate-800 border-slate-600' : 'bg-white border-gray-300'} ${theme.textClass}`}
           />
+          <p className={`text-xs mb-2 ${theme.textSecondaryClass}`}>
+            This saves a lightweight check-in on our side. For{' '}
+            <strong className={theme.textClass}>email or WhatsApp</strong> schedules and webhooks, use{' '}
+            <a
+              href={token ? `/nag?token=${encodeURIComponent(token)}` : '/nag'}
+              className="underline font-medium"
+            >
+              Nags
+            </a>
+            .
+          </p>
           <div className="flex flex-wrap gap-2 items-center">
             <button
               type="submit"

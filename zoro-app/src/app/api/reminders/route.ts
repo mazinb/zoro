@@ -80,6 +80,39 @@ function recurrencePayload(
   return 'once';
 }
 
+/** GET: List reminders for the authenticated user (token = users.verification_token or user_data.user_token) */
+export async function GET(request: NextRequest) {
+  try {
+    const token = request.nextUrl.searchParams.get('token')?.trim() ?? '';
+    if (!token) {
+      return NextResponse.json({ error: 'Token is required' }, { status: 400 });
+    }
+
+    const resolved = await resolveTokenToUserId(token);
+    if ('error' in resolved) {
+      return NextResponse.json({ error: resolved.error }, { status: resolved.status });
+    }
+    const userId = resolved.userId;
+
+    const supabase = getSupabase();
+    const { data, error } = await supabase
+      .from('reminders')
+      .select(
+        'id, scheduled_at, description, context, recurrence, priority, status, sent_at, created_at, updated_at'
+      )
+      .eq('user_id', userId)
+      .order('scheduled_at', { ascending: true });
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    return NextResponse.json({ success: true, data: data ?? [] });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Failed to list reminders';
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
+}
+
 /** POST: Create a recurring reminder (token-gated; context = income | assets | expenses) */
 export async function POST(request: NextRequest) {
   try {
@@ -146,6 +179,38 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, data: row });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Failed to create reminder';
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
+}
+
+/** DELETE ?token=&id= — remove a main-site reminder owned by the user */
+export async function DELETE(request: NextRequest) {
+  try {
+    const token = request.nextUrl.searchParams.get('token')?.trim() ?? '';
+    const id = request.nextUrl.searchParams.get('id')?.trim() ?? '';
+
+    if (!token) {
+      return NextResponse.json({ error: 'Token is required' }, { status: 400 });
+    }
+    if (!id) {
+      return NextResponse.json({ error: 'id is required' }, { status: 400 });
+    }
+
+    const resolved = await resolveTokenToUserId(token);
+    if ('error' in resolved) {
+      return NextResponse.json({ error: resolved.error }, { status: resolved.status });
+    }
+    const userId = resolved.userId;
+
+    const supabase = getSupabase();
+    const { error } = await supabase.from('reminders').delete().eq('id', id).eq('user_id', userId);
+
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    return NextResponse.json({ success: true });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : 'Failed to delete reminder';
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

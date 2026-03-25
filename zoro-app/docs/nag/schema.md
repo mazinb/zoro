@@ -56,3 +56,15 @@ Migration **`nag_dispatch_runs_monitoring`**. One row per **`/api/cron/nags`** r
 ## RLS
 
 Enabled with **no** policies for `anon` / `authenticated`. Inserts use the **service role** from Next.js. Query in the Supabase SQL Editor as project owner.
+
+---
+
+# `reminders` table (main-site, wealth pages)
+
+Separate from **`nags`**: stores recurring check-in rows for `/income`, `/assets`, `/expenses` via **`/api/reminders`**.
+
+- **GET** `?token=` — list rows for the user.
+- **POST** — create (body: `token`, `description`, `context`, `recurrence`, …).
+- **DELETE** `?token=&id=` — delete one row (owner-scoped).
+
+For **email / WhatsApp / webhook** schedules, users use **Nags** (`nags` table + `/api/nags`).
