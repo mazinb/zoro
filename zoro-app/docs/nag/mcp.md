@@ -46,7 +46,7 @@ Publish with config schema (required to avoid "No config schema provided"):
 ```bash
 smithery mcp publish "https://<your-domain>/api/mcp/nags" \
   -n @your-org/zoro-nags \
-  --config-schema '{"type":"object","properties":{"nagMcpToken":{"type":"string","title":"Nag MCP token","description":"users.verification_token from Zoro magic link","x-from":"header","x-header-name":"x-nag-mcp-token"}},"required":["nagMcpToken"]}'
+  --config-schema '{"type":"object","properties":{"token":{"type":"string","title":"Zoro token","description":"users.verification_token from Zoro magic link","x-from":"header","x-header-name":"token"}},"required":["token"]}'
 ```
 
 Smithery docs:
@@ -61,7 +61,7 @@ For users without token preconfigured:
 1. `onboarding.email_check`
 2. `onboarding.auth_email` with `confirm_send=true` (`name` only for new users)
 3. User opens magic link email
-4. Save token into MCP header config (`x-nag-mcp-token`)
+4. Save token into MCP header config (`token`; legacy `x-nag-mcp-token` still accepted)
 
 ## MCP capability metadata
 
@@ -90,8 +90,21 @@ The route must **not** call `server.close()` right after `handleRequest` returns
 For tool calls requiring auth, token is resolved from:
 
 1. Tool `token` argument
-2. Request headers (`x-nag-mcp-token`, `Authorization: Bearer`, aliases)
-3. Env (`NAG_MCP_TOKEN`, then `NEXT_PUBLIC_NAG_DEV_TOKEN`)
+2. Request headers (`token` preferred, then `Authorization: Bearer`, then legacy `x-nag-mcp-token` and aliases)
+3. Env (`NAG_MCP_TOKEN`, `MCP_TOKEN`, then `NEXT_PUBLIC_NAG_DEV_TOKEN`)
+
+## Smithery: separate servers (wealth, goals, orchestrator)
+
+Each MCP is a **different URL**. If you publish “wealth” but point Smithery at `/api/mcp/nags`, the catalog will show **Nag** tools only.
+
+| Listing   | Streamable HTTP URL |
+|-----------|---------------------|
+| Nags      | `https://<domain>/api/mcp/nags` |
+| Wealth    | `https://<domain>/api/mcp/wealth` |
+| Goals     | `https://<domain>/api/mcp/goals` |
+| Orchestrator | `https://<domain>/api/mcp/orchestrator` |
+
+Use the same `token` header config schema as above when publishing each server.
 
 ## Security
 

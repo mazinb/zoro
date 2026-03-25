@@ -16,6 +16,7 @@ import { fileURLToPath } from 'node:url';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
+import { resolveMcpToken as resolveToken } from './resolve-token.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const __filename = fileURLToPath(import.meta.url);
@@ -28,44 +29,6 @@ const base = (
   (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '') ||
   'http://localhost:3000'
 ).replace(/\/$/, '');
-
-function getHeaderValue(headers, keys) {
-  for (const key of keys) {
-    const value = headers[key];
-    if (typeof value === 'string' && value.trim()) return value.trim();
-  }
-  return '';
-}
-
-function resolveToken(explicit, extra) {
-  const t = typeof explicit === 'string' ? explicit.trim() : '';
-  if (t) return t;
-
-  // Optional per-request fallback token for remote MCP servers.
-  const headers = extra?.requestInfo?.headers ?? {};
-  const headerTokenRaw = getHeaderValue(headers, [
-    'x-nag-mcp-token',
-    'X-NAG-MCP-TOKEN',
-    'x-nag-token',
-    'X-NAG-TOKEN',
-    // Smithery/session config style aliases (header keys can vary by client casing behavior)
-    'nagMcpToken',
-    'nagmcptoken',
-    'nag_token',
-  ]);
-
-  const authHeaderRaw = getHeaderValue(headers, ['authorization', 'Authorization']);
-  const authBearer = authHeaderRaw.startsWith('Bearer ') ? authHeaderRaw.slice('Bearer '.length).trim() : '';
-
-  const headerToken = (headerTokenRaw || authBearer).trim();
-  if (headerToken) return headerToken;
-
-  return (
-    (process.env.NAG_MCP_TOKEN || '').trim() ||
-    (process.env.NEXT_PUBLIC_NAG_DEV_TOKEN || '').trim() ||
-    ''
-  );
-}
 
 function omitEmpty(obj) {
   return Object.fromEntries(
@@ -115,7 +78,7 @@ export function createNagMcpServer() {
             '# Zoro Nags API',
             '',
             '- Start auth: `onboarding.email_check` -> `onboarding.auth_email` (confirm_send=true).',
-            '- For authenticated operations, provide token via `x-nag-mcp-token` or `Authorization: Bearer <token>`.',
+            '- For authenticated operations, send header `token` (preferred), or `Authorization: Bearer <token>`, or legacy `x-nag-mcp-token`.',
             '- Core tools: `nags.parse`, `nags.list`, `nags.create`, `nags.update`, `nags.delete`.',
             '- Main-site reminders (wealth pages): `reminders.list`, `reminders.create`, `reminders.delete` → `/api/reminders`.',
             '- Webhook tools: `webhooks.register`, `webhooks.verify`, `webhooks.ping`, `webhooks.list`, `webhooks.delete`.',
@@ -216,7 +179,7 @@ export function createNagMcpServer() {
             type: 'text',
             text: [
               `Register this webhook endpoint: ${webhook_url}`,
-              token ? `Use token override: ${token}` : 'Use configured x-nag-mcp-token / Authorization bearer token.',
+              token ? `Use token override: ${token}` : 'Use header `token`, Authorization Bearer, or legacy x-nag-mcp-token.',
               'Flow:',
               '1) Call webhooks.register',
               '2) Call webhooks.verify',

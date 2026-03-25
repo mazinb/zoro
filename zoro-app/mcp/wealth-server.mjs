@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Zoro Wealth MCP (stdio) — proxies /expenses, /income, /assets HTTP APIs.
- * Same env as nag-server: NAG_MCP_BASE_URL, NAG_MCP_TOKEN, x-nag-mcp-token headers.
+ * Same env as nag-server: NAG_MCP_BASE_URL, NAG_MCP_TOKEN; header `token` (or Bearer / legacy x-nag-mcp-token).
  */
 
 import { config } from 'dotenv';
@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
+import { resolveMcpToken as resolveToken } from './resolve-token.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 config({ path: join(__dirname, '..', '.env.local') });
@@ -21,38 +22,6 @@ const base = (
   (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : '') ||
   'http://localhost:3000'
 ).replace(/\/$/, '');
-
-function getHeaderValue(headers, keys) {
-  for (const key of keys) {
-    const value = headers[key];
-    if (typeof value === 'string' && value.trim()) return value.trim();
-  }
-  return '';
-}
-
-function resolveToken(explicit, extra) {
-  const t = typeof explicit === 'string' ? explicit.trim() : '';
-  if (t) return t;
-  const headers = extra?.requestInfo?.headers ?? {};
-  const headerTokenRaw = getHeaderValue(headers, [
-    'x-nag-mcp-token',
-    'X-NAG-MCP-TOKEN',
-    'x-nag-token',
-    'X-NAG-TOKEN',
-    'nagMcpToken',
-    'nagmcptoken',
-    'nag_token',
-  ]);
-  const authHeaderRaw = getHeaderValue(headers, ['authorization', 'Authorization']);
-  const authBearer = authHeaderRaw.startsWith('Bearer ') ? authHeaderRaw.slice('Bearer '.length).trim() : '';
-  const headerToken = (headerTokenRaw || authBearer).trim();
-  if (headerToken) return headerToken;
-  return (
-    (process.env.NAG_MCP_TOKEN || '').trim() ||
-    (process.env.NEXT_PUBLIC_NAG_DEV_TOKEN || '').trim() ||
-    ''
-  );
-}
 
 async function fetchJson(path, init = {}) {
   const url = path.startsWith('http') ? path : `${base}${path}`;
@@ -95,7 +64,7 @@ export function createWealthMcpServer() {
             '# Zoro Wealth MCP',
             '',
             '- Three wealth routes: **`/expenses`**, **`/income`**, **`/assets`** (this MCP wraps their APIs + shared `user_data`).',
-            '- Auth: same token as Nags (`users.verification_token`) via tool arg, `NAG_MCP_TOKEN`, or `x-nag-mcp-token`.',
+            '- Auth: same token as Nags (`users.verification_token`) via tool arg, env `NAG_MCP_TOKEN`, or HTTP header `token` (or Bearer / legacy x-nag-mcp-token).',
             '- **wealth.user_data** — full `user_data` row (income_answers, assets_answers, goal columns).',
             '- **wealth.expenses_monthly** — monthly bucket totals.',
             '- **wealth.expenses_estimates** — saved estimates.',

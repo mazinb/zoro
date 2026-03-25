@@ -508,7 +508,7 @@ export function NagPageInner() {
     // Copy exactly the snippet shown in the modal so it can be pasted into `mcp.json`
     // under `mcpServers` without extra wrapping braces.
     const safeToken = String(tokenToUse).replace(/"/g, '\\"');
-    const payloadSnippet = `"zoro-nags": {\n  "url": "${NAG_MCP_URL}",\n  "headers": {\n    "x-nag-mcp-token": "${safeToken}"\n  }\n}`;
+    const payloadSnippet = `"zoro-nags": {\n  "url": "${NAG_MCP_URL}",\n  "headers": {\n    "token": "${safeToken}"\n  }\n}`;
     try {
       await navigator.clipboard.writeText(payloadSnippet);
       setMcpJsonCopied(true);
@@ -1343,7 +1343,7 @@ export function NagPageInner() {
               </button>
             </div>
             <p className={`mb-3 text-xs leading-relaxed ${theme.textSecondaryClass}`}>
-              The server runs remotely via HTTP/SSE. Set `x-nag-mcp-token` so tools can authenticate.
+              The server runs remotely via HTTP/SSE. Set HTTP header `token` (or legacy `x-nag-mcp-token`) so tools can authenticate.
             </p>
             <ol className={`mb-3 list-decimal space-y-2 pl-5 text-sm leading-relaxed ${theme.textSecondaryClass}`}>
               <li>In Cursor, open MCP server settings (global MCP JSON).</li>
@@ -1352,7 +1352,7 @@ export function NagPageInner() {
             <pre
               className={`mb-3 overflow-auto rounded-md border p-2 font-mono text-[11px] leading-relaxed ${theme.borderClass}`}
             >
-              {`"zoro-nags": {\n  "url": "${NAG_MCP_URL}",\n  "headers": {\n    "x-nag-mcp-token": "YOUR_TOKEN"\n  }\n}`}
+              {`"zoro-nags": {\n  "url": "${NAG_MCP_URL}",\n  "headers": {\n    "token": "YOUR_TOKEN"\n  }\n}`}
             </pre>
             <button
               type="button"
@@ -2142,7 +2142,7 @@ export function NagPageInner() {
             </button>
           </div>
           <p className={`mb-3 text-xs leading-relaxed ${theme.textSecondaryClass}`}>
-            The server runs remotely via HTTP/SSE. Set `x-nag-mcp-token` so tools can authenticate.
+            The server runs remotely via HTTP/SSE. Set HTTP header `token` (or legacy `x-nag-mcp-token`) so tools can authenticate.
           </p>
           <ol className={`mb-3 list-decimal space-y-2 pl-5 text-sm leading-relaxed ${theme.textSecondaryClass}`}>
             <li>In Cursor, open MCP server settings (global MCP JSON).</li>
@@ -2151,7 +2151,7 @@ export function NagPageInner() {
           <pre
             className={`mb-3 overflow-auto rounded-md border p-2 font-mono text-[11px] leading-relaxed ${theme.borderClass}`}
           >
-            {`"zoro-nags": {\n  "url": "${NAG_MCP_URL}",\n  "headers": {\n    "x-nag-mcp-token": "${effectiveToken}"\n  }\n}`}
+            {`"zoro-nags": {\n  "url": "${NAG_MCP_URL}",\n  "headers": {\n    "token": "${effectiveToken}"\n  }\n}`}
           </pre>
           <button
             type="button"
