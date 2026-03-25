@@ -1,22 +1,18 @@
 import type { McpLandingTool } from '@/components/mcp/types';
 
 export type WealthLandingSection =
-  | 'user_data'
-  | 'expenses_read'
-  | 'expenses_write'
-  | 'income_write'
-  | 'assets_write'
-  | 'reminders'
-  | 'fx';
+  | 'data'
+  | 'expenses'
+  | 'income'
+  | 'asset'
+  | 'other';
 
 const sectionLabel: Record<WealthLandingSection, string> = {
-  user_data: 'User data',
-  expenses_read: 'Expenses (read)',
-  expenses_write: 'Expenses (write)',
-  income_write: 'Income (write)',
-  assets_write: 'Assets (write)',
-  reminders: 'Reminders',
-  fx: 'FX rates',
+  data: 'Data',
+  expenses: 'Expenses',
+  income: 'Income',
+  asset: 'Assets',
+  other: 'Other',
 };
 
 export function wealthSectionTitle(s: string): string {
@@ -26,9 +22,9 @@ export function wealthSectionTitle(s: string): string {
 export const WEALTH_LANDING_TOOLS: McpLandingTool[] = [
   {
     id: 'wealth.user_data',
-    mcpName: 'wealth.user_data',
-    rowTitle: 'wealth.user_data',
-    section: 'user_data',
+    mcpName: 'data.user_data',
+    rowTitle: 'data.user_data',
+    section: 'data',
     description: 'Load the full `user_data` row used across wealth + goals.',
     method: 'GET',
     path: '/api/user-data?token=YOUR_TOKEN',
@@ -36,9 +32,9 @@ export const WEALTH_LANDING_TOOLS: McpLandingTool[] = [
   },
   {
     id: 'wealth.expenses_monthly',
-    mcpName: 'wealth.expenses_monthly',
-    rowTitle: 'wealth.expenses_monthly',
-    section: 'expenses_read',
+    mcpName: 'expenses.monthly',
+    rowTitle: 'expenses.monthly',
+    section: 'expenses',
     description: 'Get monthly expense buckets for one month, or list stored months.',
     method: 'GET',
     path: '/api/expenses/monthly?token=YOUR_TOKEN&month=2026-03',
@@ -46,9 +42,9 @@ export const WEALTH_LANDING_TOOLS: McpLandingTool[] = [
   },
   {
     id: 'wealth.expenses_estimates',
-    mcpName: 'wealth.expenses_estimates',
-    rowTitle: 'wealth.expenses_estimates',
-    section: 'expenses_read',
+    mcpName: 'expenses.estimates',
+    rowTitle: 'expenses.estimates',
+    section: 'expenses',
     description: 'List expense estimate snapshots (or latest only).',
     method: 'GET',
     path: '/api/expenses/estimates?token=YOUR_TOKEN&latest=1',
@@ -56,9 +52,9 @@ export const WEALTH_LANDING_TOOLS: McpLandingTool[] = [
   },
   {
     id: 'wealth.expenses.set_estimates',
-    mcpName: 'wealth.expenses.set_estimates',
-    rowTitle: 'wealth.expenses.set_estimates',
-    section: 'expenses_write',
+    mcpName: 'expenses.set_estimates',
+    rowTitle: 'expenses.set_estimates',
+    section: 'expenses',
     description: 'Save expense estimate buckets (client must supply totals; no server-side parsing).',
     method: 'POST',
     path: '/api/expenses/estimates',
@@ -80,9 +76,9 @@ export const WEALTH_LANDING_TOOLS: McpLandingTool[] = [
   },
   {
     id: 'wealth.expenses.save_monthly_actuals_totals',
-    mcpName: 'wealth.expenses.save_monthly_actuals_totals',
-    rowTitle: 'wealth.expenses.save_monthly_actuals_totals',
-    section: 'expenses_write',
+    mcpName: 'expenses.save_monthly_actuals_totals',
+    rowTitle: 'expenses.save_monthly_actuals_totals',
+    section: 'expenses',
     description: 'Save a month’s actual expense totals (category totals only).',
     method: 'POST',
     path: '/api/expenses/monthly',
@@ -105,9 +101,9 @@ export const WEALTH_LANDING_TOOLS: McpLandingTool[] = [
   },
   {
     id: 'wealth.income.save',
-    mcpName: 'wealth.income.save',
-    rowTitle: 'wealth.income.save',
-    section: 'income_write',
+    mcpName: 'income.save',
+    rowTitle: 'income.save',
+    section: 'income',
     description: 'Save income answers (client supplies structured values).',
     method: 'POST',
     path: '/api/user-data',
@@ -121,9 +117,9 @@ export const WEALTH_LANDING_TOOLS: McpLandingTool[] = [
   },
   {
     id: 'wealth.assets.save',
-    mcpName: 'wealth.assets.save',
-    rowTitle: 'wealth.assets.save',
-    section: 'assets_write',
+    mcpName: 'asset.save',
+    rowTitle: 'asset.save',
+    section: 'asset',
     description: 'Save assets + liabilities (client supplies structured values).',
     method: 'POST',
     path: '/api/user-data',
@@ -137,9 +133,9 @@ export const WEALTH_LANDING_TOOLS: McpLandingTool[] = [
   },
   {
     id: 'wealth.reminders.list',
-    mcpName: 'wealth.reminders.list',
-    rowTitle: 'wealth.reminders.list',
-    section: 'reminders',
+    mcpName: 'other.reminders.list',
+    rowTitle: 'other.reminders.list',
+    section: 'other',
     description: 'List reminders created via the main-site “Add reminder” widget.',
     method: 'GET',
     path: '/api/reminders?token=YOUR_TOKEN',
@@ -147,9 +143,9 @@ export const WEALTH_LANDING_TOOLS: McpLandingTool[] = [
   },
   {
     id: 'wealth.reminders.create',
-    mcpName: 'wealth.reminders.create',
-    rowTitle: 'wealth.reminders.create',
-    section: 'reminders',
+    mcpName: 'other.reminders.create',
+    rowTitle: 'other.reminders.create',
+    section: 'other',
     description: 'Create a lightweight reminder (for email/WhatsApp/webhooks schedules use Nags).',
     method: 'POST',
     path: '/api/reminders',
@@ -158,9 +154,9 @@ export const WEALTH_LANDING_TOOLS: McpLandingTool[] = [
   },
   {
     id: 'wealth.reminders.delete',
-    mcpName: 'wealth.reminders.delete',
-    rowTitle: 'wealth.reminders.delete',
-    section: 'reminders',
+    mcpName: 'other.reminders.delete',
+    rowTitle: 'other.reminders.delete',
+    section: 'other',
     description: 'Delete a reminder row by id.',
     method: 'DELETE',
     path: '/api/reminders?token=YOUR_TOKEN&id=REMINDER_ID',
@@ -168,9 +164,9 @@ export const WEALTH_LANDING_TOOLS: McpLandingTool[] = [
   },
   {
     id: 'wealth.currency_rates',
-    mcpName: 'wealth.currency_rates',
-    rowTitle: 'wealth.currency_rates',
-    section: 'fx',
+    mcpName: 'other.currency_rates',
+    rowTitle: 'other.currency_rates',
+    section: 'other',
     description: 'List stored FX rates (optional month=YYYY-MM).',
     method: 'GET',
     path: '/api/currency-rates?token=YOUR_TOKEN&month=2026-03',
@@ -178,9 +174,9 @@ export const WEALTH_LANDING_TOOLS: McpLandingTool[] = [
   },
   {
     id: 'wealth.currency_coverage',
-    mcpName: 'wealth.currency_coverage',
-    rowTitle: 'wealth.currency_coverage',
-    section: 'fx',
+    mcpName: 'other.currency_coverage',
+    rowTitle: 'other.currency_coverage',
+    section: 'other',
     description: 'Report missing (month, currency) FX pairs for the user.',
     method: 'GET',
     path: '/api/currency-rates/coverage?token=YOUR_TOKEN',

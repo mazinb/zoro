@@ -163,29 +163,6 @@ function GoalsLanding() {
           </button>
         </div>
 
-        <div className={`text-sm ${theme.textSecondaryClass}`}>
-          After you open the link, you can navigate:
-          <div className="mt-2 flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={() => router.push('/save')}
-              className="underline hover:opacity-80"
-            >
-              Save
-            </button>
-            <button type="button" onClick={() => router.push('/home')} className="underline hover:opacity-80">
-              Home
-            </button>
-            <button
-              type="button"
-              onClick={() => router.push('/invest')}
-              className="underline hover:opacity-80"
-            >
-              Invest
-            </button>
-          </div>
-        </div>
-
         <section className="mt-10">
           <p className={`mb-2 text-[10px] font-bold uppercase tracking-widest ${theme.textSecondaryClass}`}>Developers</p>
           <h2 className={`mb-3 text-lg font-bold ${theme.textClass}`}>MCP tools & groups</h2>

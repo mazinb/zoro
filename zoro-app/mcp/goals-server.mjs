@@ -46,6 +46,7 @@ function jsonResult(data, isError = false) {
 }
 
 const GOAL_PATH_KEYS = ['save', 'home_big_purchase', 'invest', 'insurance', 'tax', 'retire'];
+const GOAL_ID_KEYS = ['save', 'home', 'invest', 'insurance', 'tax', 'retirement'];
 
 async function loadUserDataOrNull(token) {
   if (!token) return null;
@@ -88,6 +89,7 @@ export function createGoalsMcpServer() {
             '',
             '- **goals.overview** — boolean flags per goal + deep links (`/save`, `/home`, `/invest`, `/insurance`, `/tax`, `/retire`).',
             '- **goals.detail** — full `user_data` JSON per goal + `wealth_data_filled` (for GoalDataGate).',
+            '- **goals.detail_goal** — same as `goals.detail`, but restricted to exactly one goal via `goal` (save/home/invest/insurance/tax/retirement).',
             '',
             '## Save-only onboarding tools (client LLM parses)',
             '',
@@ -165,6 +167,29 @@ export function createGoalsMcpServer() {
       if (!t) return jsonResult({ error: 'token required' }, true);
       const q = new URLSearchParams({ token: t });
       if (fields?.trim()) q.set('fields', fields.trim());
+      const { ok, status, data } = await fetchJson(`/api/goals/detail?${q}`, { method: 'GET' });
+      return jsonResult(data, !ok || status >= 400);
+    }
+  );
+
+  server.tool(
+    'goals.detail_goal',
+    'Full goal answers from user_data for one goal, plus `wealth_data_filled` (for GoalDataGate).',
+    {
+      token: z.string().optional(),
+      goal: z.enum(GOAL_ID_KEYS).describe('Goal id: save, home, invest, insurance, tax, retirement'),
+    },
+    {
+      title: 'Goals detail (single goal)',
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+    async ({ token, goal }, extra) => {
+      const t = resolveToken(token, extra);
+      if (!t) return jsonResult({ error: 'token required' }, true);
+      const q = new URLSearchParams({ token: t, fields: goal });
       const { ok, status, data } = await fetchJson(`/api/goals/detail?${q}`, { method: 'GET' });
       return jsonResult(data, !ok || status >= 400);
     }

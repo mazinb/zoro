@@ -76,7 +76,7 @@ export function createOrchestratorMcpServer() {
             '- Switch to Wealth/Goals for actual work; switch to Nags only if user explicitly wants reminder scheduling.',
             '',
             'Docs:',
-            '- `zoro-app/docs/mcp/orchestrator-smithery.md` (Smithery description)',
+            '- `zoro-app/docs/orchestrator-smithery.md` (Smithery description)',
           ].join('\n'),
         },
       ],
@@ -208,7 +208,7 @@ export function createOrchestratorMcpServer() {
   );
 
   server.prompt(
-    'orchestrator.start_here',
+    'start_here',
     'Route the user to the right MCP server',
     {
       goal: z.string().min(1).describe('What the user wants to do'),
@@ -237,7 +237,7 @@ export function createOrchestratorMcpServer() {
   );
 
   server.prompt(
-    'orchestrator.onboarding_email_link',
+    'onboarding_email_link',
     'Onboard user and send access link by email',
     {
       email: z.string().email().describe('User email'),
@@ -267,7 +267,7 @@ export function createOrchestratorMcpServer() {
   );
 
   server.prompt(
-    'orchestrator.review_progress',
+    'review_progress',
     'Summarize wealth and goals progress',
     {
       token: z.string().optional().describe('users.verification_token'),

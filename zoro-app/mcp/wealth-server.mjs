@@ -117,20 +117,20 @@ export function createWealthMcpServer() {
             '',
             '- Three wealth routes: **`/expenses`**, **`/income`**, **`/assets`** (this MCP wraps their APIs + shared `user_data`).',
             '- Auth: same token as Nags (`users.verification_token`) via tool arg, env `NAG_MCP_TOKEN`, or HTTP header `token` (or Bearer / legacy x-nag-mcp-token).',
-            '- **wealth.user_data** — full `user_data` row (income_answers, assets_answers, goal columns).',
-            '- **wealth.expenses_monthly** — monthly bucket totals.',
-            '- **wealth.expenses_estimates** — saved estimates.',
-            '- **wealth.currency_rates** / **wealth.currency_coverage** — FX and gaps.',
+            '- **data.user_data** — full `user_data` row (income_answers, assets_answers, goal columns).',
+            '- **expenses.monthly** — monthly bucket totals.',
+            '- **expenses.estimates** — saved estimates.',
+            '- **other.currency_rates** / **other.currency_coverage** — FX and gaps.',
             '',
             '## Save-only onboarding tools (client LLM parses)',
             '',
             'We do not rely on our backend LLM to parse documents. The client LLM should produce structured JSON payloads that match the UI flows, then call these tools:',
             '',
-            '- **wealth.expenses.set_estimates** — save expense estimates + country.',
-            '- **wealth.expenses.save_monthly_actuals_totals** — save month totals (category totals only) and optionally tag an account name.',
-            '- **wealth.income.save** — save yearly income map + selected country.',
-            '- **wealth.assets.save** — save assets/liabilities + optional snapshots + selected country.',
-            '- **wealth.reminders.create/list/delete** — lightweight recurring reminders (same as “Add reminder” widget).',
+            '- **expenses.set_estimates** — save expense estimates + country.',
+            '- **expenses.save_monthly_actuals_totals** — save month totals (category totals only) and optionally tag an account name.',
+            '- **income.save** — save yearly income map + selected country.',
+            '- **asset.save** — save assets/liabilities + optional snapshots + selected country.',
+            '- **other.reminders.create/list/delete** — lightweight recurring reminders (same as “Add reminder” widget).',
             '',
             'Income/assets structured fields live in `user_data`; expenses also use `monthly_expenses` and `expense_estimates` tables.',
           ].join('\n'),
@@ -140,7 +140,7 @@ export function createWealthMcpServer() {
   );
 
   server.tool(
-    'wealth.user_data',
+    'data.user_data',
     'Load user_data for the authenticated user (income_answers, assets_answers, expenses-related fields, goals).',
     {
       token: z.string().optional().describe('verification_token or user_data.user_token'),
@@ -162,7 +162,7 @@ export function createWealthMcpServer() {
   );
 
   server.tool(
-    'wealth.expenses_monthly',
+    'expenses.monthly',
     'Get monthly expense buckets for a month (YYYY-MM) or list months.',
     {
       token: z.string().optional(),
@@ -186,7 +186,7 @@ export function createWealthMcpServer() {
   );
 
   server.tool(
-    'wealth.expenses.set_estimates',
+    'expenses.set_estimates',
     'Save expense estimate buckets (UI step 0). Client LLM must supply totals; server does not parse.',
     {
       token: z.string().optional(),
@@ -256,7 +256,7 @@ export function createWealthMcpServer() {
   );
 
   server.tool(
-    'wealth.expenses.save_monthly_actuals_totals',
+    'expenses.save_monthly_actuals_totals',
     'Save a month’s actual expense totals (category totals only). Client LLM must compute totals; server does not parse.',
     {
       token: z.string().optional(),
@@ -335,7 +335,7 @@ export function createWealthMcpServer() {
   );
 
   server.tool(
-    'wealth.expenses_estimates',
+    'expenses.estimates',
     'List expense estimate snapshots (or latest only with latest=true).',
     {
       token: z.string().optional(),
@@ -359,7 +359,7 @@ export function createWealthMcpServer() {
   );
 
   server.tool(
-    'wealth.income.save',
+    'income.save',
     'Save income answers (UI: Income details). Client LLM must supply values; server does not parse.',
     {
       token: z.string().optional(),
@@ -427,7 +427,7 @@ export function createWealthMcpServer() {
   );
 
   server.tool(
-    'wealth.assets.save',
+    'asset.save',
     'Save assets + liabilities (UI: Assets and liabilities). Client LLM must supply values; server does not parse.',
     {
       token: z.string().optional(),
@@ -520,7 +520,7 @@ export function createWealthMcpServer() {
   );
 
   server.tool(
-    'wealth.reminders.list',
+    'other.reminders.list',
     'List reminders created via the main-site “Add reminder” widget.',
     { token: z.string().optional() },
     {
@@ -540,7 +540,7 @@ export function createWealthMcpServer() {
   );
 
   server.tool(
-    'wealth.reminders.create',
+    'other.reminders.create',
     'Create a main-site reminder (lightweight check-in). For email/WhatsApp/webhooks, use Nags.',
     {
       token: z.string().optional(),
@@ -581,7 +581,7 @@ export function createWealthMcpServer() {
   );
 
   server.tool(
-    'wealth.reminders.delete',
+    'other.reminders.delete',
     'Delete a main-site reminder row by id (from reminders.list).',
     {
       token: z.string().optional(),
@@ -604,7 +604,7 @@ export function createWealthMcpServer() {
   );
 
   server.tool(
-    'wealth.currency_rates',
+    'other.currency_rates',
     'List stored FX rates (optional month=YYYY-MM per /api/currency-rates).',
     {
       token: z.string().optional(),
@@ -631,7 +631,7 @@ export function createWealthMcpServer() {
   );
 
   server.tool(
-    'wealth.currency_coverage',
+    'other.currency_coverage',
     'Report missing (month, currency) pairs for the user (expenses/income/assets currencies vs rates table).',
     {
       token: z.string().optional(),
@@ -667,7 +667,7 @@ export function createWealthMcpServer() {
             type: 'text',
             text: [
               token ? `Use this token override: ${token}` : 'Use configured token header/env.',
-              'Call wealth.user_data first to establish baseline.',
+              'Call data.user_data first to establish baseline.',
               'If user asks about goals + wealth together, switch to zoro-orchestrator (orchestrator.summary).',
             ].join('\n'),
           },
@@ -681,7 +681,7 @@ export function createWealthMcpServer() {
     'Produce the exact JSON payload for saving expense estimates (no server-side parsing).',
     {},
     async () => ({
-      description: 'Client LLM should compute totals and then call wealth.expenses.set_estimates.',
+      description: 'Client LLM should compute totals and then call expenses.set_estimates.',
       messages: [
         {
           role: 'user',
@@ -713,7 +713,7 @@ export function createWealthMcpServer() {
               '- Values are totals as numbers (same currency as expenses_country selection). Use 0 when unknown.',
               '- one_time and travel are annual-budget style buckets in UI, but we still store them as numeric totals here.',
               '',
-              'After outputting JSON, call tool wealth.expenses.set_estimates with that JSON.',
+              'After outputting JSON, call tool expenses.set_estimates with that JSON.',
             ].join('\n'),
           },
         },
@@ -726,7 +726,7 @@ export function createWealthMcpServer() {
     'Produce the exact JSON payload for saving monthly actual expense totals (no server-side parsing).',
     {},
     async () => ({
-      description: 'Client LLM should compute month totals and then call wealth.expenses.save_monthly_actuals_totals.',
+      description: 'Client LLM should compute month totals and then call expenses.save_monthly_actuals_totals.',
       messages: [
         {
           role: 'user',
@@ -768,7 +768,7 @@ export function createWealthMcpServer() {
               'Exclude from totals:',
               '- transfers to yourself, internal transfers, credit card payments, refunds/chargebacks.',
               '',
-              'After outputting JSON, call tool wealth.expenses.save_monthly_actuals_totals with that JSON.',
+              'After outputting JSON, call tool expenses.save_monthly_actuals_totals with that JSON.',
             ].join('\n'),
           },
         },
@@ -781,7 +781,7 @@ export function createWealthMcpServer() {
     'Produce the exact JSON payload for saving income by year (no server-side parsing).',
     {},
     async () => ({
-      description: 'Client LLM should extract numbers and then call wealth.income.save.',
+      description: 'Client LLM should extract numbers and then call income.save.',
       messages: [
         {
           role: 'user',
@@ -817,7 +817,7 @@ export function createWealthMcpServer() {
               '- bonusPct is 0..100 (e.g. 15 for 15%). Prefer bonus over bonusPct if you have an explicit amount.',
               '- Use 0 for unknown numeric values; omit optional strings when unknown.',
               '',
-              'After outputting JSON, call tool wealth.income.save with that JSON.',
+              'After outputting JSON, call tool income.save with that JSON.',
             ].join('\n'),
           },
         },
@@ -830,7 +830,7 @@ export function createWealthMcpServer() {
     'Produce the exact JSON payload for saving assets and liabilities (no server-side parsing).',
     {},
     async () => ({
-      description: 'Client LLM should structure accounts/liabilities and then call wealth.assets.save.',
+      description: 'Client LLM should structure accounts/liabilities and then call asset.save.',
       messages: [
         {
           role: 'user',
@@ -860,7 +860,7 @@ export function createWealthMcpServer() {
               '- If type="other" for an asset, include a human label in "label".',
               '- quarterly_snapshots can be [] if you are not capturing a snapshot history.',
               '',
-              'After outputting JSON, call tool wealth.assets.save with that JSON.',
+              'After outputting JSON, call tool asset.save with that JSON.',
             ].join('\n'),
           },
         },
@@ -873,7 +873,7 @@ export function createWealthMcpServer() {
     'Produce the exact JSON payload for creating a lightweight reminder (same as AddReminderForm).',
     {},
     async () => ({
-      description: 'Client LLM should structure reminder fields and then call wealth.reminders.create.',
+      description: 'Client LLM should structure reminder fields and then call other.reminders.create.',
       messages: [
         {
           role: 'user',
@@ -902,7 +902,7 @@ export function createWealthMcpServer() {
               '- If recurrence="annually", provide recurrence_month (1..12).',
               '- For email/WhatsApp schedules and webhooks, use the Nags product instead.',
               '',
-              'After outputting JSON, call tool wealth.reminders.create with that JSON.',
+              'After outputting JSON, call tool other.reminders.create with that JSON.',
             ].join('\n'),
           },
         },
@@ -927,7 +927,7 @@ export function createWealthMcpServer() {
             text: [
               token ? `Use this token override: ${token}` : 'Use configured token header/env.',
               `Target month: ${month || 'latest available/list all months first'}.`,
-              'Call wealth.expenses_monthly and summarize top categories + anomalies.',
+              'Call expenses.monthly and summarize top categories + anomalies.',
               'If user asks for reminders or broader planning, route to zoro-orchestrator.',
             ].join('\n'),
           },
@@ -953,7 +953,7 @@ export function createWealthMcpServer() {
             text: [
               token ? `Use this token override: ${token}` : 'Use configured token header/env.',
               `Latest only: ${latest === true ? 'yes' : 'no'}.`,
-              'Call wealth.expenses_estimates, then summarize trend direction and biggest drivers.',
+              'Call expenses.estimates, then summarize trend direction and biggest drivers.',
               'For goal impact questions, route to zoro-orchestrator.',
             ].join('\n'),
           },
@@ -979,8 +979,8 @@ export function createWealthMcpServer() {
             text: [
               token ? `Use this token override: ${token}` : 'Use configured token header/env.',
               `Month filter: ${month || 'none'}.`,
-              'Call wealth.currency_rates and summarize base currencies + date coverage.',
-              'If there are missing conversions, also call wealth.currency_coverage.',
+              'Call other.currency_rates and summarize base currencies + date coverage.',
+              'If there are missing conversions, also call other.currency_coverage.',
             ].join('\n'),
           },
         },
@@ -1003,7 +1003,7 @@ export function createWealthMcpServer() {
             type: 'text',
             text: [
               token ? `Use this token override: ${token}` : 'Use configured token header/env.',
-              'Call wealth.currency_coverage and return missing month/currency pairs.',
+              'Call other.currency_coverage and return missing month/currency pairs.',
               'If user asks for next-step prioritization across goals/reminders, route to zoro-orchestrator.',
             ].join('\n'),
           },

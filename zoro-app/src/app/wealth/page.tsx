@@ -164,25 +164,6 @@ function WealthLanding() {
           </button>
         </div>
 
-        <div className={`text-sm ${theme.textSecondaryClass}`}>
-          After you open the link, you can navigate:
-          <div className="mt-2 flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={() => router.push('/expenses')}
-              className="underline hover:opacity-80"
-            >
-              Expenses
-            </button>
-            <button type="button" onClick={() => router.push('/income')} className="underline hover:opacity-80">
-              Income
-            </button>
-            <button type="button" onClick={() => router.push('/assets')} className="underline hover:opacity-80">
-              Assets
-            </button>
-          </div>
-        </div>
-
         <section className="mt-10">
           <p className={`mb-2 text-[10px] font-bold uppercase tracking-widest ${theme.textSecondaryClass}`}>Developers</p>
           <h2 className={`mb-3 text-lg font-bold ${theme.textClass}`}>MCP tools & groups</h2>
