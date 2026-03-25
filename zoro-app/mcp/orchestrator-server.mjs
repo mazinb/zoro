@@ -57,6 +57,11 @@ export function createOrchestratorMcpServer() {
 
   const publicOrigin = resolveOrigin('https://www.getzoro.com');
 
+  function registerToolWithAliases(toolName, aliases, description, schema, hints, handler) {
+    server.tool(toolName, description, schema, hints, handler);
+    for (const alias of aliases) server.tool(alias, description, schema, hints, handler);
+  }
+
   server.resource(
     'orchestrator_guide',
     'zoro://orchestrator/docs',
@@ -83,8 +88,9 @@ export function createOrchestratorMcpServer() {
     })
   );
 
-  server.tool(
+  registerToolWithAliases(
     'orchestrator.server_catalog',
+    ['orchestrator_server_catalog'],
     'Return MCP endpoints and recommended server keys.',
     {},
     {
@@ -111,8 +117,9 @@ export function createOrchestratorMcpServer() {
       })
   );
 
-  server.tool(
+  registerToolWithAliases(
     'orchestrator.landing_routes',
+    ['orchestrator_landing_routes'],
     'Public no-token routes to start the experience.',
     {},
     {
@@ -149,8 +156,9 @@ export function createOrchestratorMcpServer() {
       })
   );
 
-  server.tool(
+  registerToolWithAliases(
     'orchestrator.summary',
+    ['orchestrator_summary'],
     'Cross-domain snapshot: which goals/wealth areas have data + tokenized deep links.',
     {
       token: z.string().optional().describe('users.verification_token'),
@@ -171,8 +179,9 @@ export function createOrchestratorMcpServer() {
     }
   );
 
-  server.tool(
+  registerToolWithAliases(
     'orchestrator.send_magic_link',
+    ['orchestrator_send_magic_link'],
     'Send magic link email so the user can open a path with their token (uses /api/auth/send-magic-link).',
     {
       email: z.string().email(),
