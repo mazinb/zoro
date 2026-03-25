@@ -3,9 +3,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import type { McpLandingTool, McpTheme } from './types';
 
-type Props = {
-  tools: McpLandingTool[];
-  sectionTitle: (section: string) => string;
+type Props<S extends string> = {
+  tools: McpLandingTool<S>[];
+  sectionTitle: (section: S) => string;
   theme: McpTheme;
   darkMode: boolean;
   docsOrigin?: string | null;
@@ -19,7 +19,7 @@ function fullUrl(docsOrigin: string | null | undefined, path: string): string {
   return `${base}${path.startsWith('/') ? path : `/${path}`}`;
 }
 
-export function McpLandingToolsExplorer({
+export function McpLandingToolsExplorer<S extends string>({
   tools,
   sectionTitle,
   theme,
@@ -27,8 +27,8 @@ export function McpLandingToolsExplorer({
   docsOrigin,
   title = 'MCP tools & REST API',
   subtitle = 'Same /api routes.',
-}: Props) {
-  const [selected, setSelected] = useState<McpLandingTool>(() => tools[0]!);
+}: Props<S>) {
+  const [selected, setSelected] = useState<McpLandingTool<S>>(() => tools[0]!);
   const [bodyText, setBodyText] = useState('');
   const [result, setResult] = useState<unknown>(null);
   const [busy, setBusy] = useState(false);

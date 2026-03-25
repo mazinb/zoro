@@ -1,13 +1,13 @@
 export type McpLandingSection = string;
 
-export type McpLandingTool = {
+export type McpLandingTool<S extends McpLandingSection = McpLandingSection> = {
   /** Stable key for React lists (unique). */
   id: string;
   /** MCP tool id when the server exposes the same contract; empty = HTTP-only. */
   mcpName: string;
   /** Short label in the endpoint list and detail header (unique per row). */
   rowTitle: string;
-  section: McpLandingSection;
+  section: S;
   description: string;
   method: 'GET' | 'POST' | 'PATCH' | 'DELETE';
   path: string;
