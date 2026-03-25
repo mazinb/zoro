@@ -91,6 +91,8 @@ export function createOrchestratorMcpServer() {
         routes: {
           nag: '/nag',
           nag_developer: '/nag/developer',
+          wealth: '/wealth',
+          goals: '/goals',
           expenses: '/expenses',
           income: '/income',
           assets: '/assets',
