@@ -180,6 +180,29 @@ export function createOrchestratorMcpServer() {
   );
 
   registerToolWithAliases(
+    'orchestrator.onboarding',
+    ['orchestrator_onboarding'],
+    'Onboarding payload (requires token). Returns profile/shared_data + next deep links.',
+    {
+      token: z.string().optional().describe('users.verification_token'),
+    },
+    {
+      title: 'Orchestrator onboarding data',
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+    async ({ token }, extra) => {
+      const t = resolveToken(token, extra);
+      if (!t) return jsonResult({ error: 'token required' }, true);
+      const q = new URLSearchParams({ token: t });
+      const { ok, status, data } = await fetchJson(`/api/orchestrator/onboarding?${q}`, { method: 'GET' });
+      return jsonResult(data, !ok || status >= 400);
+    }
+  );
+
+  registerToolWithAliases(
     'orchestrator.send_magic_link',
     ['orchestrator_send_magic_link'],
     'Send magic link email so the user can open a path with their token (uses /api/auth/send-magic-link).',
