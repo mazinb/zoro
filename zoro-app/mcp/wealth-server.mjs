@@ -103,11 +103,6 @@ export function createWealthMcpServer() {
     version: '1.0.0',
   });
 
-  function registerToolWithAliases(toolName, aliases, description, schema, hints, handler) {
-    server.tool(toolName, description, schema, hints, handler);
-    for (const alias of aliases) server.tool(alias, description, schema, hints, handler);
-  }
-
   server.resource(
     'wealth_api_reference',
     'zoro://wealth/docs/api',
@@ -144,9 +139,8 @@ export function createWealthMcpServer() {
     })
   );
 
-  registerToolWithAliases(
+  server.tool(
     'wealth.user_data',
-    ['wealth_user_data'],
     'Load user_data for the authenticated user (income_answers, assets_answers, expenses-related fields, goals).',
     {
       token: z.string().optional().describe('verification_token or user_data.user_token'),
@@ -609,9 +603,8 @@ export function createWealthMcpServer() {
     }
   );
 
-  registerToolWithAliases(
+  server.tool(
     'wealth.fx.rates',
-    ['wealth_fx_rates'],
     'List stored FX rates (optional month=YYYY-MM per /api/currency-rates).',
     {
       token: z.string().optional(),
