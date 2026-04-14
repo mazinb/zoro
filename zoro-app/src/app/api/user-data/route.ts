@@ -115,7 +115,27 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    return NextResponse.json({ data: userData });
+    // Include verification_token for mobile clients that sign in by email and need the same
+    // session handle the web uses for gated APIs (e.g. expenses import).
+    const { data: userForToken, error: userTokError } = await supabase
+      .from('users')
+      .select('verification_token')
+      .eq('id', userId)
+      .maybeSingle();
+
+    if (userTokError) {
+      return NextResponse.json(
+        { error: 'Failed to fetch user data', details: userTokError.message },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      data: {
+        ...userData,
+        verification_token: userForToken?.verification_token ?? null,
+      },
+    });
   } catch (error: any) {
     return NextResponse.json(
       { error: 'Failed to fetch user data', details: error?.message },
