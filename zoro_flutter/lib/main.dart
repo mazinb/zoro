@@ -4,5 +4,5 @@ import 'app.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(ZoroApp(session: createDefaultSession()));
+  runApp(const ZoroApp());
 }

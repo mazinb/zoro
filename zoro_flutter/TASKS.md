@@ -1,5 +1,12 @@
 # Zoro Flutter — task backlog
 
+## Current direction (UI-first)
+
+- [x] **Disable login / session wiring** — App boots directly into the 5-tab shell so we can iterate UI first.
+- [ ] **UI pass** — Flesh out Home/Plan/Money/Retire/Profile screens (static + local mock data).
+- [ ] **Token → DB wiring** — Add lightweight user-token flow for reads/writes once UI stabilizes.
+- [ ] **Add login last** — Reintroduce onboarding/magic-link when ready.
+
 ## Done (bootstrap)
 
 - [x] Project scaffold under `zoro_flutter/` (iOS + macOS + web targets; primary product is iOS).

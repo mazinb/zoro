@@ -1,18 +1,9 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:zoro_flutter/core/api/zoro_api.dart';
-import 'package:zoro_flutter/core/session/session_controller.dart';
-import 'package:zoro_flutter/features/onboarding/onboarding_page.dart';
+import 'package:zoro_flutter/app.dart';
 
 void main() {
-  testWidgets('Onboarding shows sign-in copy', (tester) async {
-    final session = SessionController(api: ZoroApi());
-    await tester.pumpWidget(
-      MaterialApp(home: OnboardingPage(session: session)),
-    );
-    expect(
-      find.textContaining('Enter the email you use for Zoro'),
-      findsOneWidget,
-    );
+  testWidgets('App boots into UI shell', (tester) async {
+    await tester.pumpWidget(const ZoroApp());
+    expect(find.text('Zoro'), findsOneWidget);
   });
 }

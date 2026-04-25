@@ -1,13 +1,10 @@
 import 'package:flutter/material.dart';
 
-import '../../core/session/session_controller.dart';
 import '../../shared/theme/app_theme.dart';
 import 'expenses_ai_card.dart';
 
 class MoneyTab extends StatelessWidget {
-  const MoneyTab({super.key, required this.session});
-
-  final SessionController session;
+  const MoneyTab({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -29,8 +26,8 @@ class MoneyTab extends StatelessWidget {
           Expanded(
             child: TabBarView(
               children: [
-                _IncomePane(session: session),
-                _ExpensesPane(session: session),
+                const _IncomePane(),
+                const _ExpensesPane(),
               ],
             ),
           ),
@@ -41,9 +38,7 @@ class MoneyTab extends StatelessWidget {
 }
 
 class _IncomePane extends StatelessWidget {
-  const _IncomePane({required this.session});
-
-  final SessionController session;
+  const _IncomePane();
 
   @override
   Widget build(BuildContext context) {
@@ -69,9 +64,7 @@ class _IncomePane extends StatelessWidget {
 }
 
 class _ExpensesPane extends StatelessWidget {
-  const _ExpensesPane({required this.session});
-
-  final SessionController session;
+  const _ExpensesPane();
 
   @override
   Widget build(BuildContext context) {
@@ -92,7 +85,7 @@ class _ExpensesPane extends StatelessWidget {
           style: TextStyle(color: AppTheme.slate600),
         ),
         const SizedBox(height: 20),
-        ExpensesAiCard(session: session),
+        const ExpensesAiCard(),
         const SizedBox(height: 20),
         Card(
           child: Padding(

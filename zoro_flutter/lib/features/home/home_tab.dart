@@ -1,32 +1,27 @@
 import 'package:flutter/material.dart';
 
-import '../../core/session/session_controller.dart';
 import '../../shared/theme/app_theme.dart';
 
 class HomeTab extends StatelessWidget {
-  const HomeTab({super.key, required this.session});
-
-  final SessionController session;
+  const HomeTab({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final name = session.userData?['name']?.toString();
-    final email = session.userData?['email']?.toString();
-
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
         Text(
-          name != null && name.isNotEmpty ? 'Hi, $name' : 'Welcome back',
+          'Welcome',
           style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.w700,
                 color: AppTheme.slate900,
               ),
         ),
-        if (email != null) ...[
-          const SizedBox(height: 4),
-          Text(email, style: const TextStyle(color: AppTheme.slate600)),
-        ],
+        const SizedBox(height: 4),
+        const Text(
+          'UI-first mode (no login).',
+          style: TextStyle(color: AppTheme.slate600),
+        ),
         const SizedBox(height: 24),
         Text(
           'Your snapshot',

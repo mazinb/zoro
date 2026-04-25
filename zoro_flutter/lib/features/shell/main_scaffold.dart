@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../core/session/session_controller.dart';
 import '../../shared/widgets/animated_zoro_logo.dart';
 import '../home/home_tab.dart';
 import '../money/money_tab.dart';
@@ -9,9 +8,7 @@ import '../profile/profile_tab.dart';
 import '../retire/retire_tab.dart';
 
 class MainScaffold extends StatefulWidget {
-  const MainScaffold({super.key, required this.session});
-
-  final SessionController session;
+  const MainScaffold({super.key});
 
   @override
   State<MainScaffold> createState() => _MainScaffoldState();
@@ -23,11 +20,11 @@ class _MainScaffoldState extends State<MainScaffold> {
   @override
   Widget build(BuildContext context) {
     final pages = <Widget>[
-      HomeTab(session: widget.session),
-      PlanTab(session: widget.session),
-      MoneyTab(session: widget.session),
-      RetireTab(session: widget.session),
-      ProfileTab(session: widget.session),
+      const HomeTab(),
+      const PlanTab(),
+      const MoneyTab(),
+      const RetireTab(),
+      const ProfileTab(),
     ];
 
     return Scaffold(

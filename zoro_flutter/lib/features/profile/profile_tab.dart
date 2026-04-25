@@ -1,13 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../../core/app_env.dart';
-import '../../core/session/session_controller.dart';
 import '../../shared/theme/app_theme.dart';
 
 class ProfileTab extends StatelessWidget {
-  const ProfileTab({super.key, required this.session});
-
-  final SessionController session;
+  const ProfileTab({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -21,35 +17,13 @@ class ProfileTab extends StatelessWidget {
               ),
         ),
         const SizedBox(height: 16),
-        if (session.userData?['email'] != null)
-          ListTile(
-            title: const Text('Signed in as'),
-            subtitle: Text(session.userData!['email'].toString()),
-          ),
         ListTile(
-          title: const Text('API'),
-          subtitle: Text(AppEnv.apiBaseUrl),
-        ),
-        ListTile(
-          title: const Text('Refresh from server'),
-          trailing: const Icon(Icons.refresh),
-          onTap: () async {
-            await session.refreshUser();
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Profile refreshed')),
-              );
-            }
-          },
-        ),
-        ListTile(
-          title: const Text('Sign out'),
-          trailing: const Icon(Icons.logout),
-          onTap: () => session.signOut(),
+          title: const Text('Account'),
+          subtitle: const Text('Login disabled (UI-first build)'),
         ),
         const SizedBox(height: 24),
         const Text(
-          'Session is stored securely on this device. Sign out clears the session; your email may stay filled in on the sign-in screen for convenience.',
+          'This screen will later show profile + settings. Auth/token wiring will be added after UI is stable.',
           style: TextStyle(color: AppTheme.slate600, fontSize: 13),
         ),
       ],

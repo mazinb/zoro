@@ -1,12 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../../core/session/session_controller.dart';
 import '../../shared/theme/app_theme.dart';
 
 class PlanTab extends StatelessWidget {
-  const PlanTab({super.key, required this.session});
-
-  final SessionController session;
+  const PlanTab({super.key});
 
   @override
   Widget build(BuildContext context) {
