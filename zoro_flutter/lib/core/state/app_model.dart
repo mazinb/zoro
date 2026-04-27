@@ -466,7 +466,19 @@ Blunt + prioritized actions.
       case LlmProvider.gemini:
         geminiApiKey = v;
     }
+    _syncActiveProviderIfKeyRemoved();
     notifyListeners();
+  }
+
+  /// If the active provider no longer has a key, pick the first provider that does.
+  void _syncActiveProviderIfKeyRemoved() {
+    if (apiKeyFor(activeLlmProvider) != null) return;
+    for (final p in LlmProvider.values) {
+      if (apiKeyFor(p) != null) {
+        activeLlmProvider = p;
+        return;
+      }
+    }
   }
 
   String? apiKeyFor(LlmProvider provider) => switch (provider) {

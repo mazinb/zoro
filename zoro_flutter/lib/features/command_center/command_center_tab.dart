@@ -386,11 +386,39 @@ class _SankeyPlaceholder extends StatelessWidget {
               final height = math.max(h, 200.0);
 
               final graph = model.toSankeyDataSet(width: width, height: height);
-              final nodeColors = generateDefaultNodeColorMap(graph.nodes);
+              // 3-blues palette (used across the app).
+              const blue = AppTheme.blue;
+              const ink = AppTheme.slate900;
+
+              Color lerpToInk(double t) => Color.lerp(blue, ink, t) ?? ink;
+
+              Color colorForNodeLabel(String label) {
+                final head = label.split(RegExp(r'\s{2,}')).first.trim();
+                final l = head.toLowerCase();
+                // Column gradient: left bright → middle medium → right near-black.
+                if (l == 'all income' || l == 'net income') return lerpToInk(0.45);
+                if (l == 'taxes') return lerpToInk(0.65);
+                if (l == 'expenses') return lerpToInk(0.78);
+                if (l == 'investments') return lerpToInk(0.72);
+                if (l == 'savings') return lerpToInk(0.68);
+                return blue; // sources
+              }
+
+              String nodeDisplayName(SankeyNode n) {
+                final d = n.displayLabel.trim();
+                return d.isNotEmpty ? d : (n.label ?? '');
+              }
+
+              final nodeColors = <String, Color>{
+                for (final n in graph.nodes) n.displayLabel: colorForNodeLabel(nodeDisplayName(n)),
+              };
               final selectedId = selectedNode?.id;
               if (selectedId is int) {
                 // Selection: keep normal colors, just tint the selected node.
-                nodeColors['$selectedId'] = Theme.of(context).colorScheme.primary.withValues(alpha: 0.75);
+                final selected = graph.nodes.where((n) => n.id == selectedId).cast<SankeyNode?>().firstOrNull;
+                if (selected != null) {
+                  nodeColors[selected.displayLabel] = Theme.of(context).colorScheme.primary.withValues(alpha: 0.75);
+                }
               }
 
               final chart = SankeyDiagramWidget(
@@ -878,12 +906,9 @@ class _SankeyModel {
     }
 
     const incomeColors = <Color>[
-      Color(0xFF3B82F6),
-      Color(0xFFF59E0B),
-      Color(0xFF10B981),
-      Color(0xFF8B5CF6),
-      Color(0xFFEC4899),
-      Color(0xFF06B6D4),
+      Color(0xFF1D4ED8), // blueDark
+      Color(0xFF3B82F6), // blue
+      Color(0xFF93C5FD), // blueLight
     ];
     var colorIndex = 0;
     for (final line in model.incomeLines) {
@@ -901,10 +926,10 @@ class _SankeyModel {
     }
 
     links.add(
-      _Flow._('All income', 'Net income', netMonthly.toDouble(), const Color(0xFF94A3B8), stage: _FlowStage.middleToMiddle2),
+      _Flow._('All income', 'Net income', netMonthly.toDouble(), const Color(0xFF93C5FD), stage: _FlowStage.middleToMiddle2),
     );
     links.add(
-      _Flow._('All income', 'Taxes', taxesMonthly.toDouble(), const Color(0xFF94A3B8), stage: _FlowStage.middleToMiddle2),
+      _Flow._('All income', 'Taxes', taxesMonthly.toDouble(), const Color(0xFF1D4ED8), stage: _FlowStage.middleToMiddle2),
     );
 
     // Expenses (grouped).
@@ -912,7 +937,7 @@ class _SankeyModel {
       'Net income',
       'Expenses',
       model.totalExpensesMonthly.toDouble(),
-      const Color(0xFF94A3B8),
+      const Color(0xFF1D4ED8),
       stage: _FlowStage.middle2ToSink,
     );
     expenses.kind = _FlowKind.other;
@@ -923,12 +948,12 @@ class _SankeyModel {
     if (avail > 0) {
       // Do NOT notify from within build (Sankey is derived data only).
       model.normalizeAllocations(notify: false);
-      final inv = _Flow._('Net income', 'Investments', model.allocInvestmentsMonthly.toDouble(), const Color(0xFF10B981), stage: _FlowStage.middle2ToSink);
+      final inv = _Flow._('Net income', 'Investments', model.allocInvestmentsMonthly.toDouble(), const Color(0xFF3B82F6), stage: _FlowStage.middle2ToSink);
       inv.kind = _FlowKind.allocation;
       inv.allocationKey = 'investments';
       links.add(inv);
 
-      final sav = _Flow._('Net income', 'Savings', model.allocSavingsMonthly.toDouble(), const Color(0xFF3B82F6), stage: _FlowStage.middle2ToSink);
+      final sav = _Flow._('Net income', 'Savings', model.allocSavingsMonthly.toDouble(), const Color(0xFF93C5FD), stage: _FlowStage.middle2ToSink);
       sav.kind = _FlowKind.allocation;
       sav.allocationKey = 'savings';
       links.add(sav);

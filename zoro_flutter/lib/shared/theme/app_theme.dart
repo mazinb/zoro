@@ -4,7 +4,12 @@ import 'package:flutter/material.dart';
 class AppTheme {
   AppTheme._();
 
-  static const Color primaryBlue = Color(0xFF3B82F6);
+  // App palette: 3 blues (used everywhere).
+  static const Color blueDark = Color(0xFF1D4ED8); // blue-700
+  static const Color blue = Color(0xFF3B82F6); // blue-500
+  static const Color blueLight = Color(0xFF93C5FD); // blue-300
+
+  static const Color primaryBlue = blue;
   static const Color slate900 = Color(0xFF0F172A);
   static const Color slate600 = Color(0xFF475569);
   static const Color slate500 = Color(0xFF64748B);
@@ -16,11 +21,24 @@ class AppTheme {
       seedColor: primaryBlue,
       brightness: Brightness.light,
       surface: Colors.white,
+    ).copyWith(
+      primary: blue,
+      secondary: blueDark,
     );
     return ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
       scaffoldBackgroundColor: slate50,
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: blue,
+          foregroundColor: Colors.white,
+        ),
+      ),
+      floatingActionButtonTheme: const FloatingActionButtonThemeData(
+        backgroundColor: blue,
+        foregroundColor: Colors.white,
+      ),
       navigationBarTheme: NavigationBarThemeData(
         indicatorColor: primaryBlue.withValues(alpha: 0.15),
         labelTextStyle: WidgetStateProperty.resolveWith((states) {

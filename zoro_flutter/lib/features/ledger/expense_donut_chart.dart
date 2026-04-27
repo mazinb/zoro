@@ -132,7 +132,7 @@ List<ExpenseDonutSegment> expenseDonutSegmentsFromPreset(
     final v = expenseBuckets[k] ?? 0;
     if (v <= 0) continue;
     final label = _shortExpenseLabel(k);
-    out.add(ExpenseDonutSegment(label: label, value: v, color: bucketColor(k)));
+    out.add(ExpenseDonutSegment(label: label, value: v, color: bucketColorHighContrast(k)));
   }
   return out;
 }

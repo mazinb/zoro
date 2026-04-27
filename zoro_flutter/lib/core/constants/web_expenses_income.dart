@@ -104,6 +104,31 @@ String money(double v, {required String currencySymbol}) {
 }
 
 Color bucketColor(String key) {
+  // Keep bucket colors consistent with the app’s 3-blue palette.
+  switch (key) {
+    case 'housing':
+      return const Color(0xFF1D4ED8); // blueDark
+    case 'food':
+      return const Color(0xFF3B82F6); // blue
+    case 'transportation':
+      return const Color(0xFF93C5FD); // blueLight
+    case 'healthcare':
+      return const Color(0xFF1D4ED8); // blueDark
+    case 'entertainment':
+      return const Color(0xFF3B82F6); // blue
+    case 'other':
+      return const Color(0xFF93C5FD); // blueLight
+    case 'one_time':
+      return const Color(0xFF93C5FD); // blueLight
+    case 'travel':
+      return const Color(0xFF3B82F6); // blue
+    default:
+      return const Color(0xFF93C5FD); // blueLight
+  }
+}
+
+/// High-contrast bucket colors (for the donut chart + legend).
+Color bucketColorHighContrast(String key) {
   switch (key) {
     case 'housing':
       return const Color(0xFF1D4ED8);

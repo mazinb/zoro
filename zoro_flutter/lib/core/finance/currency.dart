@@ -27,9 +27,9 @@ extension CurrencyCodeUi on CurrencyCode {
       };
 
   Color get chipColor => switch (this) {
-        CurrencyCode.usd => const Color(0xFF10B981),
-        CurrencyCode.thb => const Color(0xFF3B82F6),
-        CurrencyCode.inr => const Color(0xFFF59E0B),
+        CurrencyCode.usd => const Color(0xFF1D4ED8), // blueDark
+        CurrencyCode.thb => const Color(0xFF3B82F6), // blue
+        CurrencyCode.inr => const Color(0xFF93C5FD), // blueLight
       };
 }
 

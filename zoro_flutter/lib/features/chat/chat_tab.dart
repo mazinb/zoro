@@ -21,58 +21,164 @@ class ChatTab extends StatefulWidget {
 }
 
 class _ChatTabState extends State<ChatTab> {
+  static String _providerShortLabel(LlmProvider p) => switch (p) {
+        LlmProvider.openai => 'GPT',
+        LlmProvider.anthropic => 'Claude',
+        LlmProvider.gemini => 'Gemini',
+      };
+
+  Widget _addKeyButton(VoidCallback onTap) {
+    return OutlinedButton.icon(
+      onPressed: onTap,
+      style: OutlinedButton.styleFrom(
+        backgroundColor: Colors.white,
+        foregroundColor: AppTheme.slate900,
+        side: const BorderSide(color: AppTheme.slate100),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      ),
+      icon: const Icon(Icons.key_outlined, size: 18),
+      label: const Text('Add key', style: TextStyle(fontWeight: FontWeight.w800)),
+    );
+  }
+
+  Widget _providerPicker(AppModel m, List<LlmProvider> withKeys, LlmProvider selectedProvider) {
+    if (withKeys.length <= 1) {
+      return Text(
+        _providerShortLabel(withKeys.single),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(fontWeight: FontWeight.w800, color: AppTheme.slate600),
+      );
+    }
+    // DropdownButton aligns the selected row with the field and can flip/shift
+    // upward; PopupMenuPosition.under always opens below the control.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final cap = constraints.maxWidth;
+        final maxW = (cap.isFinite && cap > 0) ? cap : 160.0;
+        return PopupMenuButton<LlmProvider>(
+          position: PopupMenuPosition.under,
+          offset: const Offset(0, 6),
+          initialValue: selectedProvider,
+          color: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          onSelected: m.setActiveLlmProvider,
+          itemBuilder: (ctx) => [
+            for (final p in withKeys)
+              PopupMenuItem<LlmProvider>(
+                value: p,
+                child: Text(
+                  _providerShortLabel(p),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+              ),
+          ],
+          child: Container(
+            constraints: BoxConstraints(maxWidth: maxW),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppTheme.slate100),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    _providerShortLabel(selectedProvider),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w800, color: AppTheme.slate900, fontSize: 14),
+                  ),
+                ),
+                const SizedBox(width: 2),
+                const Icon(Icons.expand_more, color: AppTheme.slate600, size: 20),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final hasKey = widget.model.hasAnyApiKey;
-    final chats = [...widget.model.chats]..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-          child: Row(
-            children: [
-              Text(
-                'Chat',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
-              ),
-              const Spacer(),
-              FilledButton.icon(
-                onPressed: hasKey ? null : widget.onGoToSettingsPermissions,
-                icon: const Icon(Icons.key),
-                label: const Text('Add key'),
-              ),
-              const SizedBox(width: 10),
-              FilledButton.icon(
-                onPressed: () async {
-                  final agentId = await _pickAgent(context, widget.model);
-                  if (agentId == null) return;
-                  final agent = widget.model.agents.firstWhere((a) => a.id == agentId);
-                  final now = DateTime.now();
-                  final thread = AgentChatThread(
-                    id: 'chat-${now.microsecondsSinceEpoch}',
-                    agentId: agentId,
-                    title: agent.name,
-                    createdAt: now,
-                    updatedAt: now,
-                    messageCount: 0,
-                    tokensUsed: 0,
-                    lastLine: '',
-                  );
-                  widget.model.addChat(thread);
-                  if (!context.mounted) return;
-                  Navigator.of(context).push<void>(
-                    MaterialPageRoute(
-                      builder: (ctx) => _ChatThreadPage(
-                        model: widget.model,
-                        threadId: thread.id,
-                        onNoKey: widget.toastGoToSettingsPermissions,
+    return ListenableBuilder(
+      listenable: widget.model,
+      builder: (context, _) {
+        final m = widget.model;
+        final hasAnyKey = m.hasAnyApiKey;
+        final withKeys = LlmProvider.values.where((p) => m.apiKeyFor(p) != null).toList();
+        if (hasAnyKey && withKeys.isNotEmpty && m.apiKeyFor(m.activeLlmProvider) == null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!context.mounted) return;
+            if (m.apiKeyFor(m.activeLlmProvider) == null) {
+              m.setActiveLlmProvider(withKeys.first);
+            }
+          });
+        }
+        final selectedProvider =
+            withKeys.contains(m.activeLlmProvider) ? m.activeLlmProvider : (withKeys.isNotEmpty ? withKeys.first : m.activeLlmProvider);
+
+        final chats = [...m.chats]..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+        return Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Text(
+                    'Chat',
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
+                  ),
+                  const Spacer(),
+                  if (!hasAnyKey)
+                    _addKeyButton(widget.onGoToSettingsPermissions)
+                  else ...[
+                    Flexible(
+                      fit: FlexFit.loose,
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: _providerPicker(m, withKeys, selectedProvider),
                       ),
                     ),
-                  );
-                },
-                icon: const Icon(Icons.add_comment),
-                label: const Text('New'),
-              ),
+                    const SizedBox(width: 8),
+                  ],
+                  const SizedBox(width: 10),
+                  FilledButton.icon(
+                    onPressed: () async {
+                      final agentId = await _pickAgent(context, m);
+                      if (agentId == null) return;
+                      final agent = m.agents.firstWhere((a) => a.id == agentId);
+                      final now = DateTime.now();
+                      final thread = AgentChatThread(
+                        id: 'chat-${now.microsecondsSinceEpoch}',
+                        agentId: agentId,
+                        title: agent.name,
+                        createdAt: now,
+                        updatedAt: now,
+                        messageCount: 0,
+                        tokensUsed: 0,
+                        lastLine: '',
+                      );
+                      m.addChat(thread);
+                      if (!context.mounted) return;
+                      Navigator.of(context).push<void>(
+                        MaterialPageRoute(
+                          builder: (ctx) => _ChatThreadPage(
+                            model: m,
+                            threadId: thread.id,
+                            onNoKey: widget.toastGoToSettingsPermissions,
+                          ),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.add_comment),
+                    label: const Text('New'),
+                  ),
             ],
           ),
         ),
@@ -160,6 +266,8 @@ class _ChatTabState extends State<ChatTab> {
         ),
       ],
     );
+      },
+    );
   }
 }
 
@@ -235,7 +343,7 @@ class _ChatThreadPageState extends State<_ChatThreadPage> {
   void _send() {
     final text = _ctrl.text.trim();
     if (text.isEmpty) return;
-    if (!widget.model.hasAnyApiKey) {
+    if (widget.model.apiKeyFor(widget.model.activeLlmProvider) == null) {
       widget.onNoKey();
       return;
     }
