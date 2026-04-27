@@ -63,8 +63,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
         redirectPath: '/expenses',
       );
       setState(() {
-        _info =
-            'Check your email for a sign-in link to getzoro.com. You can stay in this app: after you open the email, use “Paste sign-in link” below, or sign in again here with the same email once your account is active.';
+        _info = 'Check your email for a sign-in link. You can paste it below to continue here.';
       });
     } on ApiException catch (e) {
       setState(() => _error = e.message);
@@ -114,7 +113,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Enter the email you use for Zoro. We’ll keep you signed in on this device.',
+              'Enter your email. We’ll keep you signed in on this device.',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: AppTheme.slate600,
@@ -156,7 +155,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
             ),
             const SizedBox(height: 8),
             Text(
-              'New here or no account yet? We’ll send a link to create or open your account on the web.',
+              'New here? We’ll email a link to create or open your account.',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     color: AppTheme.slate500,
                   ),
@@ -193,7 +192,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
                   alignment: Alignment.centerLeft,
                   child: FilledButton.tonal(
                     onPressed: widget.session.loading ? null : _signInWithPaste,
-                    child: const Text('Continue with pasted link'),
+                    child: const Text('Continue'),
                   ),
                 ),
               ],

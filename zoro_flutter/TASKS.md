@@ -4,11 +4,14 @@
 
 - [x] **Disable login / session wiring** — App boots directly into the 5-tab shell so we can iterate UI first.
 - [ ] **UI pass** — Flesh out Home/Plan/Money/Retire/Profile screens (static + local mock data).
+  - [x] Home: reminder boxes render grey when not past due (still clickable).
+  - [x] Copy pass: tighten UI text to avoid overflow.
 - [ ] **Token → DB wiring** — Add lightweight user-token flow for reads/writes once UI stabilizes.
 - [ ] **Add login last** — Reintroduce onboarding/magic-link when ready.
 
 ## Done (bootstrap)
 
+- [x] Ledger cash flow: **+** opens **monthly cash flow entry** (spending + split + note) on all sub-tabs; **Split** tab **$ · %** table; tap row to edit; remove month after sheet closes (no controller crash); no separate expense line / category model.
 - [x] Project scaffold under `zoro_flutter/` (iOS + macOS + web targets; primary product is iOS).
 - [x] Core: `AppEnv` (`API_BASE_URL` via `--dart-define`), `ZoroApi`, `SessionController` + secure token storage.
 - [x] Onboarding: email magic link + token sign-in (same APIs as web).

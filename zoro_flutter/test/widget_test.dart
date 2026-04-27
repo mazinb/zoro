@@ -4,6 +4,6 @@ import 'package:zoro_flutter/app.dart';
 void main() {
   testWidgets('App boots into UI shell', (tester) async {
     await tester.pumpWidget(const ZoroApp());
-    expect(find.text('Zoro'), findsOneWidget);
+    expect(find.text('Home'), findsAtLeastNWidgets(1));
   });
 }

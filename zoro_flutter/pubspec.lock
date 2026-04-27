@@ -448,6 +448,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.2.0"
+  sankey_flutter:
+    dependency: "direct main"
+    description:
+      name: sankey_flutter
+      sha256: "69ee950db48c9fec69e8ac82e9e20a1151049fb487984cc05f0756e56f025459"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.0.3"
   sky_engine:
     dependency: transitive
     description: flutter

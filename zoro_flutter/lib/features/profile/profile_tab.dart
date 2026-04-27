@@ -19,11 +19,11 @@ class ProfileTab extends StatelessWidget {
         const SizedBox(height: 16),
         ListTile(
           title: const Text('Account'),
-          subtitle: const Text('Login disabled (UI-first build)'),
+          subtitle: const Text('Login disabled (UI pass)'),
         ),
         const SizedBox(height: 24),
         const Text(
-          'This screen will later show profile + settings. Auth/token wiring will be added after UI is stable.',
+          'Profile + account settings will land after the UI is stable.',
           style: TextStyle(color: AppTheme.slate600, fontSize: 13),
         ),
       ],

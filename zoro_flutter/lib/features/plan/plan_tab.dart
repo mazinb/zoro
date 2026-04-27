@@ -8,11 +8,11 @@ class PlanTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const areas = [
-      ('Save more', 'Match web /save — coming next.'),
-      ('Big purchase', 'Match web /home — coming next.'),
-      ('Invest', 'Match web /invest — coming next.'),
-      ('Insurance', 'Match web /insurance — coming next.'),
-      ('Tax', 'Match web /tax — coming next.'),
+      ('Save more', 'Coming soon'),
+      ('Big purchase', 'Coming soon'),
+      ('Invest', 'Coming soon'),
+      ('Insurance', 'Coming soon'),
+      ('Tax', 'Coming soon'),
     ];
 
     return ListView(
@@ -26,7 +26,7 @@ class PlanTab extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         const Text(
-          'Each area will reuse the same /api/user-data flows as the web app.',
+          'These will reuse the same flows as the web app.',
           style: TextStyle(color: AppTheme.slate600),
         ),
         const SizedBox(height: 20),
@@ -40,7 +40,7 @@ class PlanTab extends StatelessWidget {
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('${a.$1} — scaffold only in v1')),
+                    SnackBar(content: Text('${a.$1}: coming soon')),
                   );
                 },
               ),
