@@ -487,7 +487,7 @@ class _PermissionsPaneState extends State<_PermissionsPane> {
               children: [
                 TextField(
                   controller: _openAiCtrl,
-                  obscureText: false,
+                  obscureText: true,
                   keyboardType: TextInputType.visiblePassword,
                   autocorrect: false,
                   enableSuggestions: false,
@@ -517,7 +517,7 @@ class _PermissionsPaneState extends State<_PermissionsPane> {
                 const SizedBox(height: 12),
                 TextField(
                   controller: _anthropicCtrl,
-                  obscureText: false,
+                  obscureText: true,
                   keyboardType: TextInputType.visiblePassword,
                   autocorrect: false,
                   enableSuggestions: false,
@@ -547,7 +547,7 @@ class _PermissionsPaneState extends State<_PermissionsPane> {
                 const SizedBox(height: 12),
                 TextField(
                   controller: _geminiCtrl,
-                  obscureText: false,
+                  obscureText: true,
                   keyboardType: TextInputType.visiblePassword,
                   autocorrect: false,
                   enableSuggestions: false,

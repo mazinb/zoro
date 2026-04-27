@@ -384,7 +384,14 @@ class _ChatThreadPageState extends State<_ChatThreadPage> {
 
   @override
   Widget build(BuildContext context) {
-    final t = widget.model.chats.firstWhere((x) => x.id == widget.threadId);
+    final t = widget.model.chats.where((x) => x.id == widget.threadId).cast<AgentChatThread?>().firstOrNull;
+    if (t == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!context.mounted) return;
+        Navigator.of(context).maybePop();
+      });
+      return const Scaffold(body: SizedBox.shrink());
+    }
     final agent = widget.model.agents.firstWhere((a) => a.id == t.agentId);
     return Scaffold(
       appBar: AppBar(
@@ -410,11 +417,9 @@ class _ChatThreadPageState extends State<_ChatThreadPage> {
                 }
               }
               if (v == 'delete') {
-                final idx = widget.model.chats.indexWhere((x) => x.id == widget.threadId);
-                if (idx >= 0) {
-                  widget.model.removeChatById(widget.threadId);
-                }
                 Navigator.of(context).pop();
+                // Delete after this route is gone to avoid a brief "missing thread" build.
+                Future.microtask(() => widget.model.removeChatById(widget.threadId));
               }
             },
             itemBuilder: (ctx) => const [
