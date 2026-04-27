@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/state/app_model.dart';
 import '../../shared/theme/app_theme.dart';
@@ -126,21 +128,14 @@ class _RemindersPane extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text('Reminders', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
-                const SizedBox(height: 6),
-                const Text(
-                  'Pick how often to review. Home only shows what’s overdue.',
-                  style: TextStyle(color: AppTheme.slate600),
-                ),
-                const SizedBox(height: 16),
                 _CadenceRow(
-                  label: 'Expenses (estimates)',
+                  label: 'Expenses',
                   value: model.remindersExpensesCadence,
                   onChanged: model.setReminderCadenceExpenses,
                 ),
                 const SizedBox(height: 10),
                 _CadenceRow(
-                  label: 'Cash flow (monthly entry)',
+                  label: 'Cash flow',
                   value: model.remindersCashflowCadence,
                   onChanged: model.setReminderCadenceCashflow,
                 ),
@@ -173,18 +168,11 @@ class _RemindersPane extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text('Schedule', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
-                const SizedBox(height: 6),
-                Text(
-                  'Defaults: monthly on day 1, quarterly on quarter-end.',
-                  style: const TextStyle(color: AppTheme.slate600),
-                ),
-                const SizedBox(height: 14),
                 Row(
                   children: [
                     const Expanded(
                       child: Text(
-                        'Monthly review day',
+                        'Monthly',
                         style: TextStyle(fontWeight: FontWeight.w800),
                       ),
                     ),
@@ -199,19 +187,40 @@ class _RemindersPane extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 10),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Use quarter-end dates', style: TextStyle(fontWeight: FontWeight.w800)),
-                  subtitle: const Text('Mar 31 • Jun 30 • Sep 30 • Dec 31', style: TextStyle(color: AppTheme.slate600)),
-                  value: model.remindersUseQuarterEnds,
-                  onChanged: model.setRemindersUseQuarterEnds,
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Text('Quarterly', style: TextStyle(fontWeight: FontWeight.w800)),
+                    ),
+                    DropdownButton<int>(
+                      value: model.remindersQuarterMonthInQuarter.clamp(1, 3),
+                      items: const [
+                        DropdownMenuItem(value: 1, child: Text('First')),
+                        DropdownMenuItem(value: 2, child: Text('Second')),
+                        DropdownMenuItem(value: 3, child: Text('Third')),
+                      ],
+                      onChanged: (m) {
+                        if (m == null) return;
+                        model.setRemindersQuarterlySchedule(monthInQuarter: m, day: 1);
+                      },
+                    ),
+                    const SizedBox(width: 10),
+                    DropdownButton<int>(
+                      value: 1,
+                      items: [for (var d = 1; d <= 28; d++) DropdownMenuItem(value: d, child: Text(d.toString()))],
+                      onChanged: (d) {
+                        if (d == null) return;
+                        model.setRemindersQuarterlySchedule(monthInQuarter: model.remindersQuarterMonthInQuarter, day: d);
+                      },
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 10),
                 Row(
                   children: [
                     const Expanded(
                       child: Text(
-                        'Yearly review date',
+                        'Yearly',
                         style: TextStyle(fontWeight: FontWeight.w800),
                       ),
                     ),
@@ -253,63 +262,68 @@ class _RemindersPane extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
-        Card(
-          elevation: 0,
-          color: AppTheme.slate50,
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Text('What shows on Home', style: TextStyle(fontWeight: FontWeight.w900)),
-                const SizedBox(height: 6),
-                Text(
-                  'Only items that are out of date show up as action cards. Nothing else moves onto Home.',
-                  style: TextStyle(color: AppTheme.slate600),
-                ),
-              ],
-            ),
-          ),
-        ),
+        const SizedBox.shrink(),
       ],
     );
   }
 }
 
-class _AgentsPane extends StatelessWidget {
+class _AgentsPane extends StatefulWidget {
   const _AgentsPane({required this.model});
 
   final AppModel model;
 
   @override
+  State<_AgentsPane> createState() => _AgentsPaneState();
+}
+
+class _AgentsPaneState extends State<_AgentsPane> {
+  final _searchCtrl = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final model = widget.model;
+    final q = _query.trim().toLowerCase();
+    final filtered = q.isEmpty
+        ? model.agents
+        : model.agents.where((a) {
+            final hay = '${a.name}\n${a.description}\n${a.systemPrompt}\n${a.contextMarkdown}'.toLowerCase();
+            return hay.contains(q);
+          }).toList();
+
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Text('Agents', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
-                const SizedBox(height: 6),
-                const Text(
-                  'Agents can use app context plus your custom JSON (e.g. stocks, mutual funds). Permissions/tools will be enforced later — for now this is UI-only.',
-                  style: TextStyle(color: AppTheme.slate600),
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _searchCtrl,
+                decoration: const InputDecoration(
+                  hintText: 'Search',
+                  isDense: true,
+                  border: OutlineInputBorder(),
                 ),
-                const SizedBox(height: 12),
-                FilledButton.icon(
-                  onPressed: () => _openAgentEditor(context),
-                  icon: const Icon(Icons.add),
-                  label: const Text('Create agent'),
-                ),
-              ],
+                onChanged: (v) => setState(() => _query = v),
+              ),
             ),
-          ),
+            const SizedBox(width: 10),
+            FilledButton.icon(
+              onPressed: () => _openAgentEditor(context),
+              icon: const Icon(Icons.add),
+              label: const Text('Create'),
+            ),
+          ],
         ),
         const SizedBox(height: 12),
-        ...model.agents.asMap().entries.map((e) {
+        ...filtered.asMap().entries.map((e) {
           final i = e.key;
           final a = e.value;
           return Padding(
@@ -322,16 +336,6 @@ class _AgentsPane extends StatelessWidget {
                   padding: const EdgeInsets.all(14),
                   child: Row(
                     children: [
-                      Container(
-                        width: 44,
-                        height: 44,
-                        decoration: BoxDecoration(
-                          color: model.accent.withValues(alpha: 0.12),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Icon(Icons.smart_toy, color: model.accent),
-                      ),
-                      const SizedBox(width: 12),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -360,6 +364,7 @@ class _AgentsPane extends StatelessWidget {
   }
 
   Future<void> _openAgentEditor(BuildContext context, {int? index}) async {
+    final model = widget.model;
     final isNew = index == null;
     final draft = isNew
         ? AppAgent(
@@ -403,21 +408,73 @@ class _PermissionsPane extends StatefulWidget {
 }
 
 class _PermissionsPaneState extends State<_PermissionsPane> {
-  var _showKey = false;
+  late final TextEditingController _openAiCtrl;
+  late final TextEditingController _anthropicCtrl;
+  late final TextEditingController _geminiCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    final m = widget.model;
+    _openAiCtrl = TextEditingController(text: m.openAiApiKey ?? '');
+    _anthropicCtrl = TextEditingController(text: m.anthropicApiKey ?? '');
+    _geminiCtrl = TextEditingController(text: m.geminiApiKey ?? '');
+  }
+
+  @override
+  void dispose() {
+    _openAiCtrl.dispose();
+    _anthropicCtrl.dispose();
+    _geminiCtrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     final m = widget.model;
-    final provider = m.activeLlmProvider;
-    final key = m.apiKeyFor(provider) ?? '';
 
-    String providerLabel(LlmProvider p) => switch (p) {
-          LlmProvider.openai => 'OpenAI',
-          LlmProvider.anthropic => 'Anthropic',
-          LlmProvider.gemini => 'Gemini',
-        };
+    Future<void> openExternal(String url) async {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Opening…'), behavior: SnackBarBehavior.floating, duration: Duration(milliseconds: 900)),
+      );
+      try {
+        final uri = Uri.parse(url);
+        final ok = await launchUrl(uri, mode: LaunchMode.platformDefault);
+        if (!ok && context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Could not open $url'), behavior: SnackBarBehavior.floating),
+          );
+        }
+      } catch (e) {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Open failed: $e'), behavior: SnackBarBehavior.floating),
+        );
+      }
+    }
 
-    final modelName = m.modelFor(provider);
+    Future<void> pasteKey({
+      required TextEditingController controller,
+      required LlmProvider provider,
+    }) async {
+      final data = await Clipboard.getData(Clipboard.kTextPlain);
+      final text = data?.text?.trim();
+      if (text == null || text.isEmpty) {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Clipboard is empty'), behavior: SnackBarBehavior.floating),
+        );
+        return;
+      }
+      controller.text = text;
+      controller.selection = TextSelection.collapsed(offset: controller.text.length);
+      m.setApiKey(provider: provider, key: text);
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Pasted'), behavior: SnackBarBehavior.floating, duration: Duration(milliseconds: 800)),
+      );
+    }
 
     return ListView(
       padding: const EdgeInsets.all(20),
@@ -428,99 +485,94 @@ class _PermissionsPaneState extends State<_PermissionsPane> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text('Permissions', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
-                const SizedBox(height: 6),
-                const Text(
-                  'Add API keys for chat (and later agents). Keys stay on-device for now (UI-only).',
-                  style: TextStyle(color: AppTheme.slate600),
-                ),
-                const SizedBox(height: 12),
-                SegmentedButton<LlmProvider>(
-                  segments: [
-                    ButtonSegment(value: LlmProvider.openai, label: Text(providerLabel(LlmProvider.openai))),
-                    ButtonSegment(value: LlmProvider.anthropic, label: Text(providerLabel(LlmProvider.anthropic))),
-                    ButtonSegment(value: LlmProvider.gemini, label: Text(providerLabel(LlmProvider.gemini))),
-                  ],
-                  selected: {provider},
-                  onSelectionChanged: (s) => m.setActiveLlmProvider(s.first),
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  initialValue: key,
-                  obscureText: !_showKey,
-                  onChanged: (v) => m.setApiKey(provider: provider, key: v),
+                TextField(
+                  controller: _openAiCtrl,
+                  obscureText: false,
+                  keyboardType: TextInputType.visiblePassword,
+                  autocorrect: false,
+                  enableSuggestions: false,
+                  smartDashesType: SmartDashesType.disabled,
+                  smartQuotesType: SmartQuotesType.disabled,
+                  onChanged: (v) => m.setApiKey(provider: LlmProvider.openai, key: v),
                   decoration: InputDecoration(
-                    labelText: '${providerLabel(provider)} API key',
+                    labelText: 'OpenAI API key',
                     border: const OutlineInputBorder(),
-                    suffixIcon: IconButton(
-                      onPressed: () => setState(() => _showKey = !_showKey),
-                      icon: Icon(_showKey ? Icons.visibility_off_outlined : Icons.visibility_outlined),
-                      tooltip: _showKey ? 'Hide' : 'Show',
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Text('Chat defaults', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
-                const SizedBox(height: 10),
-                TextFormField(
-                  initialValue: modelName,
-                  onChanged: (v) => m.setModelFor(provider, v),
-                  decoration: const InputDecoration(
-                    labelText: 'Model',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                ExpansionTile(
-                  tilePadding: EdgeInsets.zero,
-                  title: const Text('More', style: TextStyle(fontWeight: FontWeight.w800)),
-                  subtitle: const Text('Optional tuning', style: TextStyle(color: AppTheme.slate600)),
-                  children: [
-                    Row(
+                    suffixIcon: Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Expanded(
-                          child: Text('Temperature', style: TextStyle(fontWeight: FontWeight.w800)),
+                        IconButton(
+                          tooltip: 'Paste',
+                          onPressed: () => pasteKey(controller: _openAiCtrl, provider: LlmProvider.openai),
+                          icon: const Icon(Icons.content_paste_outlined),
                         ),
-                        Text(m.temperature.toStringAsFixed(2), style: const TextStyle(color: AppTheme.slate600)),
+                        IconButton(
+                          tooltip: 'Get key',
+                          onPressed: () => openExternal('https://platform.openai.com/api-keys'),
+                          icon: const Icon(Icons.open_in_new),
+                        ),
                       ],
                     ),
-                    Slider(
-                      min: 0,
-                      max: 1,
-                      divisions: 20,
-                      value: m.temperature,
-                      onChanged: m.setTemperature,
-                    ),
-                  ],
+                  ),
                 ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
-        Card(
-          elevation: 0,
-          color: AppTheme.slate50,
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: const [
-                Text('Coming soon', style: TextStyle(fontWeight: FontWeight.w900)),
-                SizedBox(height: 6),
-                Text(
-                  'Share app data to external users via a token (UI-only for now).',
-                  style: TextStyle(color: AppTheme.slate600),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _anthropicCtrl,
+                  obscureText: false,
+                  keyboardType: TextInputType.visiblePassword,
+                  autocorrect: false,
+                  enableSuggestions: false,
+                  smartDashesType: SmartDashesType.disabled,
+                  smartQuotesType: SmartQuotesType.disabled,
+                  onChanged: (v) => m.setApiKey(provider: LlmProvider.anthropic, key: v),
+                  decoration: InputDecoration(
+                    labelText: 'Anthropic API key',
+                    border: const OutlineInputBorder(),
+                    suffixIcon: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          tooltip: 'Paste',
+                          onPressed: () => pasteKey(controller: _anthropicCtrl, provider: LlmProvider.anthropic),
+                          icon: const Icon(Icons.content_paste_outlined),
+                        ),
+                        IconButton(
+                          tooltip: 'Get key',
+                          onPressed: () => openExternal('https://console.anthropic.com/settings/keys'),
+                          icon: const Icon(Icons.open_in_new),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _geminiCtrl,
+                  obscureText: false,
+                  keyboardType: TextInputType.visiblePassword,
+                  autocorrect: false,
+                  enableSuggestions: false,
+                  smartDashesType: SmartDashesType.disabled,
+                  smartQuotesType: SmartQuotesType.disabled,
+                  onChanged: (v) => m.setApiKey(provider: LlmProvider.gemini, key: v),
+                  decoration: InputDecoration(
+                    labelText: 'Gemini API key',
+                    border: const OutlineInputBorder(),
+                    suffixIcon: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          tooltip: 'Paste',
+                          onPressed: () => pasteKey(controller: _geminiCtrl, provider: LlmProvider.gemini),
+                          icon: const Icon(Icons.content_paste_outlined),
+                        ),
+                        IconButton(
+                          tooltip: 'Get key',
+                          onPressed: () => openExternal('https://aistudio.google.com/app/apikey'),
+                          icon: const Icon(Icons.open_in_new),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -757,11 +809,6 @@ class _AgentEditorSheetState extends State<_AgentEditorSheet> {
                 ),
               );
             }),
-            const SizedBox(height: 2),
-            const Text(
-              'Write access is UI-only for now (enforcement later).',
-              style: TextStyle(color: AppTheme.slate600, fontSize: 12),
-            ),
             const SizedBox(height: 12),
             TextField(
               controller: _mdCtrl,

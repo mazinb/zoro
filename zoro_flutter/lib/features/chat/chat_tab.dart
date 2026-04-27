@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/state/app_model.dart';
+import '../../core/state/monthly_cashflow_entry.dart';
 import '../../shared/theme/app_theme.dart';
 
 class ChatTab extends StatefulWidget {
@@ -35,97 +36,51 @@ class _ChatTabState extends State<ChatTab> {
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
               ),
               const Spacer(),
-              if (!hasKey)
-                FilledButton.icon(
-                  onPressed: widget.onGoToSettingsPermissions,
-                  icon: const Icon(Icons.key),
-                  label: const Text('Add key'),
-                )
-              else
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: AppTheme.slate50,
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(color: AppTheme.slate100),
-                  ),
-                  child: Text(
-                    'Provider: ${widget.model.activeLlmProvider.name}',
-                    style: const TextStyle(color: AppTheme.slate600, fontWeight: FontWeight.w800, fontSize: 12),
-                  ),
-                ),
+              FilledButton.icon(
+                onPressed: hasKey ? null : widget.onGoToSettingsPermissions,
+                icon: const Icon(Icons.key),
+                label: const Text('Add key'),
+              ),
+              const SizedBox(width: 10),
+              FilledButton.icon(
+                onPressed: () async {
+                  final agentId = await _pickAgent(context, widget.model);
+                  if (agentId == null) return;
+                  final agent = widget.model.agents.firstWhere((a) => a.id == agentId);
+                  final now = DateTime.now();
+                  final thread = AgentChatThread(
+                    id: 'chat-${now.microsecondsSinceEpoch}',
+                    agentId: agentId,
+                    title: agent.name,
+                    createdAt: now,
+                    updatedAt: now,
+                    messageCount: 0,
+                    tokensUsed: 0,
+                    lastLine: '',
+                  );
+                  widget.model.addChat(thread);
+                  if (!context.mounted) return;
+                  Navigator.of(context).push<void>(
+                    MaterialPageRoute(
+                      builder: (ctx) => _ChatThreadPage(
+                        model: widget.model,
+                        threadId: thread.id,
+                        onNoKey: widget.toastGoToSettingsPermissions,
+                      ),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.add_comment),
+                label: const Text('New'),
+              ),
             ],
           ),
         ),
         const SizedBox(height: 10),
-        if (!hasKey)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const Text('Chat is disabled', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
-                    const SizedBox(height: 6),
-                    const Text(
-                      'Add an OpenAI, Anthropic, or Gemini key in Settings → Permissions.',
-                      style: TextStyle(color: AppTheme.slate600),
-                    ),
-                    const SizedBox(height: 12),
-                    FilledButton(
-                      onPressed: widget.onGoToSettingsPermissions,
-                      child: const Text('Open Permissions'),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        const SizedBox(height: 8),
         Expanded(
           child: ListView(
             padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
             children: [
-              Row(
-                children: [
-                  const Expanded(
-                    child: Text('Chats', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
-                  ),
-                  FilledButton.icon(
-                    onPressed: () async {
-                      final agentId = await _pickAgent(context, widget.model);
-                      if (agentId == null) return;
-                      final agent = widget.model.agents.firstWhere((a) => a.id == agentId);
-                      final now = DateTime.now();
-                      final thread = AgentChatThread(
-                        id: 'chat-${now.microsecondsSinceEpoch}',
-                        agentId: agentId,
-                        title: 'New chat • ${agent.name}',
-                        createdAt: now,
-                        updatedAt: now,
-                        messageCount: 0,
-                        tokensUsed: 0,
-                      );
-                      widget.model.addChat(thread);
-                      if (!context.mounted) return;
-                      Navigator.of(context).push<void>(
-                        MaterialPageRoute(
-                          builder: (ctx) => _ChatThreadPage(
-                            model: widget.model,
-                            threadId: thread.id,
-                            onNoKey: widget.toastGoToSettingsPermissions,
-                          ),
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.add_comment),
-                    label: const Text('New'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
               if (chats.isEmpty)
                 Card(
                   elevation: 0,
@@ -166,35 +121,33 @@ class _ChatTabState extends State<ChatTab> {
                           padding: const EdgeInsets.all(14),
                           child: Row(
                             children: [
-                              Container(
-                                width: 44,
-                                height: 44,
-                                decoration: BoxDecoration(
-                                  color: widget.model.accent.withValues(alpha: 0.12),
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Icon(Icons.smart_toy, color: widget.model.accent),
-                              ),
-                              const SizedBox(width: 12),
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(t.title, style: const TextStyle(fontWeight: FontWeight.w900)),
-                                    const SizedBox(height: 2),
                                     Text(
-                                      agentName,
-                                      style: const TextStyle(color: AppTheme.slate600, fontWeight: FontWeight.w700),
+                                      t.title,
+                                      style: const TextStyle(fontWeight: FontWeight.w900),
                                     ),
-                                    const SizedBox(height: 6),
                                     Text(
-                                      '${t.messageCount} msgs • ${t.tokensUsed} tokens',
-                                      style: const TextStyle(color: AppTheme.slate500, fontSize: 12, fontWeight: FontWeight.w700),
+                                      (t.lastLine.trim().isEmpty ? agentName : t.lastLine),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(color: AppTheme.slate600, fontWeight: FontWeight.w700),
                                     ),
                                   ],
                                 ),
                               ),
-                              const Icon(Icons.chevron_right, color: AppTheme.slate500),
+                              PopupMenuButton<String>(
+                                onSelected: (v) {
+                                  if (v == 'delete') {
+                                    widget.model.removeChatById(t.id);
+                                  }
+                                },
+                                itemBuilder: (ctx) => const [
+                                  PopupMenuItem(value: 'delete', child: Text('Delete')),
+                                ],
+                              ),
                             ],
                           ),
                         ),
@@ -268,6 +221,10 @@ class _ChatThreadPage extends StatefulWidget {
 class _ChatThreadPageState extends State<_ChatThreadPage> {
   final _ctrl = TextEditingController();
   final _messages = <({bool fromUser, String text})>[];
+  var _includeAssets = true;
+  var _includeLiabilities = true;
+  var _includeExpenseBuckets = true;
+  var _includeMonths = true;
 
   @override
   void dispose() {
@@ -284,7 +241,7 @@ class _ChatThreadPageState extends State<_ChatThreadPage> {
     }
     setState(() {
       _messages.add((fromUser: true, text: text));
-      _messages.add((fromUser: false, text: 'UI-only: agent response will be wired later.'));
+      _messages.add((fromUser: false, text: 'Not wired yet: AI response. (Next step)'));
     });
     _ctrl.clear();
     final idx = widget.model.chats.indexWhere((t) => t.id == widget.threadId);
@@ -293,20 +250,135 @@ class _ChatThreadPageState extends State<_ChatThreadPage> {
       t.updatedAt = DateTime.now();
       t.messageCount += 2;
       t.tokensUsed += 200; // placeholder
+      t.lastLine = text;
       widget.model.updateChat(idx, t);
     }
   }
 
-  bool _canUse(AppAgent agent, AgentDomain domain, AgentAccess access) {
-    return agent.permissions.contains(AgentPermission(domain: domain, access: access));
+  String _buildContextBundle() {
+    final m = widget.model;
+    final buf = StringBuffer();
+    buf.writeln('## Context bundle');
+
+    if (_includeAssets) {
+      final items = m.assets
+          .map((a) => a.contextMarkdown ?? '')
+          .map((s) => s.trim())
+          .where((s) => s.isNotEmpty)
+          .toList();
+      if (items.isNotEmpty) {
+        buf.writeln('\n### Assets');
+        for (final it in items) {
+          buf.writeln('\n$it');
+        }
+      }
+    }
+
+    if (_includeLiabilities) {
+      final items = m.liabilities
+          .map((l) => l.contextMarkdown ?? '')
+          .map((s) => s.trim())
+          .where((s) => s.isNotEmpty)
+          .toList();
+      if (items.isNotEmpty) {
+        buf.writeln('\n### Liabilities');
+        for (final it in items) {
+          buf.writeln('\n$it');
+        }
+      }
+    }
+
+    if (_includeExpenseBuckets) {
+      final items = m.expenseBucketContextMarkdown.entries
+          .map((e) => e.value.trim())
+          .where((s) => s.isNotEmpty)
+          .toList();
+      if (items.isNotEmpty) {
+        buf.writeln('\n### Expense buckets');
+        for (final it in items) {
+          buf.writeln('\n$it');
+        }
+      }
+    }
+
+    if (_includeMonths) {
+      final items = AppModel.recentMonthKeys()
+          .map(m.monthlyEntryFor)
+          .whereType<MonthlyCashflowEntry>()
+          .map((e) => (e.contextMarkdown ?? '').trim())
+          .where((s) => s.isNotEmpty)
+          .toList();
+      if (items.isNotEmpty) {
+        buf.writeln('\n### Months');
+        for (final it in items) {
+          buf.writeln('\n$it');
+        }
+      }
+    }
+
+    return buf.toString().trim();
   }
 
-  void _toolDeniedToast() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Tool not enabled for this agent. Edit tools in Settings → Agents.'),
-        behavior: SnackBarBehavior.floating,
-      ),
+  Future<void> _attachContext() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) {
+        return Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text('Attach context', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+              const SizedBox(height: 8),
+              StatefulBuilder(
+                builder: (ctx, setModal) {
+                  return Column(
+                    children: [
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Assets'),
+                        value: _includeAssets,
+                        onChanged: (v) => setModal(() => _includeAssets = v),
+                      ),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Liabilities'),
+                        value: _includeLiabilities,
+                        onChanged: (v) => setModal(() => _includeLiabilities = v),
+                      ),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Expense buckets'),
+                        value: _includeExpenseBuckets,
+                        onChanged: (v) => setModal(() => _includeExpenseBuckets = v),
+                      ),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Months'),
+                        value: _includeMonths,
+                        onChanged: (v) => setModal(() => _includeMonths = v),
+                      ),
+                    ],
+                  );
+                },
+              ),
+              const SizedBox(height: 10),
+              FilledButton(
+                onPressed: () {
+                  final md = _buildContextBundle();
+                  setState(() {
+                    _messages.add((fromUser: false, text: md));
+                  });
+                  Navigator.of(ctx).pop();
+                },
+                child: const Text('Attach'),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -317,6 +389,40 @@ class _ChatThreadPageState extends State<_ChatThreadPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text(t.title),
+        actions: [
+          IconButton(
+            tooltip: 'Attach context',
+            onPressed: _attachContext,
+            icon: const Icon(Icons.library_add),
+          ),
+          PopupMenuButton<String>(
+            onSelected: (v) {
+              if (v == 'clear') {
+                setState(() => _messages.clear());
+                final idx = widget.model.chats.indexWhere((x) => x.id == widget.threadId);
+                if (idx >= 0) {
+                  final next = widget.model.chats[idx].clone();
+                  next.messageCount = 0;
+                  next.tokensUsed = 0;
+                  next.lastLine = '';
+                  next.updatedAt = DateTime.now();
+                  widget.model.updateChat(idx, next);
+                }
+              }
+              if (v == 'delete') {
+                final idx = widget.model.chats.indexWhere((x) => x.id == widget.threadId);
+                if (idx >= 0) {
+                  widget.model.removeChatById(widget.threadId);
+                }
+                Navigator.of(context).pop();
+              }
+            },
+            itemBuilder: (ctx) => const [
+              PopupMenuItem(value: 'clear', child: Text('Clear chat')),
+              PopupMenuItem(value: 'delete', child: Text('Delete chat')),
+            ],
+          ),
+        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(28),
           child: Padding(
@@ -330,85 +436,6 @@ class _ChatThreadPageState extends State<_ChatThreadPage> {
       ),
       body: Column(
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 12, 14, 0),
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _ToolChip(
-                  icon: Icons.pie_chart_outline,
-                  label: 'Expenses',
-                  onTap: () {
-                    if (!_canUse(agent, AgentDomain.expenses, AgentAccess.read)) {
-                      _toolDeniedToast();
-                      Navigator.of(context).pop();
-                      return;
-                    }
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('UI-only: would attach expense context.'), behavior: SnackBarBehavior.floating),
-                    );
-                  },
-                ),
-                _ToolChip(
-                  icon: Icons.swap_vert,
-                  label: 'Cash flow',
-                  onTap: () {
-                    if (!_canUse(agent, AgentDomain.cashflow, AgentAccess.read)) {
-                      _toolDeniedToast();
-                      Navigator.of(context).pop();
-                      return;
-                    }
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('UI-only: would attach cash flow context.'), behavior: SnackBarBehavior.floating),
-                    );
-                  },
-                ),
-                _ToolChip(
-                  icon: Icons.payments_outlined,
-                  label: 'Income',
-                  onTap: () {
-                    if (!_canUse(agent, AgentDomain.income, AgentAccess.read)) {
-                      _toolDeniedToast();
-                      Navigator.of(context).pop();
-                      return;
-                    }
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('UI-only: would attach income context.'), behavior: SnackBarBehavior.floating),
-                    );
-                  },
-                ),
-                _ToolChip(
-                  icon: Icons.savings_outlined,
-                  label: 'Assets',
-                  onTap: () {
-                    if (!_canUse(agent, AgentDomain.assets, AgentAccess.read)) {
-                      _toolDeniedToast();
-                      Navigator.of(context).pop();
-                      return;
-                    }
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('UI-only: would attach assets context.'), behavior: SnackBarBehavior.floating),
-                    );
-                  },
-                ),
-                _ToolChip(
-                  icon: Icons.credit_card,
-                  label: 'Liabilities',
-                  onTap: () {
-                    if (!_canUse(agent, AgentDomain.liabilities, AgentAccess.read)) {
-                      _toolDeniedToast();
-                      Navigator.of(context).pop();
-                      return;
-                    }
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('UI-only: would attach liabilities context.'), behavior: SnackBarBehavior.floating),
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
           Expanded(
             child: ListView.builder(
               padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
@@ -458,38 +485,6 @@ class _ChatThreadPageState extends State<_ChatThreadPage> {
             ),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _ToolChip extends StatelessWidget {
-  const _ToolChip({required this.icon, required this.label, required this.onTap});
-
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(999),
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        decoration: BoxDecoration(
-          color: AppTheme.slate50,
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(color: AppTheme.slate100),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 16, color: AppTheme.slate600),
-            const SizedBox(width: 6),
-            Text(label, style: const TextStyle(color: AppTheme.slate600, fontWeight: FontWeight.w900, fontSize: 12)),
-          ],
-        ),
       ),
     );
   }

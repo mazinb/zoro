@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 /// Canonical currencies supported for asset valuation in the UI mock.
@@ -134,7 +133,7 @@ String formatCurrencyCompactShort(double amount, {required CurrencyCode currency
 
   String withSign(String s) => neg ? '-$s' : s;
 
-  String _fmtUnit(double v) {
+  String fmtUnit(double v) {
     // Keep it readable on small screens:
     // - 2.3K (1 decimal) when < 10
     // - 17K / 276K (0 decimals) when >= 10
@@ -145,23 +144,23 @@ String formatCurrencyCompactShort(double amount, {required CurrencyCode currency
   switch (currency) {
     case CurrencyCode.inr:
       if (a >= 10000000) {
-        return withSign('₹${_fmtUnit(a / 10000000)}C');
+        return withSign('₹${fmtUnit(a / 10000000)}C');
       }
       if (a >= 100000) {
-        return withSign('₹${_fmtUnit(a / 100000)}L');
+        return withSign('₹${fmtUnit(a / 100000)}L');
       }
       return withSign('₹${_formatEnInInteger(a.round())}');
     case CurrencyCode.usd:
     case CurrencyCode.thb:
       final sym = currency.symbol;
       if (a >= 1000000000) {
-        return withSign('$sym${_fmtUnit(a / 1000000000)}B');
+        return withSign('$sym${fmtUnit(a / 1000000000)}B');
       }
       if (a >= 1000000) {
-        return withSign('$sym${_fmtUnit(a / 1000000)}M');
+        return withSign('$sym${fmtUnit(a / 1000000)}M');
       }
       if (a >= 1000) {
-        return withSign('$sym${_fmtUnit(a / 1000)}K');
+        return withSign('$sym${fmtUnit(a / 1000)}K');
       }
       return withSign('$sym${_formatEnUsInteger(a.round())}');
   }

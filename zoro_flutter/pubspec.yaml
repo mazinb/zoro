@@ -16,6 +16,7 @@ dependencies:
   flutter_svg: ^2.2.3
   file_picker: ^10.3.8
   sankey_flutter: ^0.0.3
+  url_launcher: ^6.3.2
 
 dev_dependencies:
   flutter_test:

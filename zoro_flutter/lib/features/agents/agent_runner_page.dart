@@ -147,12 +147,12 @@ class _AgentRunnerPageState extends State<AgentRunnerPage> {
       case AgentTargetKind.asset:
         final a = _assetId == null ? null : m.assetById(_assetId!);
         if (a == null) return;
-        final existing = a.contextMarkdown.trim();
+        final existing = (a.contextMarkdown ?? '').trim();
         _mdCtrl.text = existing.isNotEmpty ? existing : _defaultContextForAsset(a);
       case AgentTargetKind.liability:
         final l = _liabilityId == null ? null : m.liabilityById(_liabilityId!);
         if (l == null) return;
-        final existing = l.contextMarkdown.trim();
+        final existing = (l.contextMarkdown ?? '').trim();
         _mdCtrl.text = existing.isNotEmpty ? existing : _defaultContextForLiability(l);
       case AgentTargetKind.month:
         final mk = _monthKey;
@@ -212,7 +212,7 @@ class _AgentRunnerPageState extends State<AgentRunnerPage> {
       switch (template.targetKind) {
         case AgentTargetKind.asset:
           return DropdownButtonFormField<String>(
-            value: _assetId,
+            initialValue: _assetId,
             decoration: const InputDecoration(labelText: 'Asset', border: OutlineInputBorder()),
             items: [
               for (final a in m.assets)
@@ -228,7 +228,7 @@ class _AgentRunnerPageState extends State<AgentRunnerPage> {
           );
         case AgentTargetKind.liability:
           return DropdownButtonFormField<String>(
-            value: _liabilityId,
+            initialValue: _liabilityId,
             decoration: const InputDecoration(labelText: 'Liability', border: OutlineInputBorder()),
             items: [
               for (final l in m.liabilities)
@@ -244,7 +244,7 @@ class _AgentRunnerPageState extends State<AgentRunnerPage> {
           );
         case AgentTargetKind.month:
           return DropdownButtonFormField<String>(
-            value: _monthKey,
+            initialValue: _monthKey,
             decoration: const InputDecoration(labelText: 'Month', border: OutlineInputBorder()),
             items: [
               for (final mk in months) DropdownMenuItem(value: mk, child: Text(AppModel.formatMonthKeyLabel(mk))),

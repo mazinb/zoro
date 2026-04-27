@@ -6,7 +6,7 @@ class MonthlyCashflowEntry {
     required this.outflowToInvested,
     this.monthlySpending = 0,
     this.comment = '',
-    this.contextMarkdown = '',
+    this.contextMarkdown,
   });
 
   final String monthKey;
@@ -23,5 +23,5 @@ class MonthlyCashflowEntry {
   String comment;
 
   /// Optional context that agents can build up over time for this month.
-  String contextMarkdown;
+  String? contextMarkdown;
 }

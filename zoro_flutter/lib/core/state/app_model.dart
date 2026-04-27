@@ -126,6 +126,7 @@ Blunt + prioritized actions.
       updatedAt: DateTime(2026, 4, 27, 10, 45),
       messageCount: 14,
       tokensUsed: 8200,
+      lastLine: 'Cut top 2 buckets; automate investing.',
     ),
     AgentChatThread(
       id: 'chat-2',
@@ -135,6 +136,7 @@ Blunt + prioritized actions.
       updatedAt: DateTime(2026, 4, 25, 20, 40),
       messageCount: 8,
       tokensUsed: 6100,
+      lastLine: 'Target 25× expenses; raise savings rate.',
     ),
   ];
 
@@ -163,7 +165,8 @@ Blunt + prioritized actions.
 
   /// Quarterly reminders use quarter-end dates by default:
   /// Mar 31, Jun 30, Sep 30, Dec 31 (anchored to "end of March").
-  bool remindersUseQuarterEnds = true;
+  int remindersQuarterMonthInQuarter = 3;
+  int remindersQuarterDay = 31;
 
   /// Yearly reminders are due on this month/day (default: Mar 31).
   int remindersYearlyMonth = 3;
@@ -185,7 +188,17 @@ Blunt + prioritized actions.
       total: 9500000,
       label: '',
       comment: '',
-      contextMarkdown: '',
+      contextMarkdown: '''## Bangkok Condo
+
+### Details
+- City: Bangkok
+- Ownership: 100%
+- Valuation: conservative estimate (not an appraisal)
+- Notes: primary residence; not intended for sale
+
+### Update cadence
+- Review quarterly or after major renovations
+''',
     ),
     LedgerAssetRow(
       id: newLedgerRowId('a'),
@@ -195,7 +208,24 @@ Blunt + prioritized actions.
       total: 350000,
       label: '',
       comment: '',
-      contextMarkdown: '',
+      contextMarkdown: '''## US Brokerage
+
+### Platform
+- Broker: (mock) Fidelity
+- Account currency: USD
+
+### Major holdings (mock)
+- VTI (Total US) — \$140k
+- VXUS (Intl ex-US) — \$60k
+- QQQ (Nasdaq) — \$45k
+- BND (Bonds) — \$35k
+- Cash — \$20k
+- Misc/other — \$50k
+
+### Notes
+- Goal: broad diversification; avoid single-stock concentration
+- Update cadence: monthly (or after large deposits/withdrawals)
+''',
     ),
     LedgerAssetRow(
       id: newLedgerRowId('a'),
@@ -205,7 +235,22 @@ Blunt + prioritized actions.
       total: 2000000,
       label: '',
       comment: '',
-      contextMarkdown: '',
+      contextMarkdown: '''## India Index Fund
+
+### Platform
+- Platform: (mock) Groww / Zerodha
+- Account currency: INR
+
+### Composition (mock)
+- Nifty 50 index fund — ₹12.5L
+- Nifty Next 50 — ₹4.0L
+- Nifty Midcap 150 — ₹2.0L
+- Cash — ₹1.5L
+
+### Notes
+- Goal: long-term accumulation; rebalance yearly
+- Update cadence: monthly
+''',
     ),
     LedgerAssetRow(
       id: newLedgerRowId('a'),
@@ -215,7 +260,16 @@ Blunt + prioritized actions.
       total: 1500000,
       label: '',
       comment: '',
-      contextMarkdown: '',
+      contextMarkdown: '''## Thai Cash
+
+### Purpose
+- Emergency fund + near-term expenses
+- Buffer for quarterly expenses
+
+### Notes
+- Keep ~6 months runway in cash/FDs
+- Update cadence: monthly
+''',
     ),
   ];
 
@@ -227,7 +281,18 @@ Blunt + prioritized actions.
       currencyCountry: 'Thailand',
       total: 4200000,
       comment: '',
-      contextMarkdown: '',
+      contextMarkdown: '''## Condo mortgage
+
+### Terms (mock)
+- Lender: Bangkok Bank
+- Rate: 6.25% (variable)
+- Remaining term: 18 years
+- Payment: ฿34,500 / month
+- Next rate reset: yearly
+
+### Notes
+- Prioritize keeping payment < 25% of monthly net income
+''',
     ),
     LedgerLiabilityRow(
       id: newLedgerRowId('l'),
@@ -236,7 +301,17 @@ Blunt + prioritized actions.
       currencyCountry: 'Thailand',
       total: 750000,
       comment: '',
-      contextMarkdown: '',
+      contextMarkdown: '''## Car loan
+
+### Terms (mock)
+- Lender: Toyota Leasing
+- Rate: 3.10% fixed
+- Remaining term: 3 years
+- Payment: ฿22,000 / month
+
+### Notes
+- Keep as scheduled; prepay only if cash cushion is strong
+''',
     ),
   ];
 
@@ -261,6 +336,11 @@ Blunt + prioritized actions.
   /// Expenses (mirrors web buckets). Amounts are interpreted in [displayCurrency] for display/FX.
   late Map<String, double> expenseBuckets = {
     for (final k in expenseBucketKeys) k: presetForCountry(expensePresetCountry).buckets[k]!.value,
+  };
+
+  /// Optional context per expense bucket key (UI-only).
+  Map<String, String> expenseBucketContextMarkdown = {
+    for (final k in expenseBucketKeys) k: '',
   };
 
   /// Last time income figures were meaningfully updated (shown in Ledger).
@@ -341,6 +421,25 @@ Blunt + prioritized actions.
 
   void addChat(AgentChatThread t) {
     chats.add(t);
+    notifyListeners();
+  }
+
+  void removeChatById(String id) {
+    final idx = chats.indexWhere((t) => t.id == id);
+    if (idx < 0) return;
+    chats.removeAt(idx);
+    notifyListeners();
+  }
+
+  void clearChatById(String id) {
+    final idx = chats.indexWhere((t) => t.id == id);
+    if (idx < 0) return;
+    final t = chats[idx].clone();
+    t.updatedAt = DateTime.now();
+    t.messageCount = 0;
+    t.tokensUsed = 0;
+    t.lastLine = '';
+    chats[idx] = t;
     notifyListeners();
   }
 
@@ -438,8 +537,16 @@ Blunt + prioritized actions.
   }
 
   void setRemindersUseQuarterEnds(bool v) {
-    if (remindersUseQuarterEnds == v) return;
-    remindersUseQuarterEnds = v;
+    // Deprecated (UI no longer exposes quarter-end toggle).
+    notifyListeners();
+  }
+
+  void setRemindersQuarterlySchedule({required int monthInQuarter, required int day}) {
+    final m = monthInQuarter.clamp(1, 3);
+    final d = day.clamp(1, 31);
+    if (remindersQuarterMonthInQuarter == m && remindersQuarterDay == d) return;
+    remindersQuarterMonthInQuarter = m;
+    remindersQuarterDay = d;
     notifyListeners();
   }
 
@@ -576,6 +683,11 @@ Blunt + prioritized actions.
     notifyListeners();
   }
 
+  void setExpenseBucketContextMarkdown({required String bucketKey, required String markdown}) {
+    expenseBucketContextMarkdown = {...expenseBucketContextMarkdown, bucketKey: markdown};
+    notifyListeners();
+  }
+
   double actualSpendForMonth(String monthKey) {
     return monthlyEntryFor(monthKey)?.monthlySpending ?? 0;
   }
@@ -629,20 +741,21 @@ Blunt + prioritized actions.
     notifyListeners();
   }
 
-  DateTime _quarterEndFor(int year, int quarter) {
-    final endMonth = switch (quarter) { 1 => 3, 2 => 6, 3 => 9, _ => 12 };
-    // Last day of month.
-    final lastDay = DateTime(year, endMonth + 1, 0).day;
-    return DateTime(year, endMonth, lastDay);
+  DateTime _quarterlyAnchorFor(int year, int quarter) {
+    final startMonth = ((quarter - 1) * 3) + 1;
+    final month = startMonth + (remindersQuarterMonthInQuarter.clamp(1, 3) - 1);
+    final maxDay = DateTime(year, month + 1, 0).day;
+    final day = remindersQuarterDay.clamp(1, maxDay);
+    return DateTime(year, month, day);
   }
 
-  DateTime _mostRecentQuarterEnd(DateTime now) {
+  DateTime _mostRecentQuarterlyAnchor(DateTime now) {
     final q = ((now.month - 1) ~/ 3) + 1;
-    final thisEnd = _quarterEndFor(now.year, q);
-    if (!now.isBefore(thisEnd.add(const Duration(days: 1)))) return thisEnd;
+    final thisAnchor = _quarterlyAnchorFor(now.year, q);
+    if (!now.isBefore(thisAnchor)) return thisAnchor;
     final prevQ = q == 1 ? 4 : (q - 1);
     final prevY = q == 1 ? (now.year - 1) : now.year;
-    return _quarterEndFor(prevY, prevQ);
+    return _quarterlyAnchorFor(prevY, prevQ);
   }
 
   DateTime _mostRecentYearlyAnchor(DateTime now) {
@@ -665,12 +778,7 @@ Blunt + prioritized actions.
         final startOfMonth = DateTime(now.year, now.month, 1);
         return last == null || last.isBefore(startOfMonth);
       case ReminderCadence.quarterly:
-        if (!remindersUseQuarterEnds) {
-          // Fallback: 90-day rolling window.
-          final cutoff = now.subtract(const Duration(days: 90));
-          return last == null || last.isBefore(cutoff);
-        }
-        final anchor = _mostRecentQuarterEnd(now);
+        final anchor = _mostRecentQuarterlyAnchor(now);
         return last == null || last.isBefore(anchor);
       case ReminderCadence.yearly:
         final anchor = _mostRecentYearlyAnchor(now);
@@ -755,6 +863,27 @@ Blunt + prioritized actions.
         outflowToInvested: outInv,
         monthlySpending: spend,
       );
+    }
+
+    // Mock month context (for Context + Chat attach).
+    if (months.isNotEmpty) {
+      final mk0 = months.first;
+      monthlyCashflowByMonth[mk0]!.contextMarkdown ??= '''## ${formatMonthKeyLabel(mk0)}
+
+### Why spending was high
+- Travel (flights + hotels)
+- One-off purchases (electronics)
+- Hosting family
+''';
+    }
+    if (months.length >= 3) {
+      final mk2 = months[2];
+      monthlyCashflowByMonth[mk2]!.contextMarkdown ??= '''## ${formatMonthKeyLabel(mk2)}
+
+### Why spending was high
+- Annual insurance premium paid
+- Medical checkup
+''';
     }
   }
 
@@ -905,6 +1034,7 @@ class AgentChatThread {
     required this.updatedAt,
     required this.messageCount,
     required this.tokensUsed,
+    this.lastLine = '',
   });
 
   final String id;
@@ -914,6 +1044,7 @@ class AgentChatThread {
   DateTime updatedAt;
   int messageCount;
   int tokensUsed;
+  String lastLine;
 
   AgentChatThread clone() => AgentChatThread(
         id: id,
@@ -923,5 +1054,6 @@ class AgentChatThread {
         updatedAt: updatedAt,
         messageCount: messageCount,
         tokensUsed: tokensUsed,
+        lastLine: lastLine,
       );
 }

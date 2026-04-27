@@ -114,7 +114,7 @@ class LedgerAssetRow {
     required this.total,
     required this.label,
     required this.comment,
-    this.contextMarkdown = '',
+    this.contextMarkdown,
   });
 
   final String id;
@@ -126,7 +126,7 @@ class LedgerAssetRow {
   double total;
   String label;
   String comment;
-  String contextMarkdown;
+  String? contextMarkdown;
 
   LedgerAssetRow clone() => LedgerAssetRow(
         id: id,
@@ -161,7 +161,7 @@ class LedgerLiabilityRow {
     required this.currencyCountry,
     required this.total,
     required this.comment,
-    this.contextMarkdown = '',
+    this.contextMarkdown,
   });
 
   final String id;
@@ -172,7 +172,7 @@ class LedgerLiabilityRow {
   String currencyCountry;
   double total;
   String comment;
-  String contextMarkdown;
+  String? contextMarkdown;
 
   LedgerLiabilityRow clone() => LedgerLiabilityRow(
         id: id,

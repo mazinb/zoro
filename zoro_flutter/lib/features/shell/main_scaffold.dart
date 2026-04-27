@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/state/app_model.dart';
 import '../command_center/command_center_tab.dart';
-import '../agents/agents_tab.dart';
+import '../context/context_tab.dart';
 import '../ledger/ledger_tab.dart';
 import '../chat/chat_tab.dart';
 import '../settings/settings_tab.dart';
@@ -81,7 +81,7 @@ class _MainScaffoldState extends State<MainScaffold> {
         focusSection: _ledgerFocus,
         onPrivacyInteractionDenied: _onPrivacyInteractionDenied,
       ),
-      AgentsTab(model: widget.model),
+      ContextTab(model: widget.model),
       ChatTab(
         model: widget.model,
         onGoToSettingsPermissions: () => _goToSettingsTab(SettingsTabIndex.permissions),
@@ -116,9 +116,9 @@ class _MainScaffoldState extends State<MainScaffold> {
             label: 'Ledger',
           ),
           NavigationDestination(
-            icon: Icon(Icons.smart_toy_outlined),
-            selectedIcon: Icon(Icons.smart_toy),
-            label: 'Agents',
+            icon: Icon(Icons.library_books_outlined),
+            selectedIcon: Icon(Icons.library_books),
+            label: 'Context',
           ),
           NavigationDestination(
             icon: Icon(Icons.chat_bubble_outline),
