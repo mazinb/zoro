@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 /// Canonical currencies supported for asset valuation in the UI mock.
 ///
 /// Important: Exchange rates are intentionally hard-coded for now.
-/// See `zoro_flutter/docs/currency.md` for where to update them later.
+/// Currency conversion is currently hard-coded (UI-first build).
 enum CurrencyCode { thb, inr, usd }
 
 extension CurrencyCodeUi on CurrencyCode {

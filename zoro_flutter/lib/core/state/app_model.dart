@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../shared/theme/app_theme.dart';
 import '../constants/web_expenses_income.dart';
 import '../finance/currency.dart';
+import '../llm/llm_key_store.dart';
 import 'cashflow_income_line.dart';
 import 'ledger_rows.dart';
 import 'monthly_cashflow_entry.dart';
@@ -11,6 +12,25 @@ class AppModel extends ChangeNotifier {
   AppModel() {
     syncAllocationsFromFraction(notify: false);
     _seedDummyCashflowData();
+  }
+
+  final LlmKeyStore _llmKeyStore = LlmKeyStore();
+
+  bool _bootstrapped = false;
+  bool get bootstrapped => _bootstrapped;
+
+  Future<void> bootstrap() async {
+    if (_bootstrapped) return;
+    try {
+      final keys = await _llmKeyStore.readAll();
+      openAiApiKey = keys[LlmProvider.openai];
+      anthropicApiKey = keys[LlmProvider.anthropic];
+      geminiApiKey = keys[LlmProvider.gemini];
+      _syncActiveProviderIfKeyRemoved();
+    } finally {
+      _bootstrapped = true;
+      notifyListeners();
+    }
   }
 
   Color get accent => AppTheme.primaryBlue;
@@ -148,9 +168,10 @@ Blunt + prioritized actions.
 
   /// Optional tuning (kept simple for now).
   String openAiModel = 'gpt-4.1-mini';
-  String anthropicModel = 'claude-3.5-sonnet';
-  String geminiModel = 'gemini-1.5-pro';
-  double temperature = 0.3;
+  // NOTE: These defaults should track currently-supported model IDs.
+  // Users can override them in Settings → API keys.
+  String anthropicModel = 'claude-sonnet-4-6';
+  String geminiModel = 'gemini-2.5-flash';
 
   /// Reminder cadence for "keep your numbers fresh" nudges (UI-only).
   ReminderCadence remindersExpensesCadence = ReminderCadence.quarterly;
@@ -466,6 +487,8 @@ Blunt + prioritized actions.
       case LlmProvider.gemini:
         geminiApiKey = v;
     }
+    // Fire-and-forget persistence (secure storage).
+    _llmKeyStore.writeKey(provider: provider, value: v);
     _syncActiveProviderIfKeyRemoved();
     notifyListeners();
   }
@@ -507,12 +530,7 @@ Blunt + prioritized actions.
     notifyListeners();
   }
 
-  void setTemperature(double v) {
-    final next = v.clamp(0.0, 1.0).toDouble();
-    if (temperature == next) return;
-    temperature = next;
-    notifyListeners();
-  }
+  // Temperature removed: some models/providers reject non-default values.
 
   bool get hasAnyApiKey => openAiApiKey != null || anthropicApiKey != null || geminiApiKey != null;
 

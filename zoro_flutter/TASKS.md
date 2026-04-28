@@ -9,6 +9,14 @@
 - [ ] **Token → DB wiring** — Add lightweight user-token flow for reads/writes once UI stabilizes.
 - [ ] **Add login last** — Reintroduce onboarding/magic-link when ready.
 
+## AI / Chat (local keys)
+
+- [x] **Persist LLM keys locally** — Store OpenAI/Anthropic/Gemini keys in secure storage (Keychain/Keystore) and load them on boot.
+- [x] **Wire Chat responses** — Device calls provider APIs directly using the selected local key (no Zoro server proxy).
+- [ ] **Chat transcripts** — Persist chat messages per thread locally (and optionally sync later).
+- [ ] **Agent actions** — Turn “permissions” into real read/write capabilities on local model + (later) server.
+- [ ] **Safety rails** — Add explicit “no writes” mode + confirm-before-write UX when agent gains write tools.
+
 ## Done (bootstrap)
 
 - [x] Ledger cash flow: **+** opens **monthly cash flow entry** (spending + split + note) on all sub-tabs; **Split** tab **$ · %** table; tap row to edit; remove month after sheet closes (no controller crash); no separate expense line / category model.

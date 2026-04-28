@@ -4,12 +4,15 @@ import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/state/app_model.dart';
+import '../../dev/local_api_keys.dart';
 import '../../shared/theme/app_theme.dart';
 
 abstract class SettingsTabIndex {
   static const int reminders = 0;
   static const int agents = 1;
-  static const int permissions = 2;
+  static const int apiKeys = 2;
+  // Back-compat for older callers.
+  static const int permissions = apiKeys;
 }
 
 class SettingsTab extends StatefulWidget {
@@ -81,7 +84,7 @@ class _SettingsTabState extends State<SettingsTab> with SingleTickerProviderStat
             tabs: const [
               Tab(text: 'Reminders'),
               Tab(text: 'Agents'),
-              Tab(text: 'Permissions'),
+              Tab(text: 'API keys'),
             ],
           ),
         ),
@@ -92,7 +95,7 @@ class _SettingsTabState extends State<SettingsTab> with SingleTickerProviderStat
             children: [
               _RemindersPane(model: widget.model),
               _AgentsPane(model: widget.model),
-              _PermissionsPane(model: widget.model),
+              _ApiKeysPane(model: widget.model),
             ],
           ),
         ),
@@ -398,27 +401,139 @@ class _AgentsPaneState extends State<_AgentsPane> {
   }
 }
 
-class _PermissionsPane extends StatefulWidget {
-  const _PermissionsPane({required this.model});
+class _ApiKeysPane extends StatefulWidget {
+  const _ApiKeysPane({required this.model});
 
   final AppModel model;
 
   @override
-  State<_PermissionsPane> createState() => _PermissionsPaneState();
+  State<_ApiKeysPane> createState() => _ApiKeysPaneState();
 }
 
-class _PermissionsPaneState extends State<_PermissionsPane> {
+class _ApiKeysPaneState extends State<_ApiKeysPane> {
   late final TextEditingController _openAiCtrl;
   late final TextEditingController _anthropicCtrl;
   late final TextEditingController _geminiCtrl;
+  bool _didAutofill = false;
+  bool _revealOpenAi = false;
+  bool _revealAnthropic = false;
+  bool _revealGemini = false;
+
+  late final TextEditingController _openAiModelCtrl;
+  late final TextEditingController _anthropicModelCtrl;
+  late final TextEditingController _geminiModelCtrl;
+
+  static const _openAiModelOptions = <String>[
+    'gpt-4.1-mini',
+    'gpt-4.1',
+    'gpt-4.1-nano',
+    'gpt-4o-mini',
+    'gpt-4o',
+    'gpt-5.5',
+    'gpt-5.4-mini',
+    'gpt-5.4-nano',
+  ];
+
+  static const _anthropicModelOptions = <String>[
+    'claude-sonnet-4-6',
+    'claude-haiku-4-5',
+    'claude-opus-4-7',
+    'claude-sonnet-4-5',
+  ];
+
+  static const _geminiModelOptions = <String>[
+    'gemini-2.5-flash',
+    'gemini-2.5-pro',
+    'gemini-2.5-flash-lite',
+    'gemini-2.0-flash',
+  ];
 
   @override
   void initState() {
     super.initState();
     final m = widget.model;
-    _openAiCtrl = TextEditingController(text: m.openAiApiKey ?? '');
-    _anthropicCtrl = TextEditingController(text: m.anthropicApiKey ?? '');
-    _geminiCtrl = TextEditingController(text: m.geminiApiKey ?? '');
+
+    final openAi = (m.openAiApiKey ?? '').trim();
+    final anthropic = (m.anthropicApiKey ?? '').trim();
+    final gemini = (m.geminiApiKey ?? '').trim();
+
+    final shouldPrefill = kDebugMode;
+    final looksLikeOpenAiKey = openAi.startsWith('sk-');
+    final nextOpenAi = ((!looksLikeOpenAiKey || openAi.isEmpty) && shouldPrefill) ? LocalApiKeys.openAiApiKey : openAi;
+    final nextGemini = (gemini.isEmpty && shouldPrefill) ? LocalApiKeys.geminiApiKey : gemini;
+
+    _openAiCtrl = TextEditingController(text: nextOpenAi);
+    _anthropicCtrl = TextEditingController(text: anthropic);
+    _geminiCtrl = TextEditingController(text: nextGemini);
+
+    _openAiModelCtrl = TextEditingController(text: m.openAiModel);
+    _anthropicModelCtrl = TextEditingController(text: m.anthropicModel);
+    _geminiModelCtrl = TextEditingController(text: m.geminiModel);
+
+    _maybeAutofill();
+
+    // Normalize model selections to dropdown options in debug builds.
+    if (kDebugMode) {
+      if (!_openAiModelOptions.contains(_openAiModelCtrl.text.trim())) {
+        final next = _openAiModelOptions.first;
+        _openAiModelCtrl.text = next;
+        m.setModelFor(LlmProvider.openai, next);
+      }
+      if (!_anthropicModelOptions.contains(_anthropicModelCtrl.text.trim())) {
+        final next = _anthropicModelOptions.first;
+        _anthropicModelCtrl.text = next;
+        m.setModelFor(LlmProvider.anthropic, next);
+      }
+      if (!_geminiModelOptions.contains(_geminiModelCtrl.text.trim())) {
+        final next = _geminiModelOptions.first;
+        _geminiModelCtrl.text = next;
+        m.setModelFor(LlmProvider.gemini, next);
+      }
+    }
+  }
+
+  void _maybeAutofill() {
+    if (_didAutofill) return;
+    if (!kDebugMode) return;
+
+    final m = widget.model;
+    final openAiExisting = (m.openAiApiKey ?? '').trim();
+    final geminiExisting = (m.geminiApiKey ?? '').trim();
+
+    final openAiKey = LocalApiKeys.openAiApiKey.trim();
+    final geminiKey = LocalApiKeys.geminiApiKey.trim();
+
+    var changed = false;
+    final openAiLooksValid = openAiExisting.startsWith('sk-');
+    if ((!openAiLooksValid || _openAiCtrl.text.trim().isEmpty) && openAiKey.isNotEmpty) {
+      _openAiCtrl.text = openAiKey;
+      _openAiCtrl.selection = TextSelection.collapsed(offset: _openAiCtrl.text.length);
+      changed = true;
+    }
+    if (_geminiCtrl.text.trim().isEmpty && geminiKey.isNotEmpty) {
+      _geminiCtrl.text = geminiKey;
+      _geminiCtrl.selection = TextSelection.collapsed(offset: _geminiCtrl.text.length);
+      changed = true;
+    }
+
+    // Persist the prefill so other screens can use it immediately.
+    if ((!openAiLooksValid || openAiExisting.isEmpty) && _openAiCtrl.text.trim().isNotEmpty) {
+      m.setApiKey(provider: LlmProvider.openai, key: _openAiCtrl.text.trim());
+    }
+    if (geminiExisting.isEmpty && _geminiCtrl.text.trim().isNotEmpty) {
+      m.setApiKey(provider: LlmProvider.gemini, key: _geminiCtrl.text.trim());
+    }
+
+    _didAutofill = true;
+    if (changed && mounted) setState(() {});
+  }
+
+  @override
+  void reassemble() {
+    super.reassemble();
+    // Hot reload keeps State; reapply debug autofill.
+    _didAutofill = false;
+    _maybeAutofill();
   }
 
   @override
@@ -426,12 +541,19 @@ class _PermissionsPaneState extends State<_PermissionsPane> {
     _openAiCtrl.dispose();
     _anthropicCtrl.dispose();
     _geminiCtrl.dispose();
+    _openAiModelCtrl.dispose();
+    _anthropicModelCtrl.dispose();
+    _geminiModelCtrl.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final m = widget.model;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _maybeAutofill();
+    });
 
     Future<void> openExternal(String url) async {
       if (!context.mounted) return;
@@ -485,9 +607,11 @@ class _PermissionsPaneState extends State<_PermissionsPane> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                const Text('API keys', style: TextStyle(fontWeight: FontWeight.w900)),
+                const SizedBox(height: 10),
                 TextField(
                   controller: _openAiCtrl,
-                  obscureText: true,
+                  obscureText: !_revealOpenAi,
                   keyboardType: TextInputType.visiblePassword,
                   autocorrect: false,
                   enableSuggestions: false,
@@ -500,6 +624,11 @@ class _PermissionsPaneState extends State<_PermissionsPane> {
                     suffixIcon: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        IconButton(
+                          tooltip: _revealOpenAi ? 'Hide' : 'Reveal',
+                          onPressed: () => setState(() => _revealOpenAi = !_revealOpenAi),
+                          icon: Icon(_revealOpenAi ? Icons.visibility_off_outlined : Icons.visibility_outlined),
+                        ),
                         IconButton(
                           tooltip: 'Paste',
                           onPressed: () => pasteKey(controller: _openAiCtrl, provider: LlmProvider.openai),
@@ -514,10 +643,22 @@ class _PermissionsPaneState extends State<_PermissionsPane> {
                     ),
                   ),
                 ),
+                const SizedBox(height: 6),
+                Text(
+                  'Key length: ${_openAiCtrl.text.trim().length}',
+                  style: const TextStyle(color: AppTheme.slate500, fontSize: 12, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 10),
+                _ModelPicker(
+                  label: 'OpenAI model',
+                  controller: _openAiModelCtrl,
+                  options: _openAiModelOptions,
+                  onChanged: (v) => m.setModelFor(LlmProvider.openai, v),
+                ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _anthropicCtrl,
-                  obscureText: true,
+                  obscureText: !_revealAnthropic,
                   keyboardType: TextInputType.visiblePassword,
                   autocorrect: false,
                   enableSuggestions: false,
@@ -530,6 +671,11 @@ class _PermissionsPaneState extends State<_PermissionsPane> {
                     suffixIcon: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        IconButton(
+                          tooltip: _revealAnthropic ? 'Hide' : 'Reveal',
+                          onPressed: () => setState(() => _revealAnthropic = !_revealAnthropic),
+                          icon: Icon(_revealAnthropic ? Icons.visibility_off_outlined : Icons.visibility_outlined),
+                        ),
                         IconButton(
                           tooltip: 'Paste',
                           onPressed: () => pasteKey(controller: _anthropicCtrl, provider: LlmProvider.anthropic),
@@ -544,10 +690,17 @@ class _PermissionsPaneState extends State<_PermissionsPane> {
                     ),
                   ),
                 ),
+                const SizedBox(height: 10),
+                _ModelPicker(
+                  label: 'Anthropic model',
+                  controller: _anthropicModelCtrl,
+                  options: _anthropicModelOptions,
+                  onChanged: (v) => m.setModelFor(LlmProvider.anthropic, v),
+                ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _geminiCtrl,
-                  obscureText: true,
+                  obscureText: !_revealGemini,
                   keyboardType: TextInputType.visiblePassword,
                   autocorrect: false,
                   enableSuggestions: false,
@@ -560,6 +713,11 @@ class _PermissionsPaneState extends State<_PermissionsPane> {
                     suffixIcon: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        IconButton(
+                          tooltip: _revealGemini ? 'Hide' : 'Reveal',
+                          onPressed: () => setState(() => _revealGemini = !_revealGemini),
+                          icon: Icon(_revealGemini ? Icons.visibility_off_outlined : Icons.visibility_outlined),
+                        ),
                         IconButton(
                           tooltip: 'Paste',
                           onPressed: () => pasteKey(controller: _geminiCtrl, provider: LlmProvider.gemini),
@@ -574,9 +732,57 @@ class _PermissionsPaneState extends State<_PermissionsPane> {
                     ),
                   ),
                 ),
+                const SizedBox(height: 10),
+                _ModelPicker(
+                  label: 'Gemini model',
+                  controller: _geminiModelCtrl,
+                  options: _geminiModelOptions,
+                  onChanged: (v) => m.setModelFor(LlmProvider.gemini, v),
+                ),
               ],
             ),
           ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ModelPicker extends StatelessWidget {
+  const _ModelPicker({
+    required this.label,
+    required this.controller,
+    required this.options,
+    required this.onChanged,
+  });
+
+  final String label;
+  final TextEditingController controller;
+  final List<String> options;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final current = controller.text.trim();
+    final normalizedOptions = options.toSet().toList();
+    final selected = normalizedOptions.contains(current) ? current : normalizedOptions.first;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        DropdownButtonFormField<String>(
+          key: ValueKey('$label:$selected'),
+          initialValue: selected,
+          decoration: InputDecoration(labelText: label, border: const OutlineInputBorder()),
+          items: [
+            for (final m in normalizedOptions) DropdownMenuItem(value: m, child: Text(m)),
+          ],
+          onChanged: (v) {
+            if (v == null) return;
+            controller.text = v;
+            controller.selection = TextSelection.collapsed(offset: controller.text.length);
+            onChanged(v);
+          },
         ),
       ],
     );

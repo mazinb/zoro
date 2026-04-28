@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/llm/llm_client.dart';
 import '../../core/state/app_model.dart';
 import '../../core/state/monthly_cashflow_entry.dart';
 import '../../shared/theme/app_theme.dart';
@@ -333,6 +334,8 @@ class _ChatThreadPageState extends State<_ChatThreadPage> {
   var _includeLiabilities = true;
   var _includeExpenseBuckets = true;
   var _includeMonths = true;
+  bool _sending = false;
+  final _llm = LlmClient();
 
   @override
   void dispose() {
@@ -340,24 +343,65 @@ class _ChatThreadPageState extends State<_ChatThreadPage> {
     super.dispose();
   }
 
-  void _send() {
+  Future<void> _send() async {
     final text = _ctrl.text.trim();
     if (text.isEmpty) return;
-    if (widget.model.apiKeyFor(widget.model.activeLlmProvider) == null) {
+    if (_sending) return;
+    final provider = widget.model.activeLlmProvider;
+    final key = widget.model.apiKeyFor(provider);
+    if (key == null) {
       widget.onNoKey();
       return;
     }
+    final t = widget.model.chats.where((x) => x.id == widget.threadId).cast<AgentChatThread?>().firstOrNull;
+    if (t == null) return;
+    final agent = widget.model.agents.firstWhere((a) => a.id == t.agentId);
+
     setState(() {
+      _sending = true;
       _messages.add((fromUser: true, text: text));
-      _messages.add((fromUser: false, text: 'Not wired yet: AI response. (Next step)'));
+      _messages.add((fromUser: false, text: 'Thinking…'));
     });
     _ctrl.clear();
+
+    final contextBundle = _buildContextBundle();
+    final system = [
+      agent.systemPrompt.trim(),
+      if (agent.contextMarkdown.trim().isNotEmpty) '\n\n### Agent context\n${agent.contextMarkdown.trim()}',
+      if (contextBundle.trim().isNotEmpty) '\n\n### Attached context\n$contextBundle',
+      '\n\nReturn concise, actionable guidance.',
+    ].join('\n').trim();
+
+    try {
+      final reply = await _llm.complete(
+        provider: provider,
+        apiKey: key,
+        model: widget.model.modelFor(provider),
+        system: system,
+        user: text,
+      );
+      if (!mounted) return;
+      setState(() {
+        // Replace the last "Thinking…" message.
+        _messages.removeLast();
+        _messages.add((fromUser: false, text: reply));
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _messages.removeLast();
+        _messages.add((fromUser: false, text: 'Request failed: $e'));
+      });
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+
     final idx = widget.model.chats.indexWhere((t) => t.id == widget.threadId);
     if (idx >= 0) {
       final t = widget.model.chats[idx].clone();
       t.updatedAt = DateTime.now();
       t.messageCount += 2;
-      t.tokensUsed += 200; // placeholder
+      t.tokensUsed += 600; // placeholder
       t.lastLine = text;
       widget.model.updateChat(idx, t);
     }
@@ -592,7 +636,10 @@ class _ChatThreadPageState extends State<_ChatThreadPage> {
                     ),
                   ),
                   const SizedBox(width: 10),
-                  FilledButton(onPressed: _send, child: const Text('Send')),
+                  FilledButton(
+                    onPressed: _sending ? null : _send,
+                    child: Text(_sending ? 'Sending…' : 'Send'),
+                  ),
                 ],
               ),
             ),

@@ -9,6 +9,7 @@ import '../../core/state/app_model.dart';
 import '../../core/constants/web_expenses_income.dart';
 import '../../core/finance/currency.dart';
 import '../../shared/theme/app_theme.dart';
+import 'zoro_interactive_sankey_painter.dart';
 
 class CommandCenterTab extends StatefulWidget {
   const CommandCenterTab({super.key, required this.model, required this.onGoToLedger});
@@ -421,14 +422,22 @@ class _SankeyPlaceholder extends StatelessWidget {
                 }
               }
 
-              final chart = SankeyDiagramWidget(
-                data: graph,
-                nodeColors: nodeColors,
-                size: Size(width, height),
-                showLabels: true,
-                showTexture: true,
-                selectedNodeId: selectedId as int?,
-                onNodeSelected: onNodeSelected,
+              final chart = GestureDetector(
+                onTapDown: (details) {
+                  final tapped = detectTappedNode(graph.nodes, details.localPosition);
+                  onNodeSelected(tapped);
+                },
+                child: CustomPaint(
+                  size: Size(width, height),
+                  painter: ZoroInteractiveSankeyPainter(
+                    nodes: graph.nodes,
+                    links: graph.links,
+                    nodeColors: nodeColors,
+                    selectedNodeId: selectedId as int?,
+                    showLabels: true,
+                    showTexture: true,
+                  ),
+                ),
               );
 
               return fullBleed

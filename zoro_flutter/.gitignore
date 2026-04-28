@@ -33,6 +33,9 @@ migrate_working_dir/
 /build/
 /coverage/
 
+# Local dev-only API keys (do not commit)
+lib/dev/local_api_keys.dart
+
 # Symbolication related
 app.*.symbols
 

@@ -14,6 +14,13 @@ class _ZoroAppState extends State<ZoroApp> {
   final _model = AppModel();
 
   @override
+  void initState() {
+    super.initState();
+    // Load locally stored secrets (LLM keys) and preferences.
+    _model.bootstrap();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
       listenable: _model,
