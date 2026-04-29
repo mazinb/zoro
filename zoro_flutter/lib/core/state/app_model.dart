@@ -341,14 +341,20 @@ Blunt + prioritized actions.
     CashflowIncomeLine(
       id: newLedgerRowId('i'),
       label: 'Salary',
-      annualAmount: 10000000,
+      annualAmount: 4500000,
       currencyCountry: 'Thailand',
     ),
     CashflowIncomeLine(
       id: newLedgerRowId('i'),
-      label: 'RSUs',
+      label: 'RUS',
       annualAmount: 80000,
       currencyCountry: 'US',
+    ),
+    CashflowIncomeLine(
+      id: newLedgerRowId('i'),
+      label: 'Bonus',
+      annualAmount: 1200000,
+      currencyCountry: 'Thailand',
     ),
   ];
 

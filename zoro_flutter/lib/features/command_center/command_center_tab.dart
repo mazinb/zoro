@@ -354,6 +354,46 @@ class _SankeyPlaceholder extends StatelessWidget {
   final ValueChanged<_Flow> onTapFlow;
   final bool fullBleed;
 
+  SankeyNode? _detectTappedNodeWithEdgePadding(
+    List<SankeyNode> nodes,
+    Offset pos, {
+    required double width,
+  }) {
+    SankeyNode? best;
+    double bestDist = double.infinity;
+    for (final n in nodes) {
+      final rect = Rect.fromLTWH(n.left, n.top, n.right - n.left, n.bottom - n.top);
+      final isEdge = rect.left <= width * 0.14 || rect.right >= width * 0.86;
+      final pad = isEdge ? 24.0 : 10.0;
+      final hit = rect.inflate(pad);
+      if (!hit.contains(pos)) continue;
+
+      final c = rect.center;
+      final d = (c - pos).distanceSquared;
+      if (d < bestDist) {
+        bestDist = d;
+        best = n;
+      }
+    }
+    return best;
+  }
+
+  String _selectionTitle(BuildContext context) {
+    final n = selectedNode;
+    if (n == null) return 'Tap a category';
+    final base = n.displayLabel.trim();
+    if (base.isEmpty) return 'Tap a category';
+    if (model.hideNumbers) return base;
+
+    final head = base.split(RegExp(r'\s{2,}')).first.trim();
+    final monthly = model.monthlyTotalForLabel(head);
+    if (monthly == null || monthly <= 0) return base;
+
+    final annual = monthly * 12.0;
+    final formatted = formatCurrencyDisplay(annual, currency: model.displayCurrency);
+    return '$base • $formatted/yr';
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -361,7 +401,7 @@ class _SankeyPlaceholder extends StatelessWidget {
         Padding(
           padding: EdgeInsets.symmetric(horizontal: fullBleed ? 16 : 0),
           child: Text(
-            selectedNode?.displayLabel.trim().isNotEmpty == true ? selectedNode!.displayLabel : 'Tap a category',
+            _selectionTitle(context),
             textAlign: TextAlign.center,
             style: const TextStyle(color: AppTheme.slate600, fontWeight: FontWeight.w800),
           ),
@@ -387,22 +427,17 @@ class _SankeyPlaceholder extends StatelessWidget {
               final height = math.max(h, 200.0);
 
               final graph = model.toSankeyDataSet(width: width, height: height);
-              // 3-blues palette (used across the app).
-              const blue = AppTheme.blue;
-              const ink = AppTheme.slate900;
-
-              Color lerpToInk(double t) => Color.lerp(blue, ink, t) ?? ink;
-
               Color colorForNodeLabel(String label) {
                 final head = label.split(RegExp(r'\s{2,}')).first.trim();
                 final l = head.toLowerCase();
-                // Column gradient: left bright → middle medium → right near-black.
-                if (l == 'all income' || l == 'net income') return lerpToInk(0.45);
-                if (l == 'taxes') return lerpToInk(0.65);
-                if (l == 'expenses') return lerpToInk(0.78);
-                if (l == 'investments') return lerpToInk(0.72);
-                if (l == 'savings') return lerpToInk(0.68);
-                return blue; // sources
+                // Clear semantic colors for key sinks.
+                if (l == 'taxes') return const Color(0xFF94A3B8); // grey
+                if (l == 'expenses') return const Color(0xFFEF4444); // red
+                if (l == 'investments' || l == 'savings') return const Color(0xFF10B981); // green
+
+                // Keep income + middle in a blue family.
+                if (l == 'all income' || l == 'net income') return const Color(0xFF3B82F6);
+                return const Color(0xFF1D4ED8); // sources
               }
 
               String nodeDisplayName(SankeyNode n) {
@@ -424,7 +459,11 @@ class _SankeyPlaceholder extends StatelessWidget {
 
               final chart = GestureDetector(
                 onTapDown: (details) {
-                  final tapped = detectTappedNode(graph.nodes, details.localPosition);
+                  final tapped = _detectTappedNodeWithEdgePadding(
+                    graph.nodes,
+                    details.localPosition,
+                    width: width,
+                  );
                   onNodeSelected(tapped);
                 },
                 child: CustomPaint(
@@ -500,8 +539,8 @@ class _SelectionCard extends StatelessWidget {
     final narrow = MediaQuery.sizeOf(context).width < 420;
     late final String title;
     late final String subtitle;
-    late final VoidCallback primaryAction;
-    late final String primaryLabel;
+    VoidCallback? primaryAction;
+    String? primaryLabel;
 
     String? secondaryLabel;
     VoidCallback? secondaryAction;
@@ -510,8 +549,10 @@ class _SelectionCard extends StatelessWidget {
       case _SelectedKind.expenses:
         title = 'Expenses';
         subtitle = 'Edit the details in Ledger.';
-        primaryLabel = 'Go to Ledger';
-        primaryAction = () => onGoToLedger('expenses');
+        if (!expanded) {
+          primaryLabel = 'Go to Ledger';
+          primaryAction = () => onGoToLedger('expenses');
+        }
         secondaryLabel = expanded ? 'Hide details' : 'View details';
         secondaryAction = onToggleDetails;
         break;
@@ -550,9 +591,9 @@ class _SelectionCard extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(subtitle, style: const TextStyle(color: AppTheme.slate600)),
                 const SizedBox(height: 10),
-                FilledButton(onPressed: primaryAction, child: Text(primaryLabel)),
+                if (primaryAction != null && primaryLabel != null) FilledButton(onPressed: primaryAction, child: Text(primaryLabel)),
                 if (secondaryLabel != null && secondaryAction != null) ...[
-                  const SizedBox(height: 6),
+                  SizedBox(height: primaryAction != null ? 6 : 0),
                   OutlinedButton(onPressed: secondaryAction, child: Text(secondaryLabel)),
                 ],
               ],
@@ -574,7 +615,7 @@ class _SelectionCard extends StatelessWidget {
                   OutlinedButton(onPressed: secondaryAction, child: Text(secondaryLabel)),
                   const SizedBox(width: 8),
                 ],
-                FilledButton(onPressed: primaryAction, child: Text(primaryLabel)),
+                if (primaryAction != null && primaryLabel != null) FilledButton(onPressed: primaryAction, child: Text(primaryLabel)),
               ],
             ),
     );
@@ -600,7 +641,7 @@ class _ExpenseDetailsRows extends StatelessWidget {
     final rows = <({String key, String label, double monthly, Color color})>[];
     for (final k in recurringExpenseBucketKeys) {
       final b = preset.buckets[k]!;
-      rows.add((key: k, label: b.label, monthly: (model.expenseBuckets[k] ?? b.value), color: bucketColor(k)));
+      rows.add((key: k, label: b.label, monthly: (model.expenseBuckets[k] ?? b.value), color: bucketColorHighContrast(k)));
     }
     rows.sort((a, b) => b.monthly.compareTo(a.monthly));
 
@@ -774,6 +815,8 @@ class _SankeyModel {
   final List<String> sinks;
   final List<_Flow> links;
   final String modelCurrencySymbol;
+  final bool hideNumbers;
+  final CurrencyCode displayCurrency;
 
   double get maxValue => links.isEmpty
       ? 1
@@ -786,6 +829,14 @@ class _SankeyModel {
   double totalIn(String to) => links
       .where((e) => e.to == to)
       .fold<double>(0, (a, b) => a + b.monthly);
+
+  double? monthlyTotalForLabel(String label) {
+    final inbound = totalIn(label);
+    if (inbound > 0) return inbound;
+    final outbound = totalOut(label);
+    if (outbound > 0) return outbound;
+    return null;
+  }
 
   /// Share of **Net income** for right-column sinks (no currency in the painted label).
   static const _sinksWithNetPct = {'Expenses', 'Investments', 'Savings'};
@@ -888,6 +939,8 @@ class _SankeyModel {
       sinks: sinks,
       links: links,
       modelCurrencySymbol: '\$',
+      hideNumbers: false,
+      displayCurrency: CurrencyCode.usd,
     );
   }
 
@@ -974,6 +1027,8 @@ class _SankeyModel {
       sinks: sinks,
       links: links,
       modelCurrencySymbol: model.displayCurrencySymbol,
+      hideNumbers: model.privacyHideAmounts,
+      displayCurrency: model.displayCurrency,
     );
   }
 
@@ -983,6 +1038,8 @@ class _SankeyModel {
     required this.sinks,
     required this.links,
     required this.modelCurrencySymbol,
+    required this.hideNumbers,
+    required this.displayCurrency,
   });
 }
 
