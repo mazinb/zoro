@@ -9,6 +9,7 @@ import '../../core/finance/currency.dart';
 import '../../shared/theme/app_theme.dart';
 import 'expense_donut_chart.dart';
 import 'expense_estimates_editor_page.dart';
+import 'ledger_orchestrator_page.dart';
 
 enum LedgerMode { assets, liabilities, cashflow }
 
@@ -332,6 +333,49 @@ class _LedgerTabState extends State<LedgerTab> {
                   ),
             ),
             const Spacer(),
+            IconButton.filledTonal(
+              onPressed: () {
+                Navigator.of(context).push<void>(
+                  MaterialPageRoute(
+                    fullscreenDialog: true,
+                    builder: (ctx) => LedgerOrchestratorPage(
+                      model: widget.model,
+                      onPickSection: (s) {
+                        setState(() {
+                          switch (s) {
+                            case LedgerOrchestratorSection.assets:
+                              _mode = LedgerMode.assets;
+                              break;
+                            case LedgerOrchestratorSection.liabilities:
+                              _mode = LedgerMode.liabilities;
+                              break;
+                            case LedgerOrchestratorSection.income:
+                              _mode = LedgerMode.cashflow;
+                              _cashflowTabIndex = 0;
+                              break;
+                            case LedgerOrchestratorSection.expenses:
+                              _mode = LedgerMode.cashflow;
+                              _cashflowTabIndex = 2;
+                              break;
+                            case LedgerOrchestratorSection.allocations:
+                              _mode = LedgerMode.cashflow;
+                              _cashflowTabIndex = 1;
+                              break;
+                          }
+                        });
+                      },
+                    ),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.auto_awesome),
+              tooltip: 'Ledger assistant',
+              style: IconButton.styleFrom(
+                backgroundColor: widget.model.accentSoft,
+                foregroundColor: widget.model.accent,
+              ),
+            ),
+            const SizedBox(width: 10),
             if (_mode == LedgerMode.cashflow)
               IconButton.filledTonal(
                 onPressed: () {
@@ -1497,6 +1541,9 @@ class _MonthTotalRow extends StatelessWidget {
     final hasRowData = lineActual > 0;
     final actual = lineActual;
     final delta = actual - predicted;
+    final inBand = hasRowData &&
+        predicted > 0 &&
+        (delta.abs() / predicted) <= AppModel.spendVarianceBandPct;
     return Container(
       decoration: BoxDecoration(
         border: Border(
@@ -1529,7 +1576,11 @@ class _MonthTotalRow extends StatelessWidget {
               style: TextStyle(
                 fontWeight: FontWeight.w900,
                 fontSize: 12,
-                color: hasRowData ? AppTheme.slate900 : AppTheme.slate500,
+                color: AppModel.spendVsPredictedColor(
+                  actual: actual,
+                  predicted: predicted,
+                  hasData: hasRowData,
+                ),
               ),
             ),
           ),
@@ -1542,8 +1593,10 @@ class _MonthTotalRow extends StatelessWidget {
                 fontSize: 12,
                 fontWeight: FontWeight.w800,
                 color: !hasRowData
-                    ? AppTheme.slate500
-                    : (delta > 0 ? const Color(0xFFDC2626) : (delta < 0 ? const Color(0xFF16A34A) : AppTheme.slate600)),
+                    ? AppModel.spendNoDataColor
+                    : inBand
+                        ? AppModel.spendInBandColor
+                        : (delta > 0 ? AppModel.spendOverColor : AppModel.spendUnderColor),
               ),
             ),
           ),

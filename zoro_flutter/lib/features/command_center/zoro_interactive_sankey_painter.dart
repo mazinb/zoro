@@ -3,6 +3,20 @@ import 'package:sankey_flutter/sankey_painter.dart';
 
 import '../../shared/theme/app_theme.dart';
 
+String _sankeyNodeHeadLabel(String displayLabel) {
+  final t = displayLabel.trim();
+  if (t.isEmpty) return '';
+  return t.split(RegExp(r'\s{2,}')).first.trim();
+}
+
+Color? _glassBaseColorForSinkHead(String head) {
+  final h = head.toLowerCase();
+  if (h == 'investments' || h == 'savings') return const Color(0xFF10B981);
+  if (h == 'expenses') return const Color(0xFFEF4444);
+  if (h == 'taxes') return const Color(0xFF94A3B8);
+  return null;
+}
+
 /// Same as package [InteractiveSankeyPainter], but sink (right-column) labels use
 /// grey on the light chart background instead of white (which matched the dark bar fill).
 class ZoroInteractiveSankeyPainter extends SankeyPainter {
@@ -22,6 +36,59 @@ class ZoroInteractiveSankeyPainter extends SankeyPainter {
   final bool showTexture;
 
   Color blendColors(Color a, Color b) => Color.lerp(a, b, 0.5) ?? a;
+
+  /// Apple-like translucent “glass” pill. Stronger stroke only when [isSelected].
+  void _paintGlassNode(Canvas canvas, Rect rect, {required Color base, required bool isSelected}) {
+    final r = RRect.fromRectAndRadius(rect, const Radius.circular(3));
+
+    canvas.drawRRect(
+      r,
+      Paint()..color = base.withValues(alpha: 0.12),
+    );
+
+    final sheen = LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [
+        Colors.white.withValues(alpha: 0.52),
+        Colors.white.withValues(alpha: 0.10),
+        base.withValues(alpha: 0.18),
+      ],
+      stops: const [0.0, 0.42, 1.0],
+    );
+    canvas.drawRRect(
+      r,
+      Paint()..shader = sheen.createShader(rect),
+    );
+
+    final specH = (rect.height * 0.28).clamp(1.0, 12.0);
+    final spec = RRect.fromRectAndRadius(
+      Rect.fromLTWH(rect.left + 1.5, rect.top + 1.5, rect.width - 3, specH),
+      const Radius.circular(2),
+    );
+    canvas.drawRRect(
+      spec,
+      Paint()..color = Colors.white.withValues(alpha: 0.35),
+    );
+
+    if (isSelected) {
+      canvas.drawRRect(
+        r,
+        Paint()
+          ..color = base
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3.5,
+      );
+    } else {
+      canvas.drawRRect(
+        r.deflate(0.5),
+        Paint()
+          ..color = Colors.white.withValues(alpha: 0.55)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1,
+      );
+    }
+  }
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -73,23 +140,30 @@ class ZoroInteractiveSankeyPainter extends SankeyPainter {
       final color = nodeColors[node.displayLabel] ?? Colors.blue;
       final rect = Rect.fromLTWH(node.left, node.top, node.right - node.left, node.bottom - node.top);
       final isSelected = selectedNodeId != null && node.id == selectedNodeId;
+      final head = _sankeyNodeHeadLabel(node.displayLabel);
+      final glassBase = _glassBaseColorForSinkHead(head);
+      final isGlass = glassBase != null;
 
-      canvas.drawRect(rect, Paint()..color = color);
-
-      if (isSelected) {
-        final hsl = HSLColor.fromColor(color);
-        final contrast = hsl.withHue(hsl.hue > 180 ? hsl.hue - 180 : hsl.hue + 180);
-        final borderPaint = Paint()
-          ..color = contrast.toColor()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 4;
-        canvas.drawRect(rect, borderPaint);
+      if (isGlass) {
+        _paintGlassNode(canvas, rect, base: glassBase, isSelected: isSelected);
       } else {
-        final borderPaint = Paint()
-          ..color = Colors.white24
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2;
-        canvas.drawRect(rect.deflate(2), borderPaint);
+        canvas.drawRect(rect, Paint()..color = color);
+
+        if (isSelected) {
+          final hsl = HSLColor.fromColor(color);
+          final contrast = hsl.withHue(hsl.hue > 180 ? hsl.hue - 180 : hsl.hue + 180);
+          final borderPaint = Paint()
+            ..color = contrast.toColor()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 4;
+          canvas.drawRect(rect, borderPaint);
+        } else {
+          final borderPaint = Paint()
+            ..color = Colors.white24
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 2;
+          canvas.drawRect(rect.deflate(2), borderPaint);
+        }
       }
 
       if (showLabels) {
@@ -100,7 +174,8 @@ class ZoroInteractiveSankeyPainter extends SankeyPainter {
         if (isRightColumn) {
           textColor = isSelected ? AppTheme.slate900 : AppTheme.slate600;
         } else {
-          final isDark = color.computeLuminance() < 0.05;
+          final fillForContrast = isGlass ? glassBase : color;
+          final isDark = fillForContrast.computeLuminance() < 0.05;
           textColor = isDark ? Colors.white : Colors.black;
         }
 

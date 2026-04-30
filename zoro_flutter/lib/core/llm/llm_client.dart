@@ -15,14 +15,35 @@ class LlmClient {
     required String model,
     required String system,
     required String user,
+    int? maxOutputTokens,
+    bool preferJsonObjectOutput = false,
   }) async {
     switch (provider) {
       case LlmProvider.openai:
-        return _openAiChatCompletions(apiKey: apiKey, model: model, system: system, user: user);
+        return _openAiChatCompletions(
+          apiKey: apiKey,
+          model: model,
+          system: system,
+          user: user,
+          maxOutputTokens: maxOutputTokens,
+          preferJsonObjectOutput: preferJsonObjectOutput,
+        );
       case LlmProvider.anthropic:
-        return _anthropicMessages(apiKey: apiKey, model: model, system: system, user: user);
+        return _anthropicMessages(
+          apiKey: apiKey,
+          model: model,
+          system: system,
+          user: user,
+          maxOutputTokens: maxOutputTokens,
+        );
       case LlmProvider.gemini:
-        return _geminiGenerateContent(apiKey: apiKey, model: model, system: system, user: user);
+        return _geminiGenerateContent(
+          apiKey: apiKey,
+          model: model,
+          system: system,
+          user: user,
+          maxOutputTokens: maxOutputTokens,
+        );
     }
   }
 
@@ -31,21 +52,30 @@ class LlmClient {
     required String model,
     required String system,
     required String user,
+    int? maxOutputTokens,
+    bool preferJsonObjectOutput = false,
   }) async {
     final uri = Uri.parse('https://api.openai.com/v1/chat/completions');
+    final requestBody = <String, dynamic>{
+      'model': model,
+      'messages': [
+        {'role': 'system', 'content': system},
+        {'role': 'user', 'content': user},
+      ],
+    };
+    if (maxOutputTokens != null) {
+      requestBody['max_tokens'] = maxOutputTokens;
+    }
+    if (preferJsonObjectOutput) {
+      requestBody['response_format'] = {'type': 'json_object'};
+    }
     final res = await _http.post(
       uri,
       headers: {
         'Content-Type': 'application/json',
         'Authorization': 'Bearer $apiKey',
       },
-      body: jsonEncode({
-        'model': model,
-        'messages': [
-          {'role': 'system', 'content': system},
-          {'role': 'user', 'content': user},
-        ],
-      }),
+      body: jsonEncode(requestBody),
     );
     final body = _decodeJson(res.body);
     if (res.statusCode < 200 || res.statusCode >= 300) {
@@ -65,6 +95,7 @@ class LlmClient {
     required String model,
     required String system,
     required String user,
+    int? maxOutputTokens,
   }) async {
     final uri = Uri.parse('https://api.anthropic.com/v1/messages');
     final res = await _http.post(
@@ -76,7 +107,7 @@ class LlmClient {
       },
       body: jsonEncode({
         'model': model,
-        'max_tokens': 800,
+        'max_tokens': maxOutputTokens ?? 800,
         'system': system,
         'messages': [
           {'role': 'user', 'content': user},
@@ -101,6 +132,7 @@ class LlmClient {
     required String model,
     required String system,
     required String user,
+    int? maxOutputTokens,
   }) async {
     final safeModel = model.trim().isEmpty ? 'gemini-1.5-pro' : model.trim();
     final uri = Uri.parse(
@@ -111,7 +143,7 @@ class LlmClient {
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({
         'generationConfig': {
-          'maxOutputTokens': 800,
+          'maxOutputTokens': maxOutputTokens ?? 800,
         },
         'contents': [
           {

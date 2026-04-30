@@ -6,6 +6,7 @@
 - [ ] **UI pass** — Flesh out Home/Plan/Money/Retire/Profile screens (static + local mock data).
   - [x] Home: reminder boxes render grey when not past due (still clickable).
   - [x] Copy pass: tighten UI text to avoid overflow.
+  - [x] Home reminders: one-line rows, relative “last updated”, blue vs grey by overdue; yearly = anniversary from last update; tests (`test/reminder_assets_home_test.dart`).
 - [ ] **Token → DB wiring** — Add lightweight user-token flow for reads/writes once UI stabilizes.
 - [ ] **Add login last** — Reintroduce onboarding/magic-link when ready.
 
@@ -13,8 +14,10 @@
 
 - [x] **Persist LLM keys locally** — Store OpenAI/Anthropic/Gemini keys in secure storage (Keychain/Keystore) and load them on boot.
 - [x] **Wire Chat responses** — Device calls provider APIs directly using the selected local key (no Zoro server proxy).
-- [ ] **Chat transcripts** — Persist chat messages per thread locally (and optionally sync later).
-- [ ] **Agent actions** — Turn “permissions” into real read/write capabilities on local model + (later) server.
+- [x] **Chat transcripts** — Persist chat threads + messages under app support dir (`chat_local_store.json`); no server/sync.
+- [x] **Agent actions** — Write-capable domains apply `zoro_actions` JSON from assistant replies to `AppModel` (expenses, income, assets, liabilities, cashflow); reads unchanged (context bundle + Settings toggles).
+- [x] **Internal app agents** — Settings → Agents → **App agents**: editable system prompt for the built-in asset context assistant; last structured JSON shown for debugging / review.
+- [x] **Asset context planner** — Context → asset editor: star opens a multi-step multiple-choice planner (two LLM calls: questions JSON + final markdown/structured JSON); **Apply** updates the editor and records structured output for App agents.
 - [ ] **Safety rails** — Add explicit “no writes” mode + confirm-before-write UX when agent gains write tools.
 
 ## Done (bootstrap)

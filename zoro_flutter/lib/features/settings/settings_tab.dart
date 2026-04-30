@@ -4,8 +4,10 @@ import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/state/app_model.dart';
+import '../../core/state/internal_app_agent_definition.dart';
 import '../../dev/local_api_keys.dart';
 import '../../shared/theme/app_theme.dart';
+import 'internal_agent_prompt_editor_page.dart';
 
 abstract class SettingsTabIndex {
   static const int reminders = 0;
@@ -283,86 +285,335 @@ class _AgentsPane extends StatefulWidget {
 class _AgentsPaneState extends State<_AgentsPane> {
   final _searchCtrl = TextEditingController();
   String _query = '';
+  _AgentSettingsSection _section = _AgentSettingsSection.context;
+  late final TextEditingController _homeSummaryCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _homeSummaryCtrl = TextEditingController(text: widget.model.homeSummaryText);
+  }
 
   @override
   void dispose() {
     _searchCtrl.dispose();
+    _homeSummaryCtrl.dispose();
     super.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) {
+  bool _matchesQuery(AppAgent a, String q) {
+    if (q.isEmpty) return true;
+    final hay = '${a.name}\n${a.description}\n${a.systemPrompt}\n${a.contextMarkdown}'.toLowerCase();
+    return hay.contains(q);
+  }
+
+  List<AppAgent> _filteredAgents({required bool Function(AppAgent a) where}) {
     final model = widget.model;
     final q = _query.trim().toLowerCase();
-    final filtered = q.isEmpty
-        ? model.agents
-        : model.agents.where((a) {
-            final hay = '${a.name}\n${a.description}\n${a.systemPrompt}\n${a.contextMarkdown}'.toLowerCase();
-            return hay.contains(q);
-          }).toList();
+    return model.agents.where(where).where((a) => _matchesQuery(a, q)).toList();
+  }
 
-    return ListView(
-      padding: const EdgeInsets.all(20),
+  Widget _iconSwitcher() {
+    final accent = widget.model.accent;
+
+    Widget iconTab({
+      required _AgentSettingsSection s,
+      required IconData icon,
+    }) {
+      final on = _section == s;
+      return InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: () => setState(() => _section = s),
+        child: Container(
+          width: 44,
+          height: 44,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            color: on ? accent.withValues(alpha: 0.12) : AppTheme.slate50,
+            border: Border.all(color: on ? accent.withValues(alpha: 0.45) : AppTheme.slate100),
+          ),
+          child: Icon(icon, color: on ? accent : AppTheme.slate600),
+        ),
+      );
+    }
+
+    return Center(
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          iconTab(s: _AgentSettingsSection.home, icon: Icons.dashboard_outlined),
+          const SizedBox(width: 16),
+          iconTab(s: _AgentSettingsSection.ledger, icon: Icons.view_agenda_outlined),
+          const SizedBox(width: 16),
+          iconTab(s: _AgentSettingsSection.context, icon: Icons.library_books_outlined),
+          const SizedBox(width: 16),
+          iconTab(s: _AgentSettingsSection.chat, icon: Icons.chat_bubble_outline),
+          const SizedBox(width: 16),
+          iconTab(s: _AgentSettingsSection.schedule, icon: Icons.repeat),
+        ],
+      ),
+    );
+  }
+
+  Widget _searchAndPlusRow({required VoidCallback onCreate, String searchHint = 'Search'}) {
+    return Row(
+      children: [
+        Expanded(
+          child: TextField(
+            controller: _searchCtrl,
+            decoration: InputDecoration(
+              hintText: searchHint,
+              isDense: true,
+              border: const OutlineInputBorder(),
+            ),
+            onChanged: (v) => setState(() => _query = v),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Container(
+          height: 48,
+          width: 48,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppTheme.slate100),
+            color: Colors.white,
+          ),
+          child: IconButton(
+            tooltip: 'Create',
+            onPressed: onCreate,
+            icon: const Icon(Icons.add),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _homePane() {
+    final model = widget.model;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Row(
           children: [
             Expanded(
-              child: TextField(
-                controller: _searchCtrl,
-                decoration: const InputDecoration(
-                  hintText: 'Search',
-                  isDense: true,
-                  border: OutlineInputBorder(),
-                ),
-                onChanged: (v) => setState(() => _query = v),
+              child: Text(
+                'Home summary',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
               ),
             ),
-            const SizedBox(width: 10),
-            FilledButton.icon(
-              onPressed: () => _openAgentEditor(context),
-              icon: const Icon(Icons.add),
-              label: const Text('Create'),
+            TextButton(
+              onPressed: model.homeSummaryText.trim().isEmpty
+                  ? null
+                  : () {
+                      _homeSummaryCtrl.clear();
+                      model.setHomeSummaryText('');
+                      setState(() {});
+                    },
+              child: const Text('Clear'),
             ),
           ],
         ),
-        const SizedBox(height: 12),
-        ...filtered.asMap().entries.map((e) {
-          final i = e.key;
-          final a = e.value;
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: Card(
-              child: InkWell(
-                borderRadius: BorderRadius.circular(12),
-                onTap: () => _openAgentEditor(context, index: i),
-                child: Padding(
-                  padding: const EdgeInsets.all(14),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(a.name, style: const TextStyle(fontWeight: FontWeight.w900)),
-                            const SizedBox(height: 2),
-                            Text(a.description, style: const TextStyle(color: AppTheme.slate600)),
-                            const SizedBox(height: 6),
-                            Text(
-                              'Permissions: ${a.permissions.isEmpty ? 'none' : a.permissions.length}',
-                              style: const TextStyle(color: AppTheme.slate500, fontSize: 12, fontWeight: FontWeight.w600),
-                            ),
-                          ],
-                        ),
+        const SizedBox(height: 10),
+        Expanded(
+          child: TextField(
+            controller: _homeSummaryCtrl,
+            expands: true,
+            maxLines: null,
+            minLines: null,
+            keyboardType: TextInputType.multiline,
+            textAlignVertical: TextAlignVertical.top,
+            decoration: const InputDecoration(
+              border: OutlineInputBorder(),
+              hintText: 'Add a short note that shows on Home…',
+              contentPadding: EdgeInsets.all(12),
+            ),
+            onChanged: (v) => model.setHomeSummaryText(v),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _contextPane() {
+    final model = widget.model;
+    const contextIds = {
+      InternalAppAgentIds.assetContext,
+      InternalAppAgentIds.liabilityContext,
+      InternalAppAgentIds.expenseBucketContext,
+      InternalAppAgentIds.monthCashflowContext,
+      InternalAppAgentIds.contextOrchestrator,
+    };
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(
+          child: ListView(
+            padding: EdgeInsets.zero,
+            children: [
+              for (final def in kInternalAppAgentDefinitions.where((d) => contextIds.contains(d.id)))
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Card(
+                    child: ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: model.accentSoft,
+                        child: Icon(def.icon, color: model.accent, size: 22),
                       ),
-                      const Icon(Icons.chevron_right, color: AppTheme.slate500),
-                    ],
+                      title: Text(def.title, style: const TextStyle(fontWeight: FontWeight.w900)),
+                      subtitle: Text(def.listSubtitle, style: const TextStyle(color: AppTheme.slate600, fontSize: 12)),
+                      trailing: const Icon(Icons.chevron_right, color: AppTheme.slate500),
+                      onTap: () {
+                        Navigator.of(context).push<void>(
+                          MaterialPageRoute(
+                            builder: (ctx) => InternalAgentPromptEditorPage(definition: def, model: model),
+                          ),
+                        );
+                      },
+                    ),
                   ),
                 ),
-              ),
-            ),
-          );
-        }),
+            ],
+          ),
+        ),
       ],
+    );
+  }
+
+  Widget _ledgerPane() {
+    final model = widget.model;
+    bool isLedger(InternalAppAgentDefinition d) =>
+        d.id == InternalAppAgentIds.ledgerOrchestrator || d.id.startsWith('ledger_');
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(
+          child: ListView(
+            padding: EdgeInsets.zero,
+            children: [
+              for (final def in kInternalAppAgentDefinitions.where(isLedger))
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Card(
+                    child: ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: model.accentSoft,
+                        child: Icon(def.icon, color: model.accent, size: 22),
+                      ),
+                      title: Text(def.title, style: const TextStyle(fontWeight: FontWeight.w900)),
+                      subtitle: Text(def.listSubtitle, style: const TextStyle(color: AppTheme.slate600, fontSize: 12)),
+                      trailing: const Icon(Icons.chevron_right, color: AppTheme.slate500),
+                      onTap: () {
+                        Navigator.of(context).push<void>(
+                          MaterialPageRoute(
+                            builder: (ctx) => InternalAgentPromptEditorPage(definition: def, model: model),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _agentLibraryPane({
+    required List<AppAgent> agents,
+    required VoidCallback onCreate,
+    required String emptyText,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _searchAndPlusRow(onCreate: onCreate),
+        const SizedBox(height: 12),
+        if (agents.isEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: Text(emptyText, style: const TextStyle(color: AppTheme.slate600)),
+          )
+        else
+          Expanded(
+            child: ListView(
+              padding: EdgeInsets.zero,
+              children: [
+                for (final e in agents.asMap().entries)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Card(
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: () => _openAgentEditor(context, index: e.key),
+                        child: Padding(
+                          padding: const EdgeInsets.all(14),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(e.value.name, style: const TextStyle(fontWeight: FontWeight.w900)),
+                                    const SizedBox(height: 2),
+                                    Text(e.value.description, style: const TextStyle(color: AppTheme.slate600)),
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      'Permissions: ${e.value.permissions.isEmpty ? 'none' : e.value.permissions.length}',
+                                      style: const TextStyle(color: AppTheme.slate500, fontSize: 12, fontWeight: FontWeight.w600),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              const Icon(Icons.chevron_right, color: AppTheme.slate500),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheduleAgents = _filteredAgents(where: (a) {
+      // For now, reuse agents that can reason over cashflow + goals.
+      return a.permissions.any((p) => p.access == AgentAccess.read && p.domain == AgentDomain.cashflow);
+    });
+    final chatAgents = _filteredAgents(where: (_) => true);
+
+    Widget body = switch (_section) {
+      _AgentSettingsSection.home => _homePane(),
+      _AgentSettingsSection.ledger => _ledgerPane(),
+      _AgentSettingsSection.context => _contextPane(),
+      _AgentSettingsSection.chat => _agentLibraryPane(
+          agents: chatAgents,
+          onCreate: () => _openAgentEditor(context),
+          emptyText: 'No agents yet.',
+        ),
+      _AgentSettingsSection.schedule => _agentLibraryPane(
+          agents: scheduleAgents,
+          onCreate: () => _openAgentEditor(context),
+          emptyText: 'No schedule agents yet.',
+        ),
+    };
+
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _iconSwitcher(),
+          const SizedBox(height: 16),
+          Expanded(child: body),
+        ],
+      ),
     );
   }
 
@@ -400,6 +651,8 @@ class _AgentsPaneState extends State<_AgentsPane> {
     }
   }
 }
+
+enum _AgentSettingsSection { home, ledger, context, chat, schedule }
 
 class _ApiKeysPane extends StatefulWidget {
   const _ApiKeysPane({required this.model});

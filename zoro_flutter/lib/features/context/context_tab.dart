@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../../core/constants/web_expenses_income.dart';
+import '../../core/finance/currency.dart';
 import '../../core/state/app_model.dart';
 import '../../core/state/ledger_rows.dart';
 import '../../shared/theme/app_theme.dart';
+import 'context_orchestrator_page.dart';
 import 'context_editor_page.dart';
 
 class ContextTab extends StatefulWidget {
@@ -26,10 +28,14 @@ class _ContextTabState extends State<ContextTab> {
     return first.isEmpty ? 'Context added' : first;
   }
 
+  String _money(double v, AppModel model) => formatCurrencyDisplay(v, currency: model.displayCurrency);
+
   @override
   Widget build(BuildContext context) {
     final months = AppModel.recentMonthKeys();
     final model = widget.model;
+    final hide = model.privacyHideAmounts;
+    final predictedMonthly = model.totalExpensesMonthly;
 
     return ListView(
       padding: const EdgeInsets.all(20),
@@ -40,6 +46,23 @@ class _ContextTabState extends State<ContextTab> {
               'Context',
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
             ),
+            const Spacer(),
+            IconButton.filledTonal(
+              onPressed: () {
+                Navigator.of(context).push<void>(
+                  MaterialPageRoute(
+                    fullscreenDialog: true,
+                    builder: (ctx) => ContextOrchestratorPage(model: model),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.auto_awesome),
+              tooltip: 'Context helper',
+              style: IconButton.styleFrom(
+                backgroundColor: model.accentSoft,
+                foregroundColor: model.accent,
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 16),
@@ -48,6 +71,7 @@ class _ContextTabState extends State<ContextTab> {
         const SizedBox(height: 8),
         ...model.assets.map((a) {
           final name = a.name.trim().isEmpty ? a.type.label : a.name.trim();
+          final valueText = hide ? null : _money(a.total, model);
           return Padding(
             padding: const EdgeInsets.only(bottom: 10),
             child: Card(
@@ -55,7 +79,18 @@ class _ContextTabState extends State<ContextTab> {
                 leading: Icon(a.type.icon, color: model.accent),
                 title: Text(name, style: const TextStyle(fontWeight: FontWeight.w900)),
                 subtitle: Text(_hint(a.contextMarkdown ?? ''), maxLines: 1, overflow: TextOverflow.ellipsis),
-                trailing: const Icon(Icons.chevron_right),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (valueText != null)
+                      Text(
+                        valueText,
+                        style: const TextStyle(color: AppTheme.slate900, fontWeight: FontWeight.w900, fontSize: 12),
+                      ),
+                    const SizedBox(width: 8),
+                    const Icon(Icons.chevron_right),
+                  ],
+                ),
                 onTap: () {
                   Navigator.of(context).push<void>(
                     MaterialPageRoute(
@@ -73,6 +108,7 @@ class _ContextTabState extends State<ContextTab> {
         const SizedBox(height: 8),
         ...model.liabilities.map((l) {
           final name = l.name.trim().isEmpty ? l.type.label : l.name.trim();
+          final valueText = hide ? null : _money(l.total, model);
           return Padding(
             padding: const EdgeInsets.only(bottom: 10),
             child: Card(
@@ -80,7 +116,18 @@ class _ContextTabState extends State<ContextTab> {
                 leading: Icon(l.type.icon, color: model.accent),
                 title: Text(name, style: const TextStyle(fontWeight: FontWeight.w900)),
                 subtitle: Text(_hint(l.contextMarkdown ?? ''), maxLines: 1, overflow: TextOverflow.ellipsis),
-                trailing: const Icon(Icons.chevron_right),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (valueText != null)
+                      Text(
+                        valueText,
+                        style: const TextStyle(color: AppTheme.slate900, fontWeight: FontWeight.w900, fontSize: 12),
+                      ),
+                    const SizedBox(width: 8),
+                    const Icon(Icons.chevron_right),
+                  ],
+                ),
                 onTap: () {
                   Navigator.of(context).push<void>(
                     MaterialPageRoute(
@@ -115,7 +162,7 @@ class _ContextTabState extends State<ContextTab> {
                       leading: Container(
                         width: 12,
                         height: 12,
-                        decoration: BoxDecoration(color: bucketColor(k), shape: BoxShape.circle),
+                        decoration: BoxDecoration(color: bucketColorHighContrast(k), shape: BoxShape.circle),
                       ),
                       title: Text(
                         presetForCountry(AppModel.expensePresetCountry).buckets[k]?.label ?? k,
@@ -126,7 +173,21 @@ class _ContextTabState extends State<ContextTab> {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      trailing: const Icon(Icons.chevron_right),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (!hide)
+                            Text(
+                              _money(
+                                (model.expenseBuckets[k] ?? presetForCountry(AppModel.expensePresetCountry).buckets[k]?.value ?? 0).toDouble(),
+                                model,
+                              ),
+                              style: const TextStyle(color: AppTheme.slate900, fontWeight: FontWeight.w900, fontSize: 12),
+                            ),
+                          const SizedBox(width: 8),
+                          const Icon(Icons.chevron_right),
+                        ],
+                      ),
                       onTap: () {
                         Navigator.of(context).push<void>(
                           MaterialPageRoute(
@@ -160,14 +221,36 @@ class _ContextTabState extends State<ContextTab> {
                   padding: const EdgeInsets.only(bottom: 10),
                   child: Card(
                     child: ListTile(
-                      leading: Icon(Icons.calendar_month, color: model.accent),
+                      leading: Icon(
+                        Icons.calendar_month,
+                        color: AppModel.spendVsPredictedColor(
+                          actual: (model.monthlyEntryFor(mk)?.monthlySpending ?? 0).toDouble(),
+                          predicted: predictedMonthly,
+                          hasData: (model.monthlyEntryFor(mk)?.monthlySpending ?? 0) > 0,
+                        ),
+                      ),
                       title: Text(AppModel.formatMonthKeyLabel(mk), style: const TextStyle(fontWeight: FontWeight.w900)),
                       subtitle: Text(
                         _hint(model.monthlyEntryFor(mk)?.contextMarkdown ?? ''),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      trailing: const Icon(Icons.chevron_right),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (!hide)
+                            Text(
+                              _money((model.monthlyEntryFor(mk)?.monthlySpending ?? 0).toDouble(), model),
+                              style: const TextStyle(
+                                color: AppTheme.slate900,
+                                fontWeight: FontWeight.w900,
+                                fontSize: 12,
+                              ),
+                            ),
+                          const SizedBox(width: 8),
+                          const Icon(Icons.chevron_right),
+                        ],
+                      ),
                       onTap: () {
                         Navigator.of(context).push<void>(
                           MaterialPageRoute(

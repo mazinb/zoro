@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 
 import '../../shared/theme/app_theme.dart';
+import '../chat/chat_local_store.dart';
+import '../chat/chat_message.dart';
 import '../constants/web_expenses_income.dart';
 import '../finance/currency.dart';
 import '../llm/llm_key_store.dart';
 import 'cashflow_income_line.dart';
+import 'internal_app_agent_definition.dart';
 import 'ledger_rows.dart';
 import 'monthly_cashflow_entry.dart';
 
@@ -13,6 +16,12 @@ class AppModel extends ChangeNotifier {
     syncAllocationsFromFraction(notify: false);
     _seedDummyCashflowData();
   }
+
+  static const double spendVarianceBandPct = 0.10;
+  static const Color spendOverColor = Color(0xFFEF4444); // red
+  static const Color spendUnderColor = Color(0xFF10B981); // green
+  static const Color spendInBandColor = AppTheme.slate600; // grey
+  static const Color spendNoDataColor = AppTheme.slate500;
 
   final LlmKeyStore _llmKeyStore = LlmKeyStore();
 
@@ -27,6 +36,7 @@ class AppModel extends ChangeNotifier {
       anthropicApiKey = keys[LlmProvider.anthropic];
       geminiApiKey = keys[LlmProvider.gemini];
       _syncActiveProviderIfKeyRemoved();
+      await loadPersistedChats();
     } finally {
       _bootstrapped = true;
       notifyListeners();
@@ -39,6 +49,14 @@ class AppModel extends ChangeNotifier {
 
   /// When true, monetary figures are masked (e.g. on Home and Ledger). Toggled from Home.
   bool privacyHideAmounts = false;
+
+  /// Optional short motivation/summary shown at the top of Home when non-empty.
+  String homeSummaryText = '';
+
+  void setHomeSummaryText(String value) {
+    homeSummaryText = value;
+    notifyListeners();
+  }
 
   /// Agents (UI-only). These are configurable “helpers” that can use app context + user-provided JSON.
   final List<AppAgent> agents = [
@@ -136,29 +154,112 @@ Blunt + prioritized actions.
     ),
   ];
 
-  /// Chats are always tied to an agent (UI-only).
-  final List<AgentChatThread> chats = [
-    AgentChatThread(
-      id: 'chat-1',
-      agentId: 'agent-3',
-      title: 'Raise savings rate',
-      createdAt: DateTime(2026, 4, 26, 9, 10),
-      updatedAt: DateTime(2026, 4, 27, 10, 45),
-      messageCount: 14,
-      tokensUsed: 8200,
-      lastLine: 'Cut top 2 buckets; automate investing.',
-    ),
-    AgentChatThread(
-      id: 'chat-2',
-      agentId: 'agent-1',
-      title: 'Retire at 55?',
-      createdAt: DateTime(2026, 4, 25, 20, 0),
-      updatedAt: DateTime(2026, 4, 25, 20, 40),
-      messageCount: 8,
-      tokensUsed: 6100,
-      lastLine: 'Target 25× expenses; raise savings rate.',
-    ),
-  ];
+  /// Per–internal-agent system prompt overrides (empty key → use [InternalAppAgentDefinition.defaultSystemPrompt]).
+  final Map<String, String> _internalAgentSystemPromptById = {};
+
+  String internalAgentSystemPrompt(String agentId) {
+    final stored = _internalAgentSystemPromptById[agentId];
+    if (stored != null) return stored;
+    return internalAppAgentDefinitionById(agentId)?.defaultSystemPrompt ?? '';
+  }
+
+  void setInternalAgentSystemPrompt(String agentId, String value) {
+    _internalAgentSystemPromptById[agentId] = value;
+    notifyListeners();
+  }
+
+  /// Last structured JSON per internal agent (e.g. for App agents detail / debugging).
+  final Map<String, Map<String, Object?>> internalAgentLastStructuredById = {};
+
+  final Map<String, DateTime> internalAgentLastRunById = {};
+
+  void recordInternalAgentRun(String agentId, Map<String, Object?> structured) {
+    internalAgentLastStructuredById[agentId] = Map<String, Object?>.from(structured);
+    internalAgentLastRunById[agentId] = DateTime.now();
+    notifyListeners();
+  }
+
+  /// Convenience for the asset context planner flow.
+  void recordAssetContextPlannerRun(Map<String, Object?> structured) {
+    recordInternalAgentRun(InternalAppAgentIds.assetContext, structured);
+  }
+
+  /// When this context note was last saved (for assistant + display). Keys: `asset:id`, `liability:id`, `bucket:key`, `month:yyyy-mm`.
+  final Map<String, DateTime> contextNoteSavedAtUtc = {};
+
+  static String contextKeyAsset(String id) => 'asset:$id';
+  static String contextKeyLiability(String id) => 'liability:$id';
+  static String contextKeyBucket(String key) => 'bucket:$key';
+  static String contextKeyMonth(String monthKey) => 'month:$monthKey';
+
+  String? contextNoteLastUpdatedIso(String storageKey) {
+    final t = contextNoteSavedAtUtc[storageKey];
+    return t?.toIso8601String();
+  }
+
+  void _touchContextNoteSaved(String storageKey) {
+    contextNoteSavedAtUtc[storageKey] = DateTime.now().toUtc();
+  }
+
+  /// Call when a context note is saved outside the usual setters (e.g. new month row).
+  void markContextNoteSaved(String storageKey) {
+    _touchContextNoteSaved(storageKey);
+    notifyListeners();
+  }
+
+  /// Chats are always tied to an agent; threads and messages persist locally (see [bootstrap]).
+  final List<AgentChatThread> chats = [];
+
+  final Map<String, List<ChatMessage>> _chatMessagesByThreadId = {};
+  int _chatPersistRevision = 0;
+
+  List<ChatMessage> chatMessagesFor(String threadId) {
+    final list = _chatMessagesByThreadId[threadId];
+    if (list == null) return [];
+    return List<ChatMessage>.from(list);
+  }
+
+  void setChatMessagesFor(String threadId, List<ChatMessage> messages) {
+    _chatMessagesByThreadId[threadId] = List<ChatMessage>.from(messages);
+    _scheduleChatPersist();
+    notifyListeners();
+  }
+
+  void appendChatMessage(String threadId, ChatMessage message) {
+    _chatMessagesByThreadId.putIfAbsent(threadId, () => []).add(message);
+    _scheduleChatPersist();
+    notifyListeners();
+  }
+
+  void _scheduleChatPersist() {
+    _chatPersistRevision++;
+    final rev = _chatPersistRevision;
+    Future<void> run() async {
+      if (rev != _chatPersistRevision) return;
+      try {
+        await ChatLocalStore.save(
+          threads: List<AgentChatThread>.from(chats),
+          messagesByThread: {
+            for (final e in _chatMessagesByThreadId.entries) e.key: List<ChatMessage>.from(e.value),
+          },
+        );
+      } catch (_) {}
+    }
+
+    Future.microtask(run);
+  }
+
+  Future<void> loadPersistedChats() async {
+    final snap = await ChatLocalStore.load();
+    if (snap == null) return;
+    chats
+      ..clear()
+      ..addAll(snap.threads);
+    _chatMessagesByThreadId
+      ..clear()
+      ..addAll(snap.messages);
+    notifyListeners();
+  }
 
   /// Permissions / keys (UI-only). Used by Chat and (later) Agents.
   LlmProvider activeLlmProvider = LlmProvider.openai;
@@ -189,7 +290,8 @@ Blunt + prioritized actions.
   int remindersQuarterMonthInQuarter = 3;
   int remindersQuarterDay = 31;
 
-  /// Yearly reminders are due on this month/day (default: Mar 31).
+  /// Yearly **nudge** date in Settings (Mar 31 default). Overdue for yearly cadence is computed from
+  /// one year after the last update (anniversary), not this anchor.
   int remindersYearlyMonth = 3;
   int remindersYearlyDay = 31;
 
@@ -448,6 +550,8 @@ Blunt + prioritized actions.
 
   void addChat(AgentChatThread t) {
     chats.add(t);
+    _chatMessagesByThreadId.putIfAbsent(t.id, () => []);
+    _scheduleChatPersist();
     notifyListeners();
   }
 
@@ -455,6 +559,8 @@ Blunt + prioritized actions.
     final idx = chats.indexWhere((t) => t.id == id);
     if (idx < 0) return;
     chats.removeAt(idx);
+    _chatMessagesByThreadId.remove(id);
+    _scheduleChatPersist();
     notifyListeners();
   }
 
@@ -467,12 +573,15 @@ Blunt + prioritized actions.
     t.tokensUsed = 0;
     t.lastLine = '';
     chats[idx] = t;
+    _chatMessagesByThreadId[id] = [];
+    _scheduleChatPersist();
     notifyListeners();
   }
 
   void updateChat(int index, AgentChatThread t) {
     if (index < 0 || index >= chats.length) return;
     chats[index] = t;
+    _scheduleChatPersist();
     notifyListeners();
   }
 
@@ -695,6 +804,32 @@ Blunt + prioritized actions.
     notifyListeners();
   }
 
+  void updateIncomeLineAt(int index, {String? label, double? annualAmount}) {
+    if (index < 0 || index >= incomeLines.length) return;
+    final line = incomeLines[index];
+    if (label != null) line.label = label;
+    if (annualAmount != null) line.annualAmount = annualAmount;
+    notifyIncomeChanged();
+  }
+
+  bool tryUpdateAssetTotalById(String id, double total) {
+    final a = assetById(id);
+    if (a == null) return false;
+    a.total = total;
+    assetsLastReviewed = DateTime.now();
+    notifyListeners();
+    return true;
+  }
+
+  bool tryUpdateLiabilityTotalById(String id, double total) {
+    final row = liabilityById(id);
+    if (row == null) return false;
+    row.total = total;
+    liabilitiesLastReviewed = DateTime.now();
+    notifyListeners();
+    return true;
+  }
+
   void notifyIncomeChanged() {
     incomeLastUpdated = DateTime.now();
     syncAllocationsFromFraction();
@@ -721,11 +856,29 @@ Blunt + prioritized actions.
 
   void setExpenseBucketContextMarkdown({required String bucketKey, required String markdown}) {
     expenseBucketContextMarkdown = {...expenseBucketContextMarkdown, bucketKey: markdown};
+    _touchContextNoteSaved(contextKeyBucket(bucketKey));
     notifyListeners();
   }
 
   double actualSpendForMonth(String monthKey) {
     return monthlyEntryFor(monthKey)?.monthlySpending ?? 0;
+  }
+
+  /// Color-code actual spending compared to predicted budget.
+  /// - > +10% over predicted: red
+  /// - > -10% under predicted: green
+  /// - within ±10% band: grey
+  static Color spendVsPredictedColor({
+    required double actual,
+    required double predicted,
+    bool hasData = true,
+  }) {
+    if (!hasData) return spendNoDataColor;
+    if (predicted <= 0 || actual <= 0) return spendInBandColor;
+    final ratio = actual / predicted;
+    if (ratio > 1 + spendVarianceBandPct) return spendOverColor;
+    if (ratio < 1 - spendVarianceBandPct) return spendUnderColor;
+    return spendInBandColor;
   }
 
   MonthlyCashflowEntry? monthlyEntryFor(String monthKey) => monthlyCashflowByMonth[monthKey];
@@ -759,6 +912,7 @@ Blunt + prioritized actions.
     if (idx < 0) return;
     assets[idx].contextMarkdown = markdown;
     assetsLastReviewed = DateTime.now();
+    _touchContextNoteSaved(contextKeyAsset(assetId));
     notifyListeners();
   }
 
@@ -767,6 +921,7 @@ Blunt + prioritized actions.
     if (idx < 0) return;
     liabilities[idx].contextMarkdown = markdown;
     liabilitiesLastReviewed = DateTime.now();
+    _touchContextNoteSaved(contextKeyLiability(liabilityId));
     notifyListeners();
   }
 
@@ -774,6 +929,7 @@ Blunt + prioritized actions.
     final e = monthlyCashflowByMonth[monthKey];
     if (e == null) return;
     e.contextMarkdown = markdown;
+    _touchContextNoteSaved(contextKeyMonth(monthKey));
     notifyListeners();
   }
 
@@ -794,16 +950,6 @@ Blunt + prioritized actions.
     return _quarterlyAnchorFor(prevY, prevQ);
   }
 
-  DateTime _mostRecentYearlyAnchor(DateTime now) {
-    final maxDayThisYear = DateTime(now.year, remindersYearlyMonth + 1, 0).day;
-    final safeDayThisYear = remindersYearlyDay.clamp(1, maxDayThisYear);
-    final thisYear = DateTime(now.year, remindersYearlyMonth, safeDayThisYear);
-    if (!now.isBefore(thisYear.add(const Duration(days: 1)))) return thisYear;
-    final maxDayPrevYear = DateTime(now.year - 1, remindersYearlyMonth + 1, 0).day;
-    final safeDayPrevYear = remindersYearlyDay.clamp(1, maxDayPrevYear);
-    return DateTime(now.year - 1, remindersYearlyMonth, safeDayPrevYear);
-  }
-
   bool _isOverdue({required DateTime now, required DateTime? last, required ReminderCadence cadence}) {
     if (cadence == ReminderCadence.off) return false;
     switch (cadence) {
@@ -817,28 +963,65 @@ Blunt + prioritized actions.
         final anchor = _mostRecentQuarterlyAnchor(now);
         return last == null || last.isBefore(anchor);
       case ReminderCadence.yearly:
-        final anchor = _mostRecentYearlyAnchor(now);
-        return last == null || last.isBefore(anchor);
+        // Due once per year from the last update (anniversary), not only on a fixed calendar anchor.
+        if (last == null) return true;
+        final due = DateTime(last.year + 1, last.month, last.day);
+        return !now.isBefore(due);
       case ReminderCadence.off:
         return false;
     }
   }
 
-  bool get expensesReviewOverdue => _isOverdue(now: DateTime.now(), last: expenseEstimatesLastUpdated, cadence: remindersExpensesCadence);
-  bool get incomeReviewOverdue => _isOverdue(now: DateTime.now(), last: incomeLastUpdated, cadence: remindersIncomeCadence);
-  bool get assetsReviewOverdue => _isOverdue(now: DateTime.now(), last: assetsLastReviewed, cadence: remindersAssetsCadence);
-  bool get liabilitiesReviewOverdue => _isOverdue(now: DateTime.now(), last: liabilitiesLastReviewed, cadence: remindersLiabilitiesCadence);
+  bool get expensesReviewOverdue => expensesReviewOverdueAt(DateTime.now());
+  bool get incomeReviewOverdue => incomeReviewOverdueAt(DateTime.now());
+  bool get assetsReviewOverdue => assetsReviewOverdueAt(DateTime.now());
+  bool get liabilitiesReviewOverdue => liabilitiesReviewOverdueAt(DateTime.now());
 
-  bool get cashflowReviewOverdue {
-    final now = DateTime.now();
+  bool expensesReviewOverdueAt(DateTime now) =>
+      _isOverdue(now: now, last: expenseEstimatesLastUpdated, cadence: remindersExpensesCadence);
+
+  bool incomeReviewOverdueAt(DateTime now) =>
+      _isOverdue(now: now, last: incomeLastUpdated, cadence: remindersIncomeCadence);
+
+  bool assetsReviewOverdueAt(DateTime now) =>
+      _isOverdue(now: now, last: assetsLastReviewed, cadence: remindersAssetsCadence);
+
+  bool liabilitiesReviewOverdueAt(DateTime now) =>
+      _isOverdue(now: now, last: liabilitiesLastReviewed, cadence: remindersLiabilitiesCadence);
+
+  bool get cashflowReviewOverdue => cashflowReviewOverdueAt(DateTime.now());
+
+  /// Whether cash flow needs attention for [now] (used by Home reminders + tests).
+  bool cashflowReviewOverdueAt(DateTime now) {
     if (remindersCashflowCadence == ReminderCadence.off) return false;
-    // Consider "cashflow reviewed" for the month if there's an entry for the current month.
     final mk = monthKeyFor(now);
     final hasThisMonth = monthlyCashflowByMonth[mk] != null;
     final dueDay = remindersMonthlyDayOfMonth.clamp(1, 28);
     final dueThisMonth = DateTime(now.year, now.month, dueDay);
     if (now.isBefore(dueThisMonth)) return false;
     return !hasThisMonth;
+  }
+
+  /// Latest month (first day) that has a cash-flow entry; for "last updated" copy on Home.
+  DateTime? get latestCashflowMonthStart {
+    DateTime? best;
+    for (final k in monthlyCashflowByMonth.keys) {
+      final parts = k.split('-');
+      if (parts.length != 2) continue;
+      final y = int.tryParse(parts[0]);
+      final m = int.tryParse(parts[1]);
+      if (y == null || m == null) continue;
+      final d = DateTime(y, m, 1);
+      if (best == null || d.isAfter(best)) best = d;
+    }
+    return best;
+  }
+
+  /// Short phrase for Home reminder row (pass device "today" for tests).
+  String cashflowLastUpdatedPhraseAt(DateTime now) {
+    final latest = latestCashflowMonthStart;
+    if (latest == null) return 'Never updated';
+    return relativeLastUpdatedLabel(lastCalendarDay: latest, now: now);
   }
 
   /// Actual: average invest share of (cash/FD + invest) outflows over months that have entries in [monthKeys].
@@ -884,7 +1067,10 @@ Blunt + prioritized actions.
     final chrono = months.reversed.toList();
     for (var i = 0; i < chrono.length; i++) {
       final mk = chrono[i];
-      final spendJitter = 0.9 + (i % 5) * 0.03;
+      // Force visible red/green/grey examples for the Expenses vs budget table + Context Actuals.
+      // Pattern yields: under (green), in-band (grey), in-band (grey), in-band (grey), over (red).
+      const spendJitterPattern = <double>[0.85, 0.93, 1.00, 1.07, 1.16];
+      final spendJitter = spendJitterPattern[i % spendJitterPattern.length];
       final spend = ((predicted * spendJitter).clamp(0, double.infinity)).toDouble();
       final investShare = ((allocInvestFraction + ((i % 3) - 1) * 0.06).clamp(0.15, 0.85)).toDouble();
       final outInv = avail > 0
@@ -1010,6 +1196,22 @@ Blunt + prioritized actions.
   ThemeData themedLight() {
     return AppTheme.light;
   }
+}
+
+/// Human-readable "Last updated …" for reminder rows; [lastCalendarDay] is normalized to date-only.
+String relativeLastUpdatedLabel({required DateTime lastCalendarDay, required DateTime now}) {
+  final d = DateTime(lastCalendarDay.year, lastCalendarDay.month, lastCalendarDay.day);
+  final t = DateTime(now.year, now.month, now.day);
+  if (!d.isBefore(t)) return 'Last updated today';
+  final days = t.difference(d).inDays;
+  if (days == 1) return 'Last updated 1 day ago';
+  if (days < 30) return 'Last updated $days days ago';
+  var months = (t.year - d.year) * 12 + t.month - d.month;
+  if (t.day < d.day) months -= 1;
+  final m = months.clamp(0, 999);
+  if (m <= 0) return 'Last updated $days days ago';
+  if (m == 1) return 'Last updated 1 month ago';
+  return 'Last updated $m months ago';
 }
 
 enum ReminderCadence { off, monthly, quarterly, yearly }

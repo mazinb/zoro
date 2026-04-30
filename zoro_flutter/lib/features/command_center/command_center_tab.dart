@@ -12,10 +12,17 @@ import '../../shared/theme/app_theme.dart';
 import 'zoro_interactive_sankey_painter.dart';
 
 class CommandCenterTab extends StatefulWidget {
-  const CommandCenterTab({super.key, required this.model, required this.onGoToLedger});
+  const CommandCenterTab({
+    super.key,
+    required this.model,
+    required this.onGoToLedger,
+    /// When set (e.g. in tests), reminder copy and overdue highlighting use this instead of [DateTime.now].
+    this.previewNowForReminders,
+  });
 
   final AppModel model;
   final void Function(String section) onGoToLedger;
+  final DateTime? previewNowForReminders;
 
   @override
   State<CommandCenterTab> createState() => _CommandCenterTabState();
@@ -26,10 +33,9 @@ class _CommandCenterTabState extends State<CommandCenterTab> {
   bool _expanded = false;
   _SelectedKind? _selectedKind;
 
-  String _fmtDate(DateTime? d) {
-    if (d == null) return '—';
-    const names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return '${names[d.month - 1]} ${d.day}, ${d.year}';
+  String _lastUpdatedDetail(DateTime? last, DateTime now) {
+    if (last == null) return 'Never updated';
+    return relativeLastUpdatedLabel(lastCalendarDay: last, now: now);
   }
 
   @override
@@ -37,51 +43,52 @@ class _CommandCenterTabState extends State<CommandCenterTab> {
     final sankey = _SankeyModel.fromApp(widget.model);
     final showExpenseDetails = _selectedKind == _SelectedKind.expenses && _expanded;
     final hideNet = widget.model.privacyHideAmounts;
+    final now = widget.previewNowForReminders ?? DateTime.now();
     final reminders = <_ReminderItem>[
       if (widget.model.remindersExpensesCadence != ReminderCadence.off)
         _ReminderItem(
-          title: 'Review expense estimates',
-          subtitle: 'Last updated ${_fmtDate(widget.model.expenseEstimatesLastUpdated)} • quarterly',
-          actionLabel: 'Review',
+          rowKey: const ValueKey<String>('reminder-expenses'),
+          title: 'Expenses',
+          detail: _lastUpdatedDetail(widget.model.expenseEstimatesLastUpdated, now),
           onTap: () => widget.onGoToLedger('expenses'),
           icon: Icons.pie_chart_outline,
-          overdue: widget.model.expensesReviewOverdue,
+          overdue: widget.model.expensesReviewOverdueAt(now),
         ),
       if (widget.model.remindersCashflowCadence != ReminderCadence.off)
         _ReminderItem(
-          title: 'Add this month’s cash flow',
-          subtitle: 'Due monthly (day ${widget.model.remindersMonthlyDayOfMonth})',
-          actionLabel: 'Open',
+          rowKey: const ValueKey<String>('reminder-cashflow'),
+          title: 'Cash flow',
+          detail: widget.model.cashflowLastUpdatedPhraseAt(now),
           onTap: () => widget.onGoToLedger('cashflow'),
           icon: Icons.playlist_add,
-          overdue: widget.model.cashflowReviewOverdue,
+          overdue: widget.model.cashflowReviewOverdueAt(now),
         ),
       if (widget.model.remindersIncomeCadence != ReminderCadence.off)
         _ReminderItem(
-          title: 'Review income & tax',
-          subtitle: 'Last updated ${_fmtDate(widget.model.incomeLastUpdated)} • yearly',
-          actionLabel: 'Review',
+          rowKey: const ValueKey<String>('reminder-income'),
+          title: 'Income',
+          detail: _lastUpdatedDetail(widget.model.incomeLastUpdated, now),
           onTap: () => widget.onGoToLedger('income'),
           icon: Icons.payments_outlined,
-          overdue: widget.model.incomeReviewOverdue,
+          overdue: widget.model.incomeReviewOverdueAt(now),
         ),
       if (widget.model.remindersAssetsCadence != ReminderCadence.off)
         _ReminderItem(
-          title: 'Review assets',
-          subtitle: 'Last reviewed ${_fmtDate(widget.model.assetsLastReviewed)}',
-          actionLabel: 'Review',
+          rowKey: const ValueKey<String>('reminder-assets'),
+          title: 'Assets',
+          detail: _lastUpdatedDetail(widget.model.assetsLastReviewed, now),
           onTap: () => widget.onGoToLedger('assets'),
           icon: Icons.savings_outlined,
-          overdue: widget.model.assetsReviewOverdue,
+          overdue: widget.model.assetsReviewOverdueAt(now),
         ),
       if (widget.model.remindersLiabilitiesCadence != ReminderCadence.off)
         _ReminderItem(
-          title: 'Review liabilities',
-          subtitle: 'Last reviewed ${_fmtDate(widget.model.liabilitiesLastReviewed)}',
-          actionLabel: 'Review',
+          rowKey: const ValueKey<String>('reminder-liabilities'),
+          title: 'Liabilities',
+          detail: _lastUpdatedDetail(widget.model.liabilitiesLastReviewed, now),
           onTap: () => widget.onGoToLedger('liabilities'),
           icon: Icons.credit_card,
-          overdue: widget.model.liabilitiesReviewOverdue,
+          overdue: widget.model.liabilitiesReviewOverdueAt(now),
         ),
     ];
     return ListView(
@@ -124,6 +131,20 @@ class _CommandCenterTabState extends State<CommandCenterTab> {
           ),
         ),
         const SizedBox(height: 10),
+        if (widget.model.homeSummaryText.trim().isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Card(
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Text(
+                  widget.model.homeSummaryText.trim(),
+                  style: const TextStyle(color: AppTheme.slate900, fontWeight: FontWeight.w700, height: 1.35),
+                ),
+              ),
+            ),
+          ),
+        if (widget.model.homeSummaryText.trim().isNotEmpty) const SizedBox(height: 10),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Card(
@@ -450,10 +471,15 @@ class _SankeyPlaceholder extends StatelessWidget {
               };
               final selectedId = selectedNode?.id;
               if (selectedId is int) {
-                // Selection: keep normal colors, just tint the selected node.
+                // Selection: tint the selected node (glass sinks keep their own look in the painter).
                 final selected = graph.nodes.where((n) => n.id == selectedId).cast<SankeyNode?>().firstOrNull;
                 if (selected != null) {
-                  nodeColors[selected.displayLabel] = Theme.of(context).colorScheme.primary.withValues(alpha: 0.75);
+                  final h = nodeDisplayName(selected).split(RegExp(r'\s{2,}')).first.trim().toLowerCase();
+                  final isGlass = h == 'investments' || h == 'savings' || h == 'expenses' || h == 'taxes';
+                  if (!isGlass) {
+                    nodeColors[selected.displayLabel] =
+                        Theme.of(context).colorScheme.primary.withValues(alpha: 0.75);
+                  }
                 }
               }
 
@@ -494,17 +520,17 @@ class _SankeyPlaceholder extends StatelessWidget {
 
 }
 
-enum _SelectedKind { income, expenses, allocations, summary }
+enum _SelectedKind { income, expenses, investments, savings, taxes, totals }
 
 _SelectedKind? _kindFromLabel(String? label) {
   final raw = label ?? '';
   final head = raw.split(RegExp(r'\s{2,}')).first.toLowerCase();
   if (head.startsWith('expenses')) return _SelectedKind.expenses;
-  if (head.startsWith('investments') || head.startsWith('savings')) {
-    return _SelectedKind.allocations;
-  }
-  if (head.startsWith('all income') || head.startsWith('net income') || head.startsWith('taxes')) {
-    return _SelectedKind.summary;
+  if (head.startsWith('investments')) return _SelectedKind.investments;
+  if (head.startsWith('savings')) return _SelectedKind.savings;
+  if (head.startsWith('taxes')) return _SelectedKind.taxes;
+  if (head.startsWith('all income') || head.startsWith('net income')) {
+    return _SelectedKind.totals;
   }
   final l = raw.toLowerCase();
   if (l.contains('housing') ||
@@ -529,6 +555,9 @@ class _SelectionCard extends StatelessWidget {
     required this.onToggleDetails,
   });
 
+  /// Keeps the CTA the same width whether the label is "Go to Ledger" or "View details".
+  static const double _ctaMinWidth = 158;
+
   final _SelectedKind kind;
   final bool expanded;
   final void Function(String section) onGoToLedger;
@@ -537,40 +566,46 @@ class _SelectionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final narrow = MediaQuery.sizeOf(context).width < 420;
+    final ctaStyle = FilledButton.styleFrom(minimumSize: const Size(_ctaMinWidth, 48));
     late final String title;
     late final String subtitle;
-    VoidCallback? primaryAction;
-    String? primaryLabel;
-
-    String? secondaryLabel;
-    VoidCallback? secondaryAction;
+    late final VoidCallback primaryAction;
+    late final String primaryLabel;
 
     switch (kind) {
       case _SelectedKind.expenses:
         title = 'Expenses';
-        subtitle = 'Edit the details in Ledger.';
-        if (!expanded) {
-          primaryLabel = 'Go to Ledger';
-          primaryAction = () => onGoToLedger('expenses');
-        }
-        secondaryLabel = expanded ? 'Hide details' : 'View details';
-        secondaryAction = onToggleDetails;
+        subtitle = 'Edit estimates in ledger';
+        primaryLabel = expanded ? 'Hide details' : 'View details';
+        primaryAction = onToggleDetails;
         break;
       case _SelectedKind.income:
         title = 'Income';
-        subtitle = 'Edit income sources and tax in Ledger.';
+        subtitle = 'Edit income and taxes';
         primaryLabel = 'Go to Ledger';
         primaryAction = () => onGoToLedger('income');
         break;
-      case _SelectedKind.allocations:
-        title = 'Allocations';
-        subtitle = 'Adjust cash/FDs vs investments in Ledger.';
+      case _SelectedKind.investments:
+        title = 'Investments';
+        subtitle = 'Edit allocation';
         primaryLabel = 'Go to Ledger';
         primaryAction = () => onGoToLedger('allocations');
         break;
-      case _SelectedKind.summary:
+      case _SelectedKind.savings:
+        title = 'Savings';
+        subtitle = 'Edit allocation';
+        primaryLabel = 'Go to Ledger';
+        primaryAction = () => onGoToLedger('allocations');
+        break;
+      case _SelectedKind.taxes:
+        title = 'Taxes';
+        subtitle = 'Edit income and taxes';
+        primaryLabel = 'Go to Ledger';
+        primaryAction = () => onGoToLedger('income');
+        break;
+      case _SelectedKind.totals:
         title = 'Totals';
-        subtitle = 'Derived from your Ledger inputs.';
+        subtitle = 'From Ledger';
         primaryLabel = 'Go to Ledger';
         primaryAction = () => onGoToLedger('income');
         break;
@@ -591,11 +626,11 @@ class _SelectionCard extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(subtitle, style: const TextStyle(color: AppTheme.slate600)),
                 const SizedBox(height: 10),
-                if (primaryAction != null && primaryLabel != null) FilledButton(onPressed: primaryAction, child: Text(primaryLabel)),
-                if (secondaryLabel != null && secondaryAction != null) ...[
-                  SizedBox(height: primaryAction != null ? 6 : 0),
-                  OutlinedButton(onPressed: secondaryAction, child: Text(secondaryLabel)),
-                ],
+                FilledButton(
+                  style: ctaStyle,
+                  onPressed: primaryAction,
+                  child: Text(primaryLabel),
+                ),
               ],
             )
           : Row(
@@ -611,11 +646,11 @@ class _SelectionCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 10),
-                if (secondaryLabel != null && secondaryAction != null) ...[
-                  OutlinedButton(onPressed: secondaryAction, child: Text(secondaryLabel)),
-                  const SizedBox(width: 8),
-                ],
-                if (primaryAction != null && primaryLabel != null) FilledButton(onPressed: primaryAction, child: Text(primaryLabel)),
+                FilledButton(
+                  style: ctaStyle,
+                  onPressed: primaryAction,
+                  child: Text(primaryLabel),
+                ),
               ],
             ),
     );
@@ -695,17 +730,17 @@ class _ExpenseDetailsRows extends StatelessWidget {
 
 class _ReminderItem {
   const _ReminderItem({
+    required this.rowKey,
     required this.title,
-    required this.subtitle,
-    required this.actionLabel,
+    required this.detail,
     required this.onTap,
     required this.icon,
     required this.overdue,
   });
 
+  final Key rowKey;
   final String title;
-  final String subtitle;
-  final String actionLabel;
+  final String detail;
   final VoidCallback onTap;
   final IconData icon;
   final bool overdue;
@@ -719,83 +754,74 @@ class _RemindersCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasOverdue = items.any((e) => e.overdue);
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              hasOverdue ? 'To update' : 'Up to date',
-              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+            const Text(
+              'Updates',
+              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
             ),
-            if (!hasOverdue) ...[
-              const SizedBox(height: 6),
-              const Text('All caught up.', style: TextStyle(color: AppTheme.slate600)),
-            ],
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             ...items.map(
               (it) => Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: it.overdue ? AppTheme.slate50 : AppTheme.slate100.withValues(alpha: 0.45),
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Material(
+                  key: it.rowKey,
+                  color: it.overdue ? accent.withValues(alpha: 0.09) : AppTheme.slate100.withValues(alpha: 0.35),
+                  borderRadius: BorderRadius.circular(12),
+                  child: InkWell(
+                    onTap: it.onTap,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: AppTheme.slate100.withValues(alpha: it.overdue ? 1.0 : 0.7),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Icon(
+                            it.icon,
+                            size: 22,
+                            color: it.overdue ? accent : AppTheme.slate500.withValues(alpha: 0.65),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  it.title,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 15,
+                                    color: it.overdue ? accent : AppTheme.slate600,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  it.detail,
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    fontSize: 13,
+                                    height: 1.25,
+                                    color: it.overdue ? accent.withValues(alpha: 0.88) : AppTheme.slate500,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                          Icon(
+                            Icons.chevron_right,
+                            size: 22,
+                            color: it.overdue ? accent : AppTheme.slate500.withValues(alpha: 0.65),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: it.overdue ? accent.withValues(alpha: 0.12) : AppTheme.slate100.withValues(alpha: 0.9),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Icon(it.icon, color: it.overdue ? accent : AppTheme.slate500),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              it.title,
-                              style: TextStyle(
-                                fontWeight: FontWeight.w900,
-                                color: it.overdue ? AppTheme.slate900 : AppTheme.slate500,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              it.subtitle,
-                              style: TextStyle(
-                                color: it.overdue ? AppTheme.slate600 : AppTheme.slate500.withValues(alpha: 0.85),
-                                fontSize: 12,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      it.overdue
-                          ? FilledButton(
-                              onPressed: it.onTap,
-                              child: Text(it.actionLabel),
-                            )
-                          : FilledButton(
-                              onPressed: it.onTap,
-                              style: FilledButton.styleFrom(
-                                backgroundColor: AppTheme.slate100.withValues(alpha: 0.95),
-                                foregroundColor: AppTheme.slate600,
-                              ),
-                              child: Text(it.actionLabel),
-                            ),
-                    ],
                   ),
                 ),
               ),

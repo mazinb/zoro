@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../core/chat/agent_action_executor.dart';
+import '../../core/chat/chat_message.dart';
 import '../../core/llm/llm_client.dart';
 import '../../core/state/app_model.dart';
 import '../../core/state/monthly_cashflow_entry.dart';
@@ -329,7 +331,7 @@ class _ChatThreadPage extends StatefulWidget {
 
 class _ChatThreadPageState extends State<_ChatThreadPage> {
   final _ctrl = TextEditingController();
-  final _messages = <({bool fromUser, String text})>[];
+  final _messages = <ChatMessage>[];
   var _includeAssets = true;
   var _includeLiabilities = true;
   var _includeExpenseBuckets = true;
@@ -337,8 +339,28 @@ class _ChatThreadPageState extends State<_ChatThreadPage> {
   bool _sending = false;
   final _llm = LlmClient();
 
+  void _persistTranscript() {
+    final real = _messages.where((m) => m.text != 'Thinking…').toList();
+    widget.model.setChatMessagesFor(widget.threadId, real);
+  }
+
+  void _maybeHydrateFromModel() {
+    if (!mounted || _sending) return;
+    final from = widget.model.chatMessagesFor(widget.threadId);
+    if (from.isEmpty || _messages.isNotEmpty) return;
+    setState(() => _messages.addAll(from));
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _messages.addAll(widget.model.chatMessagesFor(widget.threadId));
+    widget.model.addListener(_maybeHydrateFromModel);
+  }
+
   @override
   void dispose() {
+    widget.model.removeListener(_maybeHydrateFromModel);
     _ctrl.dispose();
     super.dispose();
   }
@@ -359,16 +381,18 @@ class _ChatThreadPageState extends State<_ChatThreadPage> {
 
     setState(() {
       _sending = true;
-      _messages.add((fromUser: true, text: text));
-      _messages.add((fromUser: false, text: 'Thinking…'));
+      _messages.add(ChatMessage(fromUser: true, text: text));
+      _messages.add(ChatMessage(fromUser: false, text: 'Thinking…'));
     });
     _ctrl.clear();
+    _persistTranscript();
 
     final contextBundle = _buildContextBundle();
     final system = [
       agent.systemPrompt.trim(),
       if (agent.contextMarkdown.trim().isNotEmpty) '\n\n### Agent context\n${agent.contextMarkdown.trim()}',
       if (contextBundle.trim().isNotEmpty) '\n\n### Attached context\n$contextBundle',
+      agentActionsSystemAppend(agent),
       '\n\nReturn concise, actionable guidance.',
     ].join('\n').trim();
 
@@ -381,17 +405,24 @@ class _ChatThreadPageState extends State<_ChatThreadPage> {
         user: text,
       );
       if (!mounted) return;
+      final processed = processAgentActions(rawReply: reply, agent: agent, model: widget.model);
+      var assistantText = processed.visibleText;
+      if (processed.applySummary != null && processed.applySummary!.trim().isNotEmpty) {
+        assistantText = '${assistantText.trim()}\n\n${processed.applySummary!.trim()}';
+      }
       setState(() {
         // Replace the last "Thinking…" message.
         _messages.removeLast();
-        _messages.add((fromUser: false, text: reply));
+        _messages.add(ChatMessage(fromUser: false, text: assistantText));
       });
+      _persistTranscript();
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _messages.removeLast();
-        _messages.add((fromUser: false, text: 'Request failed: $e'));
+        _messages.add(ChatMessage(fromUser: false, text: 'Request failed: $e'));
       });
+      _persistTranscript();
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -521,8 +552,9 @@ class _ChatThreadPageState extends State<_ChatThreadPage> {
                 onPressed: () {
                   final md = _buildContextBundle();
                   setState(() {
-                    _messages.add((fromUser: false, text: md));
+                    _messages.add(ChatMessage(fromUser: false, text: md));
                   });
+                  _persistTranscript();
                   Navigator.of(ctx).pop();
                 },
                 child: const Text('Attach'),
@@ -558,15 +590,7 @@ class _ChatThreadPageState extends State<_ChatThreadPage> {
             onSelected: (v) {
               if (v == 'clear') {
                 setState(() => _messages.clear());
-                final idx = widget.model.chats.indexWhere((x) => x.id == widget.threadId);
-                if (idx >= 0) {
-                  final next = widget.model.chats[idx].clone();
-                  next.messageCount = 0;
-                  next.tokensUsed = 0;
-                  next.lastLine = '';
-                  next.updatedAt = DateTime.now();
-                  widget.model.updateChat(idx, next);
-                }
+                widget.model.clearChatById(widget.threadId);
               }
               if (v == 'delete') {
                 Navigator.of(context).pop();
@@ -598,11 +622,11 @@ class _ChatThreadPageState extends State<_ChatThreadPage> {
               padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
               itemCount: _messages.length,
               itemBuilder: (context, i) {
-                final m = _messages[i];
-                final bg = m.fromUser ? widget.model.accent.withValues(alpha: 0.10) : AppTheme.slate50;
-                final border = m.fromUser ? widget.model.accent.withValues(alpha: 0.25) : AppTheme.slate100;
+                final msg = _messages[i];
+                final bg = msg.fromUser ? widget.model.accent.withValues(alpha: 0.10) : AppTheme.slate50;
+                final border = msg.fromUser ? widget.model.accent.withValues(alpha: 0.25) : AppTheme.slate100;
                 return Align(
-                  alignment: m.fromUser ? Alignment.centerRight : Alignment.centerLeft,
+                  alignment: msg.fromUser ? Alignment.centerRight : Alignment.centerLeft,
                   child: Container(
                     constraints: const BoxConstraints(maxWidth: 340),
                     margin: const EdgeInsets.only(bottom: 10),
@@ -612,7 +636,7 @@ class _ChatThreadPageState extends State<_ChatThreadPage> {
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(color: border),
                     ),
-                    child: Text(m.text, style: const TextStyle(color: AppTheme.slate900)),
+                    child: Text(msg.text, style: const TextStyle(color: AppTheme.slate900)),
                   ),
                 );
               },
