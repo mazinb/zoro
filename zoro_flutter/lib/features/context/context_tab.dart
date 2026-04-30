@@ -32,10 +32,11 @@ class _ContextTabState extends State<ContextTab> {
 
   @override
   Widget build(BuildContext context) {
-    final months = AppModel.recentMonthKeys();
     final model = widget.model;
     final hide = model.privacyHideAmounts;
     final predictedMonthly = model.totalExpensesMonthly;
+    final monthsWithData = model.monthKeysWithCashflowData();
+    final months = monthsWithData.isEmpty ? AppModel.recentMonthKeys() : monthsWithData;
 
     return ListView(
       padding: const EdgeInsets.all(20),

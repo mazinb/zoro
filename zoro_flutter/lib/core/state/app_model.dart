@@ -508,10 +508,21 @@ Blunt + prioritized actions.
 
   static List<String> recentMonthKeys() {
     final now = DateTime.now();
+    // Current month + up to 6 months back.
     return List.generate(7, (i) {
       final d = DateTime(now.year, now.month - i, 1);
       return monthKeyFor(d);
     });
+  }
+
+  /// Month keys that have cashflow data, newest-first (YYYY-MM).
+  /// Safe for long histories (e.g. 12+ months).
+  List<String> monthKeysWithCashflowData({int? limit}) {
+    final keys = monthlyCashflowByMonth.keys.toList()..sort((a, b) => b.compareTo(a));
+    if (limit != null && keys.length > limit) {
+      return keys.take(limit).toList();
+    }
+    return keys;
   }
 
   static String formatMonthKeyLabel(String key) {
@@ -523,6 +534,16 @@ Blunt + prioritized actions.
     const names = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     if (m < 1 || m > 12) return key;
     return '${names[m]} $y';
+  }
+
+  static String? previousMonthKey(String monthKey) {
+    final parts = monthKey.split('-');
+    if (parts.length != 2) return null;
+    final y = int.tryParse(parts[0]);
+    final m = int.tryParse(parts[1]);
+    if (y == null || m == null) return null;
+    final d = DateTime(y, m - 1, 1);
+    return monthKeyFor(d);
   }
 
   void setPrivacyHideAmounts(bool value) {
@@ -713,6 +734,8 @@ Blunt + prioritized actions.
         e.key: convertCurrency(value: e.value, from: from, to: next),
     };
     for (final e in monthlyCashflowByMonth.values) {
+      e.openingBalance = convertCurrency(value: e.openingBalance, from: from, to: next);
+      e.closingBalance = convertCurrency(value: e.closingBalance, from: from, to: next);
       e.outflowToCashFd = convertCurrency(value: e.outflowToCashFd, from: from, to: next);
       e.outflowToInvested = convertCurrency(value: e.outflowToInvested, from: from, to: next);
       e.monthlySpending = convertCurrency(value: e.monthlySpending, from: from, to: next);
@@ -1057,56 +1080,9 @@ Blunt + prioritized actions.
     allocationTargetLastUpdated = DateTime(2026, 3, 1);
     assetsLastReviewed = DateTime(2026, 3, 28);
     liabilitiesLastReviewed = DateTime(2026, 3, 28);
-
-    final months = recentMonthKeys();
-    if (months.isEmpty) return;
-    syncAllocationsFromFraction(notify: false);
-    final predicted = totalExpensesMonthly;
-    final avail = availableAfterExpensesMonthly;
-
-    final chrono = months.reversed.toList();
-    for (var i = 0; i < chrono.length; i++) {
-      final mk = chrono[i];
-      // Force visible red/green/grey examples for the Expenses vs budget table + Context Actuals.
-      // Pattern yields: under (green), in-band (grey), in-band (grey), in-band (grey), over (red).
-      const spendJitterPattern = <double>[0.85, 0.93, 1.00, 1.07, 1.16];
-      final spendJitter = spendJitterPattern[i % spendJitterPattern.length];
-      final spend = ((predicted * spendJitter).clamp(0, double.infinity)).toDouble();
-      final investShare = ((allocInvestFraction + ((i % 3) - 1) * 0.06).clamp(0.15, 0.85)).toDouble();
-      final outInv = avail > 0
-          ? ((avail * investShare * (0.92 + (i % 2) * 0.05)).clamp(0, double.infinity)).toDouble()
-          : 0.0;
-      final outCash = avail > 0
-          ? ((avail * (1 - investShare) * (0.94 + (i % 2) * 0.04)).clamp(0, double.infinity)).toDouble()
-          : 0.0;
-      monthlyCashflowByMonth[mk] = MonthlyCashflowEntry(
-        monthKey: mk,
-        outflowToCashFd: outCash,
-        outflowToInvested: outInv,
-        monthlySpending: spend,
-      );
-    }
-
-    // Mock month context (for Context + Chat attach).
-    if (months.isNotEmpty) {
-      final mk0 = months.first;
-      monthlyCashflowByMonth[mk0]!.contextMarkdown ??= '''## ${formatMonthKeyLabel(mk0)}
-
-### Why spending was high
-- Travel (flights + hotels)
-- One-off purchases (electronics)
-- Hosting family
-''';
-    }
-    if (months.length >= 3) {
-      final mk2 = months[2];
-      monthlyCashflowByMonth[mk2]!.contextMarkdown ??= '''## ${formatMonthKeyLabel(mk2)}
-
-### Why spending was high
-- Annual insurance premium paid
-- Medical checkup
-''';
-    }
+    // Intentionally do NOT seed monthly cashflow history.
+    // Users should enter the last ~6 months manually so month-to-month balances stay consistent.
+    monthlyCashflowByMonth.clear();
   }
 
   double get totalIncomeAnnualDisplay => incomeLines.fold<double>(

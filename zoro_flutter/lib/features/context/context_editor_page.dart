@@ -75,6 +75,8 @@ class ContextEditorPage extends StatefulWidget {
           model.upsertMonthlyCashflow(
             MonthlyCashflowEntry(
               monthKey: monthKey,
+              openingBalance: 0,
+              closingBalance: 0,
               outflowToCashFd: 0,
               outflowToInvested: 0,
               monthlySpending: 0,

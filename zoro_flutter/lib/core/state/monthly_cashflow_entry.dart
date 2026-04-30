@@ -2,6 +2,8 @@
 class MonthlyCashflowEntry {
   MonthlyCashflowEntry({
     required this.monthKey,
+    this.openingBalance = 0,
+    this.closingBalance = 0,
     required this.outflowToCashFd,
     required this.outflowToInvested,
     this.monthlySpending = 0,
@@ -11,10 +13,16 @@ class MonthlyCashflowEntry {
 
   final String monthKey;
 
-  /// Moved to cash / savings / FDs (maps to “Savings” allocation target).
+  /// Starting balance for the month (display-currency).
+  double openingBalance;
+
+  /// Ending balance for the month (display-currency).
+  double closingBalance;
+
+  /// Saved (maps to “Savings” allocation target).
   double outflowToCashFd;
 
-  /// Moved to invested / brokerage (maps to “Investments” allocation target).
+  /// Invested (maps to “Investments” allocation target).
   double outflowToInvested;
 
   /// Total spending for the month (vs budget / donut estimate).

@@ -443,6 +443,12 @@ class _AgentsPaneState extends State<_AgentsPane> {
       InternalAppAgentIds.monthCashflowContext,
       InternalAppAgentIds.contextOrchestrator,
     };
+    final defs = kInternalAppAgentDefinitions.where((d) => contextIds.contains(d.id)).toList()
+      ..sort((a, b) {
+        if (a.id == InternalAppAgentIds.contextOrchestrator) return -1;
+        if (b.id == InternalAppAgentIds.contextOrchestrator) return 1;
+        return a.title.compareTo(b.title);
+      });
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -450,7 +456,7 @@ class _AgentsPaneState extends State<_AgentsPane> {
           child: ListView(
             padding: EdgeInsets.zero,
             children: [
-              for (final def in kInternalAppAgentDefinitions.where((d) => contextIds.contains(d.id)))
+              for (final def in defs)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 10),
                   child: Card(

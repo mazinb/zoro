@@ -105,26 +105,38 @@ class _CommandCenterTabState extends State<CommandCenterTab> {
                     ),
               ),
               const Spacer(),
-              SegmentedButton<CurrencyCode>(
-                segments: const [
-                  ButtonSegment(value: CurrencyCode.usd, label: Text('USD')),
-                  ButtonSegment(value: CurrencyCode.thb, label: Text('THB')),
-                  ButtonSegment(value: CurrencyCode.inr, label: Text('INR')),
-                ],
-                selected: {widget.model.displayCurrency},
-                onSelectionChanged: (s) => widget.model.setDisplayCurrency(s.first),
-                style: ButtonStyle(
-                  side: const WidgetStatePropertyAll(BorderSide(color: AppTheme.slate100)),
-                  backgroundColor: WidgetStateProperty.resolveWith((states) {
-                    if (states.contains(WidgetState.selected)) {
-                      return widget.model.accent.withValues(alpha: 0.12);
-                    }
-                    return Colors.white;
-                  }),
-                  foregroundColor: WidgetStateProperty.resolveWith((states) {
-                    if (states.contains(WidgetState.selected)) return widget.model.accent;
-                    return AppTheme.slate600;
-                  }),
+              Flexible(
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerRight,
+                    child: SegmentedButton<CurrencyCode>(
+                      segments: const [
+                        ButtonSegment(value: CurrencyCode.usd, label: Text('USD')),
+                        ButtonSegment(value: CurrencyCode.thb, label: Text('THB')),
+                        ButtonSegment(value: CurrencyCode.inr, label: Text('INR')),
+                      ],
+                      selected: {widget.model.displayCurrency},
+                      onSelectionChanged: (s) => widget.model.setDisplayCurrency(s.first),
+                      style: ButtonStyle(
+                        minimumSize: const WidgetStatePropertyAll(Size(0, 42)),
+                        padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 12, vertical: 12)),
+                        tapTargetSize: MaterialTapTargetSize.padded,
+                        side: const WidgetStatePropertyAll(BorderSide(color: AppTheme.slate100)),
+                        backgroundColor: WidgetStateProperty.resolveWith((states) {
+                          if (states.contains(WidgetState.selected)) {
+                            return widget.model.accent.withValues(alpha: 0.12);
+                          }
+                          return Colors.white;
+                        }),
+                        foregroundColor: WidgetStateProperty.resolveWith((states) {
+                          if (states.contains(WidgetState.selected)) return widget.model.accent;
+                          return AppTheme.slate600;
+                        }),
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ],

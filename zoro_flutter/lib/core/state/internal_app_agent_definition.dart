@@ -43,7 +43,7 @@ class InternalAppAgentDefinition {
 const kInternalAppAgentDefinitions = <InternalAppAgentDefinition>[
   InternalAppAgentDefinition(
     id: InternalAppAgentIds.ledgerOrchestrator,
-    title: 'Ledger helper (orchestrator)',
+    title: 'Ledger helper',
     listSubtitle: 'Ledger → AI button',
     icon: Icons.auto_awesome,
     defaultSystemPrompt: '''
@@ -66,7 +66,7 @@ Return a clear recommendation in plain language. If you need the user to fill nu
   ),
   InternalAppAgentDefinition(
     id: InternalAppAgentIds.ledgerAddAssets,
-    title: 'Ledger: add assets',
+    title: 'Add assets',
     listSubtitle: 'Ledger → assets',
     icon: Icons.savings_outlined,
     defaultSystemPrompt: '''
@@ -81,7 +81,7 @@ After numbers are updated, write a short context note that explains what the ass
   ),
   InternalAppAgentDefinition(
     id: InternalAppAgentIds.ledgerAddLiabilities,
-    title: 'Ledger: add liabilities',
+    title: 'Add liabilities',
     listSubtitle: 'Ledger → liabilities',
     icon: Icons.credit_card_outlined,
     defaultSystemPrompt: '''
@@ -96,7 +96,7 @@ Then write a short context note that explains the terms.
   ),
   InternalAppAgentDefinition(
     id: InternalAppAgentIds.ledgerAddActualExpenses,
-    title: 'Ledger: add actual expenses',
+    title: 'Add actual expenses',
     listSubtitle: 'Ledger → cashflow → expenses',
     icon: Icons.receipt_long,
     defaultSystemPrompt: '''
@@ -116,7 +116,7 @@ Ask for the missing numbers only. Then summarize what changed that month in a sh
   ),
   InternalAppAgentDefinition(
     id: InternalAppAgentIds.ledgerAllocationAdvisor,
-    title: 'Ledger: allocation advisor',
+    title: 'Allocation advisor',
     listSubtitle: 'Ledger → cashflow → allocations',
     icon: Icons.swap_vert,
     defaultSystemPrompt: '''
@@ -134,7 +134,7 @@ Be clear and pick one recommended split with a short reason.
   ),
   InternalAppAgentDefinition(
     id: InternalAppAgentIds.ledgerIncomeUpdater,
-    title: 'Ledger: income updater',
+    title: 'Income updater',
     listSubtitle: 'Ledger → cashflow → income',
     icon: Icons.payments_outlined,
     defaultSystemPrompt: '''
@@ -149,7 +149,7 @@ Show existing values first, then ask what changed. Keep it quick.
   InternalAppAgentDefinition(
     id: InternalAppAgentIds.assetContext,
     title: 'Asset context',
-    listSubtitle: 'Context → asset notes (AI)',
+    listSubtitle: 'Context → assets (AI)',
     icon: Icons.savings_outlined,
     defaultSystemPrompt: '''
 You help write clear notes for one asset so the app and chat understand it.
@@ -174,7 +174,7 @@ Asset types:
   InternalAppAgentDefinition(
     id: InternalAppAgentIds.liabilityContext,
     title: 'Liability context',
-    listSubtitle: 'Context → loan or card notes (AI)',
+    listSubtitle: 'Context → liabilities (AI)',
     icon: Icons.credit_card_outlined,
     defaultSystemPrompt: '''
 You help write clear notes for one debt (loan, card, mortgage) so the app understands terms and payments.
@@ -192,7 +192,7 @@ Debt types: personal loan, car, card, mortgage, other. Prioritize rate, minimum 
   InternalAppAgentDefinition(
     id: InternalAppAgentIds.expenseBucketContext,
     title: 'Expense bucket context',
-    listSubtitle: 'Context → budget bucket notes (AI)',
+    listSubtitle: 'Context → estimates (AI)',
     icon: Icons.pie_chart_outline,
     defaultSystemPrompt: '''
 You help explain what belongs in one expense bucket (e.g. housing, food) so future you and the app stay consistent.
@@ -210,7 +210,7 @@ Focus on boundaries (“counts / doesn’t count”), lumpiness, and typical one
   InternalAppAgentDefinition(
     id: InternalAppAgentIds.monthCashflowContext,
     title: 'Month context',
-    listSubtitle: 'Context → monthly cashflow note (AI)',
+    listSubtitle: 'Context → actuals (AI)',
     icon: Icons.calendar_month_outlined,
     defaultSystemPrompt: '''
 You help explain what happened in one calendar month for cashflow: big one-offs, trips, income changes, or anything that should carry into next month.
@@ -227,7 +227,7 @@ Month notes: one-offs, income changes, “remember for next month”, irregular 
   ),
   InternalAppAgentDefinition(
     id: InternalAppAgentIds.contextOrchestrator,
-    title: 'Context helper (orchestrator)',
+    title: 'Context helper',
     listSubtitle: 'Context → AI button',
     icon: Icons.auto_awesome,
     defaultSystemPrompt: '''

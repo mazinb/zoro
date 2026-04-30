@@ -22,7 +22,7 @@
 
 ## Done (bootstrap)
 
-- [x] Ledger cash flow: **+** opens **monthly cash flow entry** (spending + split + note) on all sub-tabs; **Split** tab **$ · %** table; tap row to edit; remove month after sheet closes (no controller crash); no separate expense line / category model.
+- [x] Ledger cash flow: **+** opens **monthly cash flow entry** (Opening, Closing, Saved, Invested, Note) on all sub-tabs; **Spending is derived** \(Closing − Opening − Saved − Invested\); **Closing required**; **Saved/Invested can be 0**; opening prefills from prior month’s closing and must match it to save. Split table shows all saved months; month dropdown limited to current + 6 months back.
 - [x] Project scaffold under `zoro_flutter/` (iOS + macOS + web targets; primary product is iOS).
 - [x] Core: `AppEnv` (`API_BASE_URL` via `--dart-define`), `ZoroApi`, `SessionController` + secure token storage.
 - [x] Onboarding: email magic link + token sign-in (same APIs as web).

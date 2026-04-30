@@ -184,6 +184,8 @@ class _AgentRunnerPageState extends State<AgentRunnerPage> {
           m.upsertMonthlyCashflow(
             MonthlyCashflowEntry(
               monthKey: mk,
+              openingBalance: 0,
+              closingBalance: 0,
               outflowToCashFd: 0,
               outflowToInvested: 0,
               monthlySpending: 0,

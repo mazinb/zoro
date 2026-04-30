@@ -147,45 +147,72 @@ class _LedgerTabState extends State<LedgerTab> {
     }
   }
 
-  /// Returns the month key if the user removed an entry; apply removal after the sheet fully closes
-  /// so [TextEditingController]s are not touched during a parent rebuild.
   Future<void> _openMonthlyCashflowSheet(BuildContext context, {String? initialMonthKey}) async {
     final m = widget.model;
     final lockMonth = initialMonthKey != null;
     var month = initialMonthKey ?? AppModel.monthKeyFor(DateTime.now());
+    final openingCtrl = TextEditingController();
+    final closingCtrl = TextEditingController();
     final cashFdCtrl = TextEditingController();
     final invCtrl = TextEditingController();
-    final spendCtrl = TextEditingController();
     final commentCtrl = TextEditingController();
+
+    double? parseNumOrNull(TextEditingController c) {
+      final t = c.text.trim();
+      if (t.isEmpty) return null;
+      return double.tryParse(t);
+    }
+
+    double? calcSpendingOrNull() {
+      final opening = parseNumOrNull(openingCtrl) ?? 0;
+      final closing = parseNumOrNull(closingCtrl);
+      if (closing == null) return null;
+      final saved = parseNumOrNull(cashFdCtrl) ?? 0;
+      final invested = parseNumOrNull(invCtrl) ?? 0;
+      // Spending is what left your balances after saving/investing:
+      // closing - opening - saved - invested
+      return closing - opening - saved - invested;
+    }
 
     void loadMonth(String mk) {
       final ex = m.monthlyEntryFor(mk);
       if (ex != null) {
+        openingCtrl.text = ex.openingBalance.toStringAsFixed(0);
+        closingCtrl.text = ex.closingBalance.toStringAsFixed(0);
         cashFdCtrl.text = ex.outflowToCashFd.toStringAsFixed(0);
         invCtrl.text = ex.outflowToInvested.toStringAsFixed(0);
-        spendCtrl.text = ex.monthlySpending > 0 ? ex.monthlySpending.toStringAsFixed(0) : '';
         commentCtrl.text = ex.comment;
       } else {
+        final prevKey = AppModel.previousMonthKey(mk);
+        final prevClose = prevKey == null ? null : m.monthlyEntryFor(prevKey)?.closingBalance;
+        final suggestedOpening = prevClose ?? 0;
+        openingCtrl.text = suggestedOpening.toStringAsFixed(0);
+        closingCtrl.clear();
         cashFdCtrl.text = '0';
         invCtrl.text = '0';
-        spendCtrl.text = '';
         commentCtrl.clear();
       }
     }
 
     loadMonth(month);
 
-    final removedMonthKey = await showModalBottomSheet<String?>(
+    final entry = await showModalBottomSheet<MonthlyCashflowEntry?>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
       builder: (ctx) {
         final bottom = MediaQuery.of(ctx).viewInsets.bottom;
+        const dense = InputDecoration(
+          border: OutlineInputBorder(),
+          isDense: true,
+        );
         return Padding(
           padding: EdgeInsets.fromLTRB(20, 8, 20, 20 + bottom),
           child: StatefulBuilder(
             builder: (ctx, setModal) {
               final hasSaved = m.monthlyEntryFor(month) != null;
+              final prevKey = AppModel.previousMonthKey(month);
+              final prevClose = prevKey == null ? null : m.monthlyEntryFor(prevKey)?.closingBalance;
               return SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -197,17 +224,13 @@ class _LedgerTabState extends State<LedgerTab> {
                           : 'Monthly cash flow entry',
                       style: Theme.of(ctx).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'One row per month: spending, how much you moved to cash/FDs vs investments, and an optional note.',
-                      style: TextStyle(color: AppTheme.slate600, fontSize: 13),
-                    ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 12),
                     if (lockMonth)
                       InputDecorator(
                         decoration: const InputDecoration(
                           labelText: 'Month',
                           border: OutlineInputBorder(),
+                          isDense: true,
                         ),
                         child: Text(AppModel.formatMonthKeyLabel(month), style: const TextStyle(fontWeight: FontWeight.w600)),
                       )
@@ -218,6 +241,7 @@ class _LedgerTabState extends State<LedgerTab> {
                         decoration: const InputDecoration(
                           labelText: 'Month',
                           border: OutlineInputBorder(),
+                          isDense: true,
                         ),
                         items: [
                           for (final mk in AppModel.recentMonthKeys())
@@ -232,72 +256,182 @@ class _LedgerTabState extends State<LedgerTab> {
                         },
                       ),
                     const SizedBox(height: 12),
-                    TextField(
-                      controller: spendCtrl,
-                      keyboardType: TextInputType.number,
-                      decoration: InputDecoration(
-                        labelText: 'Total spending this month',
-                        prefixText: m.displayCurrencySymbol,
-                        border: const OutlineInputBorder(),
-                        helperText: 'Used in Expenses vs your budget estimate',
-                      ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: openingCtrl,
+                            keyboardType: TextInputType.number,
+                            decoration: dense.copyWith(
+                              labelText: 'Opening',
+                              prefixText: m.displayCurrencySymbol,
+                              helperText: prevClose == null
+                                  ? 'Verify'
+                                  : 'Should match ${m.displayCurrencySymbol}${prevClose.toStringAsFixed(0)}',
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: TextField(
+                            controller: closingCtrl,
+                            keyboardType: TextInputType.number,
+                            decoration: dense.copyWith(
+                              labelText: 'Closing',
+                              prefixText: m.displayCurrencySymbol,
+                              helperText: 'End of month',
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 12),
-                    TextField(
-                      controller: cashFdCtrl,
-                      keyboardType: TextInputType.number,
-                      decoration: InputDecoration(
-                        labelText: 'To cash / savings / FDs',
-                        prefixText: m.displayCurrencySymbol,
-                        border: const OutlineInputBorder(),
-                      ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: cashFdCtrl,
+                            keyboardType: TextInputType.number,
+                            decoration: dense.copyWith(
+                              labelText: 'Saved',
+                              prefixText: m.displayCurrencySymbol,
+                              helperText: '0 if none',
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: TextField(
+                            controller: invCtrl,
+                            keyboardType: TextInputType.number,
+                            decoration: dense.copyWith(
+                              labelText: 'Invested',
+                              prefixText: m.displayCurrencySymbol,
+                              helperText: '0 if none',
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 12),
-                    TextField(
-                      controller: invCtrl,
-                      keyboardType: TextInputType.number,
-                      decoration: InputDecoration(
-                        labelText: 'To invested / brokerage',
-                        prefixText: m.displayCurrencySymbol,
-                        border: const OutlineInputBorder(),
-                      ),
+                    AnimatedBuilder(
+                      animation: Listenable.merge([openingCtrl, closingCtrl, cashFdCtrl, invCtrl]),
+                      builder: (ctx, _) {
+                        final spending = calcSpendingOrNull();
+                        final ok = spending == null ? true : spending >= -0.5; // allow tiny negatives from rounding
+                        final txt = spending == null
+                            ? '—'
+                            : '${m.displayCurrencySymbol}${(spending.abs() < 0.005 ? 0.0 : spending).toStringAsFixed(0)}';
+                        return Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: ok ? AppTheme.slate50 : Theme.of(ctx).colorScheme.errorContainer.withValues(alpha: 0.35),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: ok ? AppTheme.slate100 : Theme.of(ctx).colorScheme.error.withValues(alpha: 0.25)),
+                          ),
+                          child: Row(
+                            children: [
+                              const Expanded(
+                                child: Text(
+                                  'Spending',
+                                  style: TextStyle(fontWeight: FontWeight.w800, color: AppTheme.slate600),
+                                ),
+                              ),
+                              Text(
+                                txt,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 18,
+                                  color: ok ? AppTheme.slate900 : Theme.of(ctx).colorScheme.error,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
                     ),
                     const SizedBox(height: 12),
                     TextField(
                       controller: commentCtrl,
-                      maxLines: 2,
-                      decoration: const InputDecoration(
-                        labelText: 'Note (optional)',
-                        border: OutlineInputBorder(),
+                      minLines: 3,
+                      maxLines: 5,
+                      decoration: dense.copyWith(
+                        labelText: 'Note',
                         alignLabelWithHint: true,
                       ),
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 16),
                     FilledButton(
                       onPressed: () {
+                        final opening = double.tryParse(openingCtrl.text.trim()) ?? 0;
+                        final closingRaw = closingCtrl.text.trim();
+                        if (closingRaw.isEmpty) {
+                          showDialog<void>(
+                            context: ctx,
+                            builder: (dctx) => AlertDialog(
+                              title: const Text('Closing balance required'),
+                              content: const Text('Enter a closing balance before saving.'),
+                              actions: [
+                                TextButton(onPressed: () => Navigator.of(dctx).pop(), child: const Text('Edit')),
+                              ],
+                            ),
+                          );
+                          return;
+                        }
+                        final closing = double.tryParse(closingRaw) ?? 0;
                         final cf = double.tryParse(cashFdCtrl.text.trim()) ?? 0;
                         final iv = double.tryParse(invCtrl.text.trim()) ?? 0;
-                        final sp = double.tryParse(spendCtrl.text.trim()) ?? 0;
-                        m.upsertMonthlyCashflow(
+                        final sp = calcSpendingOrNull() ?? 0;
+                        if (prevClose != null && opening.round() != prevClose.round()) {
+                          showDialog<void>(
+                            context: ctx,
+                            builder: (dctx) => AlertDialog(
+                              title: const Text('Opening balance mismatch'),
+                              content: Text(
+                                'This month’s opening balance should equal last month’s closing balance.\n\n'
+                                'Last month closing: ${m.displayCurrencySymbol}${prevClose.toStringAsFixed(0)}\n'
+                                'Your opening: ${m.displayCurrencySymbol}${opening.toStringAsFixed(0)}\n\n'
+                                'Please correct it before saving.',
+                              ),
+                              actions: [
+                                TextButton(onPressed: () => Navigator.of(dctx).pop(), child: const Text('Edit')),
+                              ],
+                            ),
+                          );
+                          return;
+                        }
+                        if (sp < 0) {
+                          showDialog<void>(
+                            context: ctx,
+                            builder: (dctx) => AlertDialog(
+                              title: const Text('Spending can’t be negative'),
+                              content: Text(
+                                'Your inputs imply negative spending (${m.displayCurrencySymbol}${sp.toStringAsFixed(0)}).\n\n'
+                                'Double-check Opening, Closing, Saved, and Invested.',
+                              ),
+                              actions: [
+                                TextButton(onPressed: () => Navigator.of(dctx).pop(), child: const Text('Edit')),
+                              ],
+                            ),
+                          );
+                          return;
+                        }
+                        FocusManager.instance.primaryFocus?.unfocus();
+                        Navigator.of(ctx).pop(
                           MonthlyCashflowEntry(
                             monthKey: month,
+                            openingBalance: opening,
+                            closingBalance: closing,
                             outflowToCashFd: cf,
                             outflowToInvested: iv,
                             monthlySpending: sp,
                             comment: commentCtrl.text.trim(),
+                            contextMarkdown: m.monthlyEntryFor(month)?.contextMarkdown,
                           ),
                         );
-                        Navigator.of(ctx).pop();
                       },
                       child: const Text('Save'),
                     ),
-                    if (hasSaved) ...[
-                      const SizedBox(height: 12),
-                      TextButton(
-                        onPressed: () => Navigator.of(ctx).pop(month),
-                        child: Text('Remove this month', style: TextStyle(color: Theme.of(ctx).colorScheme.error)),
-                      ),
-                    ],
                   ],
                 ),
               );
@@ -307,14 +441,19 @@ class _LedgerTabState extends State<LedgerTab> {
       },
     );
 
-    cashFdCtrl.dispose();
-    invCtrl.dispose();
-    spendCtrl.dispose();
-    commentCtrl.dispose();
+    // On some platforms, the bottom sheet route can still be animating out after the Future resolves.
+    // Disposing controllers immediately can trip assertions like `_dependents.isEmpty`.
+    Future<void>.delayed(const Duration(milliseconds: 350), () {
+      openingCtrl.dispose();
+      closingCtrl.dispose();
+      cashFdCtrl.dispose();
+      invCtrl.dispose();
+      commentCtrl.dispose();
+    });
 
     if (!context.mounted) return;
-    if (removedMonthKey != null) {
-      m.removeMonthlyCashflow(removedMonthKey);
+    if (entry != null) {
+      m.upsertMonthlyCashflow(entry);
     }
   }
 
@@ -1625,7 +1764,8 @@ class _AllocateTabSection extends StatelessWidget {
     final cur = model.displayCurrencySymbol;
     final inv = model.allocInvestmentsMonthly;
     final cash = model.allocSavingsMonthly;
-    final recent = AppModel.recentMonthKeys();
+    final recent = model.monthKeysWithCashflowData();
+    final monthKeysForTable = recent.isEmpty ? AppModel.recentMonthKeys() : recent;
     final monthsTracked = recent.where((mk) => model.monthlyEntryFor(mk) != null).toList();
     final lastN = monthsTracked.take(3).toList();
     final actualShare = model.actualInvestShareAmongOutflows(lastN);
@@ -1761,15 +1901,15 @@ class _AllocateTabSection extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               _MonthlyCashflowSplitTableHeader(privacyOnlyPercents: privacy),
-              for (var i = 0; i < recent.length; i++)
+              for (var i = 0; i < monthKeysForTable.length; i++)
                 _MonthlyCashflowSplitTableRow(
                   model: model,
-                  monthKey: recent[i],
+                  monthKey: monthKeysForTable[i],
                   currencySymbol: cur,
-                  showDivider: i < recent.length - 1,
+                  showDivider: i < monthKeysForTable.length - 1,
                   privacyHideAmounts: privacy,
                   onPrivacyInteractionDenied: onPrivacyInteractionDenied,
-                  onTap: () => onMonthEntryTap(recent[i]),
+                  onTap: () => onMonthEntryTap(monthKeysForTable[i]),
                 ),
             ],
           ),
