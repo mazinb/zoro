@@ -7,7 +7,7 @@
   - [x] Home: reminder boxes render grey when not past due (still clickable).
   - [x] Copy pass: tighten UI text to avoid overflow.
   - [x] Home reminders: one-line rows, relative “last updated”, blue vs grey by overdue; yearly = anniversary from last update; tests (`test/reminder_assets_home_test.dart`).
-  - [x] Home: 10-yr projection — top “10 yrs” / “Flow” pill, Y-flip vs Sankey, staggered bar fill, year tap + slate summary card; General settings FX card without icon/subtitle.
+  - [x] Home: 10-yr projection — top “10 yrs” / “Flow” pill, Y-flip vs Sankey, staggered bar fill, year tap + slate summary card; hero subtitle shows year-10 **savings** / **returns** in bar-key colors (blue / green); General settings FX card without icon/subtitle.
 - [ ] **Token → DB wiring** — Add lightweight user-token flow for reads/writes once UI stabilizes.
 - [ ] **Add login last** — Reintroduce onboarding/magic-link when ready.
 

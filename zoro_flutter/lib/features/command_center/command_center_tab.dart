@@ -71,29 +71,105 @@ class _CommandCenterTabState extends State<CommandCenterTab> with TickerProvider
     }
   }
 
-  String _projectionChartTitle(List<double> series, bool hideNet) {
+  Widget _projectionCaption(List<double> series, bool hideNet) {
+    const baseStyle = TextStyle(color: AppTheme.slate600, fontWeight: FontWeight.w800, height: 1.25);
     final y = _projectionSelectedYear;
-    if (y == null || series.isEmpty) return 'Tap a year';
-    if (y < 0 || y >= series.length) return 'Tap a year';
-    final cur = series[y];
-    final curM = formatCurrencyDisplay(cur, currency: widget.model.displayCurrency);
-    if (hideNet) {
-      final label = y == 0 ? 'Now' : 'Year $y';
-      if (y == 0) return '$label • ${maskSensitiveNumberString(curM)}';
-      final prev = series[y - 1];
-      final delta = cur - prev;
-      final deltaM = formatCurrencyDisplay(delta, currency: widget.model.displayCurrency);
-      final pct = prev.abs() > 1e-6 ? (100.0 * delta / prev) : null;
-      final pctS = pct != null ? ' • ${pct.toStringAsFixed(1)}%' : '';
-      return maskSensitiveNumberString('$label • $curM • Δ $deltaM$pctS');
+    if (y == null || series.isEmpty) {
+      return const Text('Tap a year', textAlign: TextAlign.center, style: baseStyle);
     }
-    if (y == 0) return 'Now • $curM';
-    final prev = series[y - 1];
-    final delta = cur - prev;
-    final deltaM = formatCurrencyDisplay(delta, currency: widget.model.displayCurrency);
-    final pct = prev.abs() > 1e-6 ? (100.0 * delta / prev) : null;
-    final pctS = pct != null ? ' • ${pct.toStringAsFixed(1)}%' : '';
-    return 'Year $y • $curM • Δ $deltaM$pctS';
+    if (y < 0 || y >= series.length) {
+      return const Text('Tap a year', textAlign: TextAlign.center, style: baseStyle);
+    }
+
+    final b = widget.model.projectionYearBreakdown(y, series);
+    final total = series[y];
+    final totalM = formatCurrencyDisplay(total, currency: widget.model.displayCurrency);
+    final savedM = formatCurrencyDisplay(b.surplusPrincipal, currency: widget.model.displayCurrency);
+    final retM = formatCurrencyDisplay(b.surplusReturns, currency: widget.model.displayCurrency);
+    final label = y == 0 ? 'Now' : 'Year $y';
+
+    if (hideNet) {
+      return Text(
+        maskSensitiveNumberString('$label • $totalM · $savedM · $retM'),
+        textAlign: TextAlign.center,
+        style: baseStyle,
+      );
+    }
+
+    if (y == 0) {
+      return Text('$label • $totalM', textAlign: TextAlign.center, style: baseStyle);
+    }
+
+    return Text.rich(
+      TextSpan(
+        style: baseStyle,
+        children: [
+          TextSpan(text: '$label • $totalM'),
+          const TextSpan(text: ' · '),
+          TextSpan(
+            text: savedM,
+            style: const TextStyle(color: AppTheme.blue, fontWeight: FontWeight.w900),
+          ),
+          const TextSpan(text: ' · '),
+          TextSpan(
+            text: retM,
+            style: const TextStyle(color: Color(0xFF10B981), fontWeight: FontWeight.w900),
+          ),
+        ],
+      ),
+      textAlign: TextAlign.center,
+    );
+  }
+
+  /// Subtitle under the hero net worth when 10-year projection is on: year-10 surplus vs returns (bar key colors).
+  Widget _tenYearProjectionSubtitle(List<double> projSeries, bool hideNet) {
+    const meta = TextStyle(
+      color: AppTheme.slate500,
+      fontSize: 11,
+      height: 1.15,
+      fontWeight: FontWeight.w600,
+    );
+    const savingsAmtStyle = TextStyle(
+      color: AppTheme.blue,
+      fontSize: 11,
+      height: 1.15,
+      fontWeight: FontWeight.w900,
+    );
+    const returnsAmtStyle = TextStyle(
+      color: Color(0xFF10B981),
+      fontSize: 11,
+      height: 1.15,
+      fontWeight: FontWeight.w900,
+    );
+
+    if (projSeries.length < 2) {
+      return const SizedBox.shrink();
+    }
+    final year10Index = projSeries.length - 1;
+    final b = widget.model.projectionYearBreakdown(year10Index, projSeries);
+    final savedM = formatCurrencyDisplay(b.surplusPrincipal, currency: widget.model.displayCurrency);
+    final retM = formatCurrencyDisplay(b.surplusReturns, currency: widget.model.displayCurrency);
+
+    if (hideNet) {
+      return Text(
+        maskSensitiveNumberString('savings $savedM returns $retM'),
+        textAlign: TextAlign.center,
+        style: meta,
+      );
+    }
+
+    return Text.rich(
+      TextSpan(
+        style: meta,
+        children: [
+          const TextSpan(text: 'savings '),
+          TextSpan(text: savedM, style: savingsAmtStyle),
+          const TextSpan(text: ' returns '),
+          TextSpan(text: retM, style: returnsAmtStyle),
+        ],
+      ),
+      textAlign: TextAlign.center,
+    );
   }
 
   String _lastUpdatedDetail(DateTime? last, DateTime now) {
@@ -264,26 +340,24 @@ class _CommandCenterTabState extends State<CommandCenterTab> with TickerProvider
                           ),
                         ),
                         const SizedBox(height: 2),
-                        Text(
-                          hideNet
-                              ? maskSensitiveNumberString(
-                                  _tenYearProjection
-                                      ? 'Today ${formatCurrencyDisplay(widget.model.netWorthDisplay, currency: widget.model.displayCurrency)} • General'
-                                      : 'Assets ${formatCurrencyDisplay(widget.model.totalAssetsDisplay, currency: widget.model.displayCurrency)} • '
-                                          'Liabilities ${formatCurrencyDisplay(widget.model.totalLiabilitiesDisplay, currency: widget.model.displayCurrency)}',
-                                )
-                              : _tenYearProjection
-                                  ? 'Today ${formatCurrencyDisplay(widget.model.netWorthDisplay, currency: widget.model.displayCurrency)} • General'
-                                  : 'Assets ${formatCurrencyDisplay(widget.model.totalAssetsDisplay, currency: widget.model.displayCurrency)} • '
-                                      'Liabilities ${formatCurrencyDisplay(widget.model.totalLiabilitiesDisplay, currency: widget.model.displayCurrency)}',
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            color: AppTheme.slate500,
-                            fontSize: 11,
-                            height: 1.15,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
+                        _tenYearProjection
+                            ? _tenYearProjectionSubtitle(projSeries, hideNet)
+                            : Text(
+                                hideNet
+                                    ? maskSensitiveNumberString(
+                                        'Assets ${formatCurrencyDisplay(widget.model.totalAssetsDisplay, currency: widget.model.displayCurrency)} • '
+                                            'Liabilities ${formatCurrencyDisplay(widget.model.totalLiabilitiesDisplay, currency: widget.model.displayCurrency)}',
+                                      )
+                                    : 'Assets ${formatCurrencyDisplay(widget.model.totalAssetsDisplay, currency: widget.model.displayCurrency)} • '
+                                        'Liabilities ${formatCurrencyDisplay(widget.model.totalLiabilitiesDisplay, currency: widget.model.displayCurrency)}',
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  color: AppTheme.slate500,
+                                  fontSize: 11,
+                                  height: 1.15,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
                       ],
                     ),
                   ),
@@ -334,17 +408,10 @@ class _CommandCenterTabState extends State<CommandCenterTab> with TickerProvider
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.stretch,
                                     children: [
-                                      Padding(
-                                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                                        child: Text(
-                                          _projectionChartTitle(projSeries, hideNet),
-                                          textAlign: TextAlign.center,
-                                          style: const TextStyle(
-                                            color: AppTheme.slate600,
-                                            fontWeight: FontWeight.w800,
-                                          ),
+                                        Padding(
+                                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                                          child: _projectionCaption(projSeries, hideNet),
                                         ),
-                                      ),
                                       const SizedBox(height: 10),
                                       Container(
                                         height: 300,
@@ -354,6 +421,12 @@ class _CommandCenterTabState extends State<CommandCenterTab> with TickerProvider
                                           key: const ValueKey<String>('nw-proj-chart'),
                                           series: projSeries,
                                           selectedYearIndex: _projectionSelectedYear,
+                                          selectionBreakdown: _projectionSelectedYear == null
+                                              ? null
+                                              : widget.model.projectionYearBreakdown(
+                                                  _projectionSelectedYear!,
+                                                  projSeries,
+                                                ),
                                           onTapYear: (i) => setState(() => _projectionSelectedYear = i),
                                         ),
                                       ),

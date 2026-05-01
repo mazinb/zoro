@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../../shared/theme/app_theme.dart';
@@ -13,6 +15,37 @@ import 'internal_app_agent_definition.dart';
 import 'ledger_rows.dart';
 import 'monthly_cashflow_entry.dart';
 import 'scheduled_agent_task.dart';
+
+/// Parts of projected net worth for one year (matches [AppModel.netWorthProjection11Y] totals).
+///
+/// [startingBalance] — today’s net worth ([yearIndex] 0 only; same nominal “you are here” base for charts).
+/// For [yearIndex] &gt; 0: [startingBalance] is **nominal** starting NW (not compounded); bar shows it at fixed scale.
+/// [surplusPrincipal] — cumulative new money from annual surplus (`yearIndex ×` annual add), capped by remainder.
+/// [surplusReturns] — everything else: growth on starting capital **and** on new money.
+class NetWorthProjectionYearBreakdown {
+  const NetWorthProjectionYearBreakdown({
+    required this.startingBalance,
+    required this.surplusPrincipal,
+    required this.surplusReturns,
+  });
+
+  final double startingBalance;
+  final double surplusPrincipal;
+  final double surplusReturns;
+
+  double get total => startingBalance + surplusPrincipal + surplusReturns;
+
+  @override
+  bool operator ==(Object other) {
+    return other is NetWorthProjectionYearBreakdown &&
+        other.startingBalance == startingBalance &&
+        other.surplusPrincipal == surplusPrincipal &&
+        other.surplusReturns == surplusReturns;
+  }
+
+  @override
+  int get hashCode => Object.hash(startingBalance, surplusPrincipal, surplusReturns);
+}
 
 class AppModel extends ChangeNotifier {
   AppModel() {
@@ -489,6 +522,47 @@ When asked to deliver the briefing, finish by updating the Home summary via set_
       out.add(balance);
     }
     return out;
+  }
+
+  /// Decomposes [series]\[[yearIndex]\]: nominal today’s NW, new money, and all returns (incl. on starting capital).
+  NetWorthProjectionYearBreakdown projectionYearBreakdown(int yearIndex, List<double> series) {
+    if (yearIndex < 0 || yearIndex >= series.length) {
+      return const NetWorthProjectionYearBreakdown(
+        startingBalance: 0,
+        surplusPrincipal: 0,
+        surplusReturns: 0,
+      );
+    }
+    final target = series[yearIndex];
+    final nw0 = netWorthDisplay;
+    if (yearIndex == 0) {
+      return NetWorthProjectionYearBreakdown(
+        startingBalance: target,
+        surplusPrincipal: 0,
+        surplusReturns: 0,
+      );
+    }
+
+    final annualAdd = (availableAfterExpensesMonthly * 12).clamp(0, double.infinity);
+    final y = yearIndex;
+    final remainder = target - nw0;
+    if (remainder <= 1e-9) {
+      return NetWorthProjectionYearBreakdown(
+        startingBalance: target,
+        surplusPrincipal: 0,
+        surplusReturns: 0,
+      );
+    }
+
+    final rawPrincipal = y * annualAdd;
+    final surplusPrincipal = math.min(rawPrincipal, remainder).toDouble();
+    final surplusReturns = (remainder - surplusPrincipal).clamp(0.0, double.infinity).toDouble();
+
+    return NetWorthProjectionYearBreakdown(
+      startingBalance: nw0,
+      surplusPrincipal: surplusPrincipal,
+      surplusReturns: surplusReturns,
+    );
   }
 
   double get netWorthProjectedYear10Display {
