@@ -6,10 +6,13 @@ import '../chat/chat_message.dart';
 import '../constants/web_expenses_income.dart';
 import '../finance/currency.dart';
 import '../llm/llm_key_store.dart';
+import '../persistence/scheduled_agent_store.dart';
+import '../schedule/scheduled_agent_runner.dart';
 import 'cashflow_income_line.dart';
 import 'internal_app_agent_definition.dart';
 import 'ledger_rows.dart';
 import 'monthly_cashflow_entry.dart';
+import 'scheduled_agent_task.dart';
 
 class AppModel extends ChangeNotifier {
   AppModel() {
@@ -22,6 +25,9 @@ class AppModel extends ChangeNotifier {
   static const Color spendUnderColor = Color(0xFF10B981); // green
   static const Color spendInBandColor = AppTheme.slate600; // grey
   static const Color spendNoDataColor = AppTheme.slate500;
+
+  /// Seeded “Morning briefing” agent id (scheduled task template references this).
+  static const String morningBriefingAgentId = 'agent-morning-briefing';
 
   final LlmKeyStore _llmKeyStore = LlmKeyStore();
 
@@ -37,6 +43,8 @@ class AppModel extends ChangeNotifier {
       geminiApiKey = keys[LlmProvider.gemini];
       _syncActiveProviderIfKeyRemoved();
       await loadPersistedChats();
+      await loadPersistedScheduledAgentTasks();
+      await runDueScheduledAgentTasks();
     } finally {
       _bootstrapped = true;
       notifyListeners();
@@ -152,7 +160,117 @@ Blunt + prioritized actions.
 - Monthly payment safety margin?
 ''',
     ),
+    AppAgent(
+      id: 'agent-rates-fx',
+      name: 'Rates & FX',
+      description: 'Keeps projection returns, inflation, and FX overrides aligned with Settings.',
+      systemPrompt: '''
+You help the user maintain **nominal** investment return, savings yield, inflation assumptions, and **USD per 1 unit** FX overrides used by the app.
+
+Explain briefly, then when the user agrees to numbers, apply them with a single ```zoro_actions``` block at the end.
+Use currency codes: thb, inr, usd. For FX, only thb and inr accept `set_fx_usd_per_unit` (USD is always 1).
+Percent fields are **annual** numbers like 7.0 meaning 7%.
+''',
+      permissions: const [
+        AgentPermission(domain: AgentDomain.projection, access: AgentAccess.write),
+        AgentPermission(domain: AgentDomain.assets, access: AgentAccess.read),
+        AgentPermission(domain: AgentDomain.liabilities, access: AgentAccess.read),
+        AgentPermission(domain: AgentDomain.cashflow, access: AgentAccess.read),
+        AgentPermission(domain: AgentDomain.income, access: AgentAccess.read),
+      ],
+      contextMarkdown: '''## Notes
+- Defaults are illustrative (US mid, Thailand low/low, India high/high) so **real** returns are in a similar ballpark.
+- User display currency selects which assumption row drives the 10-year Home chart.
+''',
+    ),
+    AppAgent(
+      id: morningBriefingAgentId,
+      name: 'Morning briefing',
+      description: 'Daily portfolio touchpoint and market themes for Home (uses Gemini).',
+      kind: AppAgentKind.researcher,
+      toolHomeSummary: true,
+      toolWebResearch: true,
+      systemPrompt: '''
+You prepare a brief daily note for the Home screen.
+Blend the user's portfolio/context with high-level public-market themes. Do not invent specific headlines, firms, or dates.
+If recent news is uncertain, say so in one short clause. Calm, practical tone—no hype.
+When asked to deliver the briefing, finish by updating the Home summary via set_home_summary in zoro_actions.
+''',
+      permissions: const [
+        AgentPermission(domain: AgentDomain.expenses, access: AgentAccess.read),
+        AgentPermission(domain: AgentDomain.cashflow, access: AgentAccess.read),
+        AgentPermission(domain: AgentDomain.income, access: AgentAccess.read),
+        AgentPermission(domain: AgentDomain.assets, access: AgentAccess.read),
+        AgentPermission(domain: AgentDomain.liabilities, access: AgentAccess.read),
+      ],
+      contextMarkdown: '',
+    ),
   ];
+
+  final List<ScheduledAgentTask> scheduledAgentTasks = [];
+
+  int _scheduledPersistRevision = 0;
+
+  Future<void> loadPersistedScheduledAgentTasks() async {
+    final snap = await ScheduledAgentStore.load();
+    if (snap == null) {
+      scheduledAgentTasks
+        ..clear()
+        ..add(ScheduledAgentTask.defaultMorningBriefing(agentId: morningBriefingAgentId));
+      try {
+        await ScheduledAgentStore.save(scheduledAgentTasks);
+      } catch (_) {}
+    } else {
+      scheduledAgentTasks
+        ..clear()
+        ..addAll(snap);
+    }
+    notifyListeners();
+  }
+
+  void _scheduleScheduledPersist() {
+    _scheduledPersistRevision++;
+    final rev = _scheduledPersistRevision;
+    Future<void> run() async {
+      if (rev != _scheduledPersistRevision) return;
+      try {
+        await ScheduledAgentStore.save(List<ScheduledAgentTask>.from(scheduledAgentTasks));
+      } catch (_) {}
+    }
+
+    Future.microtask(run);
+  }
+
+  void addScheduledTask(ScheduledAgentTask task) {
+    scheduledAgentTasks.add(task);
+    _scheduleScheduledPersist();
+    notifyListeners();
+  }
+
+  void updateScheduledTaskAt(int index, ScheduledAgentTask task) {
+    if (index < 0 || index >= scheduledAgentTasks.length) return;
+    scheduledAgentTasks[index] = task;
+    _scheduleScheduledPersist();
+    notifyListeners();
+  }
+
+  void removeScheduledTaskAt(int index) {
+    if (index < 0 || index >= scheduledAgentTasks.length) return;
+    scheduledAgentTasks.removeAt(index);
+    _scheduleScheduledPersist();
+    notifyListeners();
+  }
+
+  /// Runs enabled schedules that are due (e.g. after app resume). Persists [lastRunAt] updates.
+  Future<int> runDueScheduledAgentTasks() async {
+    final runner = ScheduledAgentRunner();
+    final n = await runner.runDueTasks(this, scheduledAgentTasks);
+    if (n > 0) {
+      _scheduleScheduledPersist();
+      notifyListeners();
+    }
+    return n;
+  }
 
   /// Per–internal-agent system prompt overrides (empty key → use [InternalAppAgentDefinition.defaultSystemPrompt]).
   final Map<String, String> _internalAgentSystemPromptById = {};
@@ -297,6 +415,86 @@ Blunt + prioritized actions.
 
   /// THB matches [expensePresetCountry] bucket units so the Sankey and ledger stay aligned at boot.
   CurrencyCode displayCurrency = CurrencyCode.thb;
+
+  /// Optional FX overrides: USD value of **1 unit** of THB/INR (same convention as [CurrencyCodeUi.usdPerUnit]).
+  /// Empty → use built-in defaults in [currency.dart].
+  final Map<CurrencyCode, double> _fxUsdPerUnitOverride = {};
+
+  double usdPerUnitResolved(CurrencyCode c) {
+    if (c == CurrencyCode.usd) return 1.0;
+    return _fxUsdPerUnitOverride[c] ?? c.usdPerUnit;
+  }
+
+  Map<CurrencyCode, double> get fxUsdPerUnitResolved => {
+        for (final c in CurrencyCode.values) c: usdPerUnitResolved(c),
+      };
+
+  void setFxUsdPerUnitOverride(CurrencyCode currency, double? usdPerUnit) {
+    if (currency == CurrencyCode.usd) return;
+    if (usdPerUnit == null || usdPerUnit <= 0) {
+      _fxUsdPerUnitOverride.remove(currency);
+    } else {
+      _fxUsdPerUnitOverride[currency] = usdPerUnit;
+    }
+    notifyListeners();
+  }
+
+  /// Nominal annual **percent** (e.g. 7.0 = 7%) for the 10-year net worth projection, per currency.
+  final Map<CurrencyCode, double> projectionInvestReturnPctAnnual = {
+    CurrencyCode.usd: 7.0,
+    CurrencyCode.thb: 5.0,
+    CurrencyCode.inr: 11.0,
+  };
+
+  final Map<CurrencyCode, double> projectionSavingsReturnPctAnnual = {
+    CurrencyCode.usd: 4.0,
+    CurrencyCode.thb: 2.0,
+    CurrencyCode.inr: 6.0,
+  };
+
+  final Map<CurrencyCode, double> projectionInflationPctAnnual = {
+    CurrencyCode.usd: 3.0,
+    CurrencyCode.thb: 1.5,
+    CurrencyCode.inr: 6.0,
+  };
+
+  void setProjectionRatesForCurrency(
+    CurrencyCode c, {
+    double? investPct,
+    double? savingsPct,
+    double? inflationPct,
+  }) {
+    if (investPct != null) projectionInvestReturnPctAnnual[c] = investPct.clamp(-20.0, 50.0);
+    if (savingsPct != null) projectionSavingsReturnPctAnnual[c] = savingsPct.clamp(-20.0, 50.0);
+    if (inflationPct != null) projectionInflationPctAnnual[c] = inflationPct.clamp(-5.0, 50.0);
+    notifyListeners();
+  }
+
+  /// 11 values: year 0 … year 10. Uses blended nominal return (split slider) + annualized surplus.
+  List<double> netWorthProjection11Y() {
+    final nw0 = netWorthDisplay;
+    final f = allocInvestFraction.clamp(0.0, 1.0);
+    final cur = displayCurrency;
+    final ri = (projectionInvestReturnPctAnnual[cur] ?? 0) / 100.0;
+    final rs = (projectionSavingsReturnPctAnnual[cur] ?? 0) / 100.0;
+    final rInf = (projectionInflationPctAnnual[cur] ?? 0) / 100.0;
+    final rBlendNominal = f * ri + (1 - f) * rs;
+    // Real growth on the balance (contributions stay nominal / simplified).
+    final rGrow = rInf >= 0 ? ((1 + rBlendNominal) / (1 + rInf)) - 1 : rBlendNominal;
+    final annualAdd = (availableAfterExpensesMonthly * 12).clamp(0, double.infinity);
+    var balance = nw0;
+    final out = <double>[balance];
+    for (var y = 1; y <= 10; y++) {
+      balance = balance * (1 + rGrow) + annualAdd;
+      out.add(balance);
+    }
+    return out;
+  }
+
+  double get netWorthProjectedYear10Display {
+    final s = netWorthProjection11Y();
+    return s.isEmpty ? netWorthDisplay : s.last;
+  }
 
   /// Preset used only for expense bucket ranges/defaults (not a global "cashflow currency").
   static const String expensePresetCountry = 'Thailand';
@@ -729,23 +927,29 @@ Blunt + prioritized actions.
     if (displayCurrency == next) return;
     final from = displayCurrency;
     displayCurrency = next;
+    final fx = fxUsdPerUnitResolved;
     expenseBuckets = {
       for (final e in expenseBuckets.entries)
-        e.key: convertCurrency(value: e.value, from: from, to: next),
+        e.key: convertCurrency(value: e.value, from: from, to: next, usdPerUnitOverrides: fx),
     };
     for (final e in monthlyCashflowByMonth.values) {
-      e.openingBalance = convertCurrency(value: e.openingBalance, from: from, to: next);
-      e.closingBalance = convertCurrency(value: e.closingBalance, from: from, to: next);
-      e.outflowToCashFd = convertCurrency(value: e.outflowToCashFd, from: from, to: next);
-      e.outflowToInvested = convertCurrency(value: e.outflowToInvested, from: from, to: next);
-      e.monthlySpending = convertCurrency(value: e.monthlySpending, from: from, to: next);
+      e.openingBalance = convertCurrency(value: e.openingBalance, from: from, to: next, usdPerUnitOverrides: fx);
+      e.closingBalance = convertCurrency(value: e.closingBalance, from: from, to: next, usdPerUnitOverrides: fx);
+      e.outflowToCashFd = convertCurrency(value: e.outflowToCashFd, from: from, to: next, usdPerUnitOverrides: fx);
+      e.outflowToInvested = convertCurrency(value: e.outflowToInvested, from: from, to: next, usdPerUnitOverrides: fx);
+      e.monthlySpending = convertCurrency(value: e.monthlySpending, from: from, to: next, usdPerUnitOverrides: fx);
     }
     syncAllocationsFromFraction();
     notifyListeners();
   }
 
   double moneyInDisplayCurrency(double v, CurrencyCode from) {
-    return convertCurrency(value: v, from: from, to: displayCurrency);
+    return convertCurrency(
+      value: v,
+      from: from,
+      to: displayCurrency,
+      usdPerUnitOverrides: fxUsdPerUnitResolved,
+    );
   }
 
   String moneyDisplay(double v, CurrencyCode from, {int? decimals}) {
@@ -1194,9 +1398,19 @@ enum ReminderCadence { off, monthly, quarterly, yearly }
 
 enum LlmProvider { openai, anthropic, gemini }
 
-enum AgentDomain { expenses, cashflow, income, assets, liabilities }
+enum AgentDomain { expenses, cashflow, income, assets, liabilities, projection }
 
 enum AgentAccess { read, write }
+
+/// Chat / schedule behavior for user-defined [AppAgent]s.
+enum AppAgentKind {
+  /// Suggests next steps across the app; minimize unsolicited ledger writes.
+  helper,
+  /// Reads/writes ledger domains and Home summary when tools are enabled.
+  analyst,
+  /// Uses Gemini for market/news context (requires Gemini API key).
+  researcher,
+}
 
 class AgentPermission {
   const AgentPermission({required this.domain, required this.access});
@@ -1220,6 +1434,9 @@ class AppAgent {
     required this.systemPrompt,
     required this.permissions,
     required this.contextMarkdown,
+    this.kind = AppAgentKind.analyst,
+    this.toolHomeSummary = false,
+    this.toolWebResearch = false,
   });
 
   final String id;
@@ -1228,6 +1445,9 @@ class AppAgent {
   String systemPrompt;
   List<AgentPermission> permissions;
   String contextMarkdown;
+  AppAgentKind kind;
+  bool toolHomeSummary;
+  bool toolWebResearch;
 
   AppAgent clone() => AppAgent(
         id: id,
@@ -1236,6 +1456,9 @@ class AppAgent {
         systemPrompt: systemPrompt,
         permissions: [...permissions],
         contextMarkdown: contextMarkdown,
+        kind: kind,
+        toolHomeSummary: toolHomeSummary,
+        toolWebResearch: toolWebResearch,
       );
 }
 

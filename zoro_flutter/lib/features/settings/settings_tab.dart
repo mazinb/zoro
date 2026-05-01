@@ -3,11 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/finance/currency.dart';
 import '../../core/state/app_model.dart';
 import '../../core/state/internal_app_agent_definition.dart';
+import '../../core/state/scheduled_agent_task.dart';
 import '../../dev/local_api_keys.dart';
 import '../../shared/theme/app_theme.dart';
 import 'internal_agent_prompt_editor_page.dart';
+import 'scheduled_task_editor_page.dart';
 
 abstract class SettingsTabIndex {
   static const int reminders = 0;
@@ -84,7 +87,7 @@ class _SettingsTabState extends State<SettingsTab> with SingleTickerProviderStat
             controller: _tabs,
             labelStyle: const TextStyle(fontWeight: FontWeight.w900),
             tabs: const [
-              Tab(text: 'Reminders'),
+              Tab(text: 'General'),
               Tab(text: 'Agents'),
               Tab(text: 'API keys'),
             ],
@@ -95,7 +98,7 @@ class _SettingsTabState extends State<SettingsTab> with SingleTickerProviderStat
           child: TabBarView(
             controller: _tabs,
             children: [
-              _RemindersPane(model: widget.model),
+              _GeneralPane(model: widget.model),
               _AgentsPane(model: widget.model),
               _ApiKeysPane(model: widget.model),
             ],
@@ -106,16 +109,261 @@ class _SettingsTabState extends State<SettingsTab> with SingleTickerProviderStat
   }
 }
 
-class _RemindersPane extends StatelessWidget {
-  const _RemindersPane({required this.model});
+class _GeneralPane extends StatefulWidget {
+  const _GeneralPane({required this.model});
 
   final AppModel model;
+
+  @override
+  State<_GeneralPane> createState() => _GeneralPaneState();
+}
+
+class _GeneralPaneState extends State<_GeneralPane> {
+  /// How many THB per 1 USD (user-facing). Stored model uses USD per 1 THB.
+  late final TextEditingController _usdToThbCtrl;
+  /// How many INR per 1 USD (user-facing).
+  late final TextEditingController _usdToInrCtrl;
+
+  AppModel get model => widget.model;
 
   static int _daysInMonth(int year, int month) => DateTime(year, month + 1, 0).day;
 
   static String _monthName(int m) {
     const names = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     return names[m];
+  }
+
+  void _syncFxFieldsFromModel() {
+    final uThb = model.usdPerUnitResolved(CurrencyCode.thb);
+    final uInr = model.usdPerUnitResolved(CurrencyCode.inr);
+    _usdToThbCtrl.text = uThb > 0 ? (1 / uThb).toStringAsFixed(2) : '';
+    _usdToInrCtrl.text = uInr > 0 ? (1 / uInr).toStringAsFixed(2) : '';
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _usdToThbCtrl = TextEditingController();
+    _usdToInrCtrl = TextEditingController();
+    _syncFxFieldsFromModel();
+  }
+
+  @override
+  void dispose() {
+    _usdToThbCtrl.dispose();
+    _usdToInrCtrl.dispose();
+    super.dispose();
+  }
+
+  Widget _currencyAssumptionsCard(BuildContext context) {
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          initiallyExpanded: false,
+          tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          childrenPadding: const EdgeInsets.only(bottom: 12),
+          title: const Text(
+            'Interest & inflation',
+            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
+          ),
+          subtitle: const Text(
+            'Nominal % per year by currency — used for the Home 10-year chart',
+            style: TextStyle(color: AppTheme.slate600, fontSize: 12, height: 1.3),
+          ),
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text(
+                    'Illustrative defaults: US mid, Thailand lower, India higher (similar ballpark real returns).',
+                    style: TextStyle(color: AppTheme.slate500, fontSize: 11, height: 1.35),
+                  ),
+                  const SizedBox(height: 12),
+                  for (final c in CurrencyCode.values)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 14),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text('${c.code} · ${c.symbol}', style: const TextStyle(fontWeight: FontWeight.w800)),
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              const Expanded(
+                                  child: Text('Invest', style: TextStyle(fontSize: 12, color: AppTheme.slate600))),
+                              Text(
+                                '${(model.projectionInvestReturnPctAnnual[c] ?? 0).toStringAsFixed(1)}%',
+                                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
+                              ),
+                            ],
+                          ),
+                          Slider(
+                            value: (model.projectionInvestReturnPctAnnual[c] ?? 0).clamp(0.0, 20.0),
+                            max: 20,
+                            onChanged: (v) => setState(() => model.setProjectionRatesForCurrency(c, investPct: v)),
+                          ),
+                          Row(
+                            children: [
+                              const Expanded(
+                                  child: Text('Savings', style: TextStyle(fontSize: 12, color: AppTheme.slate600))),
+                              Text(
+                                '${(model.projectionSavingsReturnPctAnnual[c] ?? 0).toStringAsFixed(1)}%',
+                                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
+                              ),
+                            ],
+                          ),
+                          Slider(
+                            value: (model.projectionSavingsReturnPctAnnual[c] ?? 0).clamp(0.0, 20.0),
+                            max: 20,
+                            onChanged: (v) => setState(() => model.setProjectionRatesForCurrency(c, savingsPct: v)),
+                          ),
+                          Row(
+                            children: [
+                              const Expanded(
+                                  child: Text('Inflation', style: TextStyle(fontSize: 12, color: AppTheme.slate600))),
+                              Text(
+                                '${(model.projectionInflationPctAnnual[c] ?? 0).toStringAsFixed(1)}%',
+                                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
+                              ),
+                            ],
+                          ),
+                          Slider(
+                            value: (model.projectionInflationPctAnnual[c] ?? 0).clamp(0.0, 15.0),
+                            max: 15,
+                            onChanged: (v) => setState(() => model.setProjectionRatesForCurrency(c, inflationPct: v)),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _fxRateRow({
+    required String fromFlag,
+    required String toFlag,
+    required String toCode,
+    required TextEditingController controller,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppTheme.slate100),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Text(fromFlag, style: const TextStyle(fontSize: 24)),
+          const SizedBox(width: 10),
+          const Text('1 USD', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: AppTheme.slate900)),
+          const SizedBox(width: 8),
+          const Text('=', style: TextStyle(color: AppTheme.slate500, fontWeight: FontWeight.w700)),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 88,
+            child: TextField(
+              controller: controller,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+              decoration: const InputDecoration(
+                isDense: true,
+                contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Text(toFlag, style: const TextStyle(fontSize: 24)),
+          const SizedBox(width: 6),
+          Text(toCode, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: AppTheme.slate600)),
+        ],
+      ),
+    );
+  }
+
+  Widget _fxCard() {
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: AppTheme.slate100),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'Exchange rates',
+              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+            ),
+            const SizedBox(height: 14),
+            _fxRateRow(
+              fromFlag: '🇺🇸',
+              toFlag: '🇹🇭',
+              toCode: 'THB',
+              controller: _usdToThbCtrl,
+            ),
+            const SizedBox(height: 12),
+            _fxRateRow(
+              fromFlag: '🇺🇸',
+              toFlag: '🇮🇳',
+              toCode: 'INR',
+              controller: _usdToInrCtrl,
+            ),
+            const SizedBox(height: 14),
+            OutlinedButton.icon(
+              onPressed: () {
+                setState(() {
+                  model.setFxUsdPerUnitOverride(CurrencyCode.thb, null);
+                  model.setFxUsdPerUnitOverride(CurrencyCode.inr, null);
+                  _syncFxFieldsFromModel();
+                });
+              },
+              icon: const Icon(Icons.restore, size: 18),
+              label: const Text('Reset to built-in defaults'),
+            ),
+            const SizedBox(height: 10),
+            FilledButton(
+              onPressed: () {
+                final thbPerUsd = double.tryParse(_usdToThbCtrl.text.trim().replaceAll(',', ''));
+                final inrPerUsd = double.tryParse(_usdToInrCtrl.text.trim().replaceAll(',', ''));
+                if (thbPerUsd != null && thbPerUsd > 0) {
+                  model.setFxUsdPerUnitOverride(CurrencyCode.thb, 1 / thbPerUsd);
+                } else {
+                  model.setFxUsdPerUnitOverride(CurrencyCode.thb, null);
+                }
+                if (inrPerUsd != null && inrPerUsd > 0) {
+                  model.setFxUsdPerUnitOverride(CurrencyCode.inr, 1 / inrPerUsd);
+                } else {
+                  model.setFxUsdPerUnitOverride(CurrencyCode.inr, null);
+                }
+                setState(_syncFxFieldsFromModel);
+              },
+              child: const Text('Apply exchange rates'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -127,6 +375,12 @@ class _RemindersPane extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
+        _fxCard(),
+        const SizedBox(height: 12),
+        _currencyAssumptionsCard(context),
+        const SizedBox(height: 12),
+        const Text('Reminders', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+        const SizedBox(height: 8),
         Card(
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -566,7 +820,7 @@ class _AgentsPaneState extends State<_AgentsPane> {
                                     Text(e.value.description, style: const TextStyle(color: AppTheme.slate600)),
                                     const SizedBox(height: 6),
                                     Text(
-                                      'Permissions: ${e.value.permissions.isEmpty ? 'none' : e.value.permissions.length}',
+                                      '${_userAgentKindLabel(e.value.kind)} · permissions: ${e.value.permissions.isEmpty ? 'none' : e.value.permissions.length}',
                                       style: const TextStyle(color: AppTheme.slate500, fontSize: 12, fontWeight: FontWeight.w600),
                                     ),
                                   ],
@@ -586,12 +840,136 @@ class _AgentsPaneState extends State<_AgentsPane> {
     );
   }
 
+  String _userAgentKindLabel(AppAgentKind k) => switch (k) {
+        AppAgentKind.helper => 'Helper',
+        AppAgentKind.analyst => 'Analyst',
+        AppAgentKind.researcher => 'Researcher',
+      };
+
+  Widget _schedulePane(BuildContext context) {
+    return AnimatedBuilder(
+      animation: widget.model,
+      builder: (context, _) {
+        final tasks = widget.model.scheduledAgentTasks;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Recurring agents',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+                  ),
+                ),
+                FilledButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).push<void>(
+                      MaterialPageRoute<void>(
+                        builder: (ctx) => ScheduledTaskEditorPage(model: widget.model),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.add),
+                  label: const Text('Add'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Local time. Open the app to run anything that was due while you were away.',
+              style: TextStyle(color: AppTheme.slate600, fontSize: 12, height: 1.35),
+            ),
+            const SizedBox(height: 12),
+            if (tasks.isEmpty)
+              const Expanded(
+                child: Center(
+                  child: Text(
+                    'No schedules yet. Tap Add, or enable “Morning briefing” in the editor.',
+                    style: TextStyle(color: AppTheme.slate600),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              )
+            else
+              Expanded(
+                child: ListView(
+                  padding: EdgeInsets.zero,
+                  children: [
+                    for (var i = 0; i < tasks.length; i++)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Card(
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: () {
+                              Navigator.of(context).push<void>(
+                                MaterialPageRoute<void>(
+                                  builder: (ctx) => ScheduledTaskEditorPage(
+                                    model: widget.model,
+                                    taskIndex: i,
+                                  ),
+                                ),
+                              );
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.all(14),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          tasks[i].name,
+                                          style: const TextStyle(fontWeight: FontWeight.w900),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          scheduleTaskSummaryLine(tasks[i]),
+                                          style: const TextStyle(color: AppTheme.slate600, fontSize: 13),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          'Next: ${computeNextRunLocal(tasks[i], notBefore: DateTime.now()).toLocal().toString().split(".").first}',
+                                          style: const TextStyle(color: AppTheme.slate500, fontSize: 12, fontWeight: FontWeight.w600),
+                                        ),
+                                        if (tasks[i].lastError != null && tasks[i].lastError!.trim().isNotEmpty)
+                                          Padding(
+                                            padding: const EdgeInsets.only(top: 6),
+                                            child: Text(
+                                              'Last error: ${tasks[i].lastError}',
+                                              style: TextStyle(color: Theme.of(context).colorScheme.error, fontSize: 12),
+                                            ),
+                                          ),
+                                      ],
+                                    ),
+                                  ),
+                                  Switch(
+                                    value: tasks[i].enabled,
+                                    onChanged: (v) {
+                                      final t = tasks[i].clone();
+                                      t.enabled = v;
+                                      widget.model.updateScheduledTaskAt(i, t);
+                                    },
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final scheduleAgents = _filteredAgents(where: (a) {
-      // For now, reuse agents that can reason over cashflow + goals.
-      return a.permissions.any((p) => p.access == AgentAccess.read && p.domain == AgentDomain.cashflow);
-    });
     final chatAgents = _filteredAgents(where: (_) => true);
 
     Widget body = switch (_section) {
@@ -603,11 +981,7 @@ class _AgentsPaneState extends State<_AgentsPane> {
           onCreate: () => _openAgentEditor(context),
           emptyText: 'No agents yet.',
         ),
-      _AgentSettingsSection.schedule => _agentLibraryPane(
-          agents: scheduleAgents,
-          onCreate: () => _openAgentEditor(context),
-          emptyText: 'No schedule agents yet.',
-        ),
+      _AgentSettingsSection.schedule => _schedulePane(context),
     };
 
     return Padding(
@@ -634,6 +1008,9 @@ class _AgentsPaneState extends State<_AgentsPane> {
             systemPrompt: '',
             permissions: const [],
             contextMarkdown: '',
+            kind: AppAgentKind.analyst,
+            toolHomeSummary: false,
+            toolWebResearch: false,
           )
         : model.agents[index].clone();
 
@@ -1126,6 +1503,7 @@ class _AgentEditorSheetState extends State<_AgentEditorSheet> {
         AgentDomain.income => Icons.payments_outlined,
         AgentDomain.assets => Icons.savings_outlined,
         AgentDomain.liabilities => Icons.credit_card,
+        AgentDomain.projection => Icons.auto_graph,
       };
 
   String _domainLabel(AgentDomain d) => switch (d) {
@@ -1134,6 +1512,13 @@ class _AgentEditorSheetState extends State<_AgentEditorSheet> {
         AgentDomain.income => 'Income',
         AgentDomain.assets => 'Assets',
         AgentDomain.liabilities => 'Liabilities',
+        AgentDomain.projection => 'Projection / FX',
+      };
+
+  String _agentKindEditorLabel(AppAgentKind k) => switch (k) {
+        AppAgentKind.helper => 'Helper — guides across the app',
+        AppAgentKind.analyst => 'Analyst — data + ledger tools',
+        AppAgentKind.researcher => 'Researcher — Gemini + markets tone',
       };
 
   bool _hasPerm(AgentDomain d, AgentAccess a) => _agent.permissions.contains(AgentPermission(domain: d, access: a));
@@ -1219,6 +1604,52 @@ class _AgentEditorSheetState extends State<_AgentEditorSheet> {
               controller: _descCtrl,
               maxLines: 2,
               decoration: const InputDecoration(labelText: 'Description', border: OutlineInputBorder()),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<AppAgentKind>(
+              value: _agent.kind,
+              decoration: const InputDecoration(
+                labelText: 'Agent type',
+                border: OutlineInputBorder(),
+              ),
+              items: [
+                for (final k in AppAgentKind.values)
+                  DropdownMenuItem(
+                    value: k,
+                    child: Text(_agentKindEditorLabel(k)),
+                  ),
+              ],
+              onChanged: (v) {
+                if (v == null) return;
+                setState(() {
+                  _agent.kind = v;
+                  if (v == AppAgentKind.researcher) {
+                    _agent.toolWebResearch = true;
+                  }
+                });
+              },
+            ),
+            const SizedBox(height: 8),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Home summary tool'),
+              subtitle: const Text('Model can set the Home card via zoro_actions'),
+              value: _agent.toolHomeSummary,
+              onChanged: (v) => setState(() => _agent.toolHomeSummary = v),
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Web / markets context'),
+              subtitle: Text(
+                _agent.kind == AppAgentKind.researcher
+                    ? 'On for researcher (Gemini).'
+                    : 'Extra guidance for external context (still uses your chat provider unless researcher).',
+                style: const TextStyle(fontSize: 12),
+              ),
+              value: _agent.toolWebResearch,
+              onChanged: _agent.kind == AppAgentKind.researcher
+                  ? null
+                  : (v) => setState(() => _agent.toolWebResearch = v),
             ),
             const SizedBox(height: 12),
             TextField(

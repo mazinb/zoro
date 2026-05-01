@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../../core/chat/agent_action_executor.dart';
-import '../../core/chat/chat_message.dart';
-import '../../core/llm/llm_client.dart';
 import '../../core/state/app_model.dart';
-import '../../core/state/monthly_cashflow_entry.dart';
 import '../../shared/theme/app_theme.dart';
+import '../settings/scheduled_task_editor_page.dart';
+import 'agent_chat_thread_page.dart';
 
 class ChatTab extends StatefulWidget {
   const ChatTab({
@@ -170,11 +168,22 @@ class _ChatTabState extends State<ChatTab> {
                       m.addChat(thread);
                       if (!context.mounted) return;
                       Navigator.of(context).push<void>(
-                        MaterialPageRoute(
-                          builder: (ctx) => _ChatThreadPage(
+                        MaterialPageRoute<void>(
+                          builder: (ctx) => AgentChatThreadPage(
                             model: m,
                             threadId: thread.id,
                             onNoKey: widget.toastGoToSettingsPermissions,
+                            onScheduleBriefing: (agentId, suggested) {
+                              Navigator.of(ctx).push<void>(
+                                MaterialPageRoute<void>(
+                                  builder: (ctx2) => ScheduledTaskEditorPage(
+                                    model: m,
+                                    initialAgentId: agentId,
+                                    initialRunMessage: suggested,
+                                  ),
+                                ),
+                              );
+                            },
                           ),
                         ),
                       );
@@ -217,11 +226,22 @@ class _ChatTabState extends State<ChatTab> {
                         borderRadius: BorderRadius.circular(12),
                         onTap: () {
                           Navigator.of(context).push<void>(
-                            MaterialPageRoute(
-                              builder: (ctx) => _ChatThreadPage(
+                            MaterialPageRoute<void>(
+                              builder: (ctx) => AgentChatThreadPage(
                                 model: widget.model,
                                 threadId: t.id,
                                 onNoKey: widget.toastGoToSettingsPermissions,
+                                onScheduleBriefing: (agentId, suggested) {
+                                  Navigator.of(ctx).push<void>(
+                                    MaterialPageRoute<void>(
+                                      builder: (ctx2) => ScheduledTaskEditorPage(
+                                        model: widget.model,
+                                        initialAgentId: agentId,
+                                        initialRunMessage: suggested,
+                                      ),
+                                    ),
+                                  );
+                                },
                               ),
                             ),
                           );
@@ -278,6 +298,12 @@ extension _FirstOrNullExt<T> on Iterable<T> {
   T? get firstOrNull => isEmpty ? null : first;
 }
 
+String _agentKindLabel(AppAgentKind k) => switch (k) {
+      AppAgentKind.helper => 'Helper',
+      AppAgentKind.analyst => 'Analyst',
+      AppAgentKind.researcher => 'Researcher',
+    };
+
 Future<String?> _pickAgent(BuildContext context, AppModel model) async {
   if (model.agents.isEmpty) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -308,7 +334,11 @@ Future<String?> _pickAgent(BuildContext context, AppModel model) async {
                 child: Icon(Icons.smart_toy, color: model.accent),
               ),
               title: Text(a.name, style: const TextStyle(fontWeight: FontWeight.w900)),
-              subtitle: Text(a.description, maxLines: 2, overflow: TextOverflow.ellipsis),
+              subtitle: Text(
+                '${_agentKindLabel(a.kind)} · ${a.description}',
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
               onTap: () => Navigator.of(ctx).pop(a.id),
             ),
           ),
@@ -317,360 +347,3 @@ Future<String?> _pickAgent(BuildContext context, AppModel model) async {
     },
   );
 }
-
-class _ChatThreadPage extends StatefulWidget {
-  const _ChatThreadPage({required this.model, required this.threadId, required this.onNoKey});
-
-  final AppModel model;
-  final String threadId;
-  final VoidCallback onNoKey;
-
-  @override
-  State<_ChatThreadPage> createState() => _ChatThreadPageState();
-}
-
-class _ChatThreadPageState extends State<_ChatThreadPage> {
-  final _ctrl = TextEditingController();
-  final _messages = <ChatMessage>[];
-  var _includeAssets = true;
-  var _includeLiabilities = true;
-  var _includeExpenseBuckets = true;
-  var _includeMonths = true;
-  bool _sending = false;
-  final _llm = LlmClient();
-
-  void _persistTranscript() {
-    final real = _messages.where((m) => m.text != 'Thinking…').toList();
-    widget.model.setChatMessagesFor(widget.threadId, real);
-  }
-
-  void _maybeHydrateFromModel() {
-    if (!mounted || _sending) return;
-    final from = widget.model.chatMessagesFor(widget.threadId);
-    if (from.isEmpty || _messages.isNotEmpty) return;
-    setState(() => _messages.addAll(from));
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _messages.addAll(widget.model.chatMessagesFor(widget.threadId));
-    widget.model.addListener(_maybeHydrateFromModel);
-  }
-
-  @override
-  void dispose() {
-    widget.model.removeListener(_maybeHydrateFromModel);
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  Future<void> _send() async {
-    final text = _ctrl.text.trim();
-    if (text.isEmpty) return;
-    if (_sending) return;
-    final provider = widget.model.activeLlmProvider;
-    final key = widget.model.apiKeyFor(provider);
-    if (key == null) {
-      widget.onNoKey();
-      return;
-    }
-    final t = widget.model.chats.where((x) => x.id == widget.threadId).cast<AgentChatThread?>().firstOrNull;
-    if (t == null) return;
-    final agent = widget.model.agents.firstWhere((a) => a.id == t.agentId);
-
-    setState(() {
-      _sending = true;
-      _messages.add(ChatMessage(fromUser: true, text: text));
-      _messages.add(ChatMessage(fromUser: false, text: 'Thinking…'));
-    });
-    _ctrl.clear();
-    _persistTranscript();
-
-    final contextBundle = _buildContextBundle();
-    final system = [
-      agent.systemPrompt.trim(),
-      if (agent.contextMarkdown.trim().isNotEmpty) '\n\n### Agent context\n${agent.contextMarkdown.trim()}',
-      if (contextBundle.trim().isNotEmpty) '\n\n### Attached context\n$contextBundle',
-      agentActionsSystemAppend(agent),
-      '\n\nReturn concise, actionable guidance.',
-    ].join('\n').trim();
-
-    try {
-      final reply = await _llm.complete(
-        provider: provider,
-        apiKey: key,
-        model: widget.model.modelFor(provider),
-        system: system,
-        user: text,
-      );
-      if (!mounted) return;
-      final processed = processAgentActions(rawReply: reply, agent: agent, model: widget.model);
-      var assistantText = processed.visibleText;
-      if (processed.applySummary != null && processed.applySummary!.trim().isNotEmpty) {
-        assistantText = '${assistantText.trim()}\n\n${processed.applySummary!.trim()}';
-      }
-      setState(() {
-        // Replace the last "Thinking…" message.
-        _messages.removeLast();
-        _messages.add(ChatMessage(fromUser: false, text: assistantText));
-      });
-      _persistTranscript();
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _messages.removeLast();
-        _messages.add(ChatMessage(fromUser: false, text: 'Request failed: $e'));
-      });
-      _persistTranscript();
-    } finally {
-      if (mounted) setState(() => _sending = false);
-    }
-
-    final idx = widget.model.chats.indexWhere((t) => t.id == widget.threadId);
-    if (idx >= 0) {
-      final t = widget.model.chats[idx].clone();
-      t.updatedAt = DateTime.now();
-      t.messageCount += 2;
-      t.tokensUsed += 600; // placeholder
-      t.lastLine = text;
-      widget.model.updateChat(idx, t);
-    }
-  }
-
-  String _buildContextBundle() {
-    final m = widget.model;
-    final buf = StringBuffer();
-    buf.writeln('## Context bundle');
-
-    if (_includeAssets) {
-      final items = m.assets
-          .map((a) => a.contextMarkdown ?? '')
-          .map((s) => s.trim())
-          .where((s) => s.isNotEmpty)
-          .toList();
-      if (items.isNotEmpty) {
-        buf.writeln('\n### Assets');
-        for (final it in items) {
-          buf.writeln('\n$it');
-        }
-      }
-    }
-
-    if (_includeLiabilities) {
-      final items = m.liabilities
-          .map((l) => l.contextMarkdown ?? '')
-          .map((s) => s.trim())
-          .where((s) => s.isNotEmpty)
-          .toList();
-      if (items.isNotEmpty) {
-        buf.writeln('\n### Liabilities');
-        for (final it in items) {
-          buf.writeln('\n$it');
-        }
-      }
-    }
-
-    if (_includeExpenseBuckets) {
-      final items = m.expenseBucketContextMarkdown.entries
-          .map((e) => e.value.trim())
-          .where((s) => s.isNotEmpty)
-          .toList();
-      if (items.isNotEmpty) {
-        buf.writeln('\n### Expense buckets');
-        for (final it in items) {
-          buf.writeln('\n$it');
-        }
-      }
-    }
-
-    if (_includeMonths) {
-      final items = AppModel.recentMonthKeys()
-          .map(m.monthlyEntryFor)
-          .whereType<MonthlyCashflowEntry>()
-          .map((e) => (e.contextMarkdown ?? '').trim())
-          .where((s) => s.isNotEmpty)
-          .toList();
-      if (items.isNotEmpty) {
-        buf.writeln('\n### Months');
-        for (final it in items) {
-          buf.writeln('\n$it');
-        }
-      }
-    }
-
-    return buf.toString().trim();
-  }
-
-  Future<void> _attachContext() async {
-    await showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (ctx) {
-        return Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text('Attach context', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
-              const SizedBox(height: 8),
-              StatefulBuilder(
-                builder: (ctx, setModal) {
-                  return Column(
-                    children: [
-                      SwitchListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text('Assets'),
-                        value: _includeAssets,
-                        onChanged: (v) => setModal(() => _includeAssets = v),
-                      ),
-                      SwitchListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text('Liabilities'),
-                        value: _includeLiabilities,
-                        onChanged: (v) => setModal(() => _includeLiabilities = v),
-                      ),
-                      SwitchListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text('Expense buckets'),
-                        value: _includeExpenseBuckets,
-                        onChanged: (v) => setModal(() => _includeExpenseBuckets = v),
-                      ),
-                      SwitchListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text('Months'),
-                        value: _includeMonths,
-                        onChanged: (v) => setModal(() => _includeMonths = v),
-                      ),
-                    ],
-                  );
-                },
-              ),
-              const SizedBox(height: 10),
-              FilledButton(
-                onPressed: () {
-                  final md = _buildContextBundle();
-                  setState(() {
-                    _messages.add(ChatMessage(fromUser: false, text: md));
-                  });
-                  _persistTranscript();
-                  Navigator.of(ctx).pop();
-                },
-                child: const Text('Attach'),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final t = widget.model.chats.where((x) => x.id == widget.threadId).cast<AgentChatThread?>().firstOrNull;
-    if (t == null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!context.mounted) return;
-        Navigator.of(context).maybePop();
-      });
-      return const Scaffold(body: SizedBox.shrink());
-    }
-    final agent = widget.model.agents.firstWhere((a) => a.id == t.agentId);
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(t.title),
-        actions: [
-          IconButton(
-            tooltip: 'Attach context',
-            onPressed: _attachContext,
-            icon: const Icon(Icons.library_add),
-          ),
-          PopupMenuButton<String>(
-            onSelected: (v) {
-              if (v == 'clear') {
-                setState(() => _messages.clear());
-                widget.model.clearChatById(widget.threadId);
-              }
-              if (v == 'delete') {
-                Navigator.of(context).pop();
-                // Delete after this route is gone to avoid a brief "missing thread" build.
-                Future.microtask(() => widget.model.removeChatById(widget.threadId));
-              }
-            },
-            itemBuilder: (ctx) => const [
-              PopupMenuItem(value: 'clear', child: Text('Clear chat')),
-              PopupMenuItem(value: 'delete', child: Text('Delete chat')),
-            ],
-          ),
-        ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(28),
-          child: Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Text(
-              agent.name,
-              style: const TextStyle(color: AppTheme.slate600, fontWeight: FontWeight.w800),
-            ),
-          ),
-        ),
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-              itemCount: _messages.length,
-              itemBuilder: (context, i) {
-                final msg = _messages[i];
-                final bg = msg.fromUser ? widget.model.accent.withValues(alpha: 0.10) : AppTheme.slate50;
-                final border = msg.fromUser ? widget.model.accent.withValues(alpha: 0.25) : AppTheme.slate100;
-                return Align(
-                  alignment: msg.fromUser ? Alignment.centerRight : Alignment.centerLeft,
-                  child: Container(
-                    constraints: const BoxConstraints(maxWidth: 340),
-                    margin: const EdgeInsets.only(bottom: 10),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: bg,
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: border),
-                    ),
-                    child: Text(msg.text, style: const TextStyle(color: AppTheme.slate900)),
-                  ),
-                );
-              },
-            ),
-          ),
-          SafeArea(
-            top: false,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(14, 6, 14, 10),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _ctrl,
-                      decoration: const InputDecoration(
-                        hintText: 'Message…',
-                        border: OutlineInputBorder(),
-                        isDense: true,
-                      ),
-                      onSubmitted: (_) => _send(),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  FilledButton(
-                    onPressed: _sending ? null : _send,
-                    child: Text(_sending ? 'Sending…' : 'Send'),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-

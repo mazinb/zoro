@@ -76,10 +76,33 @@ class _ExpenseEstimatesEditorPageState extends State<ExpenseEstimatesEditorPage>
             const SizedBox(height: 12),
             ...recurringExpenseBucketKeys.map((k) {
               final b = preset.buckets[k]!;
-              final defaultV = convertCurrency(value: b.value, from: presetCurrency, to: displayCurrency);
-              final min = convertCurrency(value: b.min, from: presetCurrency, to: displayCurrency);
-              final max = convertCurrency(value: b.max, from: presetCurrency, to: displayCurrency);
-              final step = _niceStep(convertCurrency(value: b.step, from: presetCurrency, to: displayCurrency));
+              final fx = model.fxUsdPerUnitResolved;
+              final defaultV = convertCurrency(
+                value: b.value,
+                from: presetCurrency,
+                to: displayCurrency,
+                usdPerUnitOverrides: fx,
+              );
+              final min = convertCurrency(
+                value: b.min,
+                from: presetCurrency,
+                to: displayCurrency,
+                usdPerUnitOverrides: fx,
+              );
+              final max = convertCurrency(
+                value: b.max,
+                from: presetCurrency,
+                to: displayCurrency,
+                usdPerUnitOverrides: fx,
+              );
+              final step = _niceStep(
+                convertCurrency(
+                  value: b.step,
+                  from: presetCurrency,
+                  to: displayCurrency,
+                  usdPerUnitOverrides: fx,
+                ),
+              );
               final v = model.expenseBuckets[k] ?? defaultV;
               return Padding(
                 padding: const EdgeInsets.only(bottom: 16),

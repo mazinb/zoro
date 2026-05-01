@@ -16,7 +16,7 @@ class MainScaffold extends StatefulWidget {
   State<MainScaffold> createState() => _MainScaffoldState();
 }
 
-class _MainScaffoldState extends State<MainScaffold> {
+class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver {
   int _index = 0;
   String? _ledgerFocus;
   final ValueNotifier<int> _settingsTabIndex = ValueNotifier<int>(0);
@@ -61,9 +61,23 @@ class _MainScaffoldState extends State<MainScaffold> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _settingsTabIndex.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      widget.model.runDueScheduledAgentTasks();
+    }
   }
 
   @override

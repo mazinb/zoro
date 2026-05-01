@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/state/app_model.dart';
 import '../../core/state/monthly_cashflow_entry.dart';
+import '../chat/agent_chat_thread_page.dart';
 import '../../core/state/ledger_rows.dart';
 import '../../core/constants/web_expenses_income.dart';
 import '../../core/finance/currency.dart';
@@ -534,6 +535,57 @@ class _LedgerTabState extends State<LedgerTab> {
                 foregroundColor: widget.model.accent,
               ),
             ),
+            const SizedBox(width: 6),
+            IconButton.filledTonal(
+              onPressed: () {
+                final m = widget.model;
+                AppAgent? agent;
+                for (final a in m.agents) {
+                  if (a.id == 'agent-rates-fx') {
+                    agent = a;
+                    break;
+                  }
+                }
+                if (agent == null) return;
+                final ratesAgent = agent;
+                final thread = () {
+                  for (final t in m.chats) {
+                    if (t.agentId == ratesAgent.id) return t;
+                  }
+                  final now = DateTime.now();
+                  final t = AgentChatThread(
+                    id: 'chat-${now.microsecondsSinceEpoch}-rates-fx',
+                    agentId: ratesAgent.id,
+                    title: ratesAgent.name,
+                    createdAt: now,
+                    updatedAt: now,
+                    messageCount: 0,
+                    tokensUsed: 0,
+                    lastLine: '',
+                  );
+                  m.addChat(t);
+                  return t;
+                }();
+                Navigator.of(context).push<void>(
+                  MaterialPageRoute<void>(
+                    fullscreenDialog: true,
+                    builder: (ctx) => AgentChatThreadPage(
+                      model: m,
+                      threadId: thread.id,
+                      onNoKey: _privacyDenied,
+                      initialUserMessage:
+                          'Review my projection assumptions and FX overrides. Suggest updates, then apply with zoro_actions if I agree.',
+                    ),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.percent),
+              tooltip: 'Rates & FX (Chat)',
+              style: IconButton.styleFrom(
+                backgroundColor: widget.model.accentSoft,
+                foregroundColor: widget.model.accent,
+              ),
+            ),
             const SizedBox(width: 10),
             if (_mode == LedgerMode.cashflow)
               IconButton.filledTonal(
@@ -598,6 +650,7 @@ class _LedgerTabState extends State<LedgerTab> {
                     row: e.value,
                     accent: widget.model.accent,
                     displayCurrency: widget.model.displayCurrency,
+                    usdPerUnitOverrides: widget.model.fxUsdPerUnitResolved,
                     privacyHideAmounts: widget.model.privacyHideAmounts,
                     onTap: () {
                       if (widget.model.privacyHideAmounts) {
@@ -628,6 +681,7 @@ class _LedgerTabState extends State<LedgerTab> {
                     row: e.value,
                     accent: widget.model.accent,
                     displayCurrency: widget.model.displayCurrency,
+                    usdPerUnitOverrides: widget.model.fxUsdPerUnitResolved,
                     privacyHideAmounts: widget.model.privacyHideAmounts,
                     onTap: () {
                       if (widget.model.privacyHideAmounts) {
@@ -750,6 +804,7 @@ class _LedgerAssetCard extends StatelessWidget {
     required this.row,
     required this.accent,
     required this.displayCurrency,
+    required this.usdPerUnitOverrides,
     required this.privacyHideAmounts,
     required this.onTap,
   });
@@ -757,13 +812,19 @@ class _LedgerAssetCard extends StatelessWidget {
   final LedgerAssetRow row;
   final Color accent;
   final CurrencyCode displayCurrency;
+  final Map<CurrencyCode, double> usdPerUnitOverrides;
   final bool privacyHideAmounts;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final native = currencyCodeForPresetCountry(row.currencyCountry);
-    final displayValue = convertCurrency(value: row.total, from: native, to: displayCurrency);
+    final displayValue = convertCurrency(
+      value: row.total,
+      from: native,
+      to: displayCurrency,
+      usdPerUnitOverrides: usdPerUnitOverrides,
+    );
     final grouped = formatGroupedInteger(displayValue.round(), currency: displayCurrency);
     final amountText =
         privacyHideAmounts ? maskSensitiveNumberString(grouped) : grouped;
@@ -824,6 +885,7 @@ class _LedgerLiabilityCard extends StatelessWidget {
     required this.row,
     required this.accent,
     required this.displayCurrency,
+    required this.usdPerUnitOverrides,
     required this.privacyHideAmounts,
     required this.onTap,
   });
@@ -831,13 +893,19 @@ class _LedgerLiabilityCard extends StatelessWidget {
   final LedgerLiabilityRow row;
   final Color accent;
   final CurrencyCode displayCurrency;
+  final Map<CurrencyCode, double> usdPerUnitOverrides;
   final bool privacyHideAmounts;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final native = currencyCodeForPresetCountry(row.currencyCountry);
-    final displayValue = convertCurrency(value: row.total, from: native, to: displayCurrency);
+    final displayValue = convertCurrency(
+      value: row.total,
+      from: native,
+      to: displayCurrency,
+      usdPerUnitOverrides: usdPerUnitOverrides,
+    );
     final grouped = formatGroupedInteger(displayValue.round(), currency: displayCurrency);
     final amountText =
         privacyHideAmounts ? maskSensitiveNumberString(grouped) : grouped;

@@ -13,6 +13,7 @@ abstract final class InternalAppAgentIds {
   static const ledgerAddActualExpenses = 'ledger_add_actual_expenses';
   static const ledgerAllocationAdvisor = 'ledger_allocation_advisor';
   static const ledgerIncomeUpdater = 'ledger_income_updater';
+  static const ledgerRatesFx = 'ledger_rates_fx';
   static const ledgerOrchestrator = 'ledger_orchestrator';
 }
 
@@ -145,6 +146,26 @@ Show existing values first, then ask what changed. Keep it quick.
     infoWhatItDoes: 'Updates income lines with minimal questions.',
     infoDataYouProvide: 'Existing income lines and the user’s updated amounts.',
     modelDomainHints: 'Prefer annual amounts; convert only if needed.',
+  ),
+  InternalAppAgentDefinition(
+    id: InternalAppAgentIds.ledgerRatesFx,
+    title: 'Rates & FX',
+    listSubtitle: 'Settings → General + Chat agent',
+    icon: Icons.percent,
+    defaultSystemPrompt: '''
+You help the user review **nominal** investment return, savings yield, inflation (per currency), and **USD per 1 unit** FX for THB/INR.
+
+Defaults are illustrative: US mid-range, Thailand lower returns and inflation, India higher — so **real** returns stay in a similar range.
+
+When the user agrees to updates, the Chat agent **Rates & FX** can apply ```zoro_actions``` with:
+- set_projection_rates { currency: "usd"|"thb"|"inr", invest_pct?, savings_pct?, inflation_pct? }
+- set_fx_usd_per_unit { currency: "thb"|"inr", usd_per_unit }
+
+Percents are annual (7 means 7%). Never set USD fx (always 1).
+''',
+    infoWhatItDoes: 'Explains projection assumptions and FX overrides; points to Settings and structured actions.',
+    infoDataYouProvide: 'Current Settings values from the app model when pasted by the user.',
+    modelDomainHints: 'Keep numbers conservative unless the user wants aggressive scenarios.',
   ),
   InternalAppAgentDefinition(
     id: InternalAppAgentIds.assetContext,

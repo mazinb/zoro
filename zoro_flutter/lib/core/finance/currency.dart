@@ -37,10 +37,13 @@ double convertCurrency({
   required double value,
   required CurrencyCode from,
   required CurrencyCode to,
+  /// When set, maps each [CurrencyCode] to USD per 1 unit of that currency (same semantics as [CurrencyCodeUi.usdPerUnit]).
+  Map<CurrencyCode, double>? usdPerUnitOverrides,
 }) {
   if (from == to) return value;
-  final usd = value * from.usdPerUnit;
-  return usd / to.usdPerUnit;
+  double usdPer(CurrencyCode c) => usdPerUnitOverrides?[c] ?? c.usdPerUnit;
+  final usd = value * usdPer(from);
+  return usd / usdPer(to);
 }
 
 String formatMoney(double v, {required CurrencyCode currency, int? decimals}) {

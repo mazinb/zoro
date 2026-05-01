@@ -9,6 +9,7 @@ import '../../core/state/app_model.dart';
 import '../../core/constants/web_expenses_income.dart';
 import '../../core/finance/currency.dart';
 import '../../shared/theme/app_theme.dart';
+import 'net_worth_projection_chart.dart';
 import 'zoro_interactive_sankey_painter.dart';
 
 class CommandCenterTab extends StatefulWidget {
@@ -28,10 +29,72 @@ class CommandCenterTab extends StatefulWidget {
   State<CommandCenterTab> createState() => _CommandCenterTabState();
 }
 
-class _CommandCenterTabState extends State<CommandCenterTab> {
+class _CommandCenterTabState extends State<CommandCenterTab> with TickerProviderStateMixin {
   SankeyNode? _selectedNode;
   bool _expanded = false;
   _SelectedKind? _selectedKind;
+  bool _tenYearProjection = false;
+  int? _projectionSelectedYear;
+  late AnimationController _chartFlipController;
+
+  @override
+  void initState() {
+    super.initState();
+    _chartFlipController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 460),
+    );
+  }
+
+  @override
+  void dispose() {
+    _chartFlipController.dispose();
+    super.dispose();
+  }
+
+  void _toggleTenYearProjection() {
+    if (_tenYearProjection) {
+      setState(() {
+        _tenYearProjection = false;
+        _projectionSelectedYear = null;
+      });
+      _chartFlipController.reverse();
+    } else {
+      setState(() {
+        _tenYearProjection = true;
+        _projectionSelectedYear = null;
+        _selectedNode = null;
+        _selectedKind = null;
+        _expanded = false;
+      });
+      _chartFlipController.forward(from: 0);
+    }
+  }
+
+  String _projectionChartTitle(List<double> series, bool hideNet) {
+    final y = _projectionSelectedYear;
+    if (y == null || series.isEmpty) return 'Tap a year';
+    if (y < 0 || y >= series.length) return 'Tap a year';
+    final cur = series[y];
+    final curM = formatCurrencyDisplay(cur, currency: widget.model.displayCurrency);
+    if (hideNet) {
+      final label = y == 0 ? 'Now' : 'Year $y';
+      if (y == 0) return '$label • ${maskSensitiveNumberString(curM)}';
+      final prev = series[y - 1];
+      final delta = cur - prev;
+      final deltaM = formatCurrencyDisplay(delta, currency: widget.model.displayCurrency);
+      final pct = prev.abs() > 1e-6 ? (100.0 * delta / prev) : null;
+      final pctS = pct != null ? ' • ${pct.toStringAsFixed(1)}%' : '';
+      return maskSensitiveNumberString('$label • $curM • Δ $deltaM$pctS');
+    }
+    if (y == 0) return 'Now • $curM';
+    final prev = series[y - 1];
+    final delta = cur - prev;
+    final deltaM = formatCurrencyDisplay(delta, currency: widget.model.displayCurrency);
+    final pct = prev.abs() > 1e-6 ? (100.0 * delta / prev) : null;
+    final pctS = pct != null ? ' • ${pct.toStringAsFixed(1)}%' : '';
+    return 'Year $y • $curM • Δ $deltaM$pctS';
+  }
 
   String _lastUpdatedDetail(DateTime? last, DateTime now) {
     if (last == null) return 'Never updated';
@@ -41,8 +104,10 @@ class _CommandCenterTabState extends State<CommandCenterTab> {
   @override
   Widget build(BuildContext context) {
     final sankey = _SankeyModel.fromApp(widget.model);
-    final showExpenseDetails = _selectedKind == _SelectedKind.expenses && _expanded;
+    final showExpenseDetails = !_tenYearProjection && _selectedKind == _SelectedKind.expenses && _expanded;
     final hideNet = widget.model.privacyHideAmounts;
+    final projSeries = widget.model.netWorthProjection11Y();
+    final projected10 = projSeries.isNotEmpty ? projSeries.last : widget.model.netWorthDisplay;
     final now = widget.previewNowForReminders ?? DateTime.now();
     final reminders = <_ReminderItem>[
       if (widget.model.remindersExpensesCadence != ReminderCadence.off)
@@ -154,7 +219,12 @@ class _CommandCenterTabState extends State<CommandCenterTab> {
                 padding: const EdgeInsets.all(14),
                 child: Text(
                   widget.model.homeSummaryText.trim(),
-                  style: const TextStyle(color: AppTheme.slate900, fontWeight: FontWeight.w700, height: 1.35),
+                  style: const TextStyle(
+                    color: AppTheme.slate900,
+                    fontWeight: FontWeight.w400,
+                    fontSize: 15,
+                    height: 1.55,
+                  ),
                 ),
               ),
             ),
@@ -176,9 +246,15 @@ class _CommandCenterTabState extends State<CommandCenterTab> {
                         Text(
                           hideNet
                               ? maskSensitiveNumberString(
-                                  formatCurrencyDisplay(widget.model.netWorthDisplay, currency: widget.model.displayCurrency),
+                                  formatCurrencyDisplay(
+                                    _tenYearProjection ? projected10 : widget.model.netWorthDisplay,
+                                    currency: widget.model.displayCurrency,
+                                  ),
                                 )
-                              : formatCurrencyDisplay(widget.model.netWorthDisplay, currency: widget.model.displayCurrency),
+                              : formatCurrencyDisplay(
+                                  _tenYearProjection ? projected10 : widget.model.netWorthDisplay,
+                                  currency: widget.model.displayCurrency,
+                                ),
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontWeight: FontWeight.w900,
@@ -191,11 +267,15 @@ class _CommandCenterTabState extends State<CommandCenterTab> {
                         Text(
                           hideNet
                               ? maskSensitiveNumberString(
-                                  'Assets ${formatCurrencyDisplay(widget.model.totalAssetsDisplay, currency: widget.model.displayCurrency)} • '
-                                  'Liabilities ${formatCurrencyDisplay(widget.model.totalLiabilitiesDisplay, currency: widget.model.displayCurrency)}',
+                                  _tenYearProjection
+                                      ? 'Today ${formatCurrencyDisplay(widget.model.netWorthDisplay, currency: widget.model.displayCurrency)} • General'
+                                      : 'Assets ${formatCurrencyDisplay(widget.model.totalAssetsDisplay, currency: widget.model.displayCurrency)} • '
+                                          'Liabilities ${formatCurrencyDisplay(widget.model.totalLiabilitiesDisplay, currency: widget.model.displayCurrency)}',
                                 )
-                              : 'Assets ${formatCurrencyDisplay(widget.model.totalAssetsDisplay, currency: widget.model.displayCurrency)} • '
-                                  'Liabilities ${formatCurrencyDisplay(widget.model.totalLiabilitiesDisplay, currency: widget.model.displayCurrency)}',
+                              : _tenYearProjection
+                                  ? 'Today ${formatCurrencyDisplay(widget.model.netWorthDisplay, currency: widget.model.displayCurrency)} • General'
+                                  : 'Assets ${formatCurrencyDisplay(widget.model.totalAssetsDisplay, currency: widget.model.displayCurrency)} • '
+                                      'Liabilities ${formatCurrencyDisplay(widget.model.totalLiabilitiesDisplay, currency: widget.model.displayCurrency)}',
                           textAlign: TextAlign.center,
                           style: const TextStyle(
                             color: AppTheme.slate500,
@@ -233,39 +313,134 @@ class _CommandCenterTabState extends State<CommandCenterTab> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _SankeyPlaceholder(
-                  model: sankey,
-                  selectedNode: _selectedNode,
-                  fullBleed: true,
-                  onNodeSelected: (n) {
-                    setState(() {
-                      _selectedNode = n;
-                      _selectedKind = _kindFromLabel(n?.displayLabel);
-                    });
-                  },
-                  onTapFlow: (f) async {
-                    if (widget.model.privacyHideAmounts) return;
-                    final v = await _quickEditValue(context, f.label, f.monthly);
-                    if (v != null) {
-                      // Push edits into shared model so Ledger reflects it.
-                      if (f.kind == _FlowKind.expenseBucket && f.expenseKey != null) {
-                        final key = f.expenseKey!;
-                        widget.model.setExpenseBucket(key, v);
-                      } else if (f.kind == _FlowKind.allocation && f.allocationKey != null) {
-                        switch (f.allocationKey) {
-                          case 'investments':
-                            widget.model.setAllocationInvestments(v);
-                            break;
-                          case 'savings':
-                            widget.model.setAllocationSavings(v);
-                            break;
-                        }
-                      }
-                    }
-                  },
+                Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    AnimatedBuilder(
+                      animation: _chartFlipController,
+                      builder: (context, _) {
+                        final v = _chartFlipController.value;
+                        return Transform(
+                          alignment: Alignment.center,
+                          transformHitTests: true,
+                          transform: Matrix4.identity()
+                            ..setEntry(3, 2, 0.001)
+                            ..rotateY(v * math.pi),
+                          child: v >= 0.5
+                              ? Transform(
+                                  alignment: Alignment.center,
+                                  transformHitTests: true,
+                                  transform: Matrix4.identity()..rotateY(math.pi),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                                    children: [
+                                      Padding(
+                                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                                        child: Text(
+                                          _projectionChartTitle(projSeries, hideNet),
+                                          textAlign: TextAlign.center,
+                                          style: const TextStyle(
+                                            color: AppTheme.slate600,
+                                            fontWeight: FontWeight.w800,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 10),
+                                      Container(
+                                        height: 300,
+                                        width: double.infinity,
+                                        color: AppTheme.slate50,
+                                        child: NetWorthProjectionBarChart(
+                                          key: const ValueKey<String>('nw-proj-chart'),
+                                          series: projSeries,
+                                          selectedYearIndex: _projectionSelectedYear,
+                                          onTapYear: (i) => setState(() => _projectionSelectedYear = i),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              : _SankeyPlaceholder(
+                                  model: sankey,
+                                  selectedNode: _selectedNode,
+                                  fullBleed: true,
+                                  onNodeSelected: (n) {
+                                    setState(() {
+                                      _selectedNode = n;
+                                      _selectedKind = _kindFromLabel(n?.displayLabel);
+                                    });
+                                  },
+                                  onTapFlow: (f) async {
+                                    if (widget.model.privacyHideAmounts) return;
+                                    final v0 = await _quickEditValue(context, f.label, f.monthly);
+                                    if (v0 != null) {
+                                      if (f.kind == _FlowKind.expenseBucket && f.expenseKey != null) {
+                                        final key = f.expenseKey!;
+                                        widget.model.setExpenseBucket(key, v0);
+                                      } else if (f.kind == _FlowKind.allocation && f.allocationKey != null) {
+                                        switch (f.allocationKey) {
+                                          case 'investments':
+                                            widget.model.setAllocationInvestments(v0);
+                                            break;
+                                          case 'savings':
+                                            widget.model.setAllocationSavings(v0);
+                                            break;
+                                        }
+                                      }
+                                    }
+                                  },
+                                ),
+                        );
+                      },
+                    ),
+                    Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 10,
+                      child: AnimatedBuilder(
+                        animation: _chartFlipController,
+                        builder: (context, _) {
+                          final faceProjection = _chartFlipController.value >= 0.5;
+                          return Center(
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.92),
+                                borderRadius: BorderRadius.circular(21),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.06),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                                border: Border.all(color: AppTheme.slate100),
+                              ),
+                              child: Material(
+                                type: MaterialType.transparency,
+                                child: InkWell(
+                                  borderRadius: BorderRadius.circular(21),
+                                  onTap: _chartFlipController.isAnimating ? null : _toggleTenYearProjection,
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
+                                    child: Text(
+                                      faceProjection ? 'Flow' : '10 yrs',
+                                      style: TextStyle(
+                                        color: widget.model.accent,
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 12),
-                if (_selectedKind != null) ...[
+                if (!_tenYearProjection && _selectedKind != null) ...[
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: _SelectionCard(
