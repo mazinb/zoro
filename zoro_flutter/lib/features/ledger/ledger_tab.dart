@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../../core/state/app_model.dart';
 import '../../core/state/monthly_cashflow_entry.dart';
@@ -23,6 +22,23 @@ String _allocationShareLabel(double part, double total) {
   if (total <= 0) return '—';
   return '${((part / total) * 100).round()}%';
 }
+
+String _ledgerDigitsOnly(String s) => s.replaceAll(RegExp(r'[^0-9]'), '');
+
+double _ledgerParseGroupedDouble(String raw) {
+  final d = _ledgerDigitsOnly(raw);
+  if (d.isEmpty) return 0;
+  return double.tryParse(d) ?? 0;
+}
+
+double? _ledgerParseGroupedDoubleOrNull(String raw) {
+  final d = _ledgerDigitsOnly(raw);
+  if (d.isEmpty) return null;
+  return double.tryParse(d);
+}
+
+String _ledgerHomeAmount(AppModel m, double v) =>
+    formatGroupedInteger(v.round(), currency: m.displayCurrency);
 
 class LedgerTab extends StatefulWidget {
   const LedgerTab({super.key, required this.model, this.focusSection, this.onPrivacyInteractionDenied});
@@ -157,11 +173,7 @@ class _LedgerTabState extends State<LedgerTab> {
     final invCtrl = TextEditingController();
     final commentCtrl = TextEditingController();
 
-    double? parseNumOrNull(TextEditingController c) {
-      final t = c.text.trim();
-      if (t.isEmpty) return null;
-      return double.tryParse(t);
-    }
+    double? parseNumOrNull(TextEditingController c) => _ledgerParseGroupedDoubleOrNull(c.text);
 
     double? calcSpendingOrNull() {
       final opening = parseNumOrNull(openingCtrl) ?? 0;
@@ -177,19 +189,20 @@ class _LedgerTabState extends State<LedgerTab> {
     void loadMonth(String mk) {
       final ex = m.monthlyEntryFor(mk);
       if (ex != null) {
-        openingCtrl.text = ex.openingBalance.toStringAsFixed(0);
-        closingCtrl.text = ex.closingBalance.toStringAsFixed(0);
-        cashFdCtrl.text = ex.outflowToCashFd.toStringAsFixed(0);
-        invCtrl.text = ex.outflowToInvested.toStringAsFixed(0);
+        final dc = m.displayCurrency;
+        openingCtrl.text = formatGroupedInteger(ex.openingBalance.round(), currency: dc);
+        closingCtrl.text = formatGroupedInteger(ex.closingBalance.round(), currency: dc);
+        cashFdCtrl.text = formatGroupedInteger(ex.outflowToCashFd.round(), currency: dc);
+        invCtrl.text = formatGroupedInteger(ex.outflowToInvested.round(), currency: dc);
         commentCtrl.text = ex.comment;
       } else {
         final prevKey = AppModel.previousMonthKey(mk);
         final prevClose = prevKey == null ? null : m.monthlyEntryFor(prevKey)?.closingBalance;
         final suggestedOpening = prevClose ?? 0;
-        openingCtrl.text = suggestedOpening.toStringAsFixed(0);
+        openingCtrl.text = formatGroupedInteger(suggestedOpening.round(), currency: m.displayCurrency);
         closingCtrl.clear();
-        cashFdCtrl.text = '0';
-        invCtrl.text = '0';
+        cashFdCtrl.text = formatGroupedInteger(0, currency: m.displayCurrency);
+        invCtrl.text = formatGroupedInteger(0, currency: m.displayCurrency);
         commentCtrl.clear();
       }
     }
@@ -262,12 +275,14 @@ class _LedgerTabState extends State<LedgerTab> {
                           child: TextField(
                             controller: openingCtrl,
                             keyboardType: TextInputType.number,
+                            inputFormatters: [
+                              GroupedIntegerTextInputFormatter(currency: m.displayCurrency),
+                            ],
                             decoration: dense.copyWith(
                               labelText: 'Opening',
-                              prefixText: m.displayCurrencySymbol,
                               helperText: prevClose == null
                                   ? 'Verify'
-                                  : 'Should match ${m.displayCurrencySymbol}${prevClose.toStringAsFixed(0)}',
+                                  : 'Should match ${_ledgerHomeAmount(m, prevClose)}',
                             ),
                           ),
                         ),
@@ -276,9 +291,11 @@ class _LedgerTabState extends State<LedgerTab> {
                           child: TextField(
                             controller: closingCtrl,
                             keyboardType: TextInputType.number,
+                            inputFormatters: [
+                              GroupedIntegerTextInputFormatter(currency: m.displayCurrency),
+                            ],
                             decoration: dense.copyWith(
                               labelText: 'Closing',
-                              prefixText: m.displayCurrencySymbol,
                               helperText: 'End of month',
                             ),
                           ),
@@ -292,9 +309,11 @@ class _LedgerTabState extends State<LedgerTab> {
                           child: TextField(
                             controller: cashFdCtrl,
                             keyboardType: TextInputType.number,
+                            inputFormatters: [
+                              GroupedIntegerTextInputFormatter(currency: m.displayCurrency),
+                            ],
                             decoration: dense.copyWith(
                               labelText: 'Saved',
-                              prefixText: m.displayCurrencySymbol,
                               helperText: '0 if none',
                             ),
                           ),
@@ -304,9 +323,11 @@ class _LedgerTabState extends State<LedgerTab> {
                           child: TextField(
                             controller: invCtrl,
                             keyboardType: TextInputType.number,
+                            inputFormatters: [
+                              GroupedIntegerTextInputFormatter(currency: m.displayCurrency),
+                            ],
                             decoration: dense.copyWith(
                               labelText: 'Invested',
-                              prefixText: m.displayCurrencySymbol,
                               helperText: '0 if none',
                             ),
                           ),
@@ -321,7 +342,7 @@ class _LedgerTabState extends State<LedgerTab> {
                         final ok = spending == null ? true : spending >= -0.5; // allow tiny negatives from rounding
                         final txt = spending == null
                             ? '—'
-                            : '${m.displayCurrencySymbol}${(spending.abs() < 0.005 ? 0.0 : spending).toStringAsFixed(0)}';
+                            : _ledgerHomeAmount(m, spending.abs() < 0.005 ? 0.0 : spending);
                         return Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
@@ -363,9 +384,8 @@ class _LedgerTabState extends State<LedgerTab> {
                     const SizedBox(height: 16),
                     FilledButton(
                       onPressed: () {
-                        final opening = double.tryParse(openingCtrl.text.trim()) ?? 0;
-                        final closingRaw = closingCtrl.text.trim();
-                        if (closingRaw.isEmpty) {
+                        final opening = _ledgerParseGroupedDouble(openingCtrl.text);
+                        if (_ledgerDigitsOnly(closingCtrl.text).isEmpty) {
                           showDialog<void>(
                             context: ctx,
                             builder: (dctx) => AlertDialog(
@@ -378,9 +398,9 @@ class _LedgerTabState extends State<LedgerTab> {
                           );
                           return;
                         }
-                        final closing = double.tryParse(closingRaw) ?? 0;
-                        final cf = double.tryParse(cashFdCtrl.text.trim()) ?? 0;
-                        final iv = double.tryParse(invCtrl.text.trim()) ?? 0;
+                        final closing = _ledgerParseGroupedDouble(closingCtrl.text);
+                        final cf = _ledgerParseGroupedDouble(cashFdCtrl.text);
+                        final iv = _ledgerParseGroupedDouble(invCtrl.text);
                         final sp = calcSpendingOrNull() ?? 0;
                         if (prevClose != null && opening.round() != prevClose.round()) {
                           showDialog<void>(
@@ -389,8 +409,8 @@ class _LedgerTabState extends State<LedgerTab> {
                               title: const Text('Opening balance mismatch'),
                               content: Text(
                                 'This month’s opening balance should equal last month’s closing balance.\n\n'
-                                'Last month closing: ${m.displayCurrencySymbol}${prevClose.toStringAsFixed(0)}\n'
-                                'Your opening: ${m.displayCurrencySymbol}${opening.toStringAsFixed(0)}\n\n'
+                                'Last month closing: ${_ledgerHomeAmount(m, prevClose)}\n'
+                                'Your opening: ${_ledgerHomeAmount(m, opening)}\n\n'
                                 'Please correct it before saving.',
                               ),
                               actions: [
@@ -406,7 +426,7 @@ class _LedgerTabState extends State<LedgerTab> {
                             builder: (dctx) => AlertDialog(
                               title: const Text('Spending can’t be negative'),
                               content: Text(
-                                'Your inputs imply negative spending (${m.displayCurrencySymbol}${sp.toStringAsFixed(0)}).\n\n'
+                                'Your inputs imply negative spending (${_ledgerHomeAmount(m, sp)}).\n\n'
                                 'Double-check Opening, Closing, Saved, and Invested.',
                               ),
                               actions: [
@@ -744,9 +764,9 @@ class _LedgerAssetCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final native = currencyCodeForPresetCountry(row.currencyCountry);
     final displayValue = convertCurrency(value: row.total, from: native, to: displayCurrency);
-    final amountText = privacyHideAmounts
-        ? maskSensitiveNumberString(formatMoney(displayValue, currency: displayCurrency, decimals: 0))
-        : formatMoney(displayValue, currency: displayCurrency, decimals: 0);
+    final grouped = formatGroupedInteger(displayValue.round(), currency: displayCurrency);
+    final amountText =
+        privacyHideAmounts ? maskSensitiveNumberString(grouped) : grouped;
     final title = row.name.trim().isEmpty ? row.type.label : row.name;
     return Card(
       child: InkWell(
@@ -818,9 +838,9 @@ class _LedgerLiabilityCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final native = currencyCodeForPresetCountry(row.currencyCountry);
     final displayValue = convertCurrency(value: row.total, from: native, to: displayCurrency);
-    final amountText = privacyHideAmounts
-        ? maskSensitiveNumberString(formatMoney(displayValue, currency: displayCurrency, decimals: 0))
-        : formatMoney(displayValue, currency: displayCurrency, decimals: 0);
+    final grouped = formatGroupedInteger(displayValue.round(), currency: displayCurrency);
+    final amountText =
+        privacyHideAmounts ? maskSensitiveNumberString(grouped) : grouped;
     final title = row.name.trim().isEmpty ? row.type.label : row.name;
     return Card(
       child: InkWell(
@@ -1017,7 +1037,14 @@ class _AssetEditorSheetState extends State<_AssetEditorSheet> {
                 ],
                 onChanged: (v) {
                   if (v == null) return;
-                  setState(() => _row.currencyCountry = v);
+                  setState(() {
+                    _row.currencyCountry = v;
+                    final cc = currencyCodeForPresetCountry(v);
+                    final digits = _totalCtrl.text.replaceAll(RegExp(r'[^0-9]'), '');
+                    if (digits.isNotEmpty) {
+                      _totalCtrl.text = formatGroupedInteger(int.parse(digits), currency: cc);
+                    }
+                  });
                 },
               )
             else
@@ -1051,7 +1078,6 @@ class _AssetEditorSheetState extends State<_AssetEditorSheet> {
               controller: _totalCtrl,
               keyboardType: TextInputType.number,
               inputFormatters: [
-                FilteringTextInputFormatter.digitsOnly,
                 GroupedIntegerTextInputFormatter(currency: native),
               ],
               decoration: InputDecoration(
@@ -1192,7 +1218,14 @@ class _LiabilityEditorSheetState extends State<_LiabilityEditorSheet> {
                 ],
                 onChanged: (v) {
                   if (v == null) return;
-                  setState(() => _row.currencyCountry = v);
+                  setState(() {
+                    _row.currencyCountry = v;
+                    final cc = currencyCodeForPresetCountry(v);
+                    final digits = _totalCtrl.text.replaceAll(RegExp(r'[^0-9]'), '');
+                    if (digits.isNotEmpty) {
+                      _totalCtrl.text = formatGroupedInteger(int.parse(digits), currency: cc);
+                    }
+                  });
                 },
               )
             else
@@ -1215,7 +1248,6 @@ class _LiabilityEditorSheetState extends State<_LiabilityEditorSheet> {
               controller: _totalCtrl,
               keyboardType: TextInputType.number,
               inputFormatters: [
-                FilteringTextInputFormatter.digitsOnly,
                 GroupedIntegerTextInputFormatter(currency: native),
               ],
               decoration: InputDecoration(
@@ -1308,6 +1340,7 @@ class _CashflowPane extends StatelessWidget {
               _ExpensesSection(
                 model: model,
                 key: expensesKey,
+                onMonthEntryTap: onMonthEntryTap,
                 onPrivacyInteractionDenied: onPrivacyInteractionDenied,
               ),
           ],
@@ -1397,7 +1430,6 @@ class _IncomeSection extends StatelessWidget {
         ...model.incomeLines.asMap().entries.map((e) {
           final i = e.key;
           final line = e.value;
-          final sym = presetForCountry(line.currencyCountry).currencySymbol;
           return Padding(
             padding: const EdgeInsets.only(bottom: 12),
             child: Column(
@@ -1440,7 +1472,6 @@ class _IncomeSection extends StatelessWidget {
                         key: ValueKey('inc-amt-${line.id}'),
                         initialInt: line.annualAmount == 0 ? null : line.annualAmount.round(),
                         currency: currencyCodeForPresetCountry(line.currencyCountry),
-                        prefixText: sym,
                         labelText: 'Annual amount',
                         onChanged: (v) {
                           line.annualAmount = (v ?? 0).toDouble();
@@ -1501,22 +1532,31 @@ class _IncomeSection extends StatelessWidget {
 }
 
 class _ExpensesSection extends StatelessWidget {
-  const _ExpensesSection({super.key, required this.model, required this.onPrivacyInteractionDenied});
+  const _ExpensesSection({
+    super.key,
+    required this.model,
+    required this.onMonthEntryTap,
+    required this.onPrivacyInteractionDenied,
+  });
 
   final AppModel model;
+  final void Function(String monthKey) onMonthEntryTap;
   final VoidCallback onPrivacyInteractionDenied;
 
   @override
   Widget build(BuildContext context) {
     final preset = presetForCountry(AppModel.expensePresetCountry);
-    final cur = model.displayCurrencySymbol;
     final predicted = model.totalExpensesMonthly;
     final segments = expenseDonutSegmentsFromPreset(preset, model.expenseBuckets);
     final privacy = model.privacyHideAmounts;
-    final monthKeysForTable = privacy ? null : AppModel.recentMonthKeys();
+    final dataMonths = model.monthKeysWithCashflowData();
+    final monthKeysForTable =
+        privacy ? null : (dataMonths.isEmpty ? AppModel.recentMonthKeys() : dataMonths);
     final centerTitle = privacy
-        ? maskSensitiveNumberString(formatCurrencyCompactShort(predicted, currency: model.displayCurrency))
-        : formatCurrencyCompactShort(predicted, currency: model.displayCurrency);
+        ? maskSensitiveNumberString(
+            formatGroupedInteger(predicted.round(), currency: model.displayCurrency),
+          )
+        : formatGroupedInteger(predicted.round(), currency: model.displayCurrency);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -1592,14 +1632,16 @@ class _ExpensesSection extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                _MonthTableHeader(currencySymbol: cur),
+                const _MonthTableHeader(),
                 for (var i = 0; i < monthKeysForTable.length; i++)
                   _MonthTotalRow(
                     model: model,
                     monthKey: monthKeysForTable[i],
                     predicted: predicted,
-                    currencySymbol: cur,
                     showDivider: i < monthKeysForTable.length - 1,
+                    onMonthEntryTap: onMonthEntryTap,
+                    onPrivacyInteractionDenied: onPrivacyInteractionDenied,
+                    privacyHideAmounts: privacy,
                   ),
               ],
             ),
@@ -1611,9 +1653,7 @@ class _ExpensesSection extends StatelessWidget {
 }
 
 class _MonthTableHeader extends StatelessWidget {
-  const _MonthTableHeader({required this.currencySymbol});
-
-  final String currencySymbol;
+  const _MonthTableHeader();
 
   @override
   Widget build(BuildContext context) {
@@ -1664,15 +1704,22 @@ class _MonthTotalRow extends StatelessWidget {
     required this.model,
     required this.monthKey,
     required this.predicted,
-    required this.currencySymbol,
     required this.showDivider,
+    required this.onMonthEntryTap,
+    required this.onPrivacyInteractionDenied,
+    required this.privacyHideAmounts,
   });
 
   final AppModel model;
   final String monthKey;
   final double predicted;
-  final String currencySymbol;
   final bool showDivider;
+  final void Function(String monthKey) onMonthEntryTap;
+  final VoidCallback onPrivacyInteractionDenied;
+  final bool privacyHideAmounts;
+
+  String _homeAmt(double v) =>
+      formatGroupedInteger(v.round(), currency: model.displayCurrency);
 
   @override
   Widget build(BuildContext context) {
@@ -1683,7 +1730,19 @@ class _MonthTotalRow extends StatelessWidget {
     final inBand = hasRowData &&
         predicted > 0 &&
         (delta.abs() / predicted) <= AppModel.spendVarianceBandPct;
-    return Container(
+    final predictedTxt =
+        privacyHideAmounts ? maskSensitiveNumberString(_homeAmt(predicted)) : _homeAmt(predicted);
+    final actualTxt = !hasRowData
+        ? '—'
+        : (privacyHideAmounts
+            ? maskSensitiveNumberString(_homeAmt(actual))
+            : _homeAmt(actual));
+    final deltaTxt = !hasRowData
+        ? '—'
+        : (privacyHideAmounts
+            ? maskSensitiveNumberString(_homeAmt(delta))
+            : _homeAmt(delta));
+    final child = Container(
       decoration: BoxDecoration(
         border: Border(
           bottom: BorderSide(color: showDivider ? AppTheme.slate100 : Colors.transparent),
@@ -1702,7 +1761,7 @@ class _MonthTotalRow extends StatelessWidget {
           Expanded(
             flex: 3,
             child: Text(
-              formatCurrencyCompactShort(predicted, currency: model.displayCurrency),
+              predictedTxt,
               textAlign: TextAlign.end,
               style: const TextStyle(fontSize: 12, color: AppTheme.slate600),
             ),
@@ -1710,7 +1769,7 @@ class _MonthTotalRow extends StatelessWidget {
           Expanded(
             flex: 3,
             child: Text(
-              hasRowData ? formatCurrencyCompactShort(actual, currency: model.displayCurrency) : '—',
+              actualTxt,
               textAlign: TextAlign.end,
               style: TextStyle(
                 fontWeight: FontWeight.w900,
@@ -1726,7 +1785,7 @@ class _MonthTotalRow extends StatelessWidget {
           Expanded(
             flex: 3,
             child: Text(
-              hasRowData ? formatCurrencyCompactShort(delta, currency: model.displayCurrency) : '—',
+              deltaTxt,
               textAlign: TextAlign.end,
               style: TextStyle(
                 fontSize: 12,
@@ -1740,6 +1799,20 @@ class _MonthTotalRow extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          if (privacyHideAmounts) {
+            onPrivacyInteractionDenied();
+            return;
+          }
+          onMonthEntryTap(monthKey);
+        },
+        child: child,
       ),
     );
   }
@@ -1761,7 +1834,6 @@ class _AllocateTabSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final privacy = model.privacyHideAmounts;
     final avail = model.availableAfterExpensesMonthly;
-    final cur = model.displayCurrencySymbol;
     final inv = model.allocInvestmentsMonthly;
     final cash = model.allocSavingsMonthly;
     final recent = model.monthKeysWithCashflowData();
@@ -1772,6 +1844,7 @@ class _AllocateTabSection extends StatelessWidget {
     final avgs = model.averageAllocationOutflows(lastN);
     final targetPct = (model.allocInvestFraction * 100).round();
     final actualPct = actualShare != null ? (actualShare * 100).round() : null;
+    String g(double v) => formatGroupedInteger(v.round(), currency: model.displayCurrency);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -1808,7 +1881,7 @@ class _AllocateTabSection extends StatelessWidget {
                     child: _SummaryStat(
                       label: 'Target invested',
                       value: '$targetPct%',
-                      sub: privacy ? '—' : '${formatCurrencyCompactShort(inv, currency: model.displayCurrency)} / mo',
+                      sub: privacy ? '—' : '${g(inv)} / mo',
                     ),
                   ),
                   Expanded(
@@ -1817,7 +1890,7 @@ class _AllocateTabSection extends StatelessWidget {
                       value: actualPct != null ? '$actualPct%' : '—',
                       sub: privacy
                           ? '—'
-                          : (avgs != null ? '${formatCurrencyCompactShort(avgs.invested, currency: model.displayCurrency)} / mo avg' : '—'),
+                          : (avgs != null ? '${g(avgs.invested)} / mo avg' : '—'),
                     ),
                   ),
                 ],
@@ -1829,7 +1902,7 @@ class _AllocateTabSection extends StatelessWidget {
                     child: _SummaryStat(
                       label: 'Target cash / FDs',
                       value: '${(100 - targetPct)}%',
-                      sub: privacy ? '—' : '${formatCurrencyCompactShort(cash, currency: model.displayCurrency)} / mo',
+                      sub: privacy ? '—' : '${g(cash)} / mo',
                     ),
                   ),
                   Expanded(
@@ -1838,7 +1911,7 @@ class _AllocateTabSection extends StatelessWidget {
                       value: actualPct != null ? '${100 - actualPct}%' : '—',
                       sub: privacy
                           ? '—'
-                          : (avgs != null ? '${formatCurrencyCompactShort(avgs.cashFd, currency: model.displayCurrency)} / mo avg' : '—'),
+                          : (avgs != null ? '${g(avgs.cashFd)} / mo avg' : '—'),
                     ),
                   ),
                 ],
@@ -1852,7 +1925,7 @@ class _AllocateTabSection extends StatelessWidget {
         Text(
           privacy
               ? 'Unspent net income hidden — percentages only below.'
-              : 'Unspent net income: ${formatCurrencyCompactShort(avail, currency: model.displayCurrency)} / mo',
+              : 'Unspent net income: ${g(avail)} / mo',
           style: const TextStyle(color: AppTheme.slate600, fontSize: 13),
         ),
         const SizedBox(height: 12),
@@ -1862,13 +1935,13 @@ class _AllocateTabSection extends StatelessWidget {
               child: Text(
                 privacy
                     ? 'Cash / FDs\n—'
-                    : 'Cash / FDs\n${formatCurrencyCompactShort(cash, currency: model.displayCurrency)} / mo',
+                    : 'Cash / FDs\n${g(cash)} / mo',
                 style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, height: 1.25),
               ),
             ),
             Expanded(
               child: Text(
-                privacy ? 'Invested\n—' : 'Invested\n${formatCurrencyCompactShort(inv, currency: model.displayCurrency)} / mo',
+                privacy ? 'Invested\n—' : 'Invested\n${g(inv)} / mo',
                 textAlign: TextAlign.end,
                 style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, height: 1.25),
               ),
@@ -1905,7 +1978,6 @@ class _AllocateTabSection extends StatelessWidget {
                 _MonthlyCashflowSplitTableRow(
                   model: model,
                   monthKey: monthKeysForTable[i],
-                  currencySymbol: cur,
                   showDivider: i < monthKeysForTable.length - 1,
                   privacyHideAmounts: privacy,
                   onPrivacyInteractionDenied: onPrivacyInteractionDenied,
@@ -1959,14 +2031,14 @@ class _MonthlyCashflowSplitTableHeader extends StatelessWidget {
           const SizedBox(width: 72, child: Text('Month', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 11))),
           Expanded(
             child: Text(
-              privacyOnlyPercents ? 'Cash / FDs\n%' : 'Cash / FDs\n\$ · %',
+              privacyOnlyPercents ? 'Cash / FDs\n%' : 'Cash / FDs\n· %',
               textAlign: TextAlign.end,
               style: TextStyle(fontWeight: FontWeight.w900, fontSize: 10, height: 1.2, color: AppTheme.slate600),
             ),
           ),
           Expanded(
             child: Text(
-              privacyOnlyPercents ? 'Invested\n%' : 'Invested\n\$ · %',
+              privacyOnlyPercents ? 'Invested\n%' : 'Invested\n· %',
               textAlign: TextAlign.end,
               style: TextStyle(fontWeight: FontWeight.w900, fontSize: 10, height: 1.2, color: AppTheme.slate600),
             ),
@@ -1981,7 +2053,6 @@ class _MonthlyCashflowSplitTableRow extends StatelessWidget {
   const _MonthlyCashflowSplitTableRow({
     required this.model,
     required this.monthKey,
-    required this.currencySymbol,
     required this.showDivider,
     required this.privacyHideAmounts,
     required this.onPrivacyInteractionDenied,
@@ -1990,7 +2061,6 @@ class _MonthlyCashflowSplitTableRow extends StatelessWidget {
 
   final AppModel model;
   final String monthKey;
-  final String currencySymbol;
   final bool showDivider;
   final bool privacyHideAmounts;
   final VoidCallback onPrivacyInteractionDenied;
@@ -2002,15 +2072,16 @@ class _MonthlyCashflowSplitTableRow extends StatelessWidget {
     final cash = e?.outflowToCashFd ?? 0;
     final inv = e?.outflowToInvested ?? 0;
     final total = cash + inv;
+    final dc = model.displayCurrency;
     final cashTxt = e != null
         ? (privacyHideAmounts
             ? _allocationShareLabel(cash, total)
-            : '${formatCurrencyCompactShort(cash, currency: model.displayCurrency)} · ${_allocationShareLabel(cash, total)}')
+            : '${formatGroupedInteger(cash.round(), currency: dc)} · ${_allocationShareLabel(cash, total)}')
         : '—';
     final invTxt = e != null
         ? (privacyHideAmounts
             ? _allocationShareLabel(inv, total)
-            : '${formatCurrencyCompactShort(inv, currency: model.displayCurrency)} · ${_allocationShareLabel(inv, total)}')
+            : '${formatGroupedInteger(inv.round(), currency: dc)} · ${_allocationShareLabel(inv, total)}')
         : '—';
 
     final child = Container(
@@ -2053,14 +2124,12 @@ class _GroupedIntField extends StatefulWidget {
     required this.currency,
     required this.onChanged,
     this.labelText,
-    this.prefixText,
   });
 
   final int? initialInt;
   final CurrencyCode currency;
   final ValueChanged<int?> onChanged;
   final String? labelText;
-  final String? prefixText;
 
   @override
   State<_GroupedIntField> createState() => _GroupedIntFieldState();
@@ -2107,13 +2176,11 @@ class _GroupedIntFieldState extends State<_GroupedIntField> {
       controller: _ctrl,
       keyboardType: TextInputType.number,
       inputFormatters: [
-        FilteringTextInputFormatter.digitsOnly,
         GroupedIntegerTextInputFormatter(currency: widget.currency),
       ],
       onChanged: (raw) => widget.onChanged(_parse(raw)),
       decoration: InputDecoration(
         labelText: widget.labelText,
-        prefixText: widget.prefixText,
         border: const OutlineInputBorder(),
         isDense: true,
       ),

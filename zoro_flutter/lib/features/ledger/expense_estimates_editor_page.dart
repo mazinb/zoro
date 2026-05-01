@@ -42,7 +42,6 @@ class _ExpenseEstimatesEditorPageState extends State<ExpenseEstimatesEditorPage>
   Widget build(BuildContext context) {
     final model = widget.model;
     final preset = presetForCountry(AppModel.expensePresetCountry);
-    final cur = model.displayCurrencySymbol;
     final presetCurrency = currencyCodeForPresetCountry(AppModel.expensePresetCountry);
     final displayCurrency = model.displayCurrency;
 
@@ -85,9 +84,9 @@ class _ExpenseEstimatesEditorPageState extends State<ExpenseEstimatesEditorPage>
               return Padding(
                 padding: const EdgeInsets.only(bottom: 16),
                 child: _EditorBucketRow(
-                  key: ValueKey('ed-$k-$v'),
+                  key: ValueKey('ed-$k'),
                   label: b.label,
-                  currencySymbol: cur,
+                  displayCurrency: displayCurrency,
                   value: v,
                   min: min,
                   max: max,
@@ -106,11 +105,11 @@ class _ExpenseEstimatesEditorPageState extends State<ExpenseEstimatesEditorPage>
   }
 }
 
-class _EditorBucketRow extends StatelessWidget {
+class _EditorBucketRow extends StatefulWidget {
   const _EditorBucketRow({
     super.key,
     required this.label,
-    required this.currencySymbol,
+    required this.displayCurrency,
     required this.value,
     required this.min,
     required this.max,
@@ -119,12 +118,44 @@ class _EditorBucketRow extends StatelessWidget {
   });
 
   final String label;
-  final String currencySymbol;
+  final CurrencyCode displayCurrency;
   final double value;
   final double min;
   final double max;
   final double step;
   final ValueChanged<double> onChanged;
+
+  @override
+  State<_EditorBucketRow> createState() => _EditorBucketRowState();
+}
+
+class _EditorBucketRowState extends State<_EditorBucketRow> {
+  late final TextEditingController _ctrl = TextEditingController(text: _fmt(widget.value));
+  final _focus = FocusNode();
+
+  String _fmt(double v) => formatGroupedInteger(v.round(), currency: widget.displayCurrency);
+
+  int _parse(String raw) {
+    final digits = raw.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.isEmpty) return 0;
+    return int.tryParse(digits) ?? 0;
+  }
+
+  @override
+  void didUpdateWidget(covariant _EditorBucketRow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.value != widget.value && !_focus.hasFocus) {
+      final next = _fmt(widget.value);
+      if (_ctrl.text != next) _ctrl.text = next;
+    }
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    _focus.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -133,15 +164,22 @@ class _EditorBucketRow extends StatelessWidget {
       children: [
         Row(
           children: [
-            Expanded(child: Text(label, style: const TextStyle(fontWeight: FontWeight.w800))),
+            Expanded(child: Text(widget.label, style: const TextStyle(fontWeight: FontWeight.w800))),
             SizedBox(
-              width: 120,
-              child: TextFormField(
-                initialValue: value.toStringAsFixed(0),
+              width: 132,
+              child: TextField(
+                controller: _ctrl,
+                focusNode: _focus,
                 keyboardType: TextInputType.number,
-                onChanged: (raw) => onChanged(double.tryParse(raw) ?? value),
+                inputFormatters: [
+                  GroupedIntegerTextInputFormatter(currency: widget.displayCurrency),
+                ],
+                onChanged: (raw) {
+                  final n = _parse(raw).toDouble().clamp(widget.min, widget.max);
+                  widget.onChanged(n);
+                },
                 decoration: InputDecoration(
-                  prefixText: currencySymbol,
+                  prefixText: widget.displayCurrency.symbol,
                   border: const OutlineInputBorder(),
                   isDense: true,
                 ),
@@ -151,17 +189,17 @@ class _EditorBucketRow extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         Slider(
-          min: min,
-          max: max,
-          divisions: ((max - min) / step).round().clamp(1, 5000),
-          value: value.clamp(min, max),
-          onChanged: onChanged,
+          min: widget.min,
+          max: widget.max,
+          divisions: ((widget.max - widget.min) / widget.step).round().clamp(1, 5000),
+          value: widget.value.clamp(widget.min, widget.max),
+          onChanged: widget.onChanged,
         ),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(money(min, currencySymbol: currencySymbol), style: const TextStyle(color: AppTheme.slate600, fontSize: 12)),
-            Text(money(max, currencySymbol: currencySymbol), style: const TextStyle(color: AppTheme.slate600, fontSize: 12)),
+            Text(money(widget.min, currency: widget.displayCurrency), style: const TextStyle(color: AppTheme.slate600, fontSize: 12)),
+            Text(money(widget.max, currency: widget.displayCurrency), style: const TextStyle(color: AppTheme.slate600, fontSize: 12)),
           ],
         ),
       ],

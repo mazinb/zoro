@@ -165,6 +165,16 @@ class _ContextEditorPageState extends State<ContextEditorPage> {
     widget.model.recordInternalAgentRun(widget._plannerAgentId, res.structured);
   }
 
+  String get _fieldHint => switch (widget.kind) {
+        ContextKind.month =>
+          'Monthly story for this calendar month — linked to Ledger → Cashflow (same entry as Split / month rows). '
+              'Use this so assistants and future-you understand what drove spending.',
+        ContextKind.asset ||
+        ContextKind.liability ||
+        ContextKind.bucket =>
+          'Add notes the chat/agents can use later…',
+      };
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -195,10 +205,10 @@ class _ContextEditorPageState extends State<ContextEditorPage> {
               minLines: null,
               keyboardType: TextInputType.multiline,
               textAlignVertical: TextAlignVertical.top,
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                hintText: 'Add notes the chat/agents can use later…',
-                contentPadding: EdgeInsets.all(12),
+              decoration: InputDecoration(
+                border: const OutlineInputBorder(),
+                hintText: _fieldHint,
+                contentPadding: const EdgeInsets.all(12),
                 isDense: false,
               ),
             ),

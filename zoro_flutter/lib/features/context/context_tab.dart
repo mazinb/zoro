@@ -30,6 +30,17 @@ class _ContextTabState extends State<ContextTab> {
 
   String _money(double v, AppModel model) => formatCurrencyDisplay(v, currency: model.displayCurrency);
 
+  /// Ledger row totals are stored in the row’s native currency — show that here (not converted to Home).
+  String _moneyNativeAsset(LedgerAssetRow a, {required bool hide}) {
+    if (hide) return maskSensitiveNumberString(formatCurrencyDisplay(a.total, currency: currencyCodeForPresetCountry(a.currencyCountry)));
+    return formatCurrencyDisplay(a.total, currency: currencyCodeForPresetCountry(a.currencyCountry));
+  }
+
+  String _moneyNativeLiability(LedgerLiabilityRow l, {required bool hide}) {
+    if (hide) return maskSensitiveNumberString(formatCurrencyDisplay(l.total, currency: currencyCodeForPresetCountry(l.currencyCountry)));
+    return formatCurrencyDisplay(l.total, currency: currencyCodeForPresetCountry(l.currencyCountry));
+  }
+
   @override
   Widget build(BuildContext context) {
     final model = widget.model;
@@ -72,7 +83,7 @@ class _ContextTabState extends State<ContextTab> {
         const SizedBox(height: 8),
         ...model.assets.map((a) {
           final name = a.name.trim().isEmpty ? a.type.label : a.name.trim();
-          final valueText = hide ? null : _money(a.total, model);
+          final valueText = hide ? _moneyNativeAsset(a, hide: true) : _moneyNativeAsset(a, hide: false);
           return Padding(
             padding: const EdgeInsets.only(bottom: 10),
             child: Card(
@@ -83,11 +94,10 @@ class _ContextTabState extends State<ContextTab> {
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (valueText != null)
-                      Text(
-                        valueText,
-                        style: const TextStyle(color: AppTheme.slate900, fontWeight: FontWeight.w900, fontSize: 12),
-                      ),
+                    Text(
+                      valueText,
+                      style: const TextStyle(color: AppTheme.slate900, fontWeight: FontWeight.w900, fontSize: 12),
+                    ),
                     const SizedBox(width: 8),
                     const Icon(Icons.chevron_right),
                   ],
@@ -109,7 +119,7 @@ class _ContextTabState extends State<ContextTab> {
         const SizedBox(height: 8),
         ...model.liabilities.map((l) {
           final name = l.name.trim().isEmpty ? l.type.label : l.name.trim();
-          final valueText = hide ? null : _money(l.total, model);
+          final valueText = hide ? _moneyNativeLiability(l, hide: true) : _moneyNativeLiability(l, hide: false);
           return Padding(
             padding: const EdgeInsets.only(bottom: 10),
             child: Card(
@@ -120,11 +130,10 @@ class _ContextTabState extends State<ContextTab> {
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (valueText != null)
-                      Text(
-                        valueText,
-                        style: const TextStyle(color: AppTheme.slate900, fontWeight: FontWeight.w900, fontSize: 12),
-                      ),
+                    Text(
+                      valueText,
+                      style: const TextStyle(color: AppTheme.slate900, fontWeight: FontWeight.w900, fontSize: 12),
+                    ),
                     const SizedBox(width: 8),
                     const Icon(Icons.chevron_right),
                   ],

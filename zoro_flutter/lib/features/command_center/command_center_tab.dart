@@ -96,50 +96,53 @@ class _CommandCenterTabState extends State<CommandCenterTab> {
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
-          child: Row(
-            children: [
-              Text(
-                'Home',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w900,
-                    ),
-              ),
-              const Spacer(),
-              Flexible(
-                child: Align(
-                  alignment: Alignment.centerRight,
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    alignment: Alignment.centerRight,
-                    child: SegmentedButton<CurrencyCode>(
-                      segments: const [
-                        ButtonSegment(value: CurrencyCode.usd, label: Text('USD')),
-                        ButtonSegment(value: CurrencyCode.thb, label: Text('THB')),
-                        ButtonSegment(value: CurrencyCode.inr, label: Text('INR')),
-                      ],
-                      selected: {widget.model.displayCurrency},
-                      onSelectionChanged: (s) => widget.model.setDisplayCurrency(s.first),
-                      style: ButtonStyle(
-                        minimumSize: const WidgetStatePropertyAll(Size(0, 42)),
-                        padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 12, vertical: 12)),
-                        tapTargetSize: MaterialTapTargetSize.padded,
-                        side: const WidgetStatePropertyAll(BorderSide(color: AppTheme.slate100)),
-                        backgroundColor: WidgetStateProperty.resolveWith((states) {
-                          if (states.contains(WidgetState.selected)) {
-                            return widget.model.accent.withValues(alpha: 0.12);
-                          }
-                          return Colors.white;
-                        }),
-                        foregroundColor: WidgetStateProperty.resolveWith((states) {
-                          if (states.contains(WidgetState.selected)) return widget.model.accent;
-                          return AppTheme.slate600;
-                        }),
-                      ),
+          child: SizedBox(
+            height: 48,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'Home',
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.w900,
+                          ),
                     ),
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(width: 10),
+                SizedBox(
+                  height: 44,
+                  child: SegmentedButton<CurrencyCode>(
+                    segments: const [
+                      ButtonSegment(value: CurrencyCode.usd, label: Text('USD')),
+                      ButtonSegment(value: CurrencyCode.thb, label: Text('THB')),
+                      ButtonSegment(value: CurrencyCode.inr, label: Text('INR')),
+                    ],
+                    selected: {widget.model.displayCurrency},
+                    onSelectionChanged: (s) => widget.model.setDisplayCurrency(s.first),
+                    style: ButtonStyle(
+                      minimumSize: const WidgetStatePropertyAll(Size(0, 44)),
+                      padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 12, vertical: 12)),
+                      tapTargetSize: MaterialTapTargetSize.padded,
+                      side: const WidgetStatePropertyAll(BorderSide(color: AppTheme.slate100)),
+                      backgroundColor: WidgetStateProperty.resolveWith((states) {
+                        if (states.contains(WidgetState.selected)) {
+                          return widget.model.accent.withValues(alpha: 0.12);
+                        }
+                        return Colors.white;
+                      }),
+                      foregroundColor: WidgetStateProperty.resolveWith((states) {
+                        if (states.contains(WidgetState.selected)) return widget.model.accent;
+                        return AppTheme.slate600;
+                      }),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
         const SizedBox(height: 10),
@@ -683,8 +686,6 @@ class _ExpenseDetailsRows extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final preset = presetForCountry(AppModel.expensePresetCountry);
-    final cur = model.displayCurrencySymbol;
-
     final rows = <({String key, String label, double monthly, Color color})>[];
     for (final k in recurringExpenseBucketKeys) {
       final b = preset.buckets[k]!;
@@ -726,8 +727,8 @@ class _ExpenseDetailsRows extends StatelessWidget {
                   ),
                   Text(
                     maskAmounts
-                        ? maskSensitiveNumberString(money(r.monthly, currencySymbol: cur))
-                        : money(r.monthly, currencySymbol: cur),
+                        ? maskSensitiveNumberString(money(r.monthly, currency: model.displayCurrency))
+                        : money(r.monthly, currency: model.displayCurrency),
                     style: const TextStyle(fontWeight: FontWeight.w900, color: AppTheme.slate900),
                   ),
                 ],

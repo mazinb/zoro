@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../finance/currency.dart';
+
 /// Mirrors key UI field shapes from zoro-app (web) for UI parity.
 ///
 /// Notes:
@@ -97,10 +99,8 @@ CountryPreset presetForCountry(String name) {
   );
 }
 
-String money(double v, {required String currencySymbol}) {
-  final rounded = v.round();
-  final s = rounded.toString();
-  return '$currencySymbol$s';
+String money(double v, {required CurrencyCode currency}) {
+  return '${currency.symbol}${formatGroupedInteger(v.round(), currency: currency)}';
 }
 
 Color bucketColor(String key) {
