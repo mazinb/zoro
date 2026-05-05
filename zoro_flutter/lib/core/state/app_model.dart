@@ -1009,6 +1009,7 @@ When asked to deliver the briefing, finish by updating the Home summary via set_
     for (final e in monthlyCashflowByMonth.values) {
       e.openingBalance = convertCurrency(value: e.openingBalance, from: from, to: next, usdPerUnitOverrides: fx);
       e.closingBalance = convertCurrency(value: e.closingBalance, from: from, to: next, usdPerUnitOverrides: fx);
+      e.monthlyEarned = convertCurrency(value: e.monthlyEarned, from: from, to: next, usdPerUnitOverrides: fx);
       e.outflowToCashFd = convertCurrency(value: e.outflowToCashFd, from: from, to: next, usdPerUnitOverrides: fx);
       e.outflowToInvested = convertCurrency(value: e.outflowToInvested, from: from, to: next, usdPerUnitOverrides: fx);
       e.monthlySpending = convertCurrency(value: e.monthlySpending, from: from, to: next, usdPerUnitOverrides: fx);

@@ -19,11 +19,6 @@ String _ledgerFmtDate(DateTime? d) {
   return '${names[d.month - 1]} ${d.day}, ${d.year}';
 }
 
-String _allocationShareLabel(double part, double total) {
-  if (total <= 0) return '—';
-  return '${((part / total) * 100).round()}%';
-}
-
 String _ledgerDigitsOnly(String s) => s.replaceAll(RegExp(r'[^0-9]'), '');
 
 double _ledgerParseGroupedDouble(String raw) {
@@ -170,6 +165,7 @@ class _LedgerTabState extends State<LedgerTab> {
     var month = initialMonthKey ?? AppModel.monthKeyFor(DateTime.now());
     final openingCtrl = TextEditingController();
     final closingCtrl = TextEditingController();
+    final earnedCtrl = TextEditingController();
     final cashFdCtrl = TextEditingController();
     final invCtrl = TextEditingController();
     final commentCtrl = TextEditingController();
@@ -180,10 +176,14 @@ class _LedgerTabState extends State<LedgerTab> {
       final opening = parseNumOrNull(openingCtrl) ?? 0;
       final closing = parseNumOrNull(closingCtrl);
       if (closing == null) return null;
+      final earned = parseNumOrNull(earnedCtrl) ?? 0;
       final saved = parseNumOrNull(cashFdCtrl) ?? 0;
       final invested = parseNumOrNull(invCtrl) ?? 0;
-      // Spending is what left your balances after saving/investing:
-      // closing - opening - saved - invested
+      if (earned > 0) {
+        // opening + earned - spending - saved - invested = closing
+        return opening + earned - closing - saved - invested;
+      }
+      // Legacy: balance change only (no explicit income).
       return closing - opening - saved - invested;
     }
 
@@ -193,6 +193,9 @@ class _LedgerTabState extends State<LedgerTab> {
         final dc = m.displayCurrency;
         openingCtrl.text = formatGroupedInteger(ex.openingBalance.round(), currency: dc);
         closingCtrl.text = formatGroupedInteger(ex.closingBalance.round(), currency: dc);
+        earnedCtrl.text = ex.monthlyEarned > 0
+            ? formatGroupedInteger(ex.monthlyEarned.round(), currency: dc)
+            : '';
         cashFdCtrl.text = formatGroupedInteger(ex.outflowToCashFd.round(), currency: dc);
         invCtrl.text = formatGroupedInteger(ex.outflowToInvested.round(), currency: dc);
         commentCtrl.text = ex.comment;
@@ -202,6 +205,7 @@ class _LedgerTabState extends State<LedgerTab> {
         final suggestedOpening = prevClose ?? 0;
         openingCtrl.text = formatGroupedInteger(suggestedOpening.round(), currency: m.displayCurrency);
         closingCtrl.clear();
+        earnedCtrl.clear();
         cashFdCtrl.text = formatGroupedInteger(0, currency: m.displayCurrency);
         invCtrl.text = formatGroupedInteger(0, currency: m.displayCurrency);
         commentCtrl.clear();
@@ -304,6 +308,18 @@ class _LedgerTabState extends State<LedgerTab> {
                       ],
                     ),
                     const SizedBox(height: 12),
+                    TextField(
+                      controller: earnedCtrl,
+                      keyboardType: TextInputType.number,
+                      inputFormatters: [
+                        GroupedIntegerTextInputFormatter(currency: m.displayCurrency),
+                      ],
+                      decoration: dense.copyWith(
+                        labelText: 'Earned',
+                        helperText: 'Take-home this month (optional)',
+                      ),
+                    ),
+                    const SizedBox(height: 12),
                     Row(
                       children: [
                         Expanded(
@@ -337,7 +353,7 @@ class _LedgerTabState extends State<LedgerTab> {
                     ),
                     const SizedBox(height: 12),
                     AnimatedBuilder(
-                      animation: Listenable.merge([openingCtrl, closingCtrl, cashFdCtrl, invCtrl]),
+                      animation: Listenable.merge([openingCtrl, closingCtrl, earnedCtrl, cashFdCtrl, invCtrl]),
                       builder: (ctx, _) {
                         final spending = calcSpendingOrNull();
                         final ok = spending == null ? true : spending >= -0.5; // allow tiny negatives from rounding
@@ -400,6 +416,7 @@ class _LedgerTabState extends State<LedgerTab> {
                           return;
                         }
                         final closing = _ledgerParseGroupedDouble(closingCtrl.text);
+                        final earned = _ledgerParseGroupedDouble(earnedCtrl.text);
                         final cf = _ledgerParseGroupedDouble(cashFdCtrl.text);
                         final iv = _ledgerParseGroupedDouble(invCtrl.text);
                         final sp = calcSpendingOrNull() ?? 0;
@@ -428,7 +445,7 @@ class _LedgerTabState extends State<LedgerTab> {
                               title: const Text('Spending can’t be negative'),
                               content: Text(
                                 'Your inputs imply negative spending (${_ledgerHomeAmount(m, sp)}).\n\n'
-                                'Double-check Opening, Closing, Saved, and Invested.',
+                                'Double-check Opening, Closing, Earned, Saved, and Invested.',
                               ),
                               actions: [
                                 TextButton(onPressed: () => Navigator.of(dctx).pop(), child: const Text('Edit')),
@@ -443,6 +460,7 @@ class _LedgerTabState extends State<LedgerTab> {
                             monthKey: month,
                             openingBalance: opening,
                             closingBalance: closing,
+                            monthlyEarned: earned,
                             outflowToCashFd: cf,
                             outflowToInvested: iv,
                             monthlySpending: sp,
@@ -467,6 +485,7 @@ class _LedgerTabState extends State<LedgerTab> {
     Future<void>.delayed(const Duration(milliseconds: 350), () {
       openingCtrl.dispose();
       closingCtrl.dispose();
+      earnedCtrl.dispose();
       cashFdCtrl.dispose();
       invCtrl.dispose();
       commentCtrl.dispose();
@@ -1902,120 +1921,31 @@ class _AllocateTabSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final privacy = model.privacyHideAmounts;
     final avail = model.availableAfterExpensesMonthly;
-    final inv = model.allocInvestmentsMonthly;
-    final cash = model.allocSavingsMonthly;
     final recent = model.monthKeysWithCashflowData();
     final monthKeysForTable = recent.isEmpty ? AppModel.recentMonthKeys() : recent;
-    final monthsTracked = recent.where((mk) => model.monthlyEntryFor(mk) != null).toList();
-    final lastN = monthsTracked.take(3).toList();
-    final actualShare = model.actualInvestShareAmongOutflows(lastN);
-    final avgs = model.averageAllocationOutflows(lastN);
-    final targetPct = (model.allocInvestFraction * 100).round();
-    final actualPct = actualShare != null ? (actualShare * 100).round() : null;
-    String g(double v) => formatGroupedInteger(v.round(), currency: model.displayCurrency);
+    final sliderPct = (model.allocInvestFraction * 100).round();
+    final savedPct = 100 - sliderPct;
+    final headline =
+        (sliderPct > 50) ? '$sliderPct% invested' : ((sliderPct == 50) ? '50% saved' : '$savedPct% saved');
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        const Text('Split after expenses', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
+        const SizedBox(height: 4),
         Text(
-          'Target last updated ${_ledgerFmtDate(model.allocationTargetLastUpdated)}',
+          'Last updated ${_ledgerFmtDate(model.allocationTargetLastUpdated)}',
           style: const TextStyle(fontSize: 12, color: AppTheme.slate500, fontWeight: FontWeight.w600),
         ),
-        const SizedBox(height: 12),
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: AppTheme.slate50,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppTheme.slate100),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Actual vs expected split', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
-              const SizedBox(height: 6),
-              if (lastN.isEmpty) ...[
-                const Text(
-                  'Use + to add a monthly cash flow entry — then you can see how your real split compares to the target.',
-                  style: TextStyle(color: AppTheme.slate600, fontSize: 13),
-                ),
-                const SizedBox(height: 10),
-              ],
-              Row(
-                children: [
-                  Expanded(
-                    child: _SummaryStat(
-                      label: 'Target invested',
-                      value: '$targetPct%',
-                      sub: privacy ? '—' : '${g(inv)} / mo',
-                    ),
-                  ),
-                  Expanded(
-                    child: _SummaryStat(
-                      label: 'Actual invested',
-                      value: actualPct != null ? '$actualPct%' : '—',
-                      sub: privacy
-                          ? '—'
-                          : (avgs != null ? '${g(avgs.invested)} / mo avg' : '—'),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 10),
-              Row(
-                children: [
-                  Expanded(
-                    child: _SummaryStat(
-                      label: 'Target cash / FDs',
-                      value: '${(100 - targetPct)}%',
-                      sub: privacy ? '—' : '${g(cash)} / mo',
-                    ),
-                  ),
-                  Expanded(
-                    child: _SummaryStat(
-                      label: 'Actual cash / FDs',
-                      value: actualPct != null ? '${100 - actualPct}%' : '—',
-                      sub: privacy
-                          ? '—'
-                          : (avgs != null ? '${g(avgs.cashFd)} / mo avg' : '—'),
-                    ),
-                  ),
-                ],
-              ),
-            ],
+        const SizedBox(height: 10),
+        Center(
+          child: Text(
+            headline,
+            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
           ),
         ),
-        const SizedBox(height: 20),
-        const Text('After expenses (target)', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
-        const SizedBox(height: 6),
-        Text(
-          privacy
-              ? 'Unspent net income hidden — percentages only below.'
-              : 'Unspent net income: ${g(avail)} / mo',
-          style: const TextStyle(color: AppTheme.slate600, fontSize: 13),
-        ),
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                privacy
-                    ? 'Cash / FDs\n—'
-                    : 'Cash / FDs\n${g(cash)} / mo',
-                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, height: 1.25),
-              ),
-            ),
-            Expanded(
-              child: Text(
-                privacy ? 'Invested\n—' : 'Invested\n${g(inv)} / mo',
-                textAlign: TextAlign.end,
-                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, height: 1.25),
-              ),
-            ),
-          ],
-        ),
+        const SizedBox(height: 2),
         Slider(
           value: avail <= 0 ? 0.0 : model.allocInvestFraction.clamp(0.0, 1.0),
           divisions: 20,
@@ -2024,10 +1954,18 @@ class _AllocateTabSection extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('All cash / FDs', style: TextStyle(fontSize: 12, color: AppTheme.slate600)),
+            Text('All cash', style: TextStyle(fontSize: 12, color: AppTheme.slate600)),
             Text('All invested', style: TextStyle(fontSize: 12, color: AppTheme.slate600)),
           ],
         ),
+        if (privacy) ...[
+          const SizedBox(height: 6),
+          const Text(
+            'Amounts hidden.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 12, color: AppTheme.slate500, fontWeight: FontWeight.w600),
+          ),
+        ],
         const SizedBox(height: 24),
         const Text('Each month', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
         const SizedBox(height: 10),
@@ -2041,7 +1979,7 @@ class _AllocateTabSection extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _MonthlyCashflowSplitTableHeader(privacyOnlyPercents: privacy),
+              const _MonthlyCashflowSplitTableHeader(),
               for (var i = 0; i < monthKeysForTable.length; i++)
                 _MonthlyCashflowSplitTableRow(
                   model: model,
@@ -2059,32 +1997,8 @@ class _AllocateTabSection extends StatelessWidget {
   }
 }
 
-class _SummaryStat extends StatelessWidget {
-  const _SummaryStat({required this.label, required this.value, required this.sub});
-
-  final String label;
-  final String value;
-  final String sub;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: const TextStyle(fontSize: 11, color: AppTheme.slate600, fontWeight: FontWeight.w700)),
-        const SizedBox(height: 4),
-        Text(value, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18)),
-        Text(sub, style: const TextStyle(fontSize: 11, color: AppTheme.slate500, fontWeight: FontWeight.w600)),
-      ],
-    );
-  }
-}
-
 class _MonthlyCashflowSplitTableHeader extends StatelessWidget {
-  const _MonthlyCashflowSplitTableHeader({this.privacyOnlyPercents = false});
-
-  final bool privacyOnlyPercents;
+  const _MonthlyCashflowSplitTableHeader();
 
   @override
   Widget build(BuildContext context) {
@@ -2097,18 +2011,18 @@ class _MonthlyCashflowSplitTableHeader extends StatelessWidget {
       child: Row(
         children: [
           const SizedBox(width: 72, child: Text('Month', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 11))),
-          Expanded(
+          const Expanded(
             child: Text(
-              privacyOnlyPercents ? 'Cash / FDs\n%' : 'Cash / FDs\n· %',
+              'Earned',
               textAlign: TextAlign.end,
-              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 10, height: 1.2, color: AppTheme.slate600),
+              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 11, color: AppTheme.slate600),
             ),
           ),
-          Expanded(
+          const Expanded(
             child: Text(
-              privacyOnlyPercents ? 'Invested\n%' : 'Invested\n· %',
+              '% inv',
               textAlign: TextAlign.end,
-              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 10, height: 1.2, color: AppTheme.slate600),
+              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 11, color: AppTheme.slate600),
             ),
           ),
         ],
@@ -2137,20 +2051,33 @@ class _MonthlyCashflowSplitTableRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final e = model.monthlyEntryFor(monthKey);
-    final cash = e?.outflowToCashFd ?? 0;
-    final inv = e?.outflowToInvested ?? 0;
-    final total = cash + inv;
     final dc = model.displayCurrency;
-    final cashTxt = e != null
-        ? (privacyHideAmounts
-            ? _allocationShareLabel(cash, total)
-            : '${formatGroupedInteger(cash.round(), currency: dc)} · ${_allocationShareLabel(cash, total)}')
-        : '—';
-    final invTxt = e != null
-        ? (privacyHideAmounts
-            ? _allocationShareLabel(inv, total)
-            : '${formatGroupedInteger(inv.round(), currency: dc)} · ${_allocationShareLabel(inv, total)}')
-        : '—';
+    final targetPct = (model.allocInvestFraction * 100).round();
+
+    final earnedTxt = e == null
+        ? '—'
+        : e.monthlyEarned > 0
+            ? (privacyHideAmounts
+                ? maskSensitiveNumberString(formatGroupedInteger(e.monthlyEarned.round(), currency: dc))
+                : formatGroupedInteger(e.monthlyEarned.round(), currency: dc))
+            : '—';
+
+    int? actualInvPct;
+    if (e != null) {
+      final cash = e.outflowToCashFd;
+      final inv = e.outflowToInvested;
+      final total = cash + inv;
+      if (total > 0) actualInvPct = (inv / total * 100).round();
+    }
+    final splitTxt = (e == null || actualInvPct == null) ? '—' : '$actualInvPct/$targetPct';
+
+    // Compare month split vs slider target (post-expenses allocations only).
+    const bandPctPoints = 5; // slider is quantized to 5% steps
+    final diff = (actualInvPct ?? targetPct) - targetPct;
+    final inBand = actualInvPct != null && diff.abs() <= bandPctPoints;
+    final splitColor = actualInvPct == null
+        ? AppTheme.slate600
+        : (inBand ? AppTheme.slate600 : (diff > 0 ? AppModel.spendUnderColor : AppModel.spendOverColor));
 
     final child = Container(
       decoration: BoxDecoration(
@@ -2163,8 +2090,14 @@ class _MonthlyCashflowSplitTableRow extends StatelessWidget {
             width: 72,
             child: Text(AppModel.formatMonthKeyLabel(monthKey), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
           ),
-          Expanded(child: Text(cashTxt, textAlign: TextAlign.end, style: const TextStyle(fontSize: 11))),
-          Expanded(child: Text(invTxt, textAlign: TextAlign.end, style: const TextStyle(fontSize: 11))),
+          Expanded(child: Text(earnedTxt, textAlign: TextAlign.end, style: const TextStyle(fontSize: 11))),
+          Expanded(
+            child: Text(
+              splitTxt,
+              textAlign: TextAlign.end,
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: splitColor),
+            ),
+          ),
         ],
       ),
     );

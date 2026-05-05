@@ -4,6 +4,7 @@ class MonthlyCashflowEntry {
     required this.monthKey,
     this.openingBalance = 0,
     this.closingBalance = 0,
+    this.monthlyEarned = 0,
     required this.outflowToCashFd,
     required this.outflowToInvested,
     this.monthlySpending = 0,
@@ -18,6 +19,9 @@ class MonthlyCashflowEntry {
 
   /// Ending balance for the month (display-currency).
   double closingBalance;
+
+  /// Take-home or other income for the month (display-currency). When > 0, spending is derived with this term.
+  double monthlyEarned;
 
   /// Saved (maps to “Savings” allocation target).
   double outflowToCashFd;

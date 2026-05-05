@@ -61,7 +61,7 @@ String agentActionsSystemAppend(AppAgent agent) {
   }
   if (_perm(agent, AgentDomain.cashflow, AgentAccess.write)) {
     domains.add(
-      'cashflow: upsert_monthly_cashflow {month_key, opening_balance?, closing_balance?, outflow_to_cash_fd?, outflow_to_invested?, monthly_spending?}, '
+      'cashflow: upsert_monthly_cashflow {month_key, opening_balance?, closing_balance?, monthly_earned?, outflow_to_cash_fd?, outflow_to_invested?, monthly_spending?}, '
       'set_alloc_invest_fraction {fraction}, set_allocation_investments_monthly {amount}, set_allocation_savings_monthly {amount}',
     );
   }
@@ -242,6 +242,7 @@ bool _applyOne(String op, Map<String, dynamic> a, {required AppAgent agent, requ
       final existing = model.monthlyEntryFor(mk);
       final opening = _asDouble(a['opening_balance']) ?? existing?.openingBalance ?? 0;
       final closing = _asDouble(a['closing_balance']) ?? existing?.closingBalance ?? 0;
+      final earned = _asDouble(a['monthly_earned']) ?? existing?.monthlyEarned ?? 0;
       final cash = _asDouble(a['outflow_to_cash_fd']) ?? existing?.outflowToCashFd ?? 0;
       final inv = _asDouble(a['outflow_to_invested']) ?? existing?.outflowToInvested ?? 0;
       final spend = _asDouble(a['monthly_spending']) ?? existing?.monthlySpending ?? 0;
@@ -250,6 +251,7 @@ bool _applyOne(String op, Map<String, dynamic> a, {required AppAgent agent, requ
           monthKey: mk,
           openingBalance: opening,
           closingBalance: closing,
+          monthlyEarned: earned,
           outflowToCashFd: cash,
           outflowToInvested: inv,
           monthlySpending: spend,
