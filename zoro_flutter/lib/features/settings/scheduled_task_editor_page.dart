@@ -5,7 +5,6 @@ import '../../core/schedule/scheduled_agent_runner.dart';
 import '../../core/state/app_model.dart';
 import '../../core/state/scheduled_agent_task.dart';
 import '../../shared/theme/app_theme.dart';
-import '../chat/agent_chat_thread_page.dart';
 
 /// Create or edit a recurring agent run (Settings → Agents → Schedule).
 class ScheduledTaskEditorPage extends StatefulWidget {
@@ -136,41 +135,6 @@ class _ScheduledTaskEditorPageState extends State<ScheduledTaskEditorPage> {
     );
   }
 
-  void _openChat() {
-    _syncFromCtrls();
-    if (widget.model.agents.every((a) => a.id != _task.agentId)) return;
-    final agent = widget.model.agents.firstWhere((a) => a.id == _task.agentId);
-    final now = DateTime.now();
-    final thread = AgentChatThread(
-      id: 'chat-${now.microsecondsSinceEpoch}',
-      agentId: agent.id,
-      title: '${agent.name} (preview)',
-      createdAt: now,
-      updatedAt: now,
-      messageCount: 0,
-      tokensUsed: 0,
-      lastLine: '',
-    );
-    widget.model.addChat(thread);
-    Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
-        builder: (ctx) => AgentChatThreadPage(
-          model: widget.model,
-          threadId: thread.id,
-          onNoKey: () {
-            ScaffoldMessenger.of(ctx).showSnackBar(
-              const SnackBar(
-                content: Text('Add an API key under Settings → API keys.'),
-                behavior: SnackBarBehavior.floating,
-              ),
-            );
-          },
-          initialUserMessage: _task.runUserMessage.trim().isEmpty ? null : _task.runUserMessage.trim(),
-        ),
-      ),
-    );
-  }
-
   void _toggleWeekday(int weekday) {
     setState(() {
       final s = {..._task.weeklyWeekdays};
@@ -220,36 +184,23 @@ class _ScheduledTaskEditorPageState extends State<ScheduledTaskEditorPage> {
             ),
           ),
           const SizedBox(height: 16),
-          Row(
-            children: [
-              const Text('Agent', style: TextStyle(fontWeight: FontWeight.w900)),
-              const Spacer(),
+          DropdownButtonFormField<String>(
+            value: _resolvedAgentIdForDropdown(),
+            decoration: const InputDecoration(
+              labelText: 'Target output',
+              border: OutlineInputBorder(),
+            ),
+            items: [
+              for (final a in widget.model.agents)
+                DropdownMenuItem<String>(
+                  value: a.id,
+                  child: Text(_targetOutputLabel(a)),
+                ),
             ],
-          ),
-          const SizedBox(height: 8),
-          DecoratedBox(
-            decoration: BoxDecoration(
-              border: Border.all(color: AppTheme.slate100),
-              borderRadius: BorderRadius.circular(12),
-              color: AppTheme.slate50,
-            ),
-            child: Column(
-              children: [
-                for (final a in widget.model.agents)
-                  RadioListTile<String>(
-                    value: a.id,
-                    groupValue: _task.agentId,
-                    onChanged: (v) => setState(() => _task.agentId = v ?? _task.agentId),
-                    title: Text(a.name, style: const TextStyle(fontWeight: FontWeight.w800)),
-                    subtitle: Text(
-                      '${_kindLabel(a.kind)} · ${a.description}',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 12, color: AppTheme.slate600),
-                    ),
-                  ),
-              ],
-            ),
+            onChanged: (v) {
+              if (v == null) return;
+              setState(() => _task.agentId = v);
+            },
           ),
           const SizedBox(height: 16),
           const Text('Recurrence', style: TextStyle(fontWeight: FontWeight.w900)),
@@ -384,22 +335,9 @@ class _ScheduledTaskEditorPageState extends State<ScheduledTaskEditorPage> {
             ),
           ),
           const SizedBox(height: 20),
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: _running ? null : _runNow,
-                  child: Text(_running ? 'Running…' : 'Run now'),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: FilledButton(
-                  onPressed: _openChat,
-                  child: const Text('Open in Chat'),
-                ),
-              ),
-            ],
+          OutlinedButton(
+            onPressed: _running ? null : _runNow,
+            child: Text(_running ? 'Running…' : 'Run now'),
           ),
         ],
       ),
@@ -421,9 +359,19 @@ class _ScheduledTaskEditorPageState extends State<ScheduledTaskEditorPage> {
     return names[m];
   }
 
-  static String _kindLabel(AppAgentKind k) => switch (k) {
-        AppAgentKind.helper => 'Helper',
-        AppAgentKind.analyst => 'Analyst',
-        AppAgentKind.researcher => 'Researcher',
-      };
+  String _resolvedAgentIdForDropdown() {
+    final ids = widget.model.agents.map((a) => a.id).toSet();
+    if (ids.contains(_task.agentId)) return _task.agentId;
+    return widget.model.agents.isNotEmpty ? widget.model.agents.first.id : _task.agentId;
+  }
+
+  static String _targetOutputLabel(AppAgent a) {
+    if (a.id == AppModel.morningBriefingAgentId) {
+      return 'Home summary (daily briefing)';
+    }
+    if (a.id == 'agent-rates-fx') {
+      return 'Rates & projections (Settings)';
+    }
+    return a.name;
+  }
 }

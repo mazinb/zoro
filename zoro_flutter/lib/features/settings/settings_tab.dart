@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -123,6 +125,8 @@ class _GeneralPaneState extends State<_GeneralPane> {
   late final TextEditingController _usdToThbCtrl;
   /// How many INR per 1 USD (user-facing).
   late final TextEditingController _usdToInrCtrl;
+  Timer? _fxApplyDebounce;
+  bool _fxSilentControllerSync = false;
 
   AppModel get model => widget.model;
 
@@ -136,8 +140,12 @@ class _GeneralPaneState extends State<_GeneralPane> {
   void _syncFxFieldsFromModel() {
     final uThb = model.usdPerUnitResolved(CurrencyCode.thb);
     final uInr = model.usdPerUnitResolved(CurrencyCode.inr);
-    _usdToThbCtrl.text = uThb > 0 ? (1 / uThb).toStringAsFixed(2) : '';
-    _usdToInrCtrl.text = uInr > 0 ? (1 / uInr).toStringAsFixed(2) : '';
+    final nextThb = uThb > 0 ? (1 / uThb).toStringAsFixed(2) : '';
+    final nextInr = uInr > 0 ? (1 / uInr).toStringAsFixed(2) : '';
+    _fxSilentControllerSync = true;
+    _usdToThbCtrl.text = nextThb;
+    _usdToInrCtrl.text = nextInr;
+    _fxSilentControllerSync = false;
   }
 
   @override
@@ -146,10 +154,39 @@ class _GeneralPaneState extends State<_GeneralPane> {
     _usdToThbCtrl = TextEditingController();
     _usdToInrCtrl = TextEditingController();
     _syncFxFieldsFromModel();
+    _usdToThbCtrl.addListener(_scheduleFxApplyFromFields);
+    _usdToInrCtrl.addListener(_scheduleFxApplyFromFields);
+  }
+
+  void _scheduleFxApplyFromFields() {
+    if (_fxSilentControllerSync) return;
+    _fxApplyDebounce?.cancel();
+    _fxApplyDebounce = Timer(const Duration(milliseconds: 450), _applyFxFromFieldsToModel);
+  }
+
+  void _applyFxFromFieldsToModel() {
+    if (!mounted) return;
+    final thbPerUsd = double.tryParse(_usdToThbCtrl.text.trim().replaceAll(',', ''));
+    final inrPerUsd = double.tryParse(_usdToInrCtrl.text.trim().replaceAll(',', ''));
+    if (thbPerUsd != null && thbPerUsd > 0) {
+      model.setFxUsdPerUnitOverride(CurrencyCode.thb, 1 / thbPerUsd);
+    } else {
+      model.setFxUsdPerUnitOverride(CurrencyCode.thb, null);
+    }
+    if (inrPerUsd != null && inrPerUsd > 0) {
+      model.setFxUsdPerUnitOverride(CurrencyCode.inr, 1 / inrPerUsd);
+    } else {
+      model.setFxUsdPerUnitOverride(CurrencyCode.inr, null);
+    }
+    _syncFxFieldsFromModel();
+    setState(() {});
   }
 
   @override
   void dispose() {
+    _fxApplyDebounce?.cancel();
+    _usdToThbCtrl.removeListener(_scheduleFxApplyFromFields);
+    _usdToInrCtrl.removeListener(_scheduleFxApplyFromFields);
     _usdToThbCtrl.dispose();
     _usdToInrCtrl.dispose();
     super.dispose();
@@ -168,21 +205,12 @@ class _GeneralPaneState extends State<_GeneralPane> {
             'Interest & inflation',
             style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
           ),
-          subtitle: const Text(
-            'Nominal % per year by currency — used for the Home 10-year chart',
-            style: TextStyle(color: AppTheme.slate600, fontSize: 12, height: 1.3),
-          ),
           children: [
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Text(
-                    'Illustrative defaults: US mid, Thailand lower, India higher (similar ballpark real returns).',
-                    style: TextStyle(color: AppTheme.slate500, fontSize: 11, height: 1.35),
-                  ),
-                  const SizedBox(height: 12),
                   for (final c in CurrencyCode.values)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 14),
@@ -328,37 +356,6 @@ class _GeneralPaneState extends State<_GeneralPane> {
               toFlag: '🇮🇳',
               toCode: 'INR',
               controller: _usdToInrCtrl,
-            ),
-            const SizedBox(height: 14),
-            OutlinedButton.icon(
-              onPressed: () {
-                setState(() {
-                  model.setFxUsdPerUnitOverride(CurrencyCode.thb, null);
-                  model.setFxUsdPerUnitOverride(CurrencyCode.inr, null);
-                  _syncFxFieldsFromModel();
-                });
-              },
-              icon: const Icon(Icons.restore, size: 18),
-              label: const Text('Reset to built-in defaults'),
-            ),
-            const SizedBox(height: 10),
-            FilledButton(
-              onPressed: () {
-                final thbPerUsd = double.tryParse(_usdToThbCtrl.text.trim().replaceAll(',', ''));
-                final inrPerUsd = double.tryParse(_usdToInrCtrl.text.trim().replaceAll(',', ''));
-                if (thbPerUsd != null && thbPerUsd > 0) {
-                  model.setFxUsdPerUnitOverride(CurrencyCode.thb, 1 / thbPerUsd);
-                } else {
-                  model.setFxUsdPerUnitOverride(CurrencyCode.thb, null);
-                }
-                if (inrPerUsd != null && inrPerUsd > 0) {
-                  model.setFxUsdPerUnitOverride(CurrencyCode.inr, 1 / inrPerUsd);
-                } else {
-                  model.setFxUsdPerUnitOverride(CurrencyCode.inr, null);
-                }
-                setState(_syncFxFieldsFromModel);
-              },
-              child: const Text('Apply exchange rates'),
             ),
           ],
         ),
