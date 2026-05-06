@@ -185,7 +185,7 @@ class _ScheduledTaskEditorPageState extends State<ScheduledTaskEditorPage> {
           ),
           const SizedBox(height: 16),
           DropdownButtonFormField<String>(
-            value: _resolvedAgentIdForDropdown(),
+            initialValue: _resolvedAgentIdForDropdown(),
             decoration: const InputDecoration(
               labelText: 'Target output',
               border: OutlineInputBorder(),
@@ -206,7 +206,7 @@ class _ScheduledTaskEditorPageState extends State<ScheduledTaskEditorPage> {
           const Text('Recurrence', style: TextStyle(fontWeight: FontWeight.w900)),
           const SizedBox(height: 8),
           DropdownButtonFormField<ScheduleRecurrenceKind>(
-            value: _task.recurrence,
+            initialValue: _task.recurrence,
             decoration: const InputDecoration(border: OutlineInputBorder()),
             items: [
               for (final k in ScheduleRecurrenceKind.values)
@@ -257,7 +257,7 @@ class _ScheduledTaskEditorPageState extends State<ScheduledTaskEditorPage> {
               children: [
                 Expanded(
                   child: DropdownButtonFormField<int>(
-                    value: _task.yearlyMonth.clamp(1, 12),
+                    initialValue: _task.yearlyMonth.clamp(1, 12),
                     decoration: const InputDecoration(labelText: 'Month', border: OutlineInputBorder()),
                     items: [
                       for (var m = 1; m <= 12; m++)
@@ -275,7 +275,7 @@ class _ScheduledTaskEditorPageState extends State<ScheduledTaskEditorPage> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: DropdownButtonFormField<int>(
-                    value: _task.yearlyDay.clamp(1, 28),
+                    initialValue: _task.yearlyDay.clamp(1, 28),
                     decoration: const InputDecoration(labelText: 'Day', border: OutlineInputBorder()),
                     items: [
                       for (var d = 1; d <= 28; d++)

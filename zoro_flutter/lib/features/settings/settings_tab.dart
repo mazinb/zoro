@@ -1604,7 +1604,7 @@ class _AgentEditorSheetState extends State<_AgentEditorSheet> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<AppAgentKind>(
-              value: _agent.kind,
+              initialValue: _agent.kind,
               decoration: const InputDecoration(
                 labelText: 'Agent type',
                 border: OutlineInputBorder(),

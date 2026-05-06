@@ -59,6 +59,15 @@
 
 **Wireless debugging (optional):** Xcode → **Window → Devices and Simulators** → select iPhone → enable **Connect via network** (after one USB pairing).
 
+## Testing bundle IDs (dev vs prod)
+
+- **iOS**
+  - **Debug / testing**: `com.getzoro.zoroFlutter.dev` (display name **Zoro Dev**)
+  - **Release / prod**: `com.getzoro.zoroFlutter`
+- **Android**
+  - **prod flavor**: `com.getzoro.zoroFlutter`
+  - **dev flavor**: `com.getzoro.zoroFlutter.dev` (via `applicationIdSuffix = ".dev"`)
+
 ## Agent-sized next tasks
 
 1. **Plan tab forms** — Port one vertical end-to-end (e.g. Save): UI + `POST /api/user-data` with `formType` matching web.
@@ -71,3 +80,26 @@
 ## CI note
 
 `flutter analyze` and `flutter test` should pass without Xcode. Native iOS/macOS builds require `xcodebuild` on the runner.
+
+### iOS / Xcode Cloud (Pods + Generated.xcconfig)
+
+`ios/.gitignore` excludes **`Pods/`** and **`Flutter/Generated.xcconfig`**. If CI runs `xcodebuild` alone, you get:
+
+- `could not find included file 'Generated.xcconfig'` — nothing ran `flutter pub get` yet.
+- `Unable to load ... Pods-Runner-frameworks-Release-*.xcfilelist` with paths under **`/Target Support Files/...`** — `pod install` did not run (or ran before `flutter pub get`), so `PODS_ROOT` never gets set from the Pods xcconfigs.
+
+**Fix:** On the macOS runner, before building **`ios/Runner.xcworkspace`**:
+
+```bash
+cd zoro_flutter
+./scripts/ci_ios_prepare.sh
+```
+
+That runs `flutter pub get` then `pod install` in `ios/`. **Order matters:** the Podfile reads `Generated.xcconfig` to find `FLUTTER_ROOT`.
+
+**Xcode Cloud:** Commit a `ci_scripts/ci_post_clone.sh` next to the Git root:
+
+- **Monorepo** (this workspace): use `ci_scripts/ci_post_clone.sh` at the repo root (it `cd`s into `zoro_flutter`).
+- **Flutter-only repo:** use `zoro_flutter/ci_scripts/ci_post_clone.sh` (runs `scripts/ci_ios_prepare.sh` from the app root).
+
+Ensure the Xcode Cloud environment has **Flutter** and **CocoaPods** on `PATH` (e.g. `ci_pre_xcodebuild.sh` to install them if the default image lacks them).

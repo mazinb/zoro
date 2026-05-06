@@ -1,0 +1,82 @@
+{
+  "project_info": {
+    "project_number": "637864665773",
+    "project_id": "ind-wealth-manager",
+    "storage_bucket": "ind-wealth-manager.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:637864665773:android:228870fcb891b56e7e9c24",
+        "android_client_info": {
+          "package_name": "com.getzoro.zoroFlutter"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "637864665773-vr96fv4lbvmioav1o2fc7j21gnbep17c.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBYFbIstEjSzChCXsXs4fZP3JD7vE-9a5k"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "637864665773-vr96fv4lbvmioav1o2fc7j21gnbep17c.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "637864665773-je7t00udkb5dtv3f3eg41qa6n8gh5fdc.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.getzoro.zoroFlutter"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:637864665773:android:83b22723e7965ca27e9c24",
+        "android_client_info": {
+          "package_name": "com.getzoro.zoroFlutter.dev"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "637864665773-vr96fv4lbvmioav1o2fc7j21gnbep17c.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBYFbIstEjSzChCXsXs4fZP3JD7vE-9a5k"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "637864665773-vr96fv4lbvmioav1o2fc7j21gnbep17c.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "637864665773-je7t00udkb5dtv3f3eg41qa6n8gh5fdc.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.getzoro.zoroFlutter"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
