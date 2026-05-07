@@ -7,6 +7,7 @@ import '../chat/chat_local_store.dart';
 import '../chat/chat_message.dart';
 import '../constants/web_expenses_income.dart';
 import '../finance/currency.dart';
+import '../../dev/compile_time_api_keys.dart';
 import '../llm/llm_key_store.dart';
 import '../persistence/scheduled_agent_store.dart';
 import '../schedule/scheduled_agent_runner.dart';
@@ -74,6 +75,21 @@ class AppModel extends ChangeNotifier {
       openAiApiKey = keys[LlmProvider.openai];
       anthropicApiKey = keys[LlmProvider.anthropic];
       geminiApiKey = keys[LlmProvider.gemini];
+
+      // If the device has no persisted keys yet, allow compile-time injected keys
+      // (Debug builds and explicit on-device Release runs) to seed secure storage once.
+      final allowSeed = CompileTimeApiKeys.allowLocalKeyAutofill;
+      if (allowSeed) {
+        final openAiSeed = CompileTimeApiKeys.openAiApiKey.trim();
+        final geminiSeed = CompileTimeApiKeys.geminiApiKey.trim();
+        if ((openAiApiKey ?? '').trim().isEmpty && openAiSeed.isNotEmpty) {
+          setApiKey(provider: LlmProvider.openai, key: openAiSeed);
+        }
+        if ((geminiApiKey ?? '').trim().isEmpty && geminiSeed.isNotEmpty) {
+          setApiKey(provider: LlmProvider.gemini, key: geminiSeed);
+        }
+      }
+
       _syncActiveProviderIfKeyRemoved();
       await loadPersistedChats();
       await loadPersistedScheduledAgentTasks();

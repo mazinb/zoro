@@ -2,7 +2,7 @@ name: zoro_flutter
 description: Zoro iOS client — uses the same Next.js API and Supabase as zoro-app.
 publish_to: 'none'
 
-version: 1.0.0+1
+version: 1.0.0+3
 
 environment:
   sdk: ^3.11.4
@@ -15,7 +15,6 @@ dependencies:
   firebase_core: ^3.15.2
   flutter_secure_storage: ^9.2.4
   flutter_svg: ^2.2.3
-  file_picker: ^10.3.8
   sankey_flutter: ^0.0.3
   url_launcher: ^6.3.2
   path_provider: ^2.1.5

@@ -48,12 +48,18 @@
    ./scripts/setup_ios.sh
    ```
 5. **Signing:** `open ios/Runner.xcworkspace` → select **Runner** → **Signing & Capabilities** → choose your **Team** → select your **iPhone** as run destination → **Run** once.
+   **Xcode device runs (Debug or Release):** `OPENAI_API_KEY` and `GEMINI_API_KEY` are read from `zoro-app/.env.local` and merged into compile-time defines for **Debug**, and for **Release runs** when Xcode is doing an on-device **Run** build (`ACTION=build`, `SDK_NAME=iphoneos*`). **Archive/App Store** (Archive/IPA) stays on Release/Profile archive actions and never loads that file.
 6. On iPhone: **Trust** computer; **Settings → Privacy & Security → Developer Mode** → On.
 7. Flutter CLI:
    ```bash
    flutter devices
    flutter run -d <device-id> --dart-define=API_BASE_URL=https://www.getzoro.com
    ```
+   **Debug API key prefills (optional):** keys are never committed; use the same names as `zoro-app` (e.g. `OPENAI_API_KEY`, `GEMINI_API_KEY`, `ANTHROPIC_API_KEY` in `.env.local`):
+   ```bash
+   ./scripts/flutter_with_zoro_env.sh run -d <device-id> --dart-define=API_BASE_URL=https://www.getzoro.com
+   ```
+   Or explicitly: `--dart-define-from-file=../zoro-app/.env.local`. **App Store / Play / `flutter build` release:** omit that flag; **Xcode archives** use Release/Profile and never run the Debug-only `.env.local` injection.
 
 **Local API from device:** use your Mac’s LAN IP, e.g. `--dart-define=API_BASE_URL=http://192.168.1.50:3000` (not `127.0.0.1`).
 

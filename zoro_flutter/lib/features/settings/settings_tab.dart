@@ -9,7 +9,7 @@ import '../../core/finance/currency.dart';
 import '../../core/state/app_model.dart';
 import '../../core/state/internal_app_agent_definition.dart';
 import '../../core/state/scheduled_agent_task.dart';
-import '../../dev/local_api_keys.dart';
+import '../../dev/compile_time_api_keys.dart';
 import '../../shared/theme/app_theme.dart';
 import 'internal_agent_prompt_editor_page.dart';
 import 'scheduled_task_editor_page.dart';
@@ -1090,10 +1090,10 @@ class _ApiKeysPaneState extends State<_ApiKeysPane> {
     final anthropic = (m.anthropicApiKey ?? '').trim();
     final gemini = (m.geminiApiKey ?? '').trim();
 
-    final shouldPrefill = kDebugMode;
+    final shouldPrefill = kDebugMode || CompileTimeApiKeys.allowLocalKeyAutofill;
     final looksLikeOpenAiKey = openAi.startsWith('sk-');
-    final nextOpenAi = ((!looksLikeOpenAiKey || openAi.isEmpty) && shouldPrefill) ? LocalApiKeys.openAiApiKey : openAi;
-    final nextGemini = (gemini.isEmpty && shouldPrefill) ? LocalApiKeys.geminiApiKey : gemini;
+    final nextOpenAi = ((!looksLikeOpenAiKey || openAi.isEmpty) && shouldPrefill) ? CompileTimeApiKeys.openAiApiKey : openAi;
+    final nextGemini = (gemini.isEmpty && shouldPrefill) ? CompileTimeApiKeys.geminiApiKey : gemini;
 
     _openAiCtrl = TextEditingController(text: nextOpenAi);
     _anthropicCtrl = TextEditingController(text: anthropic);
@@ -1127,14 +1127,14 @@ class _ApiKeysPaneState extends State<_ApiKeysPane> {
 
   void _maybeAutofill() {
     if (_didAutofill) return;
-    if (!kDebugMode) return;
+    if (!(kDebugMode || CompileTimeApiKeys.allowLocalKeyAutofill)) return;
 
     final m = widget.model;
     final openAiExisting = (m.openAiApiKey ?? '').trim();
     final geminiExisting = (m.geminiApiKey ?? '').trim();
 
-    final openAiKey = LocalApiKeys.openAiApiKey.trim();
-    final geminiKey = LocalApiKeys.geminiApiKey.trim();
+    final openAiKey = CompileTimeApiKeys.openAiApiKey.trim();
+    final geminiKey = CompileTimeApiKeys.geminiApiKey.trim();
 
     var changed = false;
     final openAiLooksValid = openAiExisting.startsWith('sk-');
@@ -1241,7 +1241,7 @@ class _ApiKeysPaneState extends State<_ApiKeysPane> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const Text('API keys', style: TextStyle(fontWeight: FontWeight.w900)),
-                const SizedBox(height: 10),
+                                const SizedBox(height: 10),
                 TextField(
                   controller: _openAiCtrl,
                   obscureText: !_revealOpenAi,

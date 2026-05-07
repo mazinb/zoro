@@ -342,7 +342,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "set -e\n\n# Pick the correct Firebase plist for this build configuration.\nPLIST_SRC=\"${SRCROOT}/firebase/GoogleService-Info-Dev.plist\"\nif [ \"${CONFIGURATION}\" = \"Release\" ]; then\n  PLIST_SRC=\"${SRCROOT}/firebase/GoogleService-Info-Prod.plist\"\nfi\n\n# Inject into the built app so Firebase reads the right config.\ncp -f \"${PLIST_SRC}\" \"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/GoogleService-Info.plist\"\n\n/bin/sh \"$FLUTTER_ROOT/packages/flutter_tools/bin/xcode_backend.sh\" build";
+			shellScript = "set -e\n\n# Pick the correct Firebase plist for this build configuration.\nPLIST_SRC=\"${SRCROOT}/firebase/GoogleService-Info-Dev.plist\"\nif [ \"${CONFIGURATION}\" = \"Release\" ]; then\n  PLIST_SRC=\"${SRCROOT}/firebase/GoogleService-Info-Prod.plist\"\nfi\n\n# Inject into the built app so Firebase reads the right config.\ncp -f \"${PLIST_SRC}\" \"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/GoogleService-Info.plist\"\n\n# Debug only: merge API keys from zoro-app/.env.local into DART_DEFINES (see ios/scripts/inject_zoro_env_dart_defines.sh).\n. \"${SRCROOT}/scripts/inject_zoro_env_dart_defines.sh\"\n\n/bin/sh \"$FLUTTER_ROOT/packages/flutter_tools/bin/xcode_backend.sh\" build";
 		};
 		CFE8C855237809E8902B05EB /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;
