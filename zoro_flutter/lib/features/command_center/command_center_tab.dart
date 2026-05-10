@@ -257,10 +257,10 @@ class _CommandCenterTabState extends State<CommandCenterTab> with TickerProvider
                 SizedBox(
                   height: 44,
                   child: SegmentedButton<CurrencyCode>(
-                    segments: const [
-                      ButtonSegment(value: CurrencyCode.usd, label: Text('USD')),
-                      ButtonSegment(value: CurrencyCode.thb, label: Text('THB')),
-                      ButtonSegment(value: CurrencyCode.inr, label: Text('INR')),
+                    segments: [
+                      const ButtonSegment(value: CurrencyCode.usd, label: Text('USD')),
+                      ButtonSegment(value: widget.model.homeCurrencyQuickPick1, label: Text(widget.model.homeCurrencyQuickPick1.code)),
+                      ButtonSegment(value: widget.model.homeCurrencyQuickPick2, label: Text(widget.model.homeCurrencyQuickPick2.code)),
                     ],
                     selected: {widget.model.displayCurrency},
                     onSelectionChanged: (s) => widget.model.setDisplayCurrency(s.first),
@@ -1265,7 +1265,7 @@ class _SankeyModel {
       final monthlyNative = line.annualAmount / 12.0;
       final monthlyDisplay = model.moneyInDisplayCurrency(
         monthlyNative,
-        currencyCodeForPresetCountry(line.currencyCountry),
+        currencyCodeForIncomeLineCurrency(line.currencyCountry),
       );
       final name = line.label.trim().isEmpty ? 'Income' : line.label.trim();
       sources.add(name);

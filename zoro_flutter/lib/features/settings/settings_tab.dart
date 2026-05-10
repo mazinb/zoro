@@ -138,13 +138,13 @@ class _GeneralPaneState extends State<_GeneralPane> {
   }
 
   void _syncFxFieldsFromModel() {
-    final uThb = model.usdPerUnitResolved(CurrencyCode.thb);
-    final uInr = model.usdPerUnitResolved(CurrencyCode.inr);
-    final nextThb = uThb > 0 ? (1 / uThb).toStringAsFixed(2) : '';
-    final nextInr = uInr > 0 ? (1 / uInr).toStringAsFixed(2) : '';
+    final u1 = model.usdPerUnitResolved(model.homeCurrencyQuickPick1);
+    final u2 = model.usdPerUnitResolved(model.homeCurrencyQuickPick2);
+    final next1 = u1 > 0 ? (1 / u1).toStringAsFixed(2) : '';
+    final next2 = u2 > 0 ? (1 / u2).toStringAsFixed(2) : '';
     _fxSilentControllerSync = true;
-    _usdToThbCtrl.text = nextThb;
-    _usdToInrCtrl.text = nextInr;
+    _usdToThbCtrl.text = next1;
+    _usdToInrCtrl.text = next2;
     _fxSilentControllerSync = false;
   }
 
@@ -169,14 +169,14 @@ class _GeneralPaneState extends State<_GeneralPane> {
     final thbPerUsd = double.tryParse(_usdToThbCtrl.text.trim().replaceAll(',', ''));
     final inrPerUsd = double.tryParse(_usdToInrCtrl.text.trim().replaceAll(',', ''));
     if (thbPerUsd != null && thbPerUsd > 0) {
-      model.setFxUsdPerUnitOverride(CurrencyCode.thb, 1 / thbPerUsd);
+      model.setFxUsdPerUnitOverride(model.homeCurrencyQuickPick1, 1 / thbPerUsd);
     } else {
-      model.setFxUsdPerUnitOverride(CurrencyCode.thb, null);
+      model.setFxUsdPerUnitOverride(model.homeCurrencyQuickPick1, null);
     }
     if (inrPerUsd != null && inrPerUsd > 0) {
-      model.setFxUsdPerUnitOverride(CurrencyCode.inr, 1 / inrPerUsd);
+      model.setFxUsdPerUnitOverride(model.homeCurrencyQuickPick2, 1 / inrPerUsd);
     } else {
-      model.setFxUsdPerUnitOverride(CurrencyCode.inr, null);
+      model.setFxUsdPerUnitOverride(model.homeCurrencyQuickPick2, null);
     }
     _syncFxFieldsFromModel();
     setState(() {});
@@ -211,13 +211,17 @@ class _GeneralPaneState extends State<_GeneralPane> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  for (final c in CurrencyCode.values)
+                  for (final c in {
+                    CurrencyCode.usd,
+                    model.homeCurrencyQuickPick1,
+                    model.homeCurrencyQuickPick2,
+                  })
                     Padding(
                       padding: const EdgeInsets.only(bottom: 14),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Text('${c.code} · ${c.symbol}', style: const TextStyle(fontWeight: FontWeight.w800)),
+                          Text('${c.flag} ${c.code} · ${c.symbol}', style: const TextStyle(fontWeight: FontWeight.w800)),
                           const SizedBox(height: 6),
                           Row(
                             children: [
@@ -276,11 +280,20 @@ class _GeneralPaneState extends State<_GeneralPane> {
     );
   }
 
+  static const _fxPickerOptions = <CurrencyCode>[
+    CurrencyCode.thb,
+    CurrencyCode.inr,
+    CurrencyCode.aed,
+    CurrencyCode.sgd,
+    CurrencyCode.aud,
+    CurrencyCode.eur,
+    CurrencyCode.jpy,
+  ];
+
   Widget _fxRateRow({
-    required String fromFlag,
-    required String toFlag,
-    required String toCode,
     required TextEditingController controller,
+    required CurrencyCode selected,
+    required ValueChanged<CurrencyCode> onCurrencyChanged,
   }) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -298,7 +311,7 @@ class _GeneralPaneState extends State<_GeneralPane> {
       ),
       child: Row(
         children: [
-          Text(fromFlag, style: const TextStyle(fontSize: 24)),
+          const Text('🇺🇸', style: TextStyle(fontSize: 24)),
           const SizedBox(width: 10),
           const Text('1 USD', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: AppTheme.slate900)),
           const SizedBox(width: 8),
@@ -319,9 +332,26 @@ class _GeneralPaneState extends State<_GeneralPane> {
             ),
           ),
           const SizedBox(width: 10),
-          Text(toFlag, style: const TextStyle(fontSize: 24)),
-          const SizedBox(width: 6),
-          Text(toCode, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: AppTheme.slate600)),
+          DropdownButtonHideUnderline(
+            child: DropdownButton<CurrencyCode>(
+              value: selected,
+              isDense: true,
+              items: [
+                for (final c in _fxPickerOptions)
+                  DropdownMenuItem(
+                    value: c,
+                    child: Text(
+                      '${c.flag} ${c.code} · ${c.symbol}',
+                      style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: AppTheme.slate600),
+                    ),
+                  ),
+              ],
+              onChanged: (c) {
+                if (c == null) return;
+                onCurrencyChanged(c);
+              },
+            ),
+          ),
         ],
       ),
     );
@@ -345,17 +375,27 @@ class _GeneralPaneState extends State<_GeneralPane> {
             ),
             const SizedBox(height: 14),
             _fxRateRow(
-              fromFlag: '🇺🇸',
-              toFlag: '🇹🇭',
-              toCode: 'THB',
               controller: _usdToThbCtrl,
+              selected: model.homeCurrencyQuickPick1,
+              onCurrencyChanged: (c) {
+                if (c == model.homeCurrencyQuickPick1) return;
+                model.setFxUsdPerUnitOverride(model.homeCurrencyQuickPick1, null);
+                model.setHomeCurrencyQuickPick(1, c);
+                _syncFxFieldsFromModel(); // load hard-coded default vs USD
+                _applyFxFromFieldsToModel(); // persist the default (or empty)
+              },
             ),
             const SizedBox(height: 12),
             _fxRateRow(
-              fromFlag: '🇺🇸',
-              toFlag: '🇮🇳',
-              toCode: 'INR',
               controller: _usdToInrCtrl,
+              selected: model.homeCurrencyQuickPick2,
+              onCurrencyChanged: (c) {
+                if (c == model.homeCurrencyQuickPick2) return;
+                model.setFxUsdPerUnitOverride(model.homeCurrencyQuickPick2, null);
+                model.setHomeCurrencyQuickPick(2, c);
+                _syncFxFieldsFromModel();
+                _applyFxFromFieldsToModel();
+              },
             ),
           ],
         ),
@@ -369,13 +409,16 @@ class _GeneralPaneState extends State<_GeneralPane> {
     final yearlyDayMax = _daysInMonth(now.year, model.remindersYearlyMonth);
     final safeYearlyDay = model.remindersYearlyDay.clamp(1, yearlyDayMax);
 
-    return ListView(
-      padding: const EdgeInsets.all(20),
-      children: [
-        _fxCard(),
-        const SizedBox(height: 12),
-        _currencyAssumptionsCard(context),
-        const SizedBox(height: 12),
+    return ListenableBuilder(
+      listenable: model,
+      builder: (context, _) {
+        return ListView(
+          padding: const EdgeInsets.all(20),
+          children: [
+            _fxCard(),
+            const SizedBox(height: 12),
+            _currencyAssumptionsCard(context),
+            const SizedBox(height: 12),
         const Text('Reminders', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
         const SizedBox(height: 8),
         Card(
@@ -519,7 +562,9 @@ class _GeneralPaneState extends State<_GeneralPane> {
         ),
         const SizedBox(height: 12),
         const SizedBox.shrink(),
-      ],
+          ],
+        );
+      },
     );
   }
 }
@@ -1240,8 +1285,6 @@ class _ApiKeysPaneState extends State<_ApiKeysPane> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Text('API keys', style: TextStyle(fontWeight: FontWeight.w900)),
-                                const SizedBox(height: 10),
                 TextField(
                   controller: _openAiCtrl,
                   obscureText: !_revealOpenAi,
@@ -1371,6 +1414,13 @@ class _ApiKeysPaneState extends State<_ApiKeysPane> {
                   controller: _geminiModelCtrl,
                   options: _geminiModelOptions,
                   onChanged: (v) => m.setModelFor(LlmProvider.gemini, v),
+                ),
+                const SizedBox(height: 16),
+                const Divider(),
+                const SizedBox(height: 10),
+                const Text(
+                  'Ledger + imports use your selected provider above; you confirm before anything saves.',
+                  style: TextStyle(color: AppTheme.slate600, fontSize: 12, height: 1.35),
                 ),
               ],
             ),
@@ -1647,6 +1697,37 @@ class _AgentEditorSheetState extends State<_AgentEditorSheet> {
               onChanged: _agent.kind == AppAgentKind.researcher
                   ? null
                   : (v) => setState(() => _agent.toolWebResearch = v),
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Settings admin tools'),
+              subtitle: const Text('Can change agents, LLM defaults, and privacy via zoro_actions'),
+              value: _agent.toolSettingsAdmin,
+              onChanged: (v) => setState(() => _agent.toolSettingsAdmin = v),
+            ),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<LlmProvider?>(
+              initialValue: _agent.llmProviderOverride,
+              decoration: const InputDecoration(
+                labelText: 'LLM routing override',
+                border: OutlineInputBorder(),
+              ),
+              items: [
+                const DropdownMenuItem<LlmProvider?>(
+                  value: null,
+                  child: Text('Default (researcher → Gemini, others → global picker)'),
+                ),
+                for (final p in LlmProvider.values)
+                  DropdownMenuItem(
+                    value: p,
+                    child: Text(switch (p) {
+                      LlmProvider.openai => 'OpenAI',
+                      LlmProvider.anthropic => 'Anthropic',
+                      LlmProvider.gemini => 'Gemini',
+                    }),
+                  ),
+              ],
+              onChanged: (v) => setState(() => _agent.llmProviderOverride = v),
             ),
             const SizedBox(height: 12),
             TextField(

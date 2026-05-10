@@ -50,22 +50,6 @@ class _InternalAgentPromptEditorPageState extends State<InternalAgentPromptEdito
       builder: (ctx) {
         final bottom = MediaQuery.viewInsetsOf(ctx).bottom;
         final lastAt = widget.model.internalAgentLastRunById[def.id];
-        final structured = widget.model.internalAgentLastStructuredById[def.id] ?? const <String, Object?>{};
-        final summary = structured['summary']?.toString().trim();
-        final warnings = structured['warnings'];
-        final buf = StringBuffer();
-        if (summary != null && summary.isNotEmpty) {
-          buf.writeln(summary);
-        } else {
-          buf.writeln('No short summary from the last run yet.');
-        }
-        if (warnings is List && warnings.isNotEmpty) {
-          buf.writeln();
-          buf.writeln('Heads-up:');
-          for (final w in warnings) {
-            buf.writeln('• ${w.toString()}');
-          }
-        }
 
         String lastRunLine() {
           if (lastAt == null) return 'No run recorded yet.';
@@ -99,28 +83,20 @@ class _InternalAgentPromptEditorPageState extends State<InternalAgentPromptEdito
                 const SizedBox(height: 6),
                 Text(def.infoWhatItDoes, style: const TextStyle(color: AppTheme.slate600, height: 1.4)),
                 const SizedBox(height: 16),
-                Text('What you need', style: Theme.of(ctx).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900)),
+                Text('Context sent to the model', style: Theme.of(ctx).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900)),
                 const SizedBox(height: 6),
-                Text(def.infoDataYouProvide, style: const TextStyle(color: AppTheme.slate600, height: 1.4)),
+                Text(def.infoContextSent, style: const TextStyle(color: AppTheme.slate600, height: 1.4)),
+                const SizedBox(height: 16),
+                Text('Output format', style: Theme.of(ctx).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900)),
+                const SizedBox(height: 6),
+                const Text(
+                  'The structured JSON the model returns is fixed by the app — you don\'t need to edit it. Your prompt above only controls the instructions.',
+                  style: TextStyle(color: AppTheme.slate600, height: 1.4),
+                ),
                 const SizedBox(height: 20),
                 Text('Last run', style: Theme.of(ctx).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900)),
                 const SizedBox(height: 6),
                 Text(lastRunLine(), style: const TextStyle(color: AppTheme.slate500, fontSize: 12, fontWeight: FontWeight.w600)),
-                const SizedBox(height: 8),
-                DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: AppTheme.slate50,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppTheme.slate100),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: SelectableText(
-                      buf.toString().trim(),
-                      style: const TextStyle(color: AppTheme.slate600, fontSize: 13, height: 1.35),
-                    ),
-                  ),
-                ),
               ],
             ),
           ),
@@ -153,20 +129,18 @@ class _InternalAgentPromptEditorPageState extends State<InternalAgentPromptEdito
           body: SafeArea(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-              child: SizedBox.expand(
-                child: TextField(
-                  controller: _ctrl,
-                  expands: true,
-                  maxLines: null,
-                  minLines: null,
-                  keyboardType: TextInputType.multiline,
-                  textAlignVertical: TextAlignVertical.top,
-                  decoration: const InputDecoration(
-                    border: OutlineInputBorder(),
-                    hintText: 'System prompt…',
-                    alignLabelWithHint: true,
-                    contentPadding: EdgeInsets.all(12),
-                  ),
+              child: TextField(
+                controller: _ctrl,
+                expands: true,
+                maxLines: null,
+                minLines: null,
+                keyboardType: TextInputType.multiline,
+                textAlignVertical: TextAlignVertical.top,
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  hintText: 'System prompt…',
+                  alignLabelWithHint: true,
+                  contentPadding: EdgeInsets.all(12),
                 ),
               ),
             ),

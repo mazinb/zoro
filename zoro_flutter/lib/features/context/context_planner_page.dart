@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
-import '../../core/llm/llm_client.dart';
+import '../../core/llm/active_llm_completion.dart';
 import '../../core/llm/llm_json.dart';
 import '../../core/state/app_model.dart';
 import '../../core/state/internal_app_agent_definition.dart';
@@ -44,7 +44,6 @@ class ContextPlannerPage extends StatefulWidget {
 }
 
 class _ContextPlannerPageState extends State<ContextPlannerPage> with SingleTickerProviderStateMixin {
-  final _llm = LlmClient();
   final _done = <_Answered>[];
   _Q? _current;
 
@@ -167,9 +166,8 @@ Use the subject block, existingContextMarkdown, contextLastUpdated if present, a
       return;
     }
 
-    final provider = widget.model.activeLlmProvider;
-    final key = widget.model.apiKeyFor(provider);
-    if (key == null) {
+    final m = widget.model;
+    if (m.apiKeyFor(m.activeLlmProvider) == null) {
       setState(() {
         _loading = false;
         _error = 'Add an API key in Settings → Permissions';
@@ -185,14 +183,12 @@ Use the subject block, existingContextMarkdown, contextLastUpdated if present, a
     try {
       final userPayload = widget.config.buildPayload(widget.model, _qaHistory());
 
-      final raw = await _llm.complete(
-        provider: provider,
-        apiKey: key,
-        model: widget.model.modelFor(provider),
+      final raw = await completeForActiveProvider(
+        m,
         system: _plannerSystem(),
         user: jsonEncode(userPayload),
         maxOutputTokens: 2048,
-        preferJsonObjectOutput: provider == LlmProvider.openai,
+        preferJsonObjectOutput: m.activeLlmProvider == LlmProvider.openai,
       );
 
       final obj = decodeLlmJsonObject(raw);
@@ -247,9 +243,8 @@ Use the subject block, existingContextMarkdown, contextLastUpdated if present, a
   }
 
   Future<void> _runSynthesize() async {
-    final provider = widget.model.activeLlmProvider;
-    final key = widget.model.apiKeyFor(provider);
-    if (key == null) {
+    final m = widget.model;
+    if (m.apiKeyFor(m.activeLlmProvider) == null) {
       setState(() {
         _loading = false;
         _error = 'Add an API key in Settings → Permissions';
@@ -265,14 +260,12 @@ Use the subject block, existingContextMarkdown, contextLastUpdated if present, a
     try {
       final userPayload = widget.config.buildPayload(widget.model, _qaHistory());
 
-      final raw = await _llm.complete(
-        provider: provider,
-        apiKey: key,
-        model: widget.model.modelFor(provider),
+      final raw = await completeForActiveProvider(
+        m,
         system: _synthSystem(),
         user: jsonEncode(userPayload),
         maxOutputTokens: 8192,
-        preferJsonObjectOutput: provider == LlmProvider.openai,
+        preferJsonObjectOutput: m.activeLlmProvider == LlmProvider.openai,
       );
 
       final obj = decodeLlmJsonObject(raw);

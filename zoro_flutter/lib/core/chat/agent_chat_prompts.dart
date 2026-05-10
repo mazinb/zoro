@@ -2,8 +2,11 @@ import '../state/app_model.dart';
 import '../state/monthly_cashflow_entry.dart';
 import 'agent_action_executor.dart';
 
-/// Provider used for chat / scheduled runs for this agent.
+/// Provider used for chat / scheduled runs for this agent (before thread overrides).
 LlmProvider llmProviderForUserAgent(AppAgent agent, AppModel model) {
+  if (agent.llmProviderOverride != null) {
+    return agent.llmProviderOverride!;
+  }
   switch (agent.kind) {
     case AppAgentKind.researcher:
       return LlmProvider.gemini;
@@ -102,6 +105,8 @@ String buildPortfolioContextBundle(
 String buildAgentChatSystem({
   required AppAgent agent,
   required String contextBundle,
+  String? systemPromptSuffix,
+  Set<String>? enabledToolIds,
 }) {
   final extraWeb = agent.toolWebResearch && agent.kind != AppAgentKind.researcher
       ? '''
@@ -116,7 +121,8 @@ You may mention broad public-market themes only; do not invent headlines or same
     if (contextBundle.trim().isNotEmpty) '\n\n### Attached context\n$contextBundle',
     agentKindSystemAppend(agent),
     extraWeb,
-    agentActionsSystemAppend(agent),
+    if ((systemPromptSuffix ?? '').trim().isNotEmpty) '\n\n### Thread experiment\n${systemPromptSuffix!.trim()}',
+    agentActionsSystemAppend(agent, enabledToolIds),
     '\n\nReturn concise, actionable guidance.',
   ].join('\n').trim();
 }

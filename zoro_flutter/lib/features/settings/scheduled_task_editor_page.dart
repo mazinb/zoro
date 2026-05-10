@@ -369,9 +369,6 @@ class _ScheduledTaskEditorPageState extends State<ScheduledTaskEditorPage> {
     if (a.id == AppModel.morningBriefingAgentId) {
       return 'Home summary (daily briefing)';
     }
-    if (a.id == 'agent-rates-fx') {
-      return 'Rates & projections (Settings)';
-    }
     return a.name;
   }
 }

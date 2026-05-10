@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 
-import '../../core/llm/llm_client.dart';
+import '../../core/llm/active_llm_completion.dart';
 import '../../core/llm/llm_json.dart';
 import '../../core/state/app_model.dart';
 import '../../core/state/internal_app_agent_definition.dart';
@@ -20,7 +20,6 @@ class ContextOrchestratorPage extends StatefulWidget {
 }
 
 class _ContextOrchestratorPageState extends State<ContextOrchestratorPage> {
-  final _llm = LlmClient();
   bool _loading = true;
   String? _error;
   String? _message;
@@ -98,9 +97,8 @@ Rules:
   }
 
   Future<void> _run() async {
-    final provider = widget.model.activeLlmProvider;
-    final key = widget.model.apiKeyFor(provider);
-    if (key == null) {
+    final m = widget.model;
+    if (m.apiKeyFor(m.activeLlmProvider) == null) {
       setState(() {
         _loading = false;
         _error = 'Add an API key in Settings → Permissions';
@@ -114,14 +112,12 @@ Rules:
     });
 
     try {
-      final raw = await _llm.complete(
-        provider: provider,
-        apiKey: key,
-        model: widget.model.modelFor(provider),
+      final raw = await completeForActiveProvider(
+        m,
         system: _systemPrompt(),
         user: jsonEncode(_payload()),
         maxOutputTokens: 1300,
-        preferJsonObjectOutput: provider == LlmProvider.openai,
+        preferJsonObjectOutput: m.activeLlmProvider == LlmProvider.openai,
       );
 
       final obj = decodeLlmJsonObject(raw);

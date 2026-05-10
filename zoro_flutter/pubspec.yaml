@@ -18,6 +18,10 @@ dependencies:
   sankey_flutter: ^0.0.3
   url_launcher: ^6.3.2
   path_provider: ^2.1.5
+  file_picker: ^11.0.2
+  dirham_symbol: ^0.3.2
+  syncfusion_flutter_pdf: ^33.2.5
+  pdf_struct_extractor: ^0.1.0
 
 dev_dependencies:
   flutter_test:
@@ -35,3 +39,4 @@ flutter:
   uses-material-design: true
   assets:
     - assets/branding/
+    - assets/currency/

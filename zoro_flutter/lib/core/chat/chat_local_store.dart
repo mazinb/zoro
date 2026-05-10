@@ -7,7 +7,7 @@ import '../state/app_model.dart';
 import 'chat_message.dart';
 
 const _fileName = 'chat_local_store.json';
-const _version = 1;
+const _versionLatest = 2;
 
 /// Loads and saves chat threads and per-thread messages on device (no server).
 class ChatLocalStore {
@@ -28,7 +28,22 @@ class ChatLocalStore {
         'messageCount': t.messageCount,
         'tokensUsed': t.tokensUsed,
         'lastLine': t.lastLine,
+        'llmOverride': t.llmOverride.name,
+        if (t.modelOverride != null) 'modelOverride': t.modelOverride,
+        if (t.systemPromptSuffix != null && t.systemPromptSuffix!.trim().isNotEmpty)
+          'systemPromptSuffix': t.systemPromptSuffix,
+        if (t.enabledToolIds != null && t.enabledToolIds!.isNotEmpty) 'enabledToolIds': t.enabledToolIds,
       };
+
+  static AgentChatLlmOverride _parseLlmOverride(String? s) {
+    if (s == null || s.isEmpty) return AgentChatLlmOverride.useDefault;
+    for (final v in AgentChatLlmOverride.values) {
+      if (v.name == s) return v;
+    }
+    // Legacy thread override (removed): treat "local" as default.
+    if (s == 'local') return AgentChatLlmOverride.useDefault;
+    return AgentChatLlmOverride.useDefault;
+  }
 
   static AgentChatThread? _threadFromJson(Object? raw) {
     if (raw is! Map) return null;
@@ -45,6 +60,11 @@ class ChatLocalStore {
     }
 
     final now = DateTime.now();
+    List<String>? toolIds;
+    final ti = m['enabledToolIds'];
+    if (ti is List) {
+      toolIds = ti.map((e) => e.toString()).where((s) => s.isNotEmpty).toList();
+    }
     return AgentChatThread(
       id: id,
       agentId: agentId,
@@ -54,6 +74,10 @@ class ChatLocalStore {
       messageCount: m['messageCount'] is int ? m['messageCount'] as int : (m['messageCount'] is num ? (m['messageCount'] as num).round() : 0),
       tokensUsed: m['tokensUsed'] is int ? m['tokensUsed'] as int : (m['tokensUsed'] is num ? (m['tokensUsed'] as num).round() : 0),
       lastLine: m['lastLine']?.toString() ?? '',
+      llmOverride: _parseLlmOverride(m['llmOverride']?.toString()),
+      modelOverride: m['modelOverride']?.toString(),
+      systemPromptSuffix: m['systemPromptSuffix']?.toString(),
+      enabledToolIds: toolIds,
     );
   }
 
@@ -66,7 +90,8 @@ class ChatLocalStore {
       final decoded = jsonDecode(text);
       if (decoded is! Map) return null;
       final root = Map<String, dynamic>.from(decoded);
-      if (root['version'] != _version) return null;
+      final ver = root['version'];
+      if (ver != _versionLatest && ver != 1) return null;
       final threadsRaw = root['threads'];
       if (threadsRaw is! List) return null;
       final threads = <AgentChatThread>[];
@@ -101,7 +126,7 @@ class ChatLocalStore {
   }) async {
     final f = await _file();
     final payload = <String, dynamic>{
-      'version': _version,
+      'version': _versionLatest,
       'threads': threads.map(_threadToJson).toList(),
       'messages': {
         for (final e in messagesByThread.entries)

@@ -1,6 +1,12 @@
+import 'dart:convert';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/constants/web_expenses_income.dart';
+import '../../core/import/document_ingest.dart';
+import '../../core/llm/llm_client.dart';
+import '../../core/llm/llm_json.dart';
 import '../../core/state/app_model.dart';
 import '../../core/state/internal_app_agent_definition.dart';
 import '../../core/state/ledger_rows.dart';
@@ -9,6 +15,8 @@ import 'context_planner_config.dart';
 import 'context_planner_page.dart';
 
 enum ContextKind { asset, liability, bucket, month }
+
+enum _ContextAssistantAction { questions, photos, file }
 
 class ContextEditorPage extends StatefulWidget {
   const ContextEditorPage._({
@@ -23,46 +31,73 @@ class ContextEditorPage extends StatefulWidget {
     this.plannerMonthKey,
   });
 
-  factory ContextEditorPage.asset({required AppModel model, required String assetId}) {
+  factory ContextEditorPage.asset({
+    required AppModel model,
+    required String assetId,
+  }) {
     final a = model.assetById(assetId);
-    final name = a == null ? 'Asset' : (a.name.trim().isEmpty ? a.type.label : a.name.trim());
+    final name = a == null
+        ? 'Asset'
+        : (a.name.trim().isEmpty ? a.type.label : a.name.trim());
     return ContextEditorPage._(
       model: model,
       kind: ContextKind.asset,
       title: name,
       initialMarkdown: a?.contextMarkdown ?? '',
-      onSave: (md) => model.setAssetContextMarkdown(assetId: assetId, markdown: md),
+      onSave: (md) =>
+          model.setAssetContextMarkdown(assetId: assetId, markdown: md),
       plannerAssetId: assetId,
     );
   }
 
-  factory ContextEditorPage.liability({required AppModel model, required String liabilityId}) {
+  factory ContextEditorPage.liability({
+    required AppModel model,
+    required String liabilityId,
+  }) {
     final l = model.liabilityById(liabilityId);
-    final name = l == null ? 'Liability' : (l.name.trim().isEmpty ? l.type.label : l.name.trim());
+    final name = l == null
+        ? 'Liability'
+        : (l.name.trim().isEmpty ? l.type.label : l.name.trim());
     return ContextEditorPage._(
       model: model,
       kind: ContextKind.liability,
       title: name,
       initialMarkdown: l?.contextMarkdown ?? '',
-      onSave: (md) => model.setLiabilityContextMarkdown(liabilityId: liabilityId, markdown: md),
+      onSave: (md) => model.setLiabilityContextMarkdown(
+        liabilityId: liabilityId,
+        markdown: md,
+      ),
       plannerLiabilityId: liabilityId,
     );
   }
 
-  factory ContextEditorPage.expenseBucket({required AppModel model, required String bucketKey}) {
-    final label = presetForCountry(AppModel.expensePresetCountry).buckets[bucketKey]?.label ?? bucketKey;
+  factory ContextEditorPage.expenseBucket({
+    required AppModel model,
+    required String bucketKey,
+  }) {
+    final label =
+        presetForCountry(
+          AppModel.expensePresetCountry,
+        ).buckets[bucketKey]?.label ??
+        bucketKey;
     final md = model.expenseBucketContextMarkdown[bucketKey] ?? '';
     return ContextEditorPage._(
       model: model,
       kind: ContextKind.bucket,
       title: label,
       initialMarkdown: md,
-      onSave: (next) => model.setExpenseBucketContextMarkdown(bucketKey: bucketKey, markdown: next),
+      onSave: (next) => model.setExpenseBucketContextMarkdown(
+        bucketKey: bucketKey,
+        markdown: next,
+      ),
       plannerBucketKey: bucketKey,
     );
   }
 
-  factory ContextEditorPage.month({required AppModel model, required String monthKey}) {
+  factory ContextEditorPage.month({
+    required AppModel model,
+    required String monthKey,
+  }) {
     final e = model.monthlyEntryFor(monthKey);
     return ContextEditorPage._(
       model: model,
@@ -86,7 +121,10 @@ class ContextEditorPage extends StatefulWidget {
           );
           model.markContextNoteSaved(AppModel.contextKeyMonth(monthKey));
         } else {
-          model.setMonthlyEntryContextMarkdown(monthKey: monthKey, markdown: md);
+          model.setMonthlyEntryContextMarkdown(
+            monthKey: monthKey,
+            markdown: md,
+          );
         }
       },
       plannerMonthKey: monthKey,
@@ -111,22 +149,35 @@ class ContextEditorPage extends StatefulWidget {
       plannerMonthKey != null;
 
   String get _plannerAgentId => switch (kind) {
-        ContextKind.asset => InternalAppAgentIds.assetContext,
-        ContextKind.liability => InternalAppAgentIds.liabilityContext,
-        ContextKind.bucket => InternalAppAgentIds.expenseBucketContext,
-        ContextKind.month => InternalAppAgentIds.monthCashflowContext,
-      };
+    ContextKind.asset => InternalAppAgentIds.assetContext,
+    ContextKind.liability => InternalAppAgentIds.liabilityContext,
+    ContextKind.bucket => InternalAppAgentIds.expenseBucketContext,
+    ContextKind.month => InternalAppAgentIds.monthCashflowContext,
+  };
 
   ContextPlannerConfig _plannerConfig(String markdown) {
     final m = model;
     return switch (kind) {
-      ContextKind.asset => ContextPlannerConfig.forAsset(model: m, assetId: plannerAssetId!, initialMarkdown: markdown),
-      ContextKind.liability =>
-        ContextPlannerConfig.forLiability(model: m, liabilityId: plannerLiabilityId!, initialMarkdown: markdown),
-      ContextKind.bucket =>
-        ContextPlannerConfig.forExpenseBucket(model: m, bucketKey: plannerBucketKey!, initialMarkdown: markdown),
-      ContextKind.month =>
-        ContextPlannerConfig.forMonth(model: m, monthKey: plannerMonthKey!, initialMarkdown: markdown),
+      ContextKind.asset => ContextPlannerConfig.forAsset(
+        model: m,
+        assetId: plannerAssetId!,
+        initialMarkdown: markdown,
+      ),
+      ContextKind.liability => ContextPlannerConfig.forLiability(
+        model: m,
+        liabilityId: plannerLiabilityId!,
+        initialMarkdown: markdown,
+      ),
+      ContextKind.bucket => ContextPlannerConfig.forExpenseBucket(
+        model: m,
+        bucketKey: plannerBucketKey!,
+        initialMarkdown: markdown,
+      ),
+      ContextKind.month => ContextPlannerConfig.forMonth(
+        model: m,
+        monthKey: plannerMonthKey!,
+        initialMarkdown: markdown,
+      ),
     };
   }
 
@@ -135,7 +186,9 @@ class ContextEditorPage extends StatefulWidget {
 }
 
 class _ContextEditorPageState extends State<ContextEditorPage> {
-  late final TextEditingController _ctrl = TextEditingController(text: widget.initialMarkdown);
+  late final TextEditingController _ctrl = TextEditingController(
+    text: widget.initialMarkdown,
+  );
 
   @override
   void dispose() {
@@ -146,7 +199,10 @@ class _ContextEditorPageState extends State<ContextEditorPage> {
   void _save() {
     widget.onSave(_ctrl.text.trim());
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Saved'), behavior: SnackBarBehavior.floating),
+      const SnackBar(
+        content: Text('Saved'),
+        behavior: SnackBarBehavior.floating,
+      ),
     );
   }
 
@@ -165,15 +221,228 @@ class _ContextEditorPageState extends State<ContextEditorPage> {
     widget.model.recordInternalAgentRun(widget._plannerAgentId, res.structured);
   }
 
+  Future<void> _openAssistantOptions() async {
+    final action = await showModalBottomSheet<_ContextAssistantAction>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 6, 12, 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Update context with AI',
+                  style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ListTile(
+                  leading: const Icon(Icons.auto_awesome),
+                  title: const Text(
+                    'Ask follow-up questions',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  subtitle: const Text(
+                    'Use the existing guided question flow.',
+                  ),
+                  onTap: () =>
+                      Navigator.of(ctx).pop(_ContextAssistantAction.questions),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.image_outlined),
+                  title: const Text(
+                    'Upload photos / images',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  subtitle: const Text('Images are sent directly to the LLM.'),
+                  onTap: () =>
+                      Navigator.of(ctx).pop(_ContextAssistantAction.photos),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.attach_file),
+                  title: const Text(
+                    'Upload file / PDF',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
+                  subtitle: const Text(
+                    'PDFs are parsed locally first; password PDFs stay local.',
+                  ),
+                  onTap: () =>
+                      Navigator.of(ctx).pop(_ContextAssistantAction.file),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    if (!mounted || action == null) return;
+    switch (action) {
+      case _ContextAssistantAction.questions:
+        await _openPlanner();
+      case _ContextAssistantAction.photos:
+        await _pickAndUpdateContext(photosOnly: true);
+      case _ContextAssistantAction.file:
+        await _pickAndUpdateContext(photosOnly: false);
+    }
+  }
+
+  Future<void> _pickAndUpdateContext({required bool photosOnly}) async {
+    final result = await FilePicker.pickFiles(
+      withData: true,
+      allowMultiple: photosOnly,
+      type: photosOnly ? FileType.image : FileType.any,
+    );
+    if (!mounted || result == null || result.files.isEmpty) return;
+    await _updateContextFromFiles(List<PlatformFile>.from(result.files));
+  }
+
+  Future<void> _updateContextFromFiles(List<PlatformFile> files) async {
+    final m = widget.model;
+    final key = m.apiKeyFor(m.activeLlmProvider);
+    if (key == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Add an API key in Settings → API keys first.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(
+      const SnackBar(
+        content: Text('Reading file locally…'),
+        behavior: SnackBarBehavior.floating,
+        duration: Duration(seconds: 1),
+      ),
+    );
+
+    try {
+      final bundle = await ingestPlatformFiles(
+        files: files,
+        requestPdfPassword: _requestPdfPassword,
+      );
+
+      final def = internalAppAgentDefinitionById(widget._plannerAgentId);
+      final userInstructions = m
+          .internalAgentSystemPrompt(widget._plannerAgentId)
+          .trim();
+      final hints = def?.modelDomainHints.trim() ?? '';
+      final system = [
+        'You update one context note inside a personal finance app. Reply with ONE JSON object only.',
+        'Shape: {"contextMarkdown":"<full updated markdown note>","structured":{"summary":"<short summary>","warnings":["optional strings"]}}',
+        'Use the uploaded file/image information to improve the note. Merge with useful existing text; do not discard good prior context.',
+        'If the file is not relevant, keep the old note and explain that in structured.summary.',
+        '---',
+        'User instructions:',
+        userInstructions,
+        if (hints.isNotEmpty) ...['---', 'Extra hints:', hints],
+      ].join('\n');
+
+      final payload = widget
+          ._plannerConfig(_ctrl.text)
+          .buildPayload(m, const []);
+      final user = [
+        'Subject/context payload:',
+        const JsonEncoder.withIndent('  ').convert(payload),
+        '',
+        'Uploaded local extraction / image notes:',
+        bundle.promptText,
+      ].join('\n');
+
+      final raw = await LlmClient().complete(
+        provider: m.activeLlmProvider,
+        apiKey: key,
+        model: m.modelFor(m.activeLlmProvider),
+        system: system,
+        user: user,
+        attachments: bundle.attachments,
+        maxOutputTokens: 1800,
+        preferJsonObjectOutput: m.activeLlmProvider == LlmProvider.openai,
+      );
+      final obj = decodeLlmJsonObject(raw);
+      final md = obj['contextMarkdown']?.toString().trim();
+      if (md == null || md.isEmpty) {
+        throw const FormatException(
+          'The model did not return contextMarkdown.',
+        );
+      }
+      final structuredRaw = obj['structured'];
+      final structured = structuredRaw is Map
+          ? Map<String, Object?>.from(structuredRaw)
+          : <String, Object?>{'summary': 'Updated from uploaded file.'};
+
+      if (!mounted) return;
+      setState(() => _ctrl.text = md);
+      widget.model.recordInternalAgentRun(widget._plannerAgentId, structured);
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Context updated from upload'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(e.toString()),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  Future<String?> _requestPdfPassword(String fileName) async {
+    final ctrl = TextEditingController();
+    try {
+      return showDialog<String>(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) {
+          return AlertDialog(
+            title: const Text('PDF password'),
+            content: TextField(
+              controller: ctrl,
+              autofocus: true,
+              obscureText: true,
+              decoration: InputDecoration(
+                labelText: 'Password for $fileName',
+                helperText: 'The PDF is decrypted locally on this device.',
+              ),
+              onSubmitted: (v) => Navigator.of(ctx).pop(v.trim()),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('Cancel'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(ctx).pop(ctrl.text.trim()),
+                child: const Text('Continue'),
+              ),
+            ],
+          );
+        },
+      );
+    } finally {
+      ctrl.dispose();
+    }
+  }
+
   String get _fieldHint => switch (widget.kind) {
-        ContextKind.month =>
-          'Monthly story for this calendar month — linked to Ledger → Cashflow (same entry as Split / month rows). '
-              'Use this so assistants and future-you understand what drove spending.',
-        ContextKind.asset ||
-        ContextKind.liability ||
-        ContextKind.bucket =>
-          'Add notes the chat/agents can use later…',
-      };
+    ContextKind.month =>
+      'Monthly story for this calendar month — linked to Ledger → Cashflow (same entry as Split / month rows). '
+          'Use this so assistants and future-you understand what drove spending.',
+    ContextKind.asset ||
+    ContextKind.liability ||
+    ContextKind.bucket => 'Add notes the chat/agents can use later…',
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -186,12 +455,9 @@ class _ContextEditorPageState extends State<ContextEditorPage> {
             IconButton(
               tooltip: 'Assistant',
               icon: const Icon(Icons.auto_awesome),
-              onPressed: _openPlanner,
+              onPressed: _openAssistantOptions,
             ),
-          TextButton(
-            onPressed: _save,
-            child: const Text('Save'),
-          ),
+          TextButton(onPressed: _save, child: const Text('Save')),
         ],
       ),
       body: SafeArea(

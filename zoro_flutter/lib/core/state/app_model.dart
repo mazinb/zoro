@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -10,6 +11,7 @@ import '../finance/currency.dart';
 import '../../dev/compile_time_api_keys.dart';
 import '../llm/llm_key_store.dart';
 import '../persistence/scheduled_agent_store.dart';
+import '../persistence/user_agents_settings_store.dart';
 import '../schedule/scheduled_agent_runner.dart';
 import 'cashflow_income_line.dart';
 import 'internal_app_agent_definition.dart';
@@ -50,6 +52,7 @@ class NetWorthProjectionYearBreakdown {
 
 class AppModel extends ChangeNotifier {
   AppModel() {
+    agents.addAll(_seedDefaultAgents());
     syncAllocationsFromFraction(notify: false);
     _seedDummyCashflowData();
   }
@@ -91,6 +94,7 @@ class AppModel extends ChangeNotifier {
       }
 
       _syncActiveProviderIfKeyRemoved();
+      await loadPersistedUserAgentsAndSettings();
       await loadPersistedChats();
       await loadPersistedScheduledAgentTasks();
       await runDueScheduledAgentTasks();
@@ -112,149 +116,77 @@ class AppModel extends ChangeNotifier {
 
   void setHomeSummaryText(String value) {
     homeSummaryText = value;
+    _scheduleUserSettingsPersist();
     notifyListeners();
   }
 
-  /// Agents (UI-only). These are configurable “helpers” that can use app context + user-provided JSON.
-  final List<AppAgent> agents = [
-    AppAgent(
-      id: 'agent-1',
-      name: 'Retirement planner',
-      description: 'Plans retirement timeline, savings rate, and split targets.',
-      systemPrompt: 'You are a retirement planner. Ask only what you need. Propose clear next actions.',
-      permissions: const [
-        AgentPermission(domain: AgentDomain.expenses, access: AgentAccess.read),
-        AgentPermission(domain: AgentDomain.cashflow, access: AgentAccess.read),
-        AgentPermission(domain: AgentDomain.income, access: AgentAccess.read),
-        AgentPermission(domain: AgentDomain.assets, access: AgentAccess.read),
-        AgentPermission(domain: AgentDomain.liabilities, access: AgentAccess.read),
-      ],
-      contextMarkdown: '''## Assumptions
-- Target retire age: 55
-- Real return: 5%
+  /// Agents (UI-only). Seeded in constructor; replaced when persisted settings load.
+  final List<AppAgent> agents = [];
 
-## Notes
-Keep recommendations concrete and testable.
-''',
-    ),
-    AppAgent(
-      id: 'agent-2',
-      name: 'RSU allocator',
-      description: 'Helps plan RSU vesting, taxes, and diversification.',
-      systemPrompt: 'You are an RSU allocation coach. Focus on diversification, tax timing, and risk.',
-      permissions: const [
-        AgentPermission(domain: AgentDomain.income, access: AgentAccess.read),
-        AgentPermission(domain: AgentDomain.assets, access: AgentAccess.read),
-        AgentPermission(domain: AgentDomain.expenses, access: AgentAccess.read),
-      ],
-      contextMarkdown: '''## RSU details
-- Currency: USD
-- Vesting cadence: quarterly
+  int _userSettingsPersistRevision = 0;
 
-## Goals
-- Diversify concentration risk
-- Keep a taxes-first checklist
-''',
-    ),
-    AppAgent(
-      id: 'agent-3',
-      name: 'FIRE strategist',
-      description: 'Optimizes savings rate and runway; spots bottlenecks.',
-      systemPrompt: 'You are a FIRE strategist. Be direct. Call out the one biggest leverage point.',
-      permissions: const [
-        AgentPermission(domain: AgentDomain.expenses, access: AgentAccess.read),
-        AgentPermission(domain: AgentDomain.cashflow, access: AgentAccess.read),
-        AgentPermission(domain: AgentDomain.income, access: AgentAccess.read),
-        AgentPermission(domain: AgentDomain.assets, access: AgentAccess.read),
-        AgentPermission(domain: AgentDomain.liabilities, access: AgentAccess.read),
-      ],
-      contextMarkdown: '''## Targets
-- FIRE multiple: 25x annual expenses
+  void _scheduleUserSettingsPersist() {
+    _userSettingsPersistRevision++;
+    final rev = _userSettingsPersistRevision;
+    Future<void> run() async {
+      if (rev != _userSettingsPersistRevision) return;
+      try {
+        await UserAgentsSettingsStore.save(
+          agents: List<AppAgent>.from(agents),
+          activeLlmProvider: activeLlmProvider,
+          openAiModel: openAiModel,
+          anthropicModel: anthropicModel,
+          geminiModel: geminiModel,
+          privacyHideAmounts: privacyHideAmounts,
+          homeSummaryText: homeSummaryText,
+          displayCurrency: displayCurrency,
+          homeCurrencyQuickPick1: homeCurrencyQuickPick1,
+          homeCurrencyQuickPick2: homeCurrencyQuickPick2,
+        );
+      } catch (_) {}
+    }
 
-## Style
-Blunt + prioritized actions.
-''',
-    ),
-    AppAgent(
-      id: 'agent-4',
-      name: 'Expense analyzer',
-      description: 'Finds bloated buckets and proposes cuts.',
-      systemPrompt: 'You are an expense analyst. Use buckets. Suggest experiments for 30 days.',
-      permissions: const [
-        AgentPermission(domain: AgentDomain.expenses, access: AgentAccess.read),
-        AgentPermission(domain: AgentDomain.cashflow, access: AgentAccess.read),
-      ],
-      contextMarkdown: '''## Rules
-- Flag top 2 buckets
-- Suggest 3 swaps with clear trade-offs
-''',
-    ),
-    AppAgent(
-      id: 'agent-5',
-      name: 'Home purchase planner',
-      description: 'Plans down payment vs mortgage; debt/equity mix.',
-      systemPrompt: 'You are a home purchase planner. Compare scenarios and keep risk constraints explicit.',
-      permissions: const [
-        AgentPermission(domain: AgentDomain.assets, access: AgentAccess.read),
-        AgentPermission(domain: AgentDomain.liabilities, access: AgentAccess.read),
-        AgentPermission(domain: AgentDomain.cashflow, access: AgentAccess.read),
-        AgentPermission(domain: AgentDomain.expenses, access: AgentAccess.read),
-      ],
-      contextMarkdown: '''## Scenario
-- Home price: 12,000,000
-- Down payment: 30%
+    Future.microtask(run);
+  }
 
-## Questions
-- What % debt vs equity?
-- Monthly payment safety margin?
-''',
-    ),
-    AppAgent(
-      id: 'agent-rates-fx',
-      name: 'Rates & FX',
-      description: 'Keeps projection returns, inflation, and FX overrides aligned with Settings.',
-      systemPrompt: '''
-You help the user maintain **nominal** investment return, savings yield, inflation assumptions, and **USD per 1 unit** FX overrides used by the app.
-
-Explain briefly, then when the user agrees to numbers, apply them with a single ```zoro_actions``` block at the end.
-Use currency codes: thb, inr, usd. For FX, only thb and inr accept `set_fx_usd_per_unit` (USD is always 1).
-Percent fields are **annual** numbers like 7.0 meaning 7%.
-''',
-      permissions: const [
-        AgentPermission(domain: AgentDomain.projection, access: AgentAccess.write),
-        AgentPermission(domain: AgentDomain.assets, access: AgentAccess.read),
-        AgentPermission(domain: AgentDomain.liabilities, access: AgentAccess.read),
-        AgentPermission(domain: AgentDomain.cashflow, access: AgentAccess.read),
-        AgentPermission(domain: AgentDomain.income, access: AgentAccess.read),
-      ],
-      contextMarkdown: '''## Notes
-- Defaults are illustrative (US mid, Thailand low/low, India high/high) so **real** returns are in a similar ballpark.
-- User display currency selects which assumption row drives the 10-year Home chart.
-''',
-    ),
-    AppAgent(
-      id: morningBriefingAgentId,
-      name: 'Morning briefing',
-      description: 'Daily portfolio touchpoint and market themes for Home (uses Gemini).',
-      kind: AppAgentKind.researcher,
-      toolHomeSummary: true,
-      toolWebResearch: true,
-      systemPrompt: '''
-You prepare a brief daily note for the Home screen.
-Blend the user's portfolio/context with high-level public-market themes. Do not invent specific headlines, firms, or dates.
-If recent news is uncertain, say so in one short clause. Calm, practical tone—no hype.
-When asked to deliver the briefing, finish by updating the Home summary via set_home_summary in zoro_actions.
-''',
-      permissions: const [
-        AgentPermission(domain: AgentDomain.expenses, access: AgentAccess.read),
-        AgentPermission(domain: AgentDomain.cashflow, access: AgentAccess.read),
-        AgentPermission(domain: AgentDomain.income, access: AgentAccess.read),
-        AgentPermission(domain: AgentDomain.assets, access: AgentAccess.read),
-        AgentPermission(domain: AgentDomain.liabilities, access: AgentAccess.read),
-      ],
-      contextMarkdown: '',
-    ),
-  ];
+  Future<void> loadPersistedUserAgentsAndSettings() async {
+    final snap = await UserAgentsSettingsStore.load();
+    if (snap == null) return;
+    if (snap.agents.isNotEmpty) {
+      agents
+        ..clear()
+        ..addAll(snap.agents);
+    }
+    if (snap.activeLlmProvider != null) {
+      activeLlmProvider = snap.activeLlmProvider!;
+    }
+    if (snap.openAiModel != null && snap.openAiModel!.trim().isNotEmpty) {
+      openAiModel = snap.openAiModel!.trim();
+    }
+    if (snap.anthropicModel != null && snap.anthropicModel!.trim().isNotEmpty) {
+      anthropicModel = snap.anthropicModel!.trim();
+    }
+    if (snap.geminiModel != null && snap.geminiModel!.trim().isNotEmpty) {
+      geminiModel = snap.geminiModel!.trim();
+    }
+    if (snap.privacyHideAmounts != null) {
+      privacyHideAmounts = snap.privacyHideAmounts!;
+    }
+    if (snap.homeSummaryText != null) {
+      homeSummaryText = snap.homeSummaryText!;
+    }
+    if (snap.displayCurrency != null) {
+      displayCurrency = snap.displayCurrency!;
+    }
+    if (snap.homeCurrencyQuickPick1 != null) {
+      homeCurrencyQuickPick1 = snap.homeCurrencyQuickPick1!;
+    }
+    if (snap.homeCurrencyQuickPick2 != null) {
+      homeCurrencyQuickPick2 = snap.homeCurrencyQuickPick2!;
+    }
+    _syncActiveProviderIfKeyRemoved();
+    notifyListeners();
+  }
 
   final List<ScheduledAgentTask> scheduledAgentTasks = [];
 
@@ -465,6 +397,37 @@ When asked to deliver the briefing, finish by updating the Home summary via set_
   /// THB matches [expensePresetCountry] bucket units so the Sankey and ledger stay aligned at boot.
   CurrencyCode displayCurrency = CurrencyCode.thb;
 
+  /// Home uses a 3-way currency toggle: USD + two user-pickable currencies.
+  CurrencyCode homeCurrencyQuickPick1 = CurrencyCode.thb;
+  CurrencyCode homeCurrencyQuickPick2 = CurrencyCode.inr;
+
+  void setHomeCurrencyQuickPick(int slot, CurrencyCode next) {
+    if (next == CurrencyCode.usd) return; // USD is always present as its own toggle.
+    final prev = (slot == 1) ? homeCurrencyQuickPick1 : (slot == 2 ? homeCurrencyQuickPick2 : null);
+    if (prev == null) return;
+    if (slot == 1) {
+      if (homeCurrencyQuickPick1 == next) return;
+      homeCurrencyQuickPick1 = next;
+    } else if (slot == 2) {
+      if (homeCurrencyQuickPick2 == next) return;
+      homeCurrencyQuickPick2 = next;
+    } else {
+      return;
+    }
+
+    // Keep the % sliders “the same” when swapping currencies in Home slots:
+    // copy the previous slot currency’s current values onto the new currency entry.
+    final inv = projectionInvestReturnPctAnnual[prev];
+    final sav = projectionSavingsReturnPctAnnual[prev];
+    final inf = projectionInflationPctAnnual[prev];
+    if (inv != null) projectionInvestReturnPctAnnual[next] = inv;
+    if (sav != null) projectionSavingsReturnPctAnnual[next] = sav;
+    if (inf != null) projectionInflationPctAnnual[next] = inf;
+
+    _scheduleUserSettingsPersist();
+    notifyListeners();
+  }
+
   /// Optional FX overrides: USD value of **1 unit** of THB/INR (same convention as [CurrencyCodeUi.usdPerUnit]).
   /// Empty → use built-in defaults in [currency.dart].
   final Map<CurrencyCode, double> _fxUsdPerUnitOverride = {};
@@ -490,21 +453,36 @@ When asked to deliver the briefing, finish by updating the Home summary via set_
 
   /// Nominal annual **percent** (e.g. 7.0 = 7%) for the 10-year net worth projection, per currency.
   final Map<CurrencyCode, double> projectionInvestReturnPctAnnual = {
-    CurrencyCode.usd: 7.0,
-    CurrencyCode.thb: 5.0,
-    CurrencyCode.inr: 11.0,
+    CurrencyCode.usd: 8.0,
+    CurrencyCode.thb: 6.0,
+    CurrencyCode.inr: 12.0,
+    CurrencyCode.aed: 7.0,
+    CurrencyCode.sgd: 6.5,
+    CurrencyCode.aud: 7.0,
+    CurrencyCode.eur: 7.0,
+    CurrencyCode.jpy: 6.0,
   };
 
   final Map<CurrencyCode, double> projectionSavingsReturnPctAnnual = {
     CurrencyCode.usd: 4.0,
     CurrencyCode.thb: 2.0,
-    CurrencyCode.inr: 6.0,
+    CurrencyCode.inr: 8.0,
+    CurrencyCode.aed: 3.5,
+    CurrencyCode.sgd: 3.5,
+    CurrencyCode.aud: 4.0,
+    CurrencyCode.eur: 3.5,
+    CurrencyCode.jpy: 1.0,
   };
 
   final Map<CurrencyCode, double> projectionInflationPctAnnual = {
-    CurrencyCode.usd: 3.0,
-    CurrencyCode.thb: 1.5,
+    CurrencyCode.usd: 2.0,
+    CurrencyCode.thb: 0.0,
     CurrencyCode.inr: 6.0,
+    CurrencyCode.aed: 3.0,
+    CurrencyCode.sgd: 2.5,
+    CurrencyCode.aud: 3.0,
+    CurrencyCode.eur: 2.5,
+    CurrencyCode.jpy: 2.0,
   };
 
   void setProjectionRatesForCurrency(
@@ -794,6 +772,17 @@ When asked to deliver the briefing, finish by updating the Home summary via set_
   static String monthKeyFor(DateTime d) =>
       '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}';
 
+  /// Accepts `YYYY-MM`; returns normalized key or null.
+  static String? tryParseMonthKey(String raw) {
+    final t = raw.trim();
+    if (!RegExp(r'^\d{4}-\d{2}$').hasMatch(t)) return null;
+    final parts = t.split('-');
+    final y = int.tryParse(parts[0]);
+    final m = int.tryParse(parts[1]);
+    if (y == null || m == null || m < 1 || m > 12) return null;
+    return '${y.toString().padLeft(4, '0')}-${m.toString().padLeft(2, '0')}';
+  }
+
   static List<String> recentMonthKeys() {
     final now = DateTime.now();
     // Current month + up to 6 months back.
@@ -837,24 +826,48 @@ When asked to deliver the briefing, finish by updating the Home summary via set_
   void setPrivacyHideAmounts(bool value) {
     if (privacyHideAmounts == value) return;
     privacyHideAmounts = value;
+    _scheduleUserSettingsPersist();
     notifyListeners();
   }
 
   void addAgent(AppAgent agent) {
     agents.add(agent);
+    _scheduleUserSettingsPersist();
     notifyListeners();
   }
 
   void updateAgent(int index, AppAgent agent) {
     if (index < 0 || index >= agents.length) return;
     agents[index] = agent;
+    _scheduleUserSettingsPersist();
     notifyListeners();
   }
 
   void removeAgentAt(int index) {
     if (index < 0 || index >= agents.length) return;
     agents.removeAt(index);
+    _scheduleUserSettingsPersist();
     notifyListeners();
+  }
+
+  void upsertAgentFromTool(AppAgent incoming) {
+    final idx = agents.indexWhere((a) => a.id == incoming.id);
+    if (idx >= 0) {
+      agents[idx] = incoming;
+    } else {
+      agents.add(incoming);
+    }
+    _scheduleUserSettingsPersist();
+    notifyListeners();
+  }
+
+  bool removeAgentByIdForTool(String id) {
+    final idx = agents.indexWhere((a) => a.id == id);
+    if (idx < 0) return false;
+    agents.removeAt(idx);
+    _scheduleUserSettingsPersist();
+    notifyListeners();
+    return true;
   }
 
   void addChat(AgentChatThread t) {
@@ -897,6 +910,7 @@ When asked to deliver the briefing, finish by updating the Home summary via set_
   void setActiveLlmProvider(LlmProvider p) {
     if (activeLlmProvider == p) return;
     activeLlmProvider = p;
+    _scheduleUserSettingsPersist();
     notifyListeners();
   }
 
@@ -951,12 +965,16 @@ When asked to deliver the briefing, finish by updating the Home summary via set_
       case LlmProvider.gemini:
         geminiModel = next;
     }
+    _scheduleUserSettingsPersist();
     notifyListeners();
   }
 
   // Temperature removed: some models/providers reject non-default values.
 
   bool get hasAnyApiKey => openAiApiKey != null || anthropicApiKey != null || geminiApiKey != null;
+
+  /// Cloud API key or installed on-device weights.
+  bool get canUseAnyLlm => hasAnyApiKey;
 
   void setReminderCadenceExpenses(ReminderCadence v) {
     remindersExpensesCadence = v;
@@ -1031,6 +1049,7 @@ When asked to deliver the briefing, finish by updating the Home summary via set_
       e.monthlySpending = convertCurrency(value: e.monthlySpending, from: from, to: next, usdPerUnitOverrides: fx);
     }
     syncAllocationsFromFraction();
+    _scheduleUserSettingsPersist();
     notifyListeners();
   }
 
@@ -1115,7 +1134,7 @@ When asked to deliver the briefing, finish by updating the Home summary via set_
   }
 
   void removeIncomeLineAt(int index) {
-    if (index < 0 || index >= incomeLines.length || incomeLines.length <= 1) return;
+    if (index < 0 || index >= incomeLines.length) return;
     incomeLines.removeAt(index);
     incomeLastUpdated = DateTime.now();
     syncAllocationsFromFraction();
@@ -1203,6 +1222,14 @@ When asked to deliver the briefing, finish by updating the Home summary via set_
 
   void upsertMonthlyCashflow(MonthlyCashflowEntry entry) {
     monthlyCashflowByMonth[entry.monthKey] = entry;
+    notifyListeners();
+  }
+
+  void setMonthlyCashflowContextMarkdown({required String monthKey, required String markdown}) {
+    final e = monthlyCashflowByMonth[monthKey];
+    if (e == null) return;
+    e.contextMarkdown = markdown.trim();
+    _touchContextNoteSaved(contextKeyMonth(monthKey));
     notifyListeners();
   }
 
@@ -1386,7 +1413,7 @@ When asked to deliver the briefing, finish by updating the Home summary via set_
             s +
             moneyInDisplayCurrency(
               line.annualAmount,
-              currencyCodeForPresetCountry(line.currencyCountry),
+              currencyCodeForIncomeLineCurrency(line.currencyCountry),
             ),
       );
 
@@ -1528,6 +1555,8 @@ class AppAgent {
     this.kind = AppAgentKind.analyst,
     this.toolHomeSummary = false,
     this.toolWebResearch = false,
+    this.toolSettingsAdmin = false,
+    this.llmProviderOverride,
   });
 
   final String id;
@@ -1539,6 +1568,8 @@ class AppAgent {
   AppAgentKind kind;
   bool toolHomeSummary;
   bool toolWebResearch;
+  bool toolSettingsAdmin;
+  LlmProvider? llmProviderOverride;
 
   AppAgent clone() => AppAgent(
         id: id,
@@ -1550,7 +1581,17 @@ class AppAgent {
         kind: kind,
         toolHomeSummary: toolHomeSummary,
         toolWebResearch: toolWebResearch,
+        toolSettingsAdmin: toolSettingsAdmin,
+        llmProviderOverride: llmProviderOverride,
       );
+}
+
+/// Playground override for which LLM route a thread uses (default = agent + global settings).
+enum AgentChatLlmOverride {
+  useDefault,
+  openai,
+  anthropic,
+  gemini,
 }
 
 class AgentChatThread {
@@ -1563,16 +1604,24 @@ class AgentChatThread {
     required this.messageCount,
     required this.tokensUsed,
     this.lastLine = '',
+    this.llmOverride = AgentChatLlmOverride.useDefault,
+    this.modelOverride,
+    this.systemPromptSuffix,
+    this.enabledToolIds,
   });
 
   final String id;
-  final String agentId;
+  String agentId;
   String title;
   final DateTime createdAt;
   DateTime updatedAt;
   int messageCount;
   int tokensUsed;
   String lastLine;
+  AgentChatLlmOverride llmOverride;
+  String? modelOverride;
+  String? systemPromptSuffix;
+  List<String>? enabledToolIds;
 
   AgentChatThread clone() => AgentChatThread(
         id: id,
@@ -1583,5 +1632,126 @@ class AgentChatThread {
         messageCount: messageCount,
         tokensUsed: tokensUsed,
         lastLine: lastLine,
+        llmOverride: llmOverride,
+        modelOverride: modelOverride,
+        systemPromptSuffix: systemPromptSuffix,
+        enabledToolIds: enabledToolIds == null ? null : List<String>.from(enabledToolIds!),
       );
 }
+
+List<AppAgent> _seedDefaultAgents() => [
+      AppAgent(
+        id: 'agent-1',
+        name: 'Retirement planner',
+        description: 'Plans retirement timeline, savings rate, and split targets.',
+        systemPrompt: 'You are a retirement planner. Ask only what you need. Propose clear next actions.',
+        permissions: const [
+          AgentPermission(domain: AgentDomain.expenses, access: AgentAccess.read),
+          AgentPermission(domain: AgentDomain.cashflow, access: AgentAccess.read),
+          AgentPermission(domain: AgentDomain.income, access: AgentAccess.read),
+          AgentPermission(domain: AgentDomain.assets, access: AgentAccess.read),
+          AgentPermission(domain: AgentDomain.liabilities, access: AgentAccess.read),
+        ],
+        contextMarkdown: '''## Assumptions
+- Target retire age: 55
+- Real return: 5%
+
+## Notes
+Keep recommendations concrete and testable.
+''',
+      ),
+      AppAgent(
+        id: 'agent-2',
+        name: 'RSU allocator',
+        description: 'Helps plan RSU vesting, taxes, and diversification.',
+        systemPrompt: 'You are an RSU allocation coach. Focus on diversification, tax timing, and risk.',
+        permissions: const [
+          AgentPermission(domain: AgentDomain.income, access: AgentAccess.read),
+          AgentPermission(domain: AgentDomain.assets, access: AgentAccess.read),
+          AgentPermission(domain: AgentDomain.expenses, access: AgentAccess.read),
+        ],
+        contextMarkdown: '''## RSU details
+- Currency: USD
+- Vesting cadence: quarterly
+
+## Goals
+- Diversify concentration risk
+- Keep a taxes-first checklist
+''',
+      ),
+      AppAgent(
+        id: 'agent-3',
+        name: 'FIRE strategist',
+        description: 'Optimizes savings rate and runway; spots bottlenecks.',
+        systemPrompt: 'You are a FIRE strategist. Be direct. Call out the one biggest leverage point.',
+        permissions: const [
+          AgentPermission(domain: AgentDomain.expenses, access: AgentAccess.read),
+          AgentPermission(domain: AgentDomain.cashflow, access: AgentAccess.read),
+          AgentPermission(domain: AgentDomain.income, access: AgentAccess.read),
+          AgentPermission(domain: AgentDomain.assets, access: AgentAccess.read),
+          AgentPermission(domain: AgentDomain.liabilities, access: AgentAccess.read),
+        ],
+        contextMarkdown: '''## Targets
+- FIRE multiple: 25x annual expenses
+
+## Style
+Blunt + prioritized actions.
+''',
+      ),
+      AppAgent(
+        id: 'agent-4',
+        name: 'Expense analyzer',
+        description: 'Finds bloated buckets and proposes cuts.',
+        systemPrompt: 'You are an expense analyst. Use buckets. Suggest experiments for 30 days.',
+        permissions: const [
+          AgentPermission(domain: AgentDomain.expenses, access: AgentAccess.read),
+          AgentPermission(domain: AgentDomain.cashflow, access: AgentAccess.read),
+        ],
+        contextMarkdown: '''## Rules
+- Flag top 2 buckets
+- Suggest 3 swaps with clear trade-offs
+''',
+      ),
+      AppAgent(
+        id: 'agent-5',
+        name: 'Home purchase planner',
+        description: 'Plans down payment vs mortgage; debt/equity mix.',
+        systemPrompt: 'You are a home purchase planner. Compare scenarios and keep risk constraints explicit.',
+        permissions: const [
+          AgentPermission(domain: AgentDomain.assets, access: AgentAccess.read),
+          AgentPermission(domain: AgentDomain.liabilities, access: AgentAccess.read),
+          AgentPermission(domain: AgentDomain.cashflow, access: AgentAccess.read),
+          AgentPermission(domain: AgentDomain.expenses, access: AgentAccess.read),
+        ],
+        contextMarkdown: '''## Scenario
+- Home price: 12,000,000
+- Down payment: 30%
+
+## Questions
+- What % debt vs equity?
+- Monthly payment safety margin?
+''',
+      ),
+      AppAgent(
+        id: AppModel.morningBriefingAgentId,
+        name: 'Morning briefing',
+        description: 'Daily portfolio touchpoint and market themes for Home (uses Gemini).',
+        kind: AppAgentKind.researcher,
+        toolHomeSummary: true,
+        toolWebResearch: true,
+        systemPrompt: '''
+You prepare a brief daily note for the Home screen.
+Blend the user's portfolio/context with high-level public-market themes. Do not invent specific headlines, firms, or dates.
+If recent news is uncertain, say so in one short clause. Calm, practical tone—no hype.
+When asked to deliver the briefing, finish by updating the Home summary via set_home_summary in zoro_actions.
+''',
+        permissions: const [
+          AgentPermission(domain: AgentDomain.expenses, access: AgentAccess.read),
+          AgentPermission(domain: AgentDomain.cashflow, access: AgentAccess.read),
+          AgentPermission(domain: AgentDomain.income, access: AgentAccess.read),
+          AgentPermission(domain: AgentDomain.assets, access: AgentAccess.read),
+          AgentPermission(domain: AgentDomain.liabilities, access: AgentAccess.read),
+        ],
+        contextMarkdown: '',
+      ),
+    ];

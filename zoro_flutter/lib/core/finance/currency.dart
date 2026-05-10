@@ -4,39 +4,86 @@ import 'package:flutter/services.dart';
 ///
 /// Important: Exchange rates are intentionally hard-coded for now.
 /// Currency conversion is currently hard-coded (UI-first build).
-enum CurrencyCode { thb, inr, usd }
+enum CurrencyCode { thb, inr, usd, aed, sgd, aud, eur, jpy }
+
+/// Order for display-currency dropdowns (Home, Settings).
+const List<CurrencyCode> kDisplayCurrencyPickerOptions = [
+  CurrencyCode.usd,
+  CurrencyCode.thb,
+  CurrencyCode.inr,
+  CurrencyCode.aed,
+  CurrencyCode.sgd,
+  CurrencyCode.aud,
+  CurrencyCode.eur,
+  CurrencyCode.jpy,
+];
 
 extension CurrencyCodeUi on CurrencyCode {
+  String get flag => switch (this) {
+    CurrencyCode.usd => '🇺🇸',
+    CurrencyCode.thb => '🇹🇭',
+    CurrencyCode.inr => '🇮🇳',
+    CurrencyCode.aed => '🇦🇪',
+    CurrencyCode.sgd => '🇸🇬',
+    CurrencyCode.aud => '🇦🇺',
+    CurrencyCode.eur => '🇪🇺',
+    CurrencyCode.jpy => '🇯🇵',
+  };
+
   String get code => switch (this) {
-        CurrencyCode.thb => 'THB',
-        CurrencyCode.inr => 'INR',
-        CurrencyCode.usd => 'USD',
-      };
+    CurrencyCode.thb => 'THB',
+    CurrencyCode.inr => 'INR',
+    CurrencyCode.usd => 'USD',
+    CurrencyCode.aed => 'AED',
+    CurrencyCode.sgd => 'SGD',
+    CurrencyCode.aud => 'AUD',
+    CurrencyCode.eur => 'EUR',
+    CurrencyCode.jpy => 'JPY',
+  };
 
   String get symbol => switch (this) {
-        CurrencyCode.thb => '฿',
-        CurrencyCode.inr => '₹',
-        CurrencyCode.usd => '\$',
-      };
+    CurrencyCode.thb => '฿',
+    CurrencyCode.inr => '₹',
+    CurrencyCode.usd => '\$',
+    // The official new UAE Dirham mark is an SVG (see dirham_symbol package).
+    // String contexts use the ISO code prefix "AED " so labels read
+    // "AED 1,234"; UI fields render the proper symbol via DirhamIcon.
+    CurrencyCode.aed => 'AED ',
+    CurrencyCode.sgd => '\$',
+    CurrencyCode.aud => '\$',
+    CurrencyCode.eur => '€',
+    CurrencyCode.jpy => '¥',
+  };
 
   /// Hard-coded spot FX rate expressed as: 1 unit of this currency == X USD.
   double get usdPerUnit => switch (this) {
-        CurrencyCode.usd => 1.0,
-        CurrencyCode.thb => 0.0277, // ~ 1 THB = 0.0277 USD  (≈ 36.1 THB/USD)
-        CurrencyCode.inr => 0.0120, // ~ 1 INR = 0.0120 USD (≈ 83.3 INR/USD)
-      };
+    CurrencyCode.usd => 1.0,
+    CurrencyCode.thb => 0.0277, // ~ 1 THB = 0.0277 USD  (≈ 36.1 THB/USD)
+    CurrencyCode.inr => 0.0120, // ~ 1 INR = 0.0120 USD (≈ 83.3 INR/USD)
+    CurrencyCode.aed => 0.272, // ~ 3.67 AED/USD
+    CurrencyCode.sgd => 0.741, // ~ 1.35 SGD/USD
+    CurrencyCode.aud => 0.649, // ~ 1.54 AUD/USD
+    CurrencyCode.eur => 1.075, // ~ 0.93 EUR/USD
+    CurrencyCode.jpy => 0.00671, // ~ 149 JPY/USD
+  };
 
   Color get chipColor => switch (this) {
-        CurrencyCode.usd => const Color(0xFF1D4ED8), // blueDark
-        CurrencyCode.thb => const Color(0xFF3B82F6), // blue
-        CurrencyCode.inr => const Color(0xFF93C5FD), // blueLight
-      };
+    CurrencyCode.usd => const Color(0xFF1D4ED8), // blueDark
+    CurrencyCode.thb => const Color(0xFF3B82F6), // blue
+    CurrencyCode.inr => const Color(0xFF93C5FD), // blueLight
+    CurrencyCode.aed => const Color(0xFF0EA5E9),
+    CurrencyCode.sgd => const Color(0xFF6366F1),
+    CurrencyCode.aud => const Color(0xFF14B8A6),
+    CurrencyCode.eur => const Color(0xFF8B5CF6),
+    CurrencyCode.jpy => const Color(0xFFF43F5E),
+  };
 }
 
 double convertCurrency({
   required double value,
   required CurrencyCode from,
   required CurrencyCode to,
+
   /// When set, maps each [CurrencyCode] to USD per 1 unit of that currency (same semantics as [CurrencyCodeUi.usdPerUnit]).
   Map<CurrencyCode, double>? usdPerUnitOverrides,
 }) {
@@ -90,8 +137,8 @@ String _formatMillionsCompact(double amountAbs, String symbol) {
   final fmt = m >= 100
       ? m.toStringAsFixed(0)
       : m >= 10
-          ? m.toStringAsFixed(1)
-          : m.toStringAsFixed(2);
+      ? m.toStringAsFixed(1)
+      : m.toStringAsFixed(2);
   return '$symbol$fmt M';
 }
 
@@ -101,7 +148,8 @@ String _formatMillionsCompact(double amountAbs, String symbol) {
 /// INR: `Cr` / `L` abbreviations or `en-IN` comma grouping.
 /// USD/THB: `M` suffix above 1e6 else `en-US` grouping.
 /// Replaces every ASCII digit with `*` (commas/symbols unchanged). Used for privacy mode.
-String maskSensitiveNumberString(String input) => input.replaceAll(RegExp(r'[0-9]'), '*');
+String maskSensitiveNumberString(String input) =>
+    input.replaceAll(RegExp(r'[0-9]'), '*');
 
 String formatCurrencyDisplay(double amount, {required CurrencyCode currency}) {
   final neg = amount < 0;
@@ -119,6 +167,11 @@ String formatCurrencyDisplay(double amount, {required CurrencyCode currency}) {
       }
     case CurrencyCode.usd:
     case CurrencyCode.thb:
+    case CurrencyCode.aed:
+    case CurrencyCode.sgd:
+    case CurrencyCode.aud:
+    case CurrencyCode.eur:
+    case CurrencyCode.jpy:
       final sym = currency.symbol;
       if (a >= 1000000) {
         body = _formatMillionsCompact(a, sym);
@@ -130,7 +183,10 @@ String formatCurrencyDisplay(double amount, {required CurrencyCode currency}) {
   return neg ? '-$body' : body;
 }
 
-String formatCurrencyCompactShort(double amount, {required CurrencyCode currency}) {
+String formatCurrencyCompactShort(
+  double amount, {
+  required CurrencyCode currency,
+}) {
   final neg = amount < 0;
   final a = amount.abs();
 
@@ -155,6 +211,11 @@ String formatCurrencyCompactShort(double amount, {required CurrencyCode currency
       return withSign('₹${_formatEnInInteger(a.round())}');
     case CurrencyCode.usd:
     case CurrencyCode.thb:
+    case CurrencyCode.aed:
+    case CurrencyCode.sgd:
+    case CurrencyCode.aud:
+    case CurrencyCode.eur:
+    case CurrencyCode.jpy:
       final sym = currency.symbol;
       if (a >= 1000000000) {
         return withSign('$sym${fmtUnit(a / 1000000000)}B');
@@ -172,7 +233,13 @@ String formatCurrencyCompactShort(double amount, {required CurrencyCode currency
 String formatGroupedInteger(int value, {required CurrencyCode currency}) {
   return switch (currency) {
     CurrencyCode.inr => _formatEnInInteger(value),
-    CurrencyCode.usd || CurrencyCode.thb => _formatEnUsInteger(value),
+    CurrencyCode.usd ||
+    CurrencyCode.thb ||
+    CurrencyCode.aed ||
+    CurrencyCode.sgd ||
+    CurrencyCode.aud ||
+    CurrencyCode.eur ||
+    CurrencyCode.jpy => _formatEnUsInteger(value),
   };
 }
 
@@ -182,7 +249,10 @@ class GroupedIntegerTextInputFormatter extends TextInputFormatter {
   final CurrencyCode currency;
 
   @override
-  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
     final rawDigits = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
     if (rawDigits.isEmpty) {
       return const TextEditingValue(text: '');
@@ -212,3 +282,26 @@ CurrencyCode currencyCodeForPresetCountry(String countryName) {
   }
 }
 
+bool _ciEq(String a, String b) =>
+    a.toLowerCase().trim() == b.toLowerCase().trim();
+
+/// Income lines may use preset country names, ISO codes, or arbitrary labels.
+/// Unknown values use USD grouping and FX so the field stays free-form.
+CurrencyCode currencyCodeForIncomeLineCurrency(String raw) {
+  final t = raw.trim();
+  if (t.isEmpty) return CurrencyCode.usd;
+  final u = t.toUpperCase();
+  if (u == 'INR' || _ciEq(t, 'India')) return CurrencyCode.inr;
+  if (u == 'THB' || _ciEq(t, 'Thailand')) return CurrencyCode.thb;
+  if (u == 'USD' || _ciEq(t, 'US') || _ciEq(t, 'United States')) {
+    return CurrencyCode.usd;
+  }
+  if (u == 'AED' || _ciEq(t, 'UAE') || _ciEq(t, 'United Arab Emirates')) {
+    return CurrencyCode.aed;
+  }
+  if (u == 'SGD' || _ciEq(t, 'Singapore')) return CurrencyCode.sgd;
+  if (u == 'AUD' || _ciEq(t, 'Australia')) return CurrencyCode.aud;
+  if (u == 'EUR' || _ciEq(t, 'Euro')) return CurrencyCode.eur;
+  if (u == 'JPY' || _ciEq(t, 'Japan')) return CurrencyCode.jpy;
+  return CurrencyCode.usd;
+}

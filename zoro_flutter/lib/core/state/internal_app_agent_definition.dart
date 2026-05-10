@@ -11,9 +11,6 @@ abstract final class InternalAppAgentIds {
   static const ledgerAddAssets = 'ledger_add_assets';
   static const ledgerAddLiabilities = 'ledger_add_liabilities';
   static const ledgerAddActualExpenses = 'ledger_add_actual_expenses';
-  static const ledgerAllocationAdvisor = 'ledger_allocation_advisor';
-  static const ledgerIncomeUpdater = 'ledger_income_updater';
-  static const ledgerRatesFx = 'ledger_rates_fx';
   static const ledgerOrchestrator = 'ledger_orchestrator';
 }
 
@@ -26,17 +23,26 @@ class InternalAppAgentDefinition {
     required this.icon,
     required this.defaultSystemPrompt,
     required this.infoWhatItDoes,
-    required this.infoDataYouProvide,
-    required this.modelDomainHints,
+    required this.infoContextSent,
+    this.modelDomainHints = '',
   });
 
   final String id;
   final String title;
   final String listSubtitle;
   final IconData icon;
+
+  /// Editable instruction text shown to the user. Never includes JSON contracts —
+  /// the JSON output spec is owned by the calling page (kept in app code).
   final String defaultSystemPrompt;
+
   final String infoWhatItDoes;
-  final String infoDataYouProvide;
+
+  /// Plain-language description of the data that gets attached to the user
+  /// message when the agent runs. Surfaced in the editor so the user can
+  /// understand exactly what the model sees.
+  final String infoContextSent;
+
   /// Extra hints appended for the model (planner + writer), after the user’s custom prompt.
   final String modelDomainHints;
 }
@@ -48,124 +54,102 @@ const kInternalAppAgentDefinitions = <InternalAppAgentDefinition>[
     listSubtitle: 'Ledger → AI button',
     icon: Icons.auto_awesome,
     defaultSystemPrompt: '''
-You are the main Ledger helper. Your job is to look at all ledger data and decide what the user should do next.
+You are the main Ledger helper. Look at the user's ledger inputs and decide which input area needs the next update:
 
-You do NOT edit the ledger directly. You only decide which specialized helper to run:
-- Add assets
-- Add liabilities
-- Add actual expenses for a month
-- Allocation advisor
-- Income updater
+- Add or update assets
+- Add or update liabilities
+- Fill actual expenses for a recent month
 
-Be practical. Prefer the smallest next step that improves accuracy.
+Pick the smallest, most useful next step. Be practical and short.
 ''',
-    infoWhatItDoes: 'Looks at your ledger and picks the best next helper to run.',
-    infoDataYouProvide: 'All ledger rows (income, expenses, assets, liabilities, allocations). Uses your API key.',
-    modelDomainHints: '''
-Return a clear recommendation in plain language. If you need the user to fill numbers, choose the matching helper.
-''',
+    infoWhatItDoes: 'Looks at your ledger inputs and picks the next area to update.',
+    infoContextSent:
+        'Display currency, list of assets (name, type, total), list of liabilities (name, type, total), and the most recent months\' spending totals.',
+    modelDomainHints:
+        'Only suggest assets, liabilities, or expenses — these are the input-focused areas.',
   ),
   InternalAppAgentDefinition(
     id: InternalAppAgentIds.ledgerAddAssets,
-    title: 'Add assets',
-    listSubtitle: 'Ledger → assets',
+    title: 'Import assets',
+    listSubtitle: 'Ledger → assets → import',
     icon: Icons.savings_outlined,
     defaultSystemPrompt: '''
-You help the user add or update assets in the ledger. Ask only for numbers you need.
+You extract ASSET rows from the file the user uploads (statement, screenshot, spreadsheet, photo).
 
-Show old values when available. If the user is unsure, propose a reasonable way to estimate and label it as an estimate.
-After numbers are updated, write a short context note that explains what the asset is and where the value comes from.
+Be precise:
+- Read totals exactly as shown. Strip currency symbols and thousands separators (e.g. "\$12,345.67" → 12345.67).
+
+ONE ROW PER ACCOUNT (critical):
+- Treat each brokerage / bank / institution account as ONE asset row. The row total is the **account-level total** (all holdings combined when the statement shows a single account total).
+- If the document lists many positions **inside one brokerage account**, do NOT create one row per stock/fund. Put position-level detail in **contextMarkdown** (bullet breakdown: symbol, name, value). Keep **total** = the account total shown on the statement.
+- Include the **broker or institution short name in `name`** when visible (e.g. "Fidelity — Brokerage", "Schwab IRA", "Chase Savings"). Prefer the broker name + account type over a generic label.
+
+**comment** vs **contextMarkdown** (both matter):
+- **comment**: Short ledger-card note — how this was imported, **statement or screenshot date** if visible, source type (e.g. "PDF statement May 2026"). High-level only.
+- **contextMarkdown**: Richer note — what is **in** that account: asset mix, major holdings, breakdown text, currency notes. Use markdown lists where helpful.
+
+Pick the closest type: savings, brokerage, property, crypto, other.
+Guess currencyCountry from the document; fall back to "US" only if nothing hints otherwise.
+
+If the user is adding new rows and a row duplicates an existing asset (same institution account), skip or merge into one row as appropriate.
 ''',
-    infoWhatItDoes: 'Guides adding/updating assets using numbers, then writes a short note.',
-    infoDataYouProvide: 'Existing assets list (if any), plus the user’s new numbers.',
-    modelDomainHints: 'Asset types: savings, brokerage, property, crypto, other.',
+    infoWhatItDoes:
+        'Reads the uploaded file (image / PDF) and extracts new asset rows for the ledger.',
+    infoContextSent:
+        'The file the user picked (image bytes or PDF) plus the existing asset list (name, type, total) so duplicates can be skipped.',
+    modelDomainHints:
+        'Asset types: savings, brokerage, property, crypto, other.',
   ),
   InternalAppAgentDefinition(
     id: InternalAppAgentIds.ledgerAddLiabilities,
-    title: 'Add liabilities',
-    listSubtitle: 'Ledger → liabilities',
+    title: 'Import liabilities',
+    listSubtitle: 'Ledger → liabilities → import',
     icon: Icons.credit_card_outlined,
     defaultSystemPrompt: '''
-You help the user add or update debts in the ledger. Ask only for numbers you need.
+You extract LIABILITY rows from the file the user uploads (loan statement, credit card bill, mortgage doc).
 
-Show old values when available. Capture: balance, rate (if known), minimum payment (if known), and payment timing.
-Then write a short context note that explains the terms.
+Be precise:
+- Use the current outstanding balance (not original principal). Strip currency symbols and separators.
+- One row per debt account.
+- Pick the closest type: personal_loan, car_loan, credit_card, mortgage, other.
+- Use a short, human "name" (e.g. "Citi Card", "HDFC Mortgage").
+- Guess currencyCountry from the document; fall back to "US" only if nothing in the file hints otherwise.
+- For each row, write a one-line "comment" the user will see in the ledger card. Include rate or minimum payment if visible.
+
+If a row is duplicated by an existing liability (matching name + type + close balance), skip it.
 ''',
-    infoWhatItDoes: 'Guides adding/updating debts using numbers, then writes a short note.',
-    infoDataYouProvide: 'Existing liabilities list (if any), plus the user’s new numbers.',
-    modelDomainHints: 'Debt types: loan, credit card, mortgage, other.',
+    infoWhatItDoes:
+        'Reads the uploaded file (image / PDF) and extracts new liability rows for the ledger.',
+    infoContextSent:
+        'The file the user picked (image bytes or PDF) plus the existing liability list (name, type, total) so duplicates can be skipped.',
+    modelDomainHints:
+        'Liability types: personal_loan, car_loan, credit_card, mortgage, other.',
   ),
   InternalAppAgentDefinition(
     id: InternalAppAgentIds.ledgerAddActualExpenses,
-    title: 'Add actual expenses',
-    listSubtitle: 'Ledger → cashflow → expenses',
+    title: 'Import monthly cashflow',
+    listSubtitle: 'Ledger → cashflow → import',
     icon: Icons.receipt_long,
     defaultSystemPrompt: '''
-You help the user fill in actual monthly spending for a month.
+You extract one MONTHLY cashflow snapshot from the file the user uploads (bank statement, spreadsheet, screenshot).
 
-Explain the model simply:
-- Opening cash
-- Closing cash
-- Investments added (money moved into brokerage/investments)
-- Allocations (savings vs investments targets)
+Identify these fields for the month the file represents:
+- monthKey: "YYYY-MM" — the calendar month the file covers. If a statement spans a partial month, choose the month most of the activity falls in.
+- openingBalance: cash on hand at the start of the month.
+- closingBalance: cash on hand at the end of the month.
+- monthlyEarned: take-home / income added that month, if visible.
+- outflowToCashFd: money moved into savings / fixed deposits.
+- outflowToInvested: money moved into brokerage / investments.
+- monthlySpending: everything else that left the account (or compute = opening + earned − closing − outflows).
 
-Ask for the missing numbers only. Then summarize what changed that month in a short note.
+Strip currency symbols and separators. Use 0 for unknown values and call them out in the "assumptions" list. Keep the "comment" short — one line summarising what changed that month.
 ''',
-    infoWhatItDoes: 'Helps fill a month’s actual spending with only the needed numbers.',
-    infoDataYouProvide: 'The month and any existing cashflow entry, plus the user’s updated numbers.',
-    modelDomainHints: 'Keep the explanation short. Ask 1–3 numeric questions max per step.',
-  ),
-  InternalAppAgentDefinition(
-    id: InternalAppAgentIds.ledgerAllocationAdvisor,
-    title: 'Allocation advisor',
-    listSubtitle: 'Ledger → cashflow → allocations',
-    icon: Icons.swap_vert,
-    defaultSystemPrompt: '''
-You help pick a monthly allocation between savings and investments.
-
-General rule:
-- If the user has high-interest loans or tight cashflow, prefer higher savings / debt payoff over investing.
-- Otherwise, investing is usually preferred once an emergency fund is covered.
-
-Be clear and pick one recommended split with a short reason.
-''',
-    infoWhatItDoes: 'Recommends a savings vs investments split.',
-    infoDataYouProvide: 'Income, expenses, liabilities, and current allocations.',
-    modelDomainHints: 'If loan rates are unknown, ask once (optional) or give a conservative default.',
-  ),
-  InternalAppAgentDefinition(
-    id: InternalAppAgentIds.ledgerIncomeUpdater,
-    title: 'Income updater',
-    listSubtitle: 'Ledger → cashflow → income',
-    icon: Icons.payments_outlined,
-    defaultSystemPrompt: '''
-You help keep income up to date. Ask for the smallest set of numbers needed (annual salary, bonus, other income).
-
-Show existing values first, then ask what changed. Keep it quick.
-''',
-    infoWhatItDoes: 'Updates income lines with minimal questions.',
-    infoDataYouProvide: 'Existing income lines and the user’s updated amounts.',
-    modelDomainHints: 'Prefer annual amounts; convert only if needed.',
-  ),
-  InternalAppAgentDefinition(
-    id: InternalAppAgentIds.ledgerRatesFx,
-    title: 'Rates & FX',
-    listSubtitle: 'Settings → General + Chat agent',
-    icon: Icons.percent,
-    defaultSystemPrompt: '''
-You help the user review **nominal** investment return, savings yield, inflation (per currency), and **USD per 1 unit** FX for THB/INR.
-
-Defaults are illustrative: US mid-range, Thailand lower returns and inflation, India higher — so **real** returns stay in a similar range.
-
-When the user agrees to updates, the Chat agent **Rates & FX** can apply ```zoro_actions``` with:
-- set_projection_rates { currency: "usd"|"thb"|"inr", invest_pct?, savings_pct?, inflation_pct? }
-- set_fx_usd_per_unit { currency: "thb"|"inr", usd_per_unit }
-
-Percents are annual (7 means 7%). Never set USD fx (always 1).
-''',
-    infoWhatItDoes: 'Explains projection assumptions and FX overrides; points to Settings and structured actions.',
-    infoDataYouProvide: 'Current Settings values from the app model when pasted by the user.',
-    modelDomainHints: 'Keep numbers conservative unless the user wants aggressive scenarios.',
+    infoWhatItDoes:
+        'Reads the uploaded file (image / PDF) and extracts one month\'s cashflow snapshot.',
+    infoContextSent:
+        'The file the user picked (image bytes or PDF) plus an existing cashflow entry for that month (if any) so the model can reconcile.',
+    modelDomainHints:
+        'Use 0 (not null) for missing numbers and explain in assumptions.',
   ),
   InternalAppAgentDefinition(
     id: InternalAppAgentIds.assetContext,
@@ -184,7 +168,7 @@ Be helpful: do the math when it helps. For brokerage accounts, YOU reconcile fir
 ''',
     infoWhatItDoes:
         'Asks a few quick questions (taps + optional typing), then updates your asset note. Skips questions if your note is already enough.',
-    infoDataYouProvide:
+    infoContextSent:
         'The asset name, type, and balance from your ledger, plus any note you already wrote. Uses your API key from Settings.',
     modelDomainHints: '''
 Asset types:
@@ -204,7 +188,7 @@ Include when known: lender, balance source, interest rate (fixed or variable), p
 ''',
     infoWhatItDoes:
         'Short questions, then updates your liability note. Skips questions if the note is already complete enough.',
-    infoDataYouProvide:
+    infoContextSent:
         'Debt type, name, and balance from your ledger, plus any note you wrote. Uses your API key from Settings.',
     modelDomainHints: '''
 Debt types: personal loan, car, card, mortgage, other. Prioritize rate, minimum payment, due rhythm, and anything special (intro rate, balloon).
@@ -222,7 +206,7 @@ Cover: what counts in this bucket, what does not, and what usually moves the num
 ''',
     infoWhatItDoes:
         'A few questions about this budget line, then a cleaner note. Skips questions if your note is already clear.',
-    infoDataYouProvide:
+    infoContextSent:
         'The bucket name and your monthly estimate from the app, plus any note you wrote. Uses your API key from Settings.',
     modelDomainHints: '''
 Focus on boundaries (“counts / doesn’t count”), lumpiness, and typical one-offs.
@@ -240,7 +224,7 @@ Stay short and specific. Tie numbers to the month when the user mentions them.
 ''',
     infoWhatItDoes:
         'Questions about that month, then a tighter note. Skips questions if you already said enough.',
-    infoDataYouProvide:
+    infoContextSent:
         'The month label and spending/cashflow entries if any, plus your note. Uses your API key from Settings.',
     modelDomainHints: '''
 Month notes: one-offs, income changes, “remember for next month”, irregular bills.
@@ -258,7 +242,7 @@ Prefer the one note that would most improve planning: missing brokerage breakdow
 Keep it simple and pick ONE target.
 ''',
     infoWhatItDoes: 'Looks at all context notes and points you to the one best next update.',
-    infoDataYouProvide: 'All context notes (assets, liabilities, buckets, months) + last updated times.',
+    infoContextSent: 'All context notes (assets, liabilities, buckets, months) + last updated times.',
     modelDomainHints: 'Return one target and a short reason.',
   ),
 ];

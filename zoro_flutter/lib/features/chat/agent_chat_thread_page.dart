@@ -1,3 +1,6 @@
+import 'dart:convert';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/chat/agent_action_executor.dart';
@@ -34,14 +37,18 @@ class AgentChatThreadPage extends StatefulWidget {
 
 class _AgentChatThreadPageState extends State<AgentChatThreadPage> {
   final _ctrl = TextEditingController();
+  final _playgroundModelCtrl = TextEditingController();
+  final _playgroundSuffixCtrl = TextEditingController();
+  final _playgroundToolsCtrl = TextEditingController();
   final _messages = <ChatMessage>[];
+  final _pendingAttachments = <ChatAttachment>[];
   var _includeAssets = true;
   var _includeLiabilities = true;
   var _includeExpenseBuckets = true;
   var _includeMonths = true;
   bool _sending = false;
   var _sentInitial = false;
-  final _llm = LlmClient();
+  AgentChatLlmOverride _sheetOverride = AgentChatLlmOverride.useDefault;
 
   void _persistTranscript() {
     final real = _messages.where((m) => m.text != 'Thinking…').toList();
@@ -81,6 +88,9 @@ class _AgentChatThreadPageState extends State<AgentChatThreadPage> {
   void dispose() {
     widget.model.removeListener(_maybeHydrateFromModel);
     _ctrl.dispose();
+    _playgroundModelCtrl.dispose();
+    _playgroundSuffixCtrl.dispose();
+    _playgroundToolsCtrl.dispose();
     super.dispose();
   }
 
@@ -91,22 +101,174 @@ class _AgentChatThreadPageState extends State<AgentChatThreadPage> {
     return null;
   }
 
+  int _threadIndex() => widget.model.chats.indexWhere((x) => x.id == widget.threadId);
+
+  void _persistThread(AgentChatThread t) {
+    final idx = _threadIndex();
+    if (idx >= 0) widget.model.updateChat(idx, t);
+  }
+
+  Future<void> _pickFile() async {
+    final r = await FilePicker.pickFiles(withData: true);
+    if (r == null || r.files.isEmpty) return;
+    final f = r.files.first;
+    final bytes = f.bytes;
+    if (bytes == null) return;
+    var excerpt = utf8.decode(bytes, allowMalformed: true);
+    if (excerpt.length > 120000) {
+      excerpt = '${excerpt.substring(0, 120000)}\n… (truncated)';
+    }
+    setState(() {
+      _pendingAttachments.add(ChatAttachment(fileName: f.name, textExcerpt: excerpt));
+    });
+  }
+
+  Future<void> _openPlayground(AgentChatThread t) async {
+    _sheetOverride = t.llmOverride;
+    _playgroundModelCtrl.text = t.modelOverride ?? '';
+    _playgroundSuffixCtrl.text = t.systemPromptSuffix ?? '';
+    _playgroundToolsCtrl.text = t.enabledToolIds?.join(', ') ?? '';
+
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.fromLTRB(16, 8, 16, 16 + MediaQuery.of(ctx).viewInsets.bottom),
+          child: StatefulBuilder(
+            builder: (ctx, setModal) {
+              return SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Text('Playground', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<AgentChatLlmOverride>(
+                      key: ValueKey(_sheetOverride),
+                      initialValue: _sheetOverride,
+                      decoration: const InputDecoration(labelText: 'LLM route', border: OutlineInputBorder()),
+                      items: const [
+                        DropdownMenuItem(value: AgentChatLlmOverride.useDefault, child: Text('Default (agent + global)')),
+                        DropdownMenuItem(value: AgentChatLlmOverride.openai, child: Text('OpenAI')),
+                        DropdownMenuItem(value: AgentChatLlmOverride.anthropic, child: Text('Anthropic')),
+                        DropdownMenuItem(value: AgentChatLlmOverride.gemini, child: Text('Gemini')),
+                      ],
+                      onChanged: (v) {
+                        if (v == null) return;
+                        setModal(() => _sheetOverride = v);
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _playgroundModelCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Model override (optional)',
+                        border: OutlineInputBorder(),
+                        hintText: 'e.g. gpt-4.1-mini',
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _playgroundSuffixCtrl,
+                      maxLines: 3,
+                      decoration: const InputDecoration(
+                        labelText: 'Extra system instructions (this thread)',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: _playgroundToolsCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Allowed zoro_actions ops (optional, comma-separated)',
+                        border: OutlineInputBorder(),
+                        hintText: 'e.g. upsert_monthly_cashflow, set_month_context_markdown',
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    FilledButton(
+                      onPressed: () {
+                        final nt = t.clone();
+                        nt.llmOverride = _sheetOverride;
+                        final mo = _playgroundModelCtrl.text.trim();
+                        nt.modelOverride = mo.isEmpty ? null : mo;
+                        final sx = _playgroundSuffixCtrl.text.trim();
+                        nt.systemPromptSuffix = sx.isEmpty ? null : sx;
+                        final rawTools = _playgroundToolsCtrl.text.trim();
+                        if (rawTools.isEmpty) {
+                          nt.enabledToolIds = null;
+                        } else {
+                          nt.enabledToolIds = rawTools
+                              .split(',')
+                              .map((s) => s.trim())
+                              .where((s) => s.isNotEmpty)
+                              .toList();
+                        }
+                        _persistThread(nt);
+                        if (mounted) Navigator.of(ctx).pop();
+                        setState(() {});
+                      },
+                      child: const Text('Save'),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _pickAgentForThread(AgentChatThread t) async {
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) {
+        return ListView(
+          padding: const EdgeInsets.all(12),
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(8, 6, 8, 12),
+              child: Text('Chat as…', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+            ),
+            ...widget.model.agents.map(
+              (a) => ListTile(
+                title: Text(a.name, style: const TextStyle(fontWeight: FontWeight.w900)),
+                subtitle: Text(a.description, maxLines: 2, overflow: TextOverflow.ellipsis),
+                onTap: () => Navigator.of(ctx).pop(a.id),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+    if (picked == null || !mounted) return;
+    final agent = widget.model.agents.firstWhere((a) => a.id == picked);
+    final nt = t.clone();
+    nt.agentId = picked;
+    nt.title = agent.name;
+    _persistThread(nt);
+    setState(() {});
+  }
+
   Future<void> _send() async {
     final text = _ctrl.text.trim();
-    if (text.isEmpty) return;
+    if (text.isEmpty && _pendingAttachments.isEmpty) return;
     if (_sending) return;
     final t = widget.model.chats.where((x) => x.id == widget.threadId).cast<AgentChatThread?>().firstOrNull;
     if (t == null) return;
     final agent = widget.model.agents.firstWhere((a) => a.id == t.agentId);
 
-    final provider = llmProviderForUserAgent(agent, widget.model);
+    final provider = _resolveChatProvider(agent: agent, model: widget.model, thread: t);
     final key = widget.model.apiKeyFor(provider);
     if (key == null) {
       if (!mounted) return;
-      if (agent.kind == AppAgentKind.researcher) {
+      if (agent.kind == AppAgentKind.researcher && provider == LlmProvider.gemini) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('Researcher agents need a Gemini API key. Add it under Settings → API keys.'),
+            content: const Text('Researcher needs a Gemini API key. Add it under Settings → API keys.'),
             behavior: SnackBarBehavior.floating,
             action: SnackBarAction(label: 'Open', onPressed: widget.onNoKey),
           ),
@@ -117,9 +279,25 @@ class _AgentChatThreadPageState extends State<AgentChatThreadPage> {
       return;
     }
 
+    final attachments = List<ChatAttachment>.from(_pendingAttachments);
+    _pendingAttachments.clear();
+    final userBubbleText = text.isEmpty
+        ? (attachments.isEmpty ? '' : 'Attached: ${attachments.map((a) => a.fileName).join(', ')}')
+        : text;
+
+    final buf = StringBuffer();
+    for (final a in attachments) {
+      buf.writeln('### File: ${a.fileName}\n${a.textExcerpt}\n');
+    }
+    if (text.isNotEmpty) {
+      buf.writeln(text);
+    }
+    final userMessageForLlm = buf.toString().trim();
+    if (userMessageForLlm.isEmpty) return;
+
     setState(() {
       _sending = true;
-      _messages.add(ChatMessage(fromUser: true, text: text));
+      _messages.add(ChatMessage(fromUser: true, text: userBubbleText, attachments: attachments));
       _messages.add(ChatMessage(fromUser: false, text: 'Thinking…'));
     });
     _ctrl.clear();
@@ -132,18 +310,31 @@ class _AgentChatThreadPageState extends State<AgentChatThreadPage> {
       includeExpenseBuckets: _includeExpenseBuckets,
       includeMonths: _includeMonths,
     );
-    final system = buildAgentChatSystem(agent: agent, contextBundle: contextBundle);
+    final enabledTools =
+        t.enabledToolIds == null ? null : Set<String>.from(t.enabledToolIds!);
+    final system = buildAgentChatSystem(
+      agent: agent,
+      contextBundle: contextBundle,
+      systemPromptSuffix: t.systemPromptSuffix,
+      enabledToolIds: enabledTools,
+    );
 
     try {
-      final reply = await _llm.complete(
+      final reply = await LlmClient().complete(
         provider: provider,
         apiKey: key,
         model: widget.model.modelFor(provider),
         system: system,
-        user: text,
+        user: userMessageForLlm,
+        preferJsonObjectOutput: provider == LlmProvider.openai,
       );
       if (!mounted) return;
-      final processed = processAgentActions(rawReply: reply, agent: agent, model: widget.model);
+      final processed = processAgentActions(
+        rawReply: reply,
+        agent: agent,
+        model: widget.model,
+        enabledToolIds: enabledTools,
+      );
       var assistantText = processed.visibleText;
       if (processed.applySummary != null && processed.applySummary!.trim().isNotEmpty) {
         assistantText = '${assistantText.trim()}\n\n${processed.applySummary!.trim()}';
@@ -164,15 +355,27 @@ class _AgentChatThreadPageState extends State<AgentChatThreadPage> {
       if (mounted) setState(() => _sending = false);
     }
 
-    final idx = widget.model.chats.indexWhere((x) => x.id == widget.threadId);
+    final idx = _threadIndex();
     if (idx >= 0) {
       final nt = widget.model.chats[idx].clone();
       nt.updatedAt = DateTime.now();
       nt.messageCount += 2;
       nt.tokensUsed += 600;
-      nt.lastLine = text;
+      nt.lastLine = userBubbleText;
       widget.model.updateChat(idx, nt);
     }
+  }
+
+  LlmProvider _resolveChatProvider({
+    required AppAgent agent,
+    required AppModel model,
+    required AgentChatThread thread,
+  }) {
+    final override = thread.llmOverride;
+    if (override == AgentChatLlmOverride.openai) return LlmProvider.openai;
+    if (override == AgentChatLlmOverride.anthropic) return LlmProvider.anthropic;
+    if (override == AgentChatLlmOverride.gemini) return LlmProvider.gemini;
+    return llmProviderForUserAgent(agent, model);
   }
 
   Future<void> _attachContext() async {
@@ -262,11 +465,24 @@ class _AgentChatThreadPageState extends State<AgentChatThreadPage> {
         AppAgentKind.researcher => 'Researcher',
       };
 
-  static String _providerShort(LlmProvider p) => switch (p) {
-        LlmProvider.openai => 'GPT',
-        LlmProvider.anthropic => 'Claude',
-        LlmProvider.gemini => 'Gemini',
-      };
+  static String _routeSubtitle({required AppModel model, required AppAgent agent, required AgentChatThread thread}) {
+    final provider = (() {
+      final override = thread.llmOverride;
+      if (override == AgentChatLlmOverride.openai) return LlmProvider.openai;
+      if (override == AgentChatLlmOverride.anthropic) return LlmProvider.anthropic;
+      if (override == AgentChatLlmOverride.gemini) return LlmProvider.gemini;
+      return llmProviderForUserAgent(agent, model);
+    })();
+    final label = switch (provider) {
+      LlmProvider.openai => 'GPT',
+      LlmProvider.anthropic => 'Claude',
+      LlmProvider.gemini => 'Gemini',
+    };
+    final modelStr = (thread.modelOverride != null && thread.modelOverride!.trim().isNotEmpty)
+        ? thread.modelOverride!.trim()
+        : model.modelFor(provider);
+    return '$label · $modelStr';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -279,10 +495,16 @@ class _AgentChatThreadPageState extends State<AgentChatThreadPage> {
       return const Scaffold(body: SizedBox.shrink());
     }
     final agent = widget.model.agents.firstWhere((a) => a.id == t.agentId);
-    final chatProvider = llmProviderForUserAgent(agent, widget.model);
-    final geminiMissing = agent.kind == AppAgentKind.researcher && widget.model.apiKeyFor(LlmProvider.gemini) == null;
+    final geminiMissing = agent.kind == AppAgentKind.researcher &&
+        widget.model.apiKeyFor(LlmProvider.gemini) == null;
+    final provider = _resolveChatProvider(agent: agent, model: widget.model, thread: t);
+    final llmBlocked = widget.model.apiKeyFor(provider) == null;
 
     final menuItems = <PopupMenuEntry<String>>[
+      const PopupMenuItem(value: 'attach_file', child: Text('Attach file')),
+      const PopupMenuItem(value: 'attach_context', child: Text('Attach context')),
+      const PopupMenuItem(value: 'playground', child: Text('Playground')),
+      const PopupMenuDivider(),
       const PopupMenuItem(value: 'clear', child: Text('Clear chat')),
       if (widget.onScheduleBriefing != null)
         const PopupMenuItem(value: 'schedule', child: Text('Schedule briefing…')),
@@ -293,13 +515,11 @@ class _AgentChatThreadPageState extends State<AgentChatThreadPage> {
       appBar: AppBar(
         title: Text(t.title),
         actions: [
-          IconButton(
-            tooltip: 'Attach context',
-            onPressed: _attachContext,
-            icon: const Icon(Icons.library_add),
-          ),
           PopupMenuButton<String>(
             onSelected: (v) {
+              if (v == 'attach_file') _pickFile();
+              if (v == 'attach_context') _attachContext();
+              if (v == 'playground') _openPlayground(t);
               if (v == 'clear') {
                 setState(() => _messages.clear());
                 widget.model.clearChatById(widget.threadId);
@@ -313,20 +533,27 @@ class _AgentChatThreadPageState extends State<AgentChatThreadPage> {
               }
             },
             itemBuilder: (ctx) => menuItems,
+            child: const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 14),
+              child: Text('More', style: TextStyle(fontWeight: FontWeight.w800)),
+            ),
           ),
         ],
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(44),
+          preferredSize: const Size.fromHeight(52),
           child: Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: Column(
               children: [
-                Text(
-                  agent.name,
-                  style: const TextStyle(color: AppTheme.slate900, fontWeight: FontWeight.w900),
+                InkWell(
+                  onTap: () => _pickAgentForThread(t),
+                  child: Text(
+                    agent.name,
+                    style: const TextStyle(color: AppTheme.slate900, fontWeight: FontWeight.w900),
+                  ),
                 ),
                 Text(
-                  '${_kindLabel(agent.kind)} · ${_providerShort(chatProvider)}',
+                  '${_kindLabel(agent.kind)} · ${_routeSubtitle(model: widget.model, agent: agent, thread: t)}',
                   style: const TextStyle(color: AppTheme.slate600, fontWeight: FontWeight.w700, fontSize: 12),
                 ),
               ],
@@ -337,6 +564,17 @@ class _AgentChatThreadPageState extends State<AgentChatThreadPage> {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (_pendingAttachments.isNotEmpty)
+            Material(
+              color: AppTheme.slate50,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 8, 14, 4),
+                child: Text(
+                  'Staged: ${_pendingAttachments.map((a) => a.fileName).join(', ')}',
+                  style: const TextStyle(fontSize: 12, color: AppTheme.slate600, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ),
           if (geminiMissing)
             Material(
               color: AppTheme.slate50,
@@ -344,11 +582,9 @@ class _AgentChatThreadPageState extends State<AgentChatThreadPage> {
                 padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
                 child: Row(
                   children: [
-                    const Icon(Icons.info_outline, color: AppTheme.slate600, size: 20),
-                    const SizedBox(width: 10),
                     const Expanded(
                       child: Text(
-                        'Add a Gemini API key in Settings → API keys to send messages with this researcher.',
+                        'Add a Gemini API key in Settings → API keys to send messages with this researcher on Gemini.',
                         style: TextStyle(color: AppTheme.slate600, fontSize: 13, height: 1.3),
                       ),
                     ),
@@ -376,7 +612,20 @@ class _AgentChatThreadPageState extends State<AgentChatThreadPage> {
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(color: border),
                     ),
-                    child: Text(msg.text, style: const TextStyle(color: AppTheme.slate900)),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (msg.attachments.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 6),
+                            child: Text(
+                              msg.attachments.map((a) => a.fileName).join('\n'),
+                              style: const TextStyle(color: AppTheme.slate600, fontSize: 12, fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                        Text(msg.text, style: const TextStyle(color: AppTheme.slate900)),
+                      ],
+                    ),
                   ),
                 );
               },
@@ -401,7 +650,7 @@ class _AgentChatThreadPageState extends State<AgentChatThreadPage> {
                   ),
                   const SizedBox(width: 10),
                   FilledButton(
-                    onPressed: (_sending || geminiMissing) ? null : _send,
+                    onPressed: (_sending || llmBlocked) ? null : _send,
                     child: Text(_sending ? 'Sending…' : 'Send'),
                   ),
                 ],

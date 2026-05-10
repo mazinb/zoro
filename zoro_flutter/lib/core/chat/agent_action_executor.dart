@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 
 import '../finance/currency.dart';
+import '../persistence/agent_json.dart';
 import '../state/app_model.dart';
 import '../state/monthly_cashflow_entry.dart';
 
@@ -37,49 +38,96 @@ bool _perm(AppAgent agent, AgentDomain domain, AgentAccess access) {
   return agent.permissions.contains(AgentPermission(domain: domain, access: access));
 }
 
+bool _toolAllowed(String op, Set<String>? enabledToolIds) {
+  if (enabledToolIds == null) return true;
+  return enabledToolIds.contains(op);
+}
+
+bool _lineAllowed(Set<String> opsInLine, Set<String>? enabledToolIds) {
+  if (enabledToolIds == null) return true;
+  return opsInLine.any(enabledToolIds.contains);
+}
+
 /// Explains how the model can emit machine-readable updates (stripped before display).
-String agentActionsSystemAppend(AppAgent agent) {
+String agentActionsSystemAppend(AppAgent agent, [Set<String>? enabledToolIds]) {
   final canWrite = AgentDomain.values.any((d) => _perm(agent, d, AgentAccess.write));
   final home = agent.toolHomeSummary;
-  if (!canWrite && !home) {
+  final settings = agent.toolSettingsAdmin;
+  if (!canWrite && !home && !settings) {
     return '';
   }
-  final domains = <String>[];
-  if (_perm(agent, AgentDomain.expenses, AgentAccess.write)) {
-    domains.add('expenses: set_expense_bucket {key, monthly}, set_expense_estimates_updated {}');
-  }
-  if (_perm(agent, AgentDomain.income, AgentAccess.write)) {
-    domains.add(
-      'income: set_effective_tax_rate_pct {pct}, set_income_line_by_index {index, label?, annual_amount?}',
+  final lines = <String>[];
+
+  if (_lineAllowed(const {'set_expense_bucket', 'set_expense_estimates_updated'}, enabledToolIds) &&
+      _perm(agent, AgentDomain.expenses, AgentAccess.write)) {
+    lines.add(
+      '- expenses: set_expense_bucket {key, monthly}, set_expense_estimates_updated {}',
     );
   }
-  if (_perm(agent, AgentDomain.assets, AgentAccess.write)) {
-    domains.add('assets: set_asset_total {id, total}');
-  }
-  if (_perm(agent, AgentDomain.liabilities, AgentAccess.write)) {
-    domains.add('liabilities: set_liability_total {id, total}');
-  }
-  if (_perm(agent, AgentDomain.cashflow, AgentAccess.write)) {
-    domains.add(
-      'cashflow: upsert_monthly_cashflow {month_key, opening_balance?, closing_balance?, monthly_earned?, outflow_to_cash_fd?, outflow_to_invested?, monthly_spending?}, '
-      'set_alloc_invest_fraction {fraction}, set_allocation_investments_monthly {amount}, set_allocation_savings_monthly {amount}',
+  if (_lineAllowed(const {'set_effective_tax_rate_pct', 'set_income_line_by_index'}, enabledToolIds) &&
+      _perm(agent, AgentDomain.income, AgentAccess.write)) {
+    lines.add(
+      '- income: set_effective_tax_rate_pct {pct}, set_income_line_by_index {index, label?, annual_amount?}',
     );
   }
-  if (_perm(agent, AgentDomain.projection, AgentAccess.write)) {
-    domains.add(
-      'projection: set_fx_usd_per_unit {currency: "thb"|"inr", usd_per_unit}, '
+  if (_lineAllowed(const {'set_asset_total'}, enabledToolIds) &&
+      _perm(agent, AgentDomain.assets, AgentAccess.write)) {
+    lines.add('- assets: set_asset_total {id, total}');
+  }
+  if (_lineAllowed(const {'set_liability_total'}, enabledToolIds) &&
+      _perm(agent, AgentDomain.liabilities, AgentAccess.write)) {
+    lines.add('- liabilities: set_liability_total {id, total}');
+  }
+  if (_lineAllowed(
+        const {
+          'upsert_monthly_cashflow',
+          'set_alloc_invest_fraction',
+          'set_allocation_investments_monthly',
+          'set_allocation_savings_monthly',
+          'set_month_context_markdown',
+        },
+        enabledToolIds,
+      ) &&
+      _perm(agent, AgentDomain.cashflow, AgentAccess.write)) {
+    lines.add(
+      '- cashflow: upsert_monthly_cashflow {month_key, opening_balance?, closing_balance?, monthly_earned?, outflow_to_cash_fd?, outflow_to_invested?, monthly_spending?}, '
+      'set_alloc_invest_fraction {fraction}, set_allocation_investments_monthly {amount}, set_allocation_savings_monthly {amount}, '
+      'set_month_context_markdown {month_key, markdown}',
+    );
+  }
+  if (_lineAllowed(const {'set_fx_usd_per_unit', 'set_projection_rates'}, enabledToolIds) &&
+      _perm(agent, AgentDomain.projection, AgentAccess.write)) {
+    lines.add(
+      '- projection: set_fx_usd_per_unit {currency: "thb"|"inr", usd_per_unit}, '
       'set_projection_rates {currency: "usd"|"thb"|"inr", invest_pct?, savings_pct?, inflation_pct?} — percents are annual (e.g. 7 = 7%)',
     );
   }
-  if (domains.isEmpty && !home) {
-    return '';
+  if (_lineAllowed(const {'set_home_summary'}, enabledToolIds) && home) {
+    lines.add(
+      '- home: set_home_summary {text} — replaces the short Home summary card (plain text or light markdown).',
+    );
+  }
+  if (_lineAllowed(
+        const {
+          'upsert_agent',
+          'remove_agent_by_id',
+          'set_active_llm_provider',
+          'set_model_for_provider',
+          'set_privacy_hide_amounts',
+        },
+        enabledToolIds,
+      ) &&
+      settings) {
+    lines.add(
+      '- settings: upsert_agent {agent: {…same fields as app agent JSON…}}, remove_agent_by_id {id}, '
+      'set_active_llm_provider {provider: "openai"|"anthropic"|"gemini"|"local"}, '
+      'set_model_for_provider {provider, model}, set_privacy_hide_amounts {hide: true|false}',
+    );
   }
 
-  final allowed = <String>[
-    ...domains.map((s) => '- $s'),
-    if (home)
-      '- home: set_home_summary {text} — replaces the short Home summary card (plain text or light markdown).',
-  ];
+  if (lines.isEmpty) {
+    return '';
+  }
 
   return '''
 
@@ -91,7 +139,7 @@ When the user (or schedule) asks you to **update** saved app state, append **one
 ```
 
 Allowed operations (omit the block if nothing should change):
-${allowed.join('\n')}
+${lines.join('\n')}
 
 Rules:
 - Use only operations listed above. Use **display-currency** amounts consistent with the user's ledger.
@@ -99,6 +147,7 @@ Rules:
 - For `month_key`, use `YYYY-MM` (e.g. 2026-04).
 - `index` for income lines is 0-based.
 - For `set_home_summary`, keep `text` short (roughly tweet-length to one screen); no fabricated quotes.
+- For `upsert_agent`, include full `agent` object with id, name, description, systemPrompt, permissions[], contextMarkdown, kind, tool flags.
 - If unsure or no update was requested, **do not** include the block.
 ''';
 }
@@ -108,6 +157,7 @@ Rules:
   required String rawReply,
   required AppAgent agent,
   required AppModel model,
+  Set<String>? enabledToolIds,
 }) {
   RegExpMatch? match;
   for (final m in _fence.allMatches(rawReply)) {
@@ -123,7 +173,6 @@ Rules:
   var jsonStr = _unwrapInnerCodeFence(match.group(1)?.trim() ?? '');
   _logActions('inner JSON payload len=${jsonStr.length} (after unwrap)');
   String visible = rawReply.replaceFirst(match.group(0)!, '').trim();
-  // Collapse excessive newlines left by removing the fence
   visible = visible.replaceAll(RegExp(r'\n{3,}'), '\n\n').trim();
 
   List<dynamic>? actions;
@@ -157,6 +206,10 @@ Rules:
     if (raw is! Map) continue;
     final op = raw['op']?.toString();
     if (op == null) continue;
+    if (!_toolAllowed(op, enabledToolIds)) {
+      errors.add('Skipped: $op (disabled for this thread)');
+      continue;
+    }
     try {
       final ok = _applyOne(op, Map<String, dynamic>.from(raw), agent: agent, model: model);
       if (ok) {
@@ -260,6 +313,14 @@ bool _applyOne(String op, Map<String, dynamic> a, {required AppAgent agent, requ
         ),
       );
       return true;
+    case 'set_month_context_markdown':
+      if (!_perm(agent, AgentDomain.cashflow, AgentAccess.write)) return false;
+      final mk = a['month_key']?.toString();
+      final md = a['markdown']?.toString();
+      if (mk == null || !RegExp(r'^\d{4}-\d{2}$').hasMatch(mk)) return false;
+      if (md == null) return false;
+      model.setMonthlyCashflowContextMarkdown(monthKey: mk, markdown: md);
+      return true;
     case 'set_alloc_invest_fraction':
       if (!_perm(agent, AgentDomain.cashflow, AgentAccess.write)) return false;
       final f = _asDouble(a['fraction']);
@@ -282,8 +343,14 @@ bool _applyOne(String op, Map<String, dynamic> a, {required AppAgent agent, requ
       if (!_perm(agent, AgentDomain.projection, AgentAccess.write)) return false;
       final code = a['currency']?.toString().toLowerCase();
       final c = switch (code) {
+        'usd' => null,
         'thb' => CurrencyCode.thb,
         'inr' => CurrencyCode.inr,
+        'aed' => CurrencyCode.aed,
+        'sgd' => CurrencyCode.sgd,
+        'aud' => CurrencyCode.aud,
+        'eur' => CurrencyCode.eur,
+        'jpy' => CurrencyCode.jpy,
         _ => null,
       };
       if (c == null) return false;
@@ -298,6 +365,11 @@ bool _applyOne(String op, Map<String, dynamic> a, {required AppAgent agent, requ
         'usd' => CurrencyCode.usd,
         'thb' => CurrencyCode.thb,
         'inr' => CurrencyCode.inr,
+        'aed' => CurrencyCode.aed,
+        'sgd' => CurrencyCode.sgd,
+        'aud' => CurrencyCode.aud,
+        'eur' => CurrencyCode.eur,
+        'jpy' => CurrencyCode.jpy,
         _ => null,
       };
       if (c == null) return false;
@@ -311,6 +383,49 @@ bool _applyOne(String op, Map<String, dynamic> a, {required AppAgent agent, requ
         savingsPct: savingsPct,
         inflationPct: inflationPct,
       );
+      return true;
+    case 'upsert_agent':
+      if (!agent.toolSettingsAdmin) return false;
+      final raw = a['agent'];
+      final next = appAgentFromJson(raw);
+      if (next == null) return false;
+      model.upsertAgentFromTool(next);
+      return true;
+    case 'remove_agent_by_id':
+      if (!agent.toolSettingsAdmin) return false;
+      final id = a['id']?.toString();
+      if (id == null || id.isEmpty) return false;
+      return model.removeAgentByIdForTool(id);
+    case 'set_active_llm_provider':
+      if (!agent.toolSettingsAdmin) return false;
+      final name = a['provider']?.toString().trim().toLowerCase();
+      final p = switch (name) {
+        'openai' => LlmProvider.openai,
+        'anthropic' => LlmProvider.anthropic,
+        'gemini' => LlmProvider.gemini,
+        _ => null,
+      };
+      if (p == null) return false;
+      model.setActiveLlmProvider(p);
+      return true;
+    case 'set_model_for_provider':
+      if (!agent.toolSettingsAdmin) return false;
+      final name = a['provider']?.toString().trim().toLowerCase();
+      final p = switch (name) {
+        'openai' => LlmProvider.openai,
+        'anthropic' => LlmProvider.anthropic,
+        'gemini' => LlmProvider.gemini,
+        _ => null,
+      };
+      final m = a['model']?.toString().trim();
+      if (p == null || m == null || m.isEmpty) return false;
+      model.setModelFor(p, m);
+      return true;
+    case 'set_privacy_hide_amounts':
+      if (!agent.toolSettingsAdmin) return false;
+      final hide = a['hide'];
+      if (hide is! bool) return false;
+      model.setPrivacyHideAmounts(hide);
       return true;
     default:
       return false;

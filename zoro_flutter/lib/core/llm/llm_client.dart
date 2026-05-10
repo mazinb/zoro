@@ -4,6 +4,21 @@ import 'package:http/http.dart' as http;
 
 import '../state/app_model.dart';
 
+class LlmAttachment {
+  const LlmAttachment({
+    required this.bytes,
+    required this.mimeType,
+    this.fileName,
+  });
+
+  final List<int> bytes;
+  final String mimeType;
+  final String? fileName;
+
+  bool get isImage => mimeType.startsWith('image/');
+  bool get isPdf => mimeType == 'application/pdf';
+}
+
 class LlmClient {
   LlmClient({http.Client? httpClient}) : _http = httpClient ?? http.Client();
 
@@ -15,6 +30,7 @@ class LlmClient {
     required String model,
     required String system,
     required String user,
+    List<LlmAttachment> attachments = const [],
     int? maxOutputTokens,
     bool preferJsonObjectOutput = false,
   }) async {
@@ -25,6 +41,7 @@ class LlmClient {
           model: model,
           system: system,
           user: user,
+          attachments: attachments,
           maxOutputTokens: maxOutputTokens,
           preferJsonObjectOutput: preferJsonObjectOutput,
         );
@@ -34,6 +51,7 @@ class LlmClient {
           model: model,
           system: system,
           user: user,
+          attachments: attachments,
           maxOutputTokens: maxOutputTokens,
         );
       case LlmProvider.gemini:
@@ -42,7 +60,9 @@ class LlmClient {
           model: model,
           system: system,
           user: user,
+          attachments: attachments,
           maxOutputTokens: maxOutputTokens,
+          preferJsonObjectOutput: preferJsonObjectOutput,
         );
     }
   }
@@ -52,15 +72,43 @@ class LlmClient {
     required String model,
     required String system,
     required String user,
+    required List<LlmAttachment> attachments,
     int? maxOutputTokens,
     bool preferJsonObjectOutput = false,
   }) async {
+    // OpenAI rejects json_object unless some message contains the word "json".
+    var effectiveSystem = system;
+    if (preferJsonObjectOutput &&
+        !'$system\n\n$user'.toLowerCase().contains('json')) {
+      effectiveSystem =
+          '$system\n\nWhen you return zoro_actions or other structured output, reply as a JSON object (valid json).';
+    }
     final uri = Uri.parse('https://api.openai.com/v1/chat/completions');
+    final hasAttachments = attachments.isNotEmpty;
+    final userContent = hasAttachments
+        ? <Map<String, Object?>>[
+            {'type': 'text', 'text': user},
+            for (final a in attachments)
+              if (a.isImage)
+                {
+                  'type': 'image_url',
+                  'image_url': {
+                    'url': 'data:${a.mimeType};base64,${base64Encode(a.bytes)}',
+                  },
+                }
+              else
+                {
+                  'type': 'text',
+                  'text':
+                      '[Attachment "${a.fileName ?? 'file'}" (${a.mimeType}) not supported on OpenAI chat.completions. If you need it, ask the user to export to text/CSV or switch to Gemini for PDF.]',
+                },
+          ]
+        : user;
     final requestBody = <String, dynamic>{
       'model': model,
       'messages': [
-        {'role': 'system', 'content': system},
-        {'role': 'user', 'content': user},
+        {'role': 'system', 'content': effectiveSystem},
+        {'role': 'user', 'content': userContent},
       ],
     };
     if (maxOutputTokens != null) {
@@ -95,9 +143,32 @@ class LlmClient {
     required String model,
     required String system,
     required String user,
+    required List<LlmAttachment> attachments,
     int? maxOutputTokens,
   }) async {
     final uri = Uri.parse('https://api.anthropic.com/v1/messages');
+    final hasAttachments = attachments.isNotEmpty;
+    final userBlocks = hasAttachments
+        ? <Map<String, Object?>>[
+            {'type': 'text', 'text': user},
+            for (final a in attachments)
+              if (a.isImage)
+                {
+                  'type': 'image',
+                  'source': {
+                    'type': 'base64',
+                    'media_type': a.mimeType,
+                    'data': base64Encode(a.bytes),
+                  },
+                }
+              else
+                {
+                  'type': 'text',
+                  'text':
+                      '[Attachment "${a.fileName ?? 'file'}" (${a.mimeType}) not supported as a native document block here. If you need it, ask the user to export to text/CSV or switch to Gemini for PDF.]',
+                },
+          ]
+        : null;
     final res = await _http.post(
       uri,
       headers: {
@@ -110,7 +181,7 @@ class LlmClient {
         'max_tokens': maxOutputTokens ?? 800,
         'system': system,
         'messages': [
-          {'role': 'user', 'content': user},
+          {'role': 'user', 'content': userBlocks ?? user},
         ],
       }),
     );
@@ -132,24 +203,38 @@ class LlmClient {
     required String model,
     required String system,
     required String user,
+    required List<LlmAttachment> attachments,
     int? maxOutputTokens,
+    bool preferJsonObjectOutput = false,
   }) async {
     final safeModel = model.trim().isEmpty ? 'gemini-1.5-pro' : model.trim();
     final uri = Uri.parse(
       'https://generativelanguage.googleapis.com/v1beta/models/$safeModel:generateContent?key=$apiKey',
     );
+    final parts = <Map<String, Object?>>[
+      {'text': '$system\n\n---\n\n$user'},
+      for (final a in attachments)
+        {
+          'inlineData': {
+            'mimeType': a.mimeType,
+            'data': base64Encode(a.bytes),
+          },
+        },
+    ];
+    final generationConfig = <String, Object?>{
+      'maxOutputTokens': maxOutputTokens ?? 800,
+      if (preferJsonObjectOutput) 'responseMimeType': 'application/json',
+    };
     final res = await _http.post(
       uri,
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({
-        'generationConfig': {
-          'maxOutputTokens': maxOutputTokens ?? 800,
-        },
+        'generationConfig': generationConfig,
         'contents': [
           {
             'role': 'user',
             'parts': [
-              {'text': '$system\n\n---\n\n$user'},
+              ...parts,
             ],
           }
         ],

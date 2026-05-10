@@ -15,7 +15,20 @@ Map<String, dynamic> decodeLlmJsonObject(String raw) {
   if (i >= 0 && j > i) {
     s = s.substring(i, j + 1);
   }
-  final decoded = jsonDecode(s);
+  Object? decoded;
+  try {
+    decoded = jsonDecode(s);
+  } on FormatException catch (e) {
+    final msg = e.message;
+    if (msg.contains('Unterminated') || msg.contains('Unexpected end')) {
+      throw FormatException(
+        'Model JSON looks truncated or invalid (try again or use fewer rows). Original: $msg',
+        e.source,
+        e.offset,
+      );
+    }
+    rethrow;
+  }
   if (decoded is Map<String, dynamic>) return decoded;
   if (decoded is Map) return Map<String, dynamic>.from(decoded);
   throw const LlmException('LLM output was not a JSON object');

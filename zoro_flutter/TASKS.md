@@ -19,7 +19,16 @@
 - [x] **Agent actions** — Write-capable domains apply `zoro_actions` JSON from assistant replies to `AppModel` (expenses, income, assets, liabilities, cashflow); reads unchanged (context bundle + Settings toggles).
 - [x] **Internal app agents** — Settings → Agents → **App agents**: editable system prompt for the built-in asset context assistant; last structured JSON shown for debugging / review.
 - [x] **Asset context planner** — Context → asset editor: star opens a multi-step multiple-choice planner (two LLM calls: questions JSON + final markdown/structured JSON); **Apply** updates the editor and records structured output for App agents.
+- [ ] **On-device LLM** — removed (was flaky); app now focuses on cloud LLMs only.
+  - [x] Remove `flutter_gemma` and local provider routing.
+  - [x] Add Ledger import flow that extracts data via cloud LLM and shows a preview before saving.
+  - [x] Ledger AI import polish: opening import while **editing** an asset/liability/month passes target id/month; **Saved vs imported** diff on screen + confirm dialog before apply; separate **Comment** vs **Context** in preview; merge updates via `replaceAsset` / `replaceLiability` / `upsertMonthlyCashflow`.
+- [x] **Chat playground** — Per-thread LLM route override, model override, extra system text, optional comma-separated `zoro_actions` op filter; agent switcher on thread title row; file attach (text/CSV excerpts) for prompts (e.g. bank data → cash flow).
+- [x] **Persist agents & LLM prefs** — `user_agents_settings.json`: agents list, active provider, model strings, privacy flag, home summary, display currency, on-device label.
+- [x] **Settings / agent admin tools** — Agents can gain `toolSettingsAdmin` for `zoro_actions`: `upsert_agent`, `remove_agent_by_id`, `set_active_llm_provider`, `set_model_for_provider`, `set_privacy_hide_amounts`; cashflow `set_month_context_markdown` for imports.
 - [ ] **Safety rails** — Add explicit “no writes” mode + confirm-before-write UX when agent gains write tools.
+- [x] **Chat / Ledger polish** — Chat: text-only chrome (no list/agent/button icons; thread **More** menu). Ledger cashflow income: free-text currency + preset chips; unlimited add/remove lines (list may be empty).
+- [x] **Local import/context ingestion** — Ledger + Context AI uploads split **photos** vs **files**; images go directly to LLM, PDFs are password-checked and parsed locally via Syncfusion + `pdf_struct_extractor`, and text-like files become local excerpts. Income currency now uses the 3 Settings currencies only. AED formatting uses `dirham_symbol`.
 
 ## Done (bootstrap)
 

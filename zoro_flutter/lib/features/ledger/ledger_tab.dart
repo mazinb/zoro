@@ -1,21 +1,35 @@
 import 'package:flutter/material.dart';
+import 'package:dirham_symbol/dirham_symbol.dart';
 
 import '../../core/state/app_model.dart';
 import '../../core/state/monthly_cashflow_entry.dart';
-import '../chat/agent_chat_thread_page.dart';
 import '../../core/state/ledger_rows.dart';
 import '../../core/constants/web_expenses_income.dart';
 import '../../core/finance/currency.dart';
 import '../../shared/theme/app_theme.dart';
 import 'expense_donut_chart.dart';
 import 'expense_estimates_editor_page.dart';
+import 'ledger_import_page.dart';
 import 'ledger_orchestrator_page.dart';
 
 enum LedgerMode { assets, liabilities, cashflow }
 
 String _ledgerFmtDate(DateTime? d) {
   if (d == null) return '—';
-  const names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const names = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
   return '${names[d.month - 1]} ${d.day}, ${d.year}';
 }
 
@@ -37,7 +51,12 @@ String _ledgerHomeAmount(AppModel m, double v) =>
     formatGroupedInteger(v.round(), currency: m.displayCurrency);
 
 class LedgerTab extends StatefulWidget {
-  const LedgerTab({super.key, required this.model, this.focusSection, this.onPrivacyInteractionDenied});
+  const LedgerTab({
+    super.key,
+    required this.model,
+    this.focusSection,
+    this.onPrivacyInteractionDenied,
+  });
 
   final AppModel model;
   final String? focusSection;
@@ -54,6 +73,7 @@ class _LedgerTabState extends State<LedgerTab> {
   final _incomeKey = GlobalKey();
   final _expensesKey = GlobalKey();
   final _allocKey = GlobalKey();
+
   /// 0 = income, 1 = Split, 2 = expenses (default expenses when opening Cashflow).
   int _cashflowTabIndex = 2;
 
@@ -74,7 +94,9 @@ class _LedgerTabState extends State<LedgerTab> {
 
   void _onModelPrivacy() {
     if (!mounted) return;
-    if (widget.model.privacyHideAmounts && _mode == LedgerMode.cashflow && _cashflowTabIndex == 0) {
+    if (widget.model.privacyHideAmounts &&
+        _mode == LedgerMode.cashflow &&
+        _cashflowTabIndex == 0) {
       setState(() => _cashflowTabIndex = 2);
     }
   }
@@ -83,19 +105,24 @@ class _LedgerTabState extends State<LedgerTab> {
     final m = widget.model;
     final isNew = index == null;
     final draft = switch (index) {
-      null => LedgerAssetRow.blank(defaultCurrencyCountry: m.defaultLedgerCurrencyCountry),
+      null => LedgerAssetRow.blank(
+        defaultCurrencyCountry: m.defaultLedgerCurrencyCountry,
+      ),
       final i => m.assets[i].clone(),
     };
-    final outcome = await showModalBottomSheet<_RowEditorOutcome<LedgerAssetRow>>(
-      context: context,
-      showDragHandle: true,
-      isScrollControlled: true,
-      builder: (ctx) => _AssetEditorSheet(
-        draft: draft,
-        allowCurrencyEdit: isNew,
-        canDelete: !isNew && m.assets.length > 1,
-      ),
-    );
+    final outcome =
+        await showModalBottomSheet<_RowEditorOutcome<LedgerAssetRow>>(
+          context: context,
+          showDragHandle: true,
+          isScrollControlled: true,
+          builder: (ctx) => _AssetEditorSheet(
+            draft: draft,
+            allowCurrencyEdit: isNew,
+            canDelete: !isNew && m.assets.length > 1,
+            model: m,
+            parentContext: context,
+          ),
+        );
     if (!context.mounted || outcome == null) return;
     if (outcome.delete && index != null) {
       m.removeAssetAt(index);
@@ -116,19 +143,24 @@ class _LedgerTabState extends State<LedgerTab> {
     final m = widget.model;
     final isNew = index == null;
     final draft = switch (index) {
-      null => LedgerLiabilityRow.blank(defaultCurrencyCountry: m.defaultLedgerCurrencyCountry),
+      null => LedgerLiabilityRow.blank(
+        defaultCurrencyCountry: m.defaultLedgerCurrencyCountry,
+      ),
       final i => m.liabilities[i].clone(),
     };
-    final outcome = await showModalBottomSheet<_RowEditorOutcome<LedgerLiabilityRow>>(
-      context: context,
-      showDragHandle: true,
-      isScrollControlled: true,
-      builder: (ctx) => _LiabilityEditorSheet(
-        draft: draft,
-        allowCurrencyEdit: isNew,
-        canDelete: !isNew,
-      ),
-    );
+    final outcome =
+        await showModalBottomSheet<_RowEditorOutcome<LedgerLiabilityRow>>(
+          context: context,
+          showDragHandle: true,
+          isScrollControlled: true,
+          builder: (ctx) => _LiabilityEditorSheet(
+            draft: draft,
+            allowCurrencyEdit: isNew,
+            canDelete: !isNew,
+            model: m,
+            parentContext: context,
+          ),
+        );
     if (!context.mounted || outcome == null) return;
     if (outcome.delete && index != null) {
       m.removeLiabilityAt(index);
@@ -159,342 +191,25 @@ class _LedgerTabState extends State<LedgerTab> {
     }
   }
 
-  Future<void> _openMonthlyCashflowSheet(BuildContext context, {String? initialMonthKey}) async {
+  Future<void> _openMonthlyCashflowSheet(
+    BuildContext context, {
+    String? initialMonthKey,
+  }) async {
     final m = widget.model;
     final lockMonth = initialMonthKey != null;
-    var month = initialMonthKey ?? AppModel.monthKeyFor(DateTime.now());
-    final openingCtrl = TextEditingController();
-    final closingCtrl = TextEditingController();
-    final earnedCtrl = TextEditingController();
-    final cashFdCtrl = TextEditingController();
-    final invCtrl = TextEditingController();
-    final commentCtrl = TextEditingController();
-
-    double? parseNumOrNull(TextEditingController c) => _ledgerParseGroupedDoubleOrNull(c.text);
-
-    double? calcSpendingOrNull() {
-      final opening = parseNumOrNull(openingCtrl) ?? 0;
-      final closing = parseNumOrNull(closingCtrl);
-      if (closing == null) return null;
-      final earned = parseNumOrNull(earnedCtrl) ?? 0;
-      final saved = parseNumOrNull(cashFdCtrl) ?? 0;
-      final invested = parseNumOrNull(invCtrl) ?? 0;
-      if (earned > 0) {
-        // opening + earned - spending - saved - invested = closing
-        return opening + earned - closing - saved - invested;
-      }
-      // Legacy: balance change only (no explicit income).
-      return closing - opening - saved - invested;
-    }
-
-    void loadMonth(String mk) {
-      final ex = m.monthlyEntryFor(mk);
-      if (ex != null) {
-        final dc = m.displayCurrency;
-        openingCtrl.text = formatGroupedInteger(ex.openingBalance.round(), currency: dc);
-        closingCtrl.text = formatGroupedInteger(ex.closingBalance.round(), currency: dc);
-        earnedCtrl.text = ex.monthlyEarned > 0
-            ? formatGroupedInteger(ex.monthlyEarned.round(), currency: dc)
-            : '';
-        cashFdCtrl.text = formatGroupedInteger(ex.outflowToCashFd.round(), currency: dc);
-        invCtrl.text = formatGroupedInteger(ex.outflowToInvested.round(), currency: dc);
-        commentCtrl.text = ex.comment;
-      } else {
-        final prevKey = AppModel.previousMonthKey(mk);
-        final prevClose = prevKey == null ? null : m.monthlyEntryFor(prevKey)?.closingBalance;
-        final suggestedOpening = prevClose ?? 0;
-        openingCtrl.text = formatGroupedInteger(suggestedOpening.round(), currency: m.displayCurrency);
-        closingCtrl.clear();
-        earnedCtrl.clear();
-        cashFdCtrl.text = formatGroupedInteger(0, currency: m.displayCurrency);
-        invCtrl.text = formatGroupedInteger(0, currency: m.displayCurrency);
-        commentCtrl.clear();
-      }
-    }
-
-    loadMonth(month);
-
-    final entry = await showModalBottomSheet<MonthlyCashflowEntry?>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (ctx) {
-        final bottom = MediaQuery.of(ctx).viewInsets.bottom;
-        const dense = InputDecoration(
-          border: OutlineInputBorder(),
-          isDense: true,
-        );
-        return Padding(
-          padding: EdgeInsets.fromLTRB(20, 8, 20, 20 + bottom),
-          child: StatefulBuilder(
-            builder: (ctx, setModal) {
-              final hasSaved = m.monthlyEntryFor(month) != null;
-              final prevKey = AppModel.previousMonthKey(month);
-              final prevClose = prevKey == null ? null : m.monthlyEntryFor(prevKey)?.closingBalance;
-              return SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      hasSaved
-                          ? 'Edit ${AppModel.formatMonthKeyLabel(month)}'
-                          : 'Monthly cash flow entry',
-                      style: Theme.of(ctx).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
-                    ),
-                    const SizedBox(height: 12),
-                    if (lockMonth)
-                      InputDecorator(
-                        decoration: const InputDecoration(
-                          labelText: 'Month',
-                          border: OutlineInputBorder(),
-                          isDense: true,
-                        ),
-                        child: Text(AppModel.formatMonthKeyLabel(month), style: const TextStyle(fontWeight: FontWeight.w600)),
-                      )
-                    else
-                      DropdownButtonFormField<String>(
-                        key: ValueKey(month),
-                        initialValue: month,
-                        decoration: const InputDecoration(
-                          labelText: 'Month',
-                          border: OutlineInputBorder(),
-                          isDense: true,
-                        ),
-                        items: [
-                          for (final mk in AppModel.recentMonthKeys())
-                            DropdownMenuItem(value: mk, child: Text(AppModel.formatMonthKeyLabel(mk))),
-                        ],
-                        onChanged: (v) {
-                          if (v == null) return;
-                          setModal(() {
-                            month = v;
-                            loadMonth(v);
-                          });
-                        },
-                      ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: openingCtrl,
-                            keyboardType: TextInputType.number,
-                            inputFormatters: [
-                              GroupedIntegerTextInputFormatter(currency: m.displayCurrency),
-                            ],
-                            decoration: dense.copyWith(
-                              labelText: 'Opening',
-                              helperText: prevClose == null
-                                  ? 'Verify'
-                                  : 'Should match ${_ledgerHomeAmount(m, prevClose)}',
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: TextField(
-                            controller: closingCtrl,
-                            keyboardType: TextInputType.number,
-                            inputFormatters: [
-                              GroupedIntegerTextInputFormatter(currency: m.displayCurrency),
-                            ],
-                            decoration: dense.copyWith(
-                              labelText: 'Closing',
-                              helperText: 'End of month',
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: earnedCtrl,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [
-                        GroupedIntegerTextInputFormatter(currency: m.displayCurrency),
-                      ],
-                      decoration: dense.copyWith(
-                        labelText: 'Earned',
-                        helperText: 'Take-home this month (optional)',
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: TextField(
-                            controller: cashFdCtrl,
-                            keyboardType: TextInputType.number,
-                            inputFormatters: [
-                              GroupedIntegerTextInputFormatter(currency: m.displayCurrency),
-                            ],
-                            decoration: dense.copyWith(
-                              labelText: 'Saved',
-                              helperText: '0 if none',
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: TextField(
-                            controller: invCtrl,
-                            keyboardType: TextInputType.number,
-                            inputFormatters: [
-                              GroupedIntegerTextInputFormatter(currency: m.displayCurrency),
-                            ],
-                            decoration: dense.copyWith(
-                              labelText: 'Invested',
-                              helperText: '0 if none',
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    AnimatedBuilder(
-                      animation: Listenable.merge([openingCtrl, closingCtrl, earnedCtrl, cashFdCtrl, invCtrl]),
-                      builder: (ctx, _) {
-                        final spending = calcSpendingOrNull();
-                        final ok = spending == null ? true : spending >= -0.5; // allow tiny negatives from rounding
-                        final txt = spending == null
-                            ? '—'
-                            : _ledgerHomeAmount(m, spending.abs() < 0.005 ? 0.0 : spending);
-                        return Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: ok ? AppTheme.slate50 : Theme.of(ctx).colorScheme.errorContainer.withValues(alpha: 0.35),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: ok ? AppTheme.slate100 : Theme.of(ctx).colorScheme.error.withValues(alpha: 0.25)),
-                          ),
-                          child: Row(
-                            children: [
-                              const Expanded(
-                                child: Text(
-                                  'Spending',
-                                  style: TextStyle(fontWeight: FontWeight.w800, color: AppTheme.slate600),
-                                ),
-                              ),
-                              Text(
-                                txt,
-                                style: TextStyle(
-                                  fontWeight: FontWeight.w900,
-                                  fontSize: 18,
-                                  color: ok ? AppTheme.slate900 : Theme.of(ctx).colorScheme.error,
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: commentCtrl,
-                      minLines: 3,
-                      maxLines: 5,
-                      decoration: dense.copyWith(
-                        labelText: 'Note',
-                        alignLabelWithHint: true,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    FilledButton(
-                      onPressed: () {
-                        final opening = _ledgerParseGroupedDouble(openingCtrl.text);
-                        if (_ledgerDigitsOnly(closingCtrl.text).isEmpty) {
-                          showDialog<void>(
-                            context: ctx,
-                            builder: (dctx) => AlertDialog(
-                              title: const Text('Closing balance required'),
-                              content: const Text('Enter a closing balance before saving.'),
-                              actions: [
-                                TextButton(onPressed: () => Navigator.of(dctx).pop(), child: const Text('Edit')),
-                              ],
-                            ),
-                          );
-                          return;
-                        }
-                        final closing = _ledgerParseGroupedDouble(closingCtrl.text);
-                        final earned = _ledgerParseGroupedDouble(earnedCtrl.text);
-                        final cf = _ledgerParseGroupedDouble(cashFdCtrl.text);
-                        final iv = _ledgerParseGroupedDouble(invCtrl.text);
-                        final sp = calcSpendingOrNull() ?? 0;
-                        if (prevClose != null && opening.round() != prevClose.round()) {
-                          showDialog<void>(
-                            context: ctx,
-                            builder: (dctx) => AlertDialog(
-                              title: const Text('Opening balance mismatch'),
-                              content: Text(
-                                'This month’s opening balance should equal last month’s closing balance.\n\n'
-                                'Last month closing: ${_ledgerHomeAmount(m, prevClose)}\n'
-                                'Your opening: ${_ledgerHomeAmount(m, opening)}\n\n'
-                                'Please correct it before saving.',
-                              ),
-                              actions: [
-                                TextButton(onPressed: () => Navigator.of(dctx).pop(), child: const Text('Edit')),
-                              ],
-                            ),
-                          );
-                          return;
-                        }
-                        if (sp < 0) {
-                          showDialog<void>(
-                            context: ctx,
-                            builder: (dctx) => AlertDialog(
-                              title: const Text('Spending can’t be negative'),
-                              content: Text(
-                                'Your inputs imply negative spending (${_ledgerHomeAmount(m, sp)}).\n\n'
-                                'Double-check Opening, Closing, Earned, Saved, and Invested.',
-                              ),
-                              actions: [
-                                TextButton(onPressed: () => Navigator.of(dctx).pop(), child: const Text('Edit')),
-                              ],
-                            ),
-                          );
-                          return;
-                        }
-                        FocusManager.instance.primaryFocus?.unfocus();
-                        Navigator.of(ctx).pop(
-                          MonthlyCashflowEntry(
-                            monthKey: month,
-                            openingBalance: opening,
-                            closingBalance: closing,
-                            monthlyEarned: earned,
-                            outflowToCashFd: cf,
-                            outflowToInvested: iv,
-                            monthlySpending: sp,
-                            comment: commentCtrl.text.trim(),
-                            contextMarkdown: m.monthlyEntryFor(month)?.contextMarkdown,
-                          ),
-                        );
-                      },
-                      child: const Text('Save'),
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
-        );
-      },
+    final month = initialMonthKey ?? AppModel.monthKeyFor(DateTime.now());
+    final entry = await Navigator.of(context).push<MonthlyCashflowEntry?>(
+      MaterialPageRoute<MonthlyCashflowEntry?>(
+        fullscreenDialog: true,
+        builder: (ctx) => _MonthlyCashflowEditorPage(
+          model: m,
+          initialMonthKey: month,
+          lockMonth: lockMonth,
+        ),
+      ),
     );
-
-    // On some platforms, the bottom sheet route can still be animating out after the Future resolves.
-    // Disposing controllers immediately can trip assertions like `_dependents.isEmpty`.
-    Future<void>.delayed(const Duration(milliseconds: 350), () {
-      openingCtrl.dispose();
-      closingCtrl.dispose();
-      earnedCtrl.dispose();
-      cashFdCtrl.dispose();
-      invCtrl.dispose();
-      commentCtrl.dispose();
-    });
-
     if (!context.mounted) return;
-    if (entry != null) {
-      m.upsertMonthlyCashflow(entry);
-    }
+    if (entry != null) m.upsertMonthlyCashflow(entry);
   }
 
   @override
@@ -507,9 +222,9 @@ class _LedgerTabState extends State<LedgerTab> {
           children: [
             Text(
               'Ledger',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
             ),
             const Spacer(),
             IconButton.filledTonal(
@@ -528,17 +243,9 @@ class _LedgerTabState extends State<LedgerTab> {
                             case LedgerOrchestratorSection.liabilities:
                               _mode = LedgerMode.liabilities;
                               break;
-                            case LedgerOrchestratorSection.income:
-                              _mode = LedgerMode.cashflow;
-                              _cashflowTabIndex = 0;
-                              break;
                             case LedgerOrchestratorSection.expenses:
                               _mode = LedgerMode.cashflow;
                               _cashflowTabIndex = 2;
-                              break;
-                            case LedgerOrchestratorSection.allocations:
-                              _mode = LedgerMode.cashflow;
-                              _cashflowTabIndex = 1;
                               break;
                           }
                         });
@@ -549,57 +256,6 @@ class _LedgerTabState extends State<LedgerTab> {
               },
               icon: const Icon(Icons.auto_awesome),
               tooltip: 'Ledger assistant',
-              style: IconButton.styleFrom(
-                backgroundColor: widget.model.accentSoft,
-                foregroundColor: widget.model.accent,
-              ),
-            ),
-            const SizedBox(width: 6),
-            IconButton.filledTonal(
-              onPressed: () {
-                final m = widget.model;
-                AppAgent? agent;
-                for (final a in m.agents) {
-                  if (a.id == 'agent-rates-fx') {
-                    agent = a;
-                    break;
-                  }
-                }
-                if (agent == null) return;
-                final ratesAgent = agent;
-                final thread = () {
-                  for (final t in m.chats) {
-                    if (t.agentId == ratesAgent.id) return t;
-                  }
-                  final now = DateTime.now();
-                  final t = AgentChatThread(
-                    id: 'chat-${now.microsecondsSinceEpoch}-rates-fx',
-                    agentId: ratesAgent.id,
-                    title: ratesAgent.name,
-                    createdAt: now,
-                    updatedAt: now,
-                    messageCount: 0,
-                    tokensUsed: 0,
-                    lastLine: '',
-                  );
-                  m.addChat(t);
-                  return t;
-                }();
-                Navigator.of(context).push<void>(
-                  MaterialPageRoute<void>(
-                    fullscreenDialog: true,
-                    builder: (ctx) => AgentChatThreadPage(
-                      model: m,
-                      threadId: thread.id,
-                      onNoKey: _privacyDenied,
-                      initialUserMessage:
-                          'Review my projection assumptions and FX overrides. Suggest updates, then apply with zoro_actions if I agree.',
-                    ),
-                  ),
-                );
-              },
-              icon: const Icon(Icons.percent),
-              tooltip: 'Rates & FX (Chat)',
               style: IconButton.styleFrom(
                 backgroundColor: widget.model.accentSoft,
                 foregroundColor: widget.model.accent,
@@ -632,7 +288,9 @@ class _LedgerTabState extends State<LedgerTab> {
                   _onTapAdd();
                 },
                 icon: const Icon(Icons.add),
-                tooltip: _mode == LedgerMode.assets ? 'Add asset' : 'Add liability',
+                tooltip: _mode == LedgerMode.assets
+                    ? 'Add asset'
+                    : 'Add liability',
               ),
           ],
         ),
@@ -658,29 +316,30 @@ class _LedgerTabState extends State<LedgerTab> {
             allocationsKey: _allocKey,
             tabIndex: _cashflowTabIndex,
             onTabChanged: (i) => setState(() => _cashflowTabIndex = i),
-            onMonthEntryTap: (mk) => _openMonthlyCashflowSheet(context, initialMonthKey: mk),
+            onMonthEntryTap: (mk) =>
+                _openMonthlyCashflowSheet(context, initialMonthKey: mk),
             onPrivacyInteractionDenied: _privacyDenied,
           ),
         ] else if (_mode == LedgerMode.assets) ...[
           ...widget.model.assets.asMap().entries.map(
-                (e) => Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: _LedgerAssetCard(
-                    row: e.value,
-                    accent: widget.model.accent,
-                    displayCurrency: widget.model.displayCurrency,
-                    usdPerUnitOverrides: widget.model.fxUsdPerUnitResolved,
-                    privacyHideAmounts: widget.model.privacyHideAmounts,
-                    onTap: () {
-                      if (widget.model.privacyHideAmounts) {
-                        _privacyDenied();
-                        return;
-                      }
-                      _openAssetEditor(context, index: e.key);
-                    },
-                  ),
-                ),
+            (e) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _LedgerAssetCard(
+                row: e.value,
+                accent: widget.model.accent,
+                displayCurrency: widget.model.displayCurrency,
+                usdPerUnitOverrides: widget.model.fxUsdPerUnitResolved,
+                privacyHideAmounts: widget.model.privacyHideAmounts,
+                onTap: () {
+                  if (widget.model.privacyHideAmounts) {
+                    _privacyDenied();
+                    return;
+                  }
+                  _openAssetEditor(context, index: e.key);
+                },
               ),
+            ),
+          ),
           _AddLedgerRowCard(
             label: 'Add asset',
             accent: widget.model.accent,
@@ -694,24 +353,24 @@ class _LedgerTabState extends State<LedgerTab> {
           ),
         ] else ...[
           ...widget.model.liabilities.asMap().entries.map(
-                (e) => Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: _LedgerLiabilityCard(
-                    row: e.value,
-                    accent: widget.model.accent,
-                    displayCurrency: widget.model.displayCurrency,
-                    usdPerUnitOverrides: widget.model.fxUsdPerUnitResolved,
-                    privacyHideAmounts: widget.model.privacyHideAmounts,
-                    onTap: () {
-                      if (widget.model.privacyHideAmounts) {
-                        _privacyDenied();
-                        return;
-                      }
-                      _openLiabilityEditor(context, index: e.key);
-                    },
-                  ),
-                ),
+            (e) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _LedgerLiabilityCard(
+                row: e.value,
+                accent: widget.model.accent,
+                displayCurrency: widget.model.displayCurrency,
+                usdPerUnitOverrides: widget.model.fxUsdPerUnitResolved,
+                privacyHideAmounts: widget.model.privacyHideAmounts,
+                onTap: () {
+                  if (widget.model.privacyHideAmounts) {
+                    _privacyDenied();
+                    return;
+                  }
+                  _openLiabilityEditor(context, index: e.key);
+                },
               ),
+            ),
+          ),
           _AddLedgerRowCard(
             label: 'Add liability',
             accent: widget.model.accent,
@@ -731,7 +390,8 @@ class _LedgerTabState extends State<LedgerTab> {
   @override
   void didUpdateWidget(covariant LedgerTab oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.focusSection != widget.focusSection && widget.focusSection != null) {
+    if (oldWidget.focusSection != widget.focusSection &&
+        widget.focusSection != null) {
       final section = widget.focusSection!;
       if (section == 'assets') {
         setState(() => _mode = LedgerMode.assets);
@@ -760,8 +420,14 @@ class _LedgerTabState extends State<LedgerTab> {
   }
 
   void _focus(String section) {
-    if (section == 'assets' || section == 'liabilities' || section == 'cashflow') {
-      _scroll.animateTo(0, duration: const Duration(milliseconds: 260), curve: Curves.easeOut);
+    if (section == 'assets' ||
+        section == 'liabilities' ||
+        section == 'cashflow') {
+      _scroll.animateTo(
+        0,
+        duration: const Duration(milliseconds: 260),
+        curve: Curves.easeOut,
+      );
       return;
     }
     final ctx = switch (section) {
@@ -771,7 +437,11 @@ class _LedgerTabState extends State<LedgerTab> {
       _ => null,
     };
     if (ctx == null) return;
-    Scrollable.ensureVisible(ctx, duration: const Duration(milliseconds: 260), curve: Curves.easeOut);
+    Scrollable.ensureVisible(
+      ctx,
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOut,
+    );
   }
 }
 
@@ -780,6 +450,491 @@ class _RowEditorOutcome<T> {
 
   final T? row;
   final bool delete;
+}
+
+class _MonthlyCashflowEditorPage extends StatefulWidget {
+  const _MonthlyCashflowEditorPage({
+    required this.model,
+    required this.initialMonthKey,
+    required this.lockMonth,
+  });
+
+  final AppModel model;
+  final String initialMonthKey;
+  final bool lockMonth;
+
+  @override
+  State<_MonthlyCashflowEditorPage> createState() =>
+      _MonthlyCashflowEditorPageState();
+}
+
+class _MonthlyCashflowEditorPageState
+    extends State<_MonthlyCashflowEditorPage> {
+  late String _monthKey = widget.initialMonthKey;
+
+  final _openingCtrl = TextEditingController();
+  final _closingCtrl = TextEditingController();
+  final _earnedCtrl = TextEditingController();
+  final _cashFdCtrl = TextEditingController();
+  final _invCtrl = TextEditingController();
+  final _commentCtrl = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadMonth(_monthKey);
+  }
+
+  @override
+  void dispose() {
+    _openingCtrl.dispose();
+    _closingCtrl.dispose();
+    _earnedCtrl.dispose();
+    _cashFdCtrl.dispose();
+    _invCtrl.dispose();
+    _commentCtrl.dispose();
+    super.dispose();
+  }
+
+  double? _parseNumOrNull(TextEditingController c) =>
+      _ledgerParseGroupedDoubleOrNull(c.text);
+
+  double? _calcSpendingOrNull() {
+    final opening = _parseNumOrNull(_openingCtrl) ?? 0;
+    final closing = _parseNumOrNull(_closingCtrl);
+    if (closing == null) return null;
+    final earned = _parseNumOrNull(_earnedCtrl) ?? 0;
+    final saved = _parseNumOrNull(_cashFdCtrl) ?? 0;
+    final invested = _parseNumOrNull(_invCtrl) ?? 0;
+    if (earned > 0) {
+      return opening + earned - closing - saved - invested;
+    }
+    return closing - opening - saved - invested;
+  }
+
+  void _loadMonth(String mk) {
+    final m = widget.model;
+    final ex = m.monthlyEntryFor(mk);
+    if (ex != null) {
+      final dc = m.displayCurrency;
+      _openingCtrl.text = formatGroupedInteger(
+        ex.openingBalance.round(),
+        currency: dc,
+      );
+      _closingCtrl.text = formatGroupedInteger(
+        ex.closingBalance.round(),
+        currency: dc,
+      );
+      _earnedCtrl.text = ex.monthlyEarned > 0
+          ? formatGroupedInteger(ex.monthlyEarned.round(), currency: dc)
+          : '';
+      _cashFdCtrl.text = formatGroupedInteger(
+        ex.outflowToCashFd.round(),
+        currency: dc,
+      );
+      _invCtrl.text = formatGroupedInteger(
+        ex.outflowToInvested.round(),
+        currency: dc,
+      );
+      _commentCtrl.text = ex.comment;
+      return;
+    }
+    final prevKey = AppModel.previousMonthKey(mk);
+    final prevClose = prevKey == null
+        ? null
+        : m.monthlyEntryFor(prevKey)?.closingBalance;
+    final suggestedOpening = prevClose ?? 0;
+    _openingCtrl.text = formatGroupedInteger(
+      suggestedOpening.round(),
+      currency: m.displayCurrency,
+    );
+    _closingCtrl.clear();
+    _earnedCtrl.clear();
+    _cashFdCtrl.text = formatGroupedInteger(0, currency: m.displayCurrency);
+    _invCtrl.text = formatGroupedInteger(0, currency: m.displayCurrency);
+    _commentCtrl.clear();
+  }
+
+  void _openAiImport() {
+    Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        fullscreenDialog: true,
+        builder: (ctx) => LedgerImportPage(
+          model: widget.model,
+          kind: LedgerImportKind.cashflow,
+          editCashflowMonthKey: _monthKey,
+        ),
+      ),
+    );
+  }
+
+  void _save() {
+    final m = widget.model;
+    final opening = _ledgerParseGroupedDouble(_openingCtrl.text);
+    if (_ledgerDigitsOnly(_closingCtrl.text).isEmpty) {
+      showDialog<void>(
+        context: context,
+        builder: (dctx) => AlertDialog(
+          title: const Text('Closing balance required'),
+          content: const Text('Enter a closing balance before saving.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dctx).pop(),
+              child: const Text('Edit'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+    final closing = _ledgerParseGroupedDouble(_closingCtrl.text);
+    final earned = _ledgerParseGroupedDouble(_earnedCtrl.text);
+    final cf = _ledgerParseGroupedDouble(_cashFdCtrl.text);
+    final iv = _ledgerParseGroupedDouble(_invCtrl.text);
+    final sp = _calcSpendingOrNull() ?? 0;
+
+    final prevKey = AppModel.previousMonthKey(_monthKey);
+    final prevClose = prevKey == null
+        ? null
+        : m.monthlyEntryFor(prevKey)?.closingBalance;
+    if (prevClose != null && opening.round() != prevClose.round()) {
+      showDialog<void>(
+        context: context,
+        builder: (dctx) => AlertDialog(
+          title: const Text('Opening balance mismatch'),
+          content: Text(
+            'This month’s opening balance should equal last month’s closing balance.\n\n'
+            'Last month closing: ${_ledgerHomeAmount(m, prevClose)}\n'
+            'Your opening: ${_ledgerHomeAmount(m, opening)}\n\n'
+            'Please correct it before saving.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dctx).pop(),
+              child: const Text('Edit'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+    if (sp < 0) {
+      showDialog<void>(
+        context: context,
+        builder: (dctx) => AlertDialog(
+          title: const Text('Spending can’t be negative'),
+          content: Text(
+            'Your inputs imply negative spending (${_ledgerHomeAmount(m, sp)}).\n\n'
+            'Double-check Opening, Closing, Earned, Saved, and Invested.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dctx).pop(),
+              child: const Text('Edit'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+    FocusManager.instance.primaryFocus?.unfocus();
+    Navigator.of(context).pop(
+      MonthlyCashflowEntry(
+        monthKey: _monthKey,
+        openingBalance: opening,
+        closingBalance: closing,
+        monthlyEarned: earned,
+        outflowToCashFd: cf,
+        outflowToInvested: iv,
+        monthlySpending: sp,
+        comment: _commentCtrl.text.trim(),
+        contextMarkdown: m.monthlyEntryFor(_monthKey)?.contextMarkdown,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final m = widget.model;
+    final monthDate = DateTime.tryParse('$_monthKey-01') ?? DateTime.now();
+    final selectedYear = monthDate.year;
+    final selectedMonth = monthDate.month;
+    final nowYear = DateTime.now().year;
+    final years = <int>[for (var y = nowYear; y >= (nowYear - 5); y--) y];
+    const monthLabels = <int, String>{
+      1: 'Jan',
+      2: 'Feb',
+      3: 'Mar',
+      4: 'Apr',
+      5: 'May',
+      6: 'Jun',
+      7: 'Jul',
+      8: 'Aug',
+      9: 'Sep',
+      10: 'Oct',
+      11: 'Nov',
+      12: 'Dec',
+    };
+
+    const dense = InputDecoration(border: OutlineInputBorder(), isDense: true);
+
+    final hasSaved = m.monthlyEntryFor(_monthKey) != null;
+    final prevKey = AppModel.previousMonthKey(_monthKey);
+    final prevClose = prevKey == null
+        ? null
+        : m.monthlyEntryFor(prevKey)?.closingBalance;
+
+    return Scaffold(
+      resizeToAvoidBottomInset: true,
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.close),
+          tooltip: 'Close',
+          onPressed: () => Navigator.of(context).maybePop(),
+        ),
+        title: Text(
+          hasSaved
+              ? 'Edit ${AppModel.formatMonthKeyLabel(_monthKey)}'
+              : 'Monthly cash flow entry',
+        ),
+        actions: [
+          TextButton.icon(
+            onPressed: _openAiImport,
+            icon: const Icon(Icons.auto_awesome, size: 18),
+            label: const Text('Import with AI'),
+          ),
+          TextButton(onPressed: _save, child: const Text('Save')),
+        ],
+      ),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.all(20),
+          children: [
+            if (widget.lockMonth)
+              InputDecorator(
+                decoration: const InputDecoration(
+                  labelText: 'Month',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+                child: Text(
+                  AppModel.formatMonthKeyLabel(_monthKey),
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              )
+            else
+              Row(
+                children: [
+                  Expanded(
+                    child: DropdownButtonFormField<int>(
+                      initialValue: selectedMonth,
+                      decoration: dense.copyWith(labelText: 'Month'),
+                      items: [
+                        for (var i = 1; i <= 12; i++)
+                          DropdownMenuItem<int>(
+                            value: i,
+                            child: Text(monthLabels[i] ?? '$i'),
+                          ),
+                      ],
+                      onChanged: (v) {
+                        if (v == null) return;
+                        final mk = AppModel.monthKeyFor(
+                          DateTime(selectedYear, v, 1),
+                        );
+                        setState(() {
+                          _monthKey = mk;
+                          _loadMonth(mk);
+                        });
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: DropdownButtonFormField<int>(
+                      initialValue: selectedYear,
+                      decoration: dense.copyWith(labelText: 'Year'),
+                      items: [
+                        for (final y in years)
+                          DropdownMenuItem<int>(value: y, child: Text('$y')),
+                      ],
+                      onChanged: (v) {
+                        if (v == null) return;
+                        final mk = AppModel.monthKeyFor(
+                          DateTime(v, selectedMonth, 1),
+                        );
+                        setState(() {
+                          _monthKey = mk;
+                          _loadMonth(mk);
+                        });
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _openingCtrl,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [
+                      GroupedIntegerTextInputFormatter(
+                        currency: m.displayCurrency,
+                      ),
+                    ],
+                    decoration: dense.copyWith(
+                      labelText: 'Opening',
+                      helperText: prevClose == null
+                          ? 'Verify'
+                          : 'Should match ${_ledgerHomeAmount(m, prevClose)}',
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: TextField(
+                    controller: _closingCtrl,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [
+                      GroupedIntegerTextInputFormatter(
+                        currency: m.displayCurrency,
+                      ),
+                    ],
+                    decoration: dense.copyWith(
+                      labelText: 'Closing',
+                      helperText: 'End of month',
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _earnedCtrl,
+              keyboardType: TextInputType.number,
+              inputFormatters: [
+                GroupedIntegerTextInputFormatter(currency: m.displayCurrency),
+              ],
+              decoration: dense.copyWith(
+                labelText: 'Earned',
+                helperText: 'Take-home this month (optional)',
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _cashFdCtrl,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [
+                      GroupedIntegerTextInputFormatter(
+                        currency: m.displayCurrency,
+                      ),
+                    ],
+                    decoration: dense.copyWith(
+                      labelText: 'Saved',
+                      helperText: '0 if none',
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: TextField(
+                    controller: _invCtrl,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [
+                      GroupedIntegerTextInputFormatter(
+                        currency: m.displayCurrency,
+                      ),
+                    ],
+                    decoration: dense.copyWith(
+                      labelText: 'Invested',
+                      helperText: '0 if none',
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            AnimatedBuilder(
+              animation: Listenable.merge([
+                _openingCtrl,
+                _closingCtrl,
+                _earnedCtrl,
+                _cashFdCtrl,
+                _invCtrl,
+              ]),
+              builder: (ctx, _) {
+                final spending = _calcSpendingOrNull();
+                final ok = spending == null ? true : spending >= -0.5;
+                final txt = spending == null
+                    ? '—'
+                    : _ledgerHomeAmount(
+                        m,
+                        spending.abs() < 0.005 ? 0.0 : spending,
+                      );
+                return Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: ok
+                        ? AppTheme.slate50
+                        : Theme.of(
+                            ctx,
+                          ).colorScheme.errorContainer.withValues(alpha: 0.35),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: ok
+                          ? AppTheme.slate100
+                          : Theme.of(
+                              ctx,
+                            ).colorScheme.error.withValues(alpha: 0.25),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'Spending',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            color: AppTheme.slate600,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        txt,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w900,
+                          fontSize: 18,
+                          color: ok
+                              ? AppTheme.slate900
+                              : Theme.of(ctx).colorScheme.error,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _commentCtrl,
+              minLines: 3,
+              maxLines: 6,
+              decoration: dense.copyWith(
+                labelText: 'Note',
+                alignLabelWithHint: true,
+              ),
+            ),
+            const SizedBox(height: 18),
+            FilledButton(onPressed: _save, child: const Text('Save')),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _Segmented extends StatelessWidget {
@@ -797,22 +952,38 @@ class _Segmented extends StatelessWidget {
   Widget build(BuildContext context) {
     return SegmentedButton<LedgerMode>(
       segments: const [
-        ButtonSegment(value: LedgerMode.assets, label: Text('Assets'), icon: Icon(Icons.savings)),
-        ButtonSegment(value: LedgerMode.liabilities, label: Text('Liabilities'), icon: Icon(Icons.credit_card)),
-        ButtonSegment(value: LedgerMode.cashflow, label: Text('Cashflow'), icon: Icon(Icons.swap_vert)),
+        ButtonSegment(
+          value: LedgerMode.assets,
+          label: Text('Assets'),
+          icon: Icon(Icons.savings),
+        ),
+        ButtonSegment(
+          value: LedgerMode.liabilities,
+          label: Text('Liabilities'),
+          icon: Icon(Icons.credit_card),
+        ),
+        ButtonSegment(
+          value: LedgerMode.cashflow,
+          label: Text('Cashflow'),
+          icon: Icon(Icons.swap_vert),
+        ),
       ],
       selected: {value},
       onSelectionChanged: (s) => onChanged(s.first),
       style: ButtonStyle(
         backgroundColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) return accent.withValues(alpha: 0.12);
+          if (states.contains(WidgetState.selected)) {
+            return accent.withValues(alpha: 0.12);
+          }
           return Colors.white;
         }),
         foregroundColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) return accent;
           return AppTheme.slate600;
         }),
-        side: const WidgetStatePropertyAll(BorderSide(color: AppTheme.slate100)),
+        side: const WidgetStatePropertyAll(
+          BorderSide(color: AppTheme.slate100),
+        ),
       ),
     );
   }
@@ -844,9 +1015,13 @@ class _LedgerAssetCard extends StatelessWidget {
       to: displayCurrency,
       usdPerUnitOverrides: usdPerUnitOverrides,
     );
-    final grouped = formatGroupedInteger(displayValue.round(), currency: displayCurrency);
-    final amountText =
-        privacyHideAmounts ? maskSensitiveNumberString(grouped) : grouped;
+    final grouped = formatGroupedInteger(
+      displayValue.round(),
+      currency: displayCurrency,
+    );
+    final amountText = privacyHideAmounts
+        ? maskSensitiveNumberString(grouped)
+        : grouped;
     final title = row.name.trim().isEmpty ? row.type.label : row.name;
     return Card(
       child: InkWell(
@@ -871,14 +1046,20 @@ class _LedgerAssetCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+                    Text(
+                      title,
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
                     if (row.comment.trim().isNotEmpty) ...[
                       const SizedBox(height: 6),
                       Text(
                         row.comment.trim(),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(color: AppTheme.slate500, fontSize: 12),
+                        style: const TextStyle(
+                          color: AppTheme.slate500,
+                          fontSize: 12,
+                        ),
                       ),
                     ],
                   ],
@@ -887,7 +1068,10 @@ class _LedgerAssetCard extends StatelessWidget {
               const SizedBox(width: 10),
               Text(
                 amountText,
-                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+                style: const TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 16,
+                ),
               ),
               const SizedBox(width: 4),
               const Icon(Icons.chevron_right, color: AppTheme.slate500),
@@ -925,9 +1109,13 @@ class _LedgerLiabilityCard extends StatelessWidget {
       to: displayCurrency,
       usdPerUnitOverrides: usdPerUnitOverrides,
     );
-    final grouped = formatGroupedInteger(displayValue.round(), currency: displayCurrency);
-    final amountText =
-        privacyHideAmounts ? maskSensitiveNumberString(grouped) : grouped;
+    final grouped = formatGroupedInteger(
+      displayValue.round(),
+      currency: displayCurrency,
+    );
+    final amountText = privacyHideAmounts
+        ? maskSensitiveNumberString(grouped)
+        : grouped;
     final title = row.name.trim().isEmpty ? row.type.label : row.name;
     return Card(
       child: InkWell(
@@ -952,14 +1140,20 @@ class _LedgerLiabilityCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+                    Text(
+                      title,
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
                     if (row.comment.trim().isNotEmpty) ...[
                       const SizedBox(height: 6),
                       Text(
                         row.comment.trim(),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(color: AppTheme.slate500, fontSize: 12),
+                        style: const TextStyle(
+                          color: AppTheme.slate500,
+                          fontSize: 12,
+                        ),
                       ),
                     ],
                   ],
@@ -968,7 +1162,10 @@ class _LedgerLiabilityCard extends StatelessWidget {
               const SizedBox(width: 10),
               Text(
                 amountText,
-                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+                style: const TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 16,
+                ),
               ),
               const SizedBox(width: 4),
               const Icon(Icons.chevron_right, color: AppTheme.slate500),
@@ -998,7 +1195,10 @@ class _AddLedgerRowCard extends StatelessWidget {
       color: AppTheme.slate50,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(color: AppTheme.slate100, style: BorderStyle.solid),
+        side: const BorderSide(
+          color: AppTheme.slate100,
+          style: BorderStyle.solid,
+        ),
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
@@ -1009,7 +1209,10 @@ class _AddLedgerRowCard extends StatelessWidget {
             children: [
               Icon(Icons.add_circle_outline, color: accent),
               const SizedBox(width: 10),
-              Text(label, style: TextStyle(fontWeight: FontWeight.w800, color: accent)),
+              Text(
+                label,
+                style: TextStyle(fontWeight: FontWeight.w800, color: accent),
+              ),
             ],
           ),
         ),
@@ -1023,11 +1226,15 @@ class _AssetEditorSheet extends StatefulWidget {
     required this.draft,
     required this.allowCurrencyEdit,
     required this.canDelete,
+    required this.model,
+    required this.parentContext,
   });
 
   final LedgerAssetRow draft;
   final bool allowCurrencyEdit;
   final bool canDelete;
+  final AppModel model;
+  final BuildContext parentContext;
 
   @override
   State<_AssetEditorSheet> createState() => _AssetEditorSheetState();
@@ -1047,7 +1254,12 @@ class _AssetEditorSheetState extends State<_AssetEditorSheet> {
     _nameCtrl = TextEditingController(text: _row.name);
     _labelCtrl = TextEditingController(text: _row.label);
     _totalCtrl = TextEditingController(
-      text: _row.total == 0 ? '' : formatGroupedInteger(_row.total.round(), currency: currencyCodeForPresetCountry(_row.currencyCountry)),
+      text: _row.total == 0
+          ? ''
+          : formatGroupedInteger(
+              _row.total.round(),
+              currency: currencyCodeForPresetCountry(_row.currencyCountry),
+            ),
     );
     _commentCtrl = TextEditingController(text: _row.comment);
   }
@@ -1083,12 +1295,17 @@ class _AssetEditorSheetState extends State<_AssetEditorSheet> {
           children: [
             Text(
               widget.allowCurrencyEdit ? 'New asset' : 'Edit asset',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 14),
             DropdownButtonFormField<LedgerAssetType>(
               initialValue: _row.type,
-              decoration: const InputDecoration(labelText: 'Type', border: OutlineInputBorder()),
+              decoration: const InputDecoration(
+                labelText: 'Type',
+                border: OutlineInputBorder(),
+              ),
               items: [
                 for (final t in LedgerAssetType.values)
                   DropdownMenuItem(value: t, child: Text(t.label)),
@@ -1127,9 +1344,15 @@ class _AssetEditorSheetState extends State<_AssetEditorSheet> {
                   setState(() {
                     _row.currencyCountry = v;
                     final cc = currencyCodeForPresetCountry(v);
-                    final digits = _totalCtrl.text.replaceAll(RegExp(r'[^0-9]'), '');
+                    final digits = _totalCtrl.text.replaceAll(
+                      RegExp(r'[^0-9]'),
+                      '',
+                    );
                     if (digits.isNotEmpty) {
-                      _totalCtrl.text = formatGroupedInteger(int.parse(digits), currency: cc);
+                      _totalCtrl.text = formatGroupedInteger(
+                        int.parse(digits),
+                        currency: cc,
+                      );
                     }
                   });
                 },
@@ -1145,7 +1368,9 @@ class _AssetEditorSheetState extends State<_AssetEditorSheet> {
                   children: [
                     Text(presetForCountry(_row.currencyCountry).flag),
                     const SizedBox(width: 8),
-                    Text('${_row.currencyCountry} (${presetForCountry(_row.currencyCountry).currencySymbol})'),
+                    Text(
+                      '${_row.currencyCountry} (${presetForCountry(_row.currencyCountry).currencySymbol})',
+                    ),
                   ],
                 ),
               ),
@@ -1169,7 +1394,16 @@ class _AssetEditorSheetState extends State<_AssetEditorSheet> {
               ],
               decoration: InputDecoration(
                 labelText: 'Total',
-                prefixText: native.symbol,
+                prefixText: native == CurrencyCode.aed ? null : native.symbol,
+                prefixIcon: native == CurrencyCode.aed
+                    ? const Padding(
+                        padding: EdgeInsetsDirectional.only(start: 12, end: 8),
+                        child: DirhamIcon(size: 16),
+                      )
+                    : null,
+                prefixIconConstraints: native == CurrencyCode.aed
+                    ? const BoxConstraints(minWidth: 38)
+                    : null,
                 border: const OutlineInputBorder(),
               ),
             ),
@@ -1186,13 +1420,36 @@ class _AssetEditorSheetState extends State<_AssetEditorSheet> {
             const SizedBox(height: 16),
             Row(
               children: [
+                TextButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    Navigator.of(widget.parentContext).push<void>(
+                      MaterialPageRoute<void>(
+                        fullscreenDialog: true,
+                        builder: (ctx) => LedgerImportPage(
+                          model: widget.model,
+                          kind: LedgerImportKind.asset,
+                          editAssetId:
+                              widget.allowCurrencyEdit ? null : widget.draft.id,
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.auto_awesome, size: 18),
+                  label: const Text('Import with AI'),
+                ),
                 if (widget.canDelete)
                   TextButton(
-                    onPressed: () => Navigator.of(context).pop(const _RowEditorOutcome<LedgerAssetRow>(delete: true)),
+                    onPressed: () => Navigator.of(context).pop(
+                      const _RowEditorOutcome<LedgerAssetRow>(delete: true),
+                    ),
                     child: const Text('Delete'),
                   ),
                 const Spacer(),
-                OutlinedButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),
+                OutlinedButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Cancel'),
+                ),
                 const SizedBox(width: 8),
                 FilledButton(onPressed: _save, child: const Text('Save')),
               ],
@@ -1209,11 +1466,15 @@ class _LiabilityEditorSheet extends StatefulWidget {
     required this.draft,
     required this.allowCurrencyEdit,
     required this.canDelete,
+    required this.model,
+    required this.parentContext,
   });
 
   final LedgerLiabilityRow draft;
   final bool allowCurrencyEdit;
   final bool canDelete;
+  final AppModel model;
+  final BuildContext parentContext;
 
   @override
   State<_LiabilityEditorSheet> createState() => _LiabilityEditorSheetState();
@@ -1231,7 +1492,12 @@ class _LiabilityEditorSheetState extends State<_LiabilityEditorSheet> {
     _row = widget.draft.clone();
     _nameCtrl = TextEditingController(text: _row.name);
     _totalCtrl = TextEditingController(
-      text: _row.total == 0 ? '' : formatGroupedInteger(_row.total.round(), currency: currencyCodeForPresetCountry(_row.currencyCountry)),
+      text: _row.total == 0
+          ? ''
+          : formatGroupedInteger(
+              _row.total.round(),
+              currency: currencyCodeForPresetCountry(_row.currencyCountry),
+            ),
     );
     _commentCtrl = TextEditingController(text: _row.comment);
   }
@@ -1265,12 +1531,17 @@ class _LiabilityEditorSheetState extends State<_LiabilityEditorSheet> {
           children: [
             Text(
               widget.allowCurrencyEdit ? 'New liability' : 'Edit liability',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 14),
             DropdownButtonFormField<LedgerLiabilityType>(
               initialValue: _row.type,
-              decoration: const InputDecoration(labelText: 'Type', border: OutlineInputBorder()),
+              decoration: const InputDecoration(
+                labelText: 'Type',
+                border: OutlineInputBorder(),
+              ),
               items: [
                 for (final t in LedgerLiabilityType.values)
                   DropdownMenuItem(value: t, child: Text(t.label)),
@@ -1308,9 +1579,15 @@ class _LiabilityEditorSheetState extends State<_LiabilityEditorSheet> {
                   setState(() {
                     _row.currencyCountry = v;
                     final cc = currencyCodeForPresetCountry(v);
-                    final digits = _totalCtrl.text.replaceAll(RegExp(r'[^0-9]'), '');
+                    final digits = _totalCtrl.text.replaceAll(
+                      RegExp(r'[^0-9]'),
+                      '',
+                    );
                     if (digits.isNotEmpty) {
-                      _totalCtrl.text = formatGroupedInteger(int.parse(digits), currency: cc);
+                      _totalCtrl.text = formatGroupedInteger(
+                        int.parse(digits),
+                        currency: cc,
+                      );
                     }
                   });
                 },
@@ -1326,7 +1603,9 @@ class _LiabilityEditorSheetState extends State<_LiabilityEditorSheet> {
                   children: [
                     Text(presetForCountry(_row.currencyCountry).flag),
                     const SizedBox(width: 8),
-                    Text('${_row.currencyCountry} (${presetForCountry(_row.currencyCountry).currencySymbol})'),
+                    Text(
+                      '${_row.currencyCountry} (${presetForCountry(_row.currencyCountry).currencySymbol})',
+                    ),
                   ],
                 ),
               ),
@@ -1339,7 +1618,16 @@ class _LiabilityEditorSheetState extends State<_LiabilityEditorSheet> {
               ],
               decoration: InputDecoration(
                 labelText: 'Total',
-                prefixText: native.symbol,
+                prefixText: native == CurrencyCode.aed ? null : native.symbol,
+                prefixIcon: native == CurrencyCode.aed
+                    ? const Padding(
+                        padding: EdgeInsetsDirectional.only(start: 12, end: 8),
+                        child: DirhamIcon(size: 16),
+                      )
+                    : null,
+                prefixIconConstraints: native == CurrencyCode.aed
+                    ? const BoxConstraints(minWidth: 38)
+                    : null,
                 border: const OutlineInputBorder(),
               ),
             ),
@@ -1356,13 +1644,36 @@ class _LiabilityEditorSheetState extends State<_LiabilityEditorSheet> {
             const SizedBox(height: 16),
             Row(
               children: [
+                TextButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    Navigator.of(widget.parentContext).push<void>(
+                      MaterialPageRoute<void>(
+                        fullscreenDialog: true,
+                        builder: (ctx) => LedgerImportPage(
+                          model: widget.model,
+                          kind: LedgerImportKind.liability,
+                          editLiabilityId:
+                              widget.allowCurrencyEdit ? null : widget.draft.id,
+                        ),
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.auto_awesome, size: 18),
+                  label: const Text('Import with AI'),
+                ),
                 if (widget.canDelete)
                   TextButton(
-                    onPressed: () => Navigator.of(context).pop(const _RowEditorOutcome<LedgerLiabilityRow>(delete: true)),
+                    onPressed: () => Navigator.of(context).pop(
+                      const _RowEditorOutcome<LedgerLiabilityRow>(delete: true),
+                    ),
                     child: const Text('Delete'),
                   ),
                 const Spacer(),
-                OutlinedButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),
+                OutlinedButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text('Cancel'),
+                ),
                 const SizedBox(width: 8),
                 FilledButton(onPressed: _save, child: const Text('Save')),
               ],
@@ -1464,7 +1775,11 @@ class _CashflowTabToggle extends StatelessWidget {
             child: const Text('Income'),
           ),
         ),
-        const ButtonSegment<int>(value: 1, label: Text('Split'), tooltip: 'Cash vs invest'),
+        const ButtonSegment<int>(
+          value: 1,
+          label: Text('Split'),
+          tooltip: 'Cash vs invest',
+        ),
         const ButtonSegment<int>(value: 2, label: Text('Expenses')),
       ],
       selected: {tabIndex},
@@ -1480,7 +1795,9 @@ class _CashflowTabToggle extends StatelessWidget {
       style: ButtonStyle(
         visualDensity: VisualDensity.compact,
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        side: const WidgetStatePropertyAll(BorderSide(color: AppTheme.slate100)),
+        side: const WidgetStatePropertyAll(
+          BorderSide(color: AppTheme.slate100),
+        ),
         backgroundColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
             return accent.withValues(alpha: 0.12);
@@ -1496,6 +1813,39 @@ class _CashflowTabToggle extends StatelessWidget {
   }
 }
 
+class _IncomeLineCurrencyField extends StatelessWidget {
+  const _IncomeLineCurrencyField({
+    super.key,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final CurrencyCode value;
+  final ValueChanged<CurrencyCode> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = kDisplayCurrencyPickerOptions.contains(value)
+        ? value
+        : CurrencyCode.usd;
+    return DropdownButtonFormField<CurrencyCode>(
+      initialValue: selected,
+      decoration: const InputDecoration(
+        labelText: 'Currency',
+        border: OutlineInputBorder(),
+        isDense: true,
+      ),
+      items: [
+        for (final c in kDisplayCurrencyPickerOptions)
+          DropdownMenuItem(value: c, child: Text('${c.flag} ${c.code}')),
+      ],
+      onChanged: (v) {
+        if (v != null) onChanged(v);
+      },
+    );
+  }
+}
+
 class _IncomeSection extends StatelessWidget {
   const _IncomeSection({super.key, required this.model});
 
@@ -1507,13 +1857,32 @@ class _IncomeSection extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Income sources', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
+        const Text(
+          'Income sources',
+          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
+        ),
         const SizedBox(height: 4),
         Text(
           'Last updated ${_ledgerFmtDate(model.incomeLastUpdated)}',
-          style: const TextStyle(fontSize: 12, color: AppTheme.slate500, fontWeight: FontWeight.w600),
+          style: const TextStyle(
+            fontSize: 12,
+            color: AppTheme.slate500,
+            fontWeight: FontWeight.w600,
+          ),
         ),
         const SizedBox(height: 10),
+        if (model.incomeLines.isEmpty)
+          const Padding(
+            padding: EdgeInsets.only(bottom: 8),
+            child: Text(
+              'No lines yet — add one per source (salary, bonus, rent, …). You can add as many as you need.',
+              style: TextStyle(
+                fontSize: 13,
+                color: AppTheme.slate600,
+                height: 1.35,
+              ),
+            ),
+          ),
         ...model.incomeLines.asMap().entries.map((e) {
           final i = e.key;
           final line = e.value;
@@ -1541,12 +1910,11 @@ class _IncomeSection extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    if (model.incomeLines.length > 1)
-                      IconButton(
-                        onPressed: () => model.removeIncomeLineAt(i),
-                        icon: const Icon(Icons.remove_circle_outline),
-                        tooltip: 'Remove',
-                      ),
+                    IconButton(
+                      onPressed: () => model.removeIncomeLineAt(i),
+                      icon: const Icon(Icons.remove_circle_outline),
+                      tooltip: 'Remove',
+                    ),
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -1557,8 +1925,12 @@ class _IncomeSection extends StatelessWidget {
                       flex: 2,
                       child: _GroupedIntField(
                         key: ValueKey('inc-amt-${line.id}'),
-                        initialInt: line.annualAmount == 0 ? null : line.annualAmount.round(),
-                        currency: currencyCodeForPresetCountry(line.currencyCountry),
+                        initialInt: line.annualAmount == 0
+                            ? null
+                            : line.annualAmount.round(),
+                        currency: currencyCodeForIncomeLineCurrency(
+                          line.currencyCountry,
+                        ),
                         labelText: 'Annual amount',
                         onChanged: (v) {
                           line.annualAmount = (v ?? 0).toDouble();
@@ -1568,21 +1940,13 @@ class _IncomeSection extends StatelessWidget {
                     ),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: DropdownButtonFormField<String>(
+                      child: _IncomeLineCurrencyField(
                         key: ValueKey('inc-ccy-${line.id}'),
-                        initialValue: line.currencyCountry,
-                        decoration: const InputDecoration(
-                          labelText: 'Currency',
-                          border: OutlineInputBorder(),
-                          isDense: true,
+                        value: currencyCodeForIncomeLineCurrency(
+                          line.currencyCountry,
                         ),
-                        items: [
-                          for (final c in countryPresets)
-                            DropdownMenuItem(value: c.name, child: Text('${c.flag} ${c.currencySymbol}')),
-                        ],
                         onChanged: (v) {
-                          if (v == null) return;
-                          line.currencyCountry = v;
+                          line.currencyCountry = v.code;
                           model.notifyIncomeChanged();
                         },
                       ),
@@ -1595,17 +1959,17 @@ class _IncomeSection extends StatelessWidget {
         }),
         Align(
           alignment: Alignment.centerLeft,
-          child: TextButton.icon(
+          child: TextButton(
             onPressed: () => model.addIncomeLine(),
-            icon: const Icon(Icons.add),
-            label: const Text('Add income source'),
+            child: const Text('Add income source'),
           ),
         ),
         const SizedBox(height: 8),
         TextFormField(
           initialValue: model.effectiveTaxRatePct?.toStringAsFixed(0) ?? '',
           keyboardType: TextInputType.number,
-          onChanged: (raw) => model.setEffectiveTaxRatePct(double.tryParse(raw)),
+          onChanged: (raw) =>
+              model.setEffectiveTaxRatePct(double.tryParse(raw)),
           decoration: const InputDecoration(
             labelText: 'Effective tax rate %',
             suffixText: '%',
@@ -1634,16 +1998,24 @@ class _ExpensesSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final preset = presetForCountry(AppModel.expensePresetCountry);
     final predicted = model.totalExpensesMonthly;
-    final segments = expenseDonutSegmentsFromPreset(preset, model.expenseBuckets);
+    final segments = expenseDonutSegmentsFromPreset(
+      preset,
+      model.expenseBuckets,
+    );
     final privacy = model.privacyHideAmounts;
     final dataMonths = model.monthKeysWithCashflowData();
-    final monthKeysForTable =
-        privacy ? null : (dataMonths.isEmpty ? AppModel.recentMonthKeys() : dataMonths);
+    final monthKeysForTable = privacy ? null : dataMonths;
     final centerTitle = privacy
         ? maskSensitiveNumberString(
-            formatGroupedInteger(predicted.round(), currency: model.displayCurrency),
+            formatGroupedInteger(
+              predicted.round(),
+              currency: model.displayCurrency,
+            ),
           )
-        : formatGroupedInteger(predicted.round(), currency: model.displayCurrency);
+        : formatGroupedInteger(
+            predicted.round(),
+            currency: model.displayCurrency,
+          );
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -1671,12 +2043,19 @@ class _ExpensesSection extends StatelessWidget {
                   Container(
                     width: 10,
                     height: 10,
-                    decoration: BoxDecoration(color: s.color, shape: BoxShape.circle),
+                    decoration: BoxDecoration(
+                      color: s.color,
+                      shape: BoxShape.circle,
+                    ),
                   ),
                   const SizedBox(width: 6),
                   Text(
                     s.label,
-                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppTheme.slate600),
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: AppTheme.slate600,
+                    ),
                   ),
                 ],
               ),
@@ -1688,7 +2067,11 @@ class _ExpensesSection extends StatelessWidget {
             Expanded(
               child: Text(
                 _ledgerFmtDate(model.expenseEstimatesLastUpdated),
-                style: const TextStyle(fontSize: 12, color: AppTheme.slate500, fontWeight: FontWeight.w600),
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppTheme.slate500,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
             TextButton.icon(
@@ -1698,41 +2081,65 @@ class _ExpensesSection extends StatelessWidget {
                       Navigator.of(context).push<void>(
                         MaterialPageRoute<void>(
                           fullscreenDialog: true,
-                          builder: (ctx) => ExpenseEstimatesEditorPage(model: model),
+                          builder: (ctx) =>
+                              ExpenseEstimatesEditorPage(model: model),
                         ),
                       );
                     },
-              icon: Icon(Icons.tune, size: 18, color: privacy ? AppTheme.slate500 : null),
-              label: Text('Edit estimates', style: TextStyle(color: privacy ? AppTheme.slate500 : null)),
+              icon: Icon(
+                Icons.tune,
+                size: 18,
+                color: privacy ? AppTheme.slate500 : null,
+              ),
+              label: Text(
+                'Edit estimates',
+                style: TextStyle(color: privacy ? AppTheme.slate500 : null),
+              ),
             ),
           ],
         ),
         if (monthKeysForTable != null) ...[
           const SizedBox(height: 20),
-          const Text('Month by month', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
-          const SizedBox(height: 12),
-          Container(
-            decoration: BoxDecoration(
-              border: Border.all(color: AppTheme.slate100),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const _MonthTableHeader(),
-                for (var i = 0; i < monthKeysForTable.length; i++)
-                  _MonthTotalRow(
-                    model: model,
-                    monthKey: monthKeysForTable[i],
-                    predicted: predicted,
-                    showDivider: i < monthKeysForTable.length - 1,
-                    onMonthEntryTap: onMonthEntryTap,
-                    onPrivacyInteractionDenied: onPrivacyInteractionDenied,
-                    privacyHideAmounts: privacy,
-                  ),
-              ],
-            ),
+          const Text(
+            'Month by month',
+            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
           ),
+          const SizedBox(height: 12),
+          if (monthKeysForTable.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: Text(
+                'No months saved yet. Tap + to add any month (YYYY-MM or calendar).',
+                style: TextStyle(
+                  color: AppTheme.slate600,
+                  fontSize: 13,
+                  height: 1.35,
+                ),
+              ),
+            )
+          else
+            Container(
+              decoration: BoxDecoration(
+                border: Border.all(color: AppTheme.slate100),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const _MonthTableHeader(),
+                  for (var i = 0; i < monthKeysForTable.length; i++)
+                    _MonthTotalRow(
+                      model: model,
+                      monthKey: monthKeysForTable[i],
+                      predicted: predicted,
+                      showDivider: i < monthKeysForTable.length - 1,
+                      onMonthEntryTap: onMonthEntryTap,
+                      onPrivacyInteractionDenied: onPrivacyInteractionDenied,
+                      privacyHideAmounts: privacy,
+                    ),
+                ],
+              ),
+            ),
         ],
       ],
     );
@@ -1754,14 +2161,21 @@ class _MonthTableHeader extends StatelessWidget {
         children: [
           const Expanded(
             flex: 3,
-            child: Text('Month', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12)),
+            child: Text(
+              'Month',
+              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12),
+            ),
           ),
           Expanded(
             flex: 3,
             child: Text(
               'Predicted',
               textAlign: TextAlign.end,
-              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12, color: AppTheme.slate600),
+              style: TextStyle(
+                fontWeight: FontWeight.w900,
+                fontSize: 12,
+                color: AppTheme.slate600,
+              ),
             ),
           ),
           Expanded(
@@ -1769,7 +2183,11 @@ class _MonthTableHeader extends StatelessWidget {
             child: Text(
               'Actual',
               textAlign: TextAlign.end,
-              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12, color: AppTheme.slate600),
+              style: TextStyle(
+                fontWeight: FontWeight.w900,
+                fontSize: 12,
+                color: AppTheme.slate600,
+              ),
             ),
           ),
           Expanded(
@@ -1777,7 +2195,11 @@ class _MonthTableHeader extends StatelessWidget {
             child: Text(
               'Δ',
               textAlign: TextAlign.end,
-              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12, color: AppTheme.slate600),
+              style: TextStyle(
+                fontWeight: FontWeight.w900,
+                fontSize: 12,
+                color: AppTheme.slate600,
+              ),
             ),
           ),
         ],
@@ -1814,25 +2236,29 @@ class _MonthTotalRow extends StatelessWidget {
     final hasRowData = lineActual > 0;
     final actual = lineActual;
     final delta = actual - predicted;
-    final inBand = hasRowData &&
+    final inBand =
+        hasRowData &&
         predicted > 0 &&
         (delta.abs() / predicted) <= AppModel.spendVarianceBandPct;
-    final predictedTxt =
-        privacyHideAmounts ? maskSensitiveNumberString(_homeAmt(predicted)) : _homeAmt(predicted);
+    final predictedTxt = privacyHideAmounts
+        ? maskSensitiveNumberString(_homeAmt(predicted))
+        : _homeAmt(predicted);
     final actualTxt = !hasRowData
         ? '—'
         : (privacyHideAmounts
-            ? maskSensitiveNumberString(_homeAmt(actual))
-            : _homeAmt(actual));
+              ? maskSensitiveNumberString(_homeAmt(actual))
+              : _homeAmt(actual));
     final deltaTxt = !hasRowData
         ? '—'
         : (privacyHideAmounts
-            ? maskSensitiveNumberString(_homeAmt(delta))
-            : _homeAmt(delta));
+              ? maskSensitiveNumberString(_homeAmt(delta))
+              : _homeAmt(delta));
     final child = Container(
       decoration: BoxDecoration(
         border: Border(
-          bottom: BorderSide(color: showDivider ? AppTheme.slate100 : Colors.transparent),
+          bottom: BorderSide(
+            color: showDivider ? AppTheme.slate100 : Colors.transparent,
+          ),
         ),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -1880,8 +2306,10 @@ class _MonthTotalRow extends StatelessWidget {
                 color: !hasRowData
                     ? AppModel.spendNoDataColor
                     : inBand
-                        ? AppModel.spendInBandColor
-                        : (delta > 0 ? AppModel.spendOverColor : AppModel.spendUnderColor),
+                    ? AppModel.spendInBandColor
+                    : (delta > 0
+                          ? AppModel.spendOverColor
+                          : AppModel.spendUnderColor),
               ),
             ),
           ),
@@ -1921,22 +2349,29 @@ class _AllocateTabSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final privacy = model.privacyHideAmounts;
     final avail = model.availableAfterExpensesMonthly;
-    final recent = model.monthKeysWithCashflowData();
-    final monthKeysForTable = recent.isEmpty ? AppModel.recentMonthKeys() : recent;
+    final monthKeysForTable = model.monthKeysWithCashflowData();
     final sliderPct = (model.allocInvestFraction * 100).round();
     final savedPct = 100 - sliderPct;
-    final headline =
-        (sliderPct > 50) ? '$sliderPct% invested' : ((sliderPct == 50) ? '50% saved' : '$savedPct% saved');
+    final headline = (sliderPct > 50)
+        ? '$sliderPct% invested'
+        : ((sliderPct == 50) ? '50% saved' : '$savedPct% saved');
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Text('Split after expenses', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
+        const Text(
+          'Split after expenses',
+          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
+        ),
         const SizedBox(height: 4),
         Text(
           'Last updated ${_ledgerFmtDate(model.allocationTargetLastUpdated)}',
-          style: const TextStyle(fontSize: 12, color: AppTheme.slate500, fontWeight: FontWeight.w600),
+          style: const TextStyle(
+            fontSize: 12,
+            color: AppTheme.slate500,
+            fontWeight: FontWeight.w600,
+          ),
         ),
         const SizedBox(height: 10),
         Center(
@@ -1954,8 +2389,14 @@ class _AllocateTabSection extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text('All cash', style: TextStyle(fontSize: 12, color: AppTheme.slate600)),
-            Text('All invested', style: TextStyle(fontSize: 12, color: AppTheme.slate600)),
+            Text(
+              'All cash',
+              style: TextStyle(fontSize: 12, color: AppTheme.slate600),
+            ),
+            Text(
+              'All invested',
+              style: TextStyle(fontSize: 12, color: AppTheme.slate600),
+            ),
           ],
         ),
         if (privacy) ...[
@@ -1963,35 +2404,55 @@ class _AllocateTabSection extends StatelessWidget {
           const Text(
             'Amounts hidden.',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 12, color: AppTheme.slate500, fontWeight: FontWeight.w600),
+            style: TextStyle(
+              fontSize: 12,
+              color: AppTheme.slate500,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ],
         const SizedBox(height: 24),
-        const Text('Each month', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
-        const SizedBox(height: 10),
-        Container(
-          width: double.infinity,
-          decoration: BoxDecoration(
-            border: Border.all(color: AppTheme.slate100),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const _MonthlyCashflowSplitTableHeader(),
-              for (var i = 0; i < monthKeysForTable.length; i++)
-                _MonthlyCashflowSplitTableRow(
-                  model: model,
-                  monthKey: monthKeysForTable[i],
-                  showDivider: i < monthKeysForTable.length - 1,
-                  privacyHideAmounts: privacy,
-                  onPrivacyInteractionDenied: onPrivacyInteractionDenied,
-                  onTap: () => onMonthEntryTap(monthKeysForTable[i]),
-                ),
-            ],
-          ),
+        const Text(
+          'Each month',
+          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
         ),
+        const SizedBox(height: 10),
+        if (monthKeysForTable.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Text(
+              'No months saved yet. Tap + to add entries; all saved months appear here.',
+              style: TextStyle(
+                color: AppTheme.slate600,
+                fontSize: 13,
+                height: 1.35,
+              ),
+            ),
+          )
+        else
+          Container(
+            width: double.infinity,
+            decoration: BoxDecoration(
+              border: Border.all(color: AppTheme.slate100),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const _MonthlyCashflowSplitTableHeader(),
+                for (var i = 0; i < monthKeysForTable.length; i++)
+                  _MonthlyCashflowSplitTableRow(
+                    model: model,
+                    monthKey: monthKeysForTable[i],
+                    showDivider: i < monthKeysForTable.length - 1,
+                    privacyHideAmounts: privacy,
+                    onPrivacyInteractionDenied: onPrivacyInteractionDenied,
+                    onTap: () => onMonthEntryTap(monthKeysForTable[i]),
+                  ),
+              ],
+            ),
+          ),
       ],
     );
   }
@@ -2010,19 +2471,33 @@ class _MonthlyCashflowSplitTableHeader extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const SizedBox(width: 72, child: Text('Month', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 11))),
+          const SizedBox(
+            width: 72,
+            child: Text(
+              'Month',
+              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 11),
+            ),
+          ),
           const Expanded(
             child: Text(
               'Earned',
               textAlign: TextAlign.end,
-              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 11, color: AppTheme.slate600),
+              style: TextStyle(
+                fontWeight: FontWeight.w900,
+                fontSize: 11,
+                color: AppTheme.slate600,
+              ),
             ),
           ),
           const Expanded(
             child: Text(
               '% inv',
               textAlign: TextAlign.end,
-              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 11, color: AppTheme.slate600),
+              style: TextStyle(
+                fontWeight: FontWeight.w900,
+                fontSize: 11,
+                color: AppTheme.slate600,
+              ),
             ),
           ),
         ],
@@ -2057,10 +2532,12 @@ class _MonthlyCashflowSplitTableRow extends StatelessWidget {
     final earnedTxt = e == null
         ? '—'
         : e.monthlyEarned > 0
-            ? (privacyHideAmounts
-                ? maskSensitiveNumberString(formatGroupedInteger(e.monthlyEarned.round(), currency: dc))
-                : formatGroupedInteger(e.monthlyEarned.round(), currency: dc))
-            : '—';
+        ? (privacyHideAmounts
+              ? maskSensitiveNumberString(
+                  formatGroupedInteger(e.monthlyEarned.round(), currency: dc),
+                )
+              : formatGroupedInteger(e.monthlyEarned.round(), currency: dc))
+        : '—';
 
     int? actualInvPct;
     if (e != null) {
@@ -2069,7 +2546,9 @@ class _MonthlyCashflowSplitTableRow extends StatelessWidget {
       final total = cash + inv;
       if (total > 0) actualInvPct = (inv / total * 100).round();
     }
-    final splitTxt = (e == null || actualInvPct == null) ? '—' : '$actualInvPct/$targetPct';
+    final splitTxt = (e == null || actualInvPct == null)
+        ? '—'
+        : '$actualInvPct/$targetPct';
 
     // Compare month split vs slider target (post-expenses allocations only).
     const bandPctPoints = 5; // slider is quantized to 5% steps
@@ -2077,25 +2556,46 @@ class _MonthlyCashflowSplitTableRow extends StatelessWidget {
     final inBand = actualInvPct != null && diff.abs() <= bandPctPoints;
     final splitColor = actualInvPct == null
         ? AppTheme.slate600
-        : (inBand ? AppTheme.slate600 : (diff > 0 ? AppModel.spendUnderColor : AppModel.spendOverColor));
+        : (inBand
+              ? AppTheme.slate600
+              : (diff > 0
+                    ? AppModel.spendUnderColor
+                    : AppModel.spendOverColor));
 
     final child = Container(
       decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: showDivider ? AppTheme.slate100 : Colors.transparent)),
+        border: Border(
+          bottom: BorderSide(
+            color: showDivider ? AppTheme.slate100 : Colors.transparent,
+          ),
+        ),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       child: Row(
         children: [
           SizedBox(
             width: 72,
-            child: Text(AppModel.formatMonthKeyLabel(monthKey), style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+            child: Text(
+              AppModel.formatMonthKeyLabel(monthKey),
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+            ),
           ),
-          Expanded(child: Text(earnedTxt, textAlign: TextAlign.end, style: const TextStyle(fontSize: 11))),
+          Expanded(
+            child: Text(
+              earnedTxt,
+              textAlign: TextAlign.end,
+              style: const TextStyle(fontSize: 11),
+            ),
+          ),
           Expanded(
             child: Text(
               splitTxt,
               textAlign: TextAlign.end,
-              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: splitColor),
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
+                color: splitColor,
+              ),
             ),
           ),
         ],
@@ -2159,7 +2659,8 @@ class _GroupedIntFieldState extends State<_GroupedIntField> {
   @override
   void didUpdateWidget(covariant _GroupedIntField oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.currency != widget.currency || oldWidget.initialInt != widget.initialInt) {
+    if (oldWidget.currency != widget.currency ||
+        oldWidget.initialInt != widget.initialInt) {
       final next = _fmt(widget.initialInt);
       if (_ctrl.text != next) _ctrl.text = next;
     }
@@ -2184,8 +2685,19 @@ class _GroupedIntFieldState extends State<_GroupedIntField> {
         labelText: widget.labelText,
         border: const OutlineInputBorder(),
         isDense: true,
+        prefixText: widget.currency == CurrencyCode.aed
+            ? null
+            : widget.currency.symbol,
+        prefixIcon: widget.currency == CurrencyCode.aed
+            ? const Padding(
+                padding: EdgeInsetsDirectional.only(start: 12, end: 8),
+                child: DirhamIcon(size: 16),
+              )
+            : null,
+        prefixIconConstraints: widget.currency == CurrencyCode.aed
+            ? const BoxConstraints(minWidth: 38)
+            : null,
       ),
     );
   }
 }
-

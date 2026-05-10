@@ -29,7 +29,7 @@ class _ChatTabState extends State<ChatTab> {
       };
 
   Widget _addKeyButton(VoidCallback onTap) {
-    return OutlinedButton.icon(
+    return OutlinedButton(
       onPressed: onTap,
       style: OutlinedButton.styleFrom(
         backgroundColor: Colors.white,
@@ -37,8 +37,7 @@ class _ChatTabState extends State<ChatTab> {
         side: const BorderSide(color: AppTheme.slate100),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       ),
-      icon: const Icon(Icons.key_outlined, size: 18),
-      label: const Text('Add key', style: TextStyle(fontWeight: FontWeight.w800)),
+      child: const Text('Add key', style: TextStyle(fontWeight: FontWeight.w800)),
     );
   }
 
@@ -94,8 +93,11 @@ class _ChatTabState extends State<ChatTab> {
                     style: const TextStyle(fontWeight: FontWeight.w800, color: AppTheme.slate900, fontSize: 14),
                   ),
                 ),
-                const SizedBox(width: 2),
-                const Icon(Icons.expand_more, color: AppTheme.slate600, size: 20),
+                const SizedBox(width: 4),
+                Text(
+                  '▾',
+                  style: TextStyle(fontWeight: FontWeight.w900, color: AppTheme.slate600.withValues(alpha: 0.85), fontSize: 12),
+                ),
               ],
             ),
           ),
@@ -110,12 +112,15 @@ class _ChatTabState extends State<ChatTab> {
       listenable: widget.model,
       builder: (context, _) {
         final m = widget.model;
-        final hasAnyKey = m.hasAnyApiKey;
-        final withKeys = LlmProvider.values.where((p) => m.apiKeyFor(p) != null).toList();
-        if (hasAnyKey && withKeys.isNotEmpty && m.apiKeyFor(m.activeLlmProvider) == null) {
+        final withKeys = <LlmProvider>[
+          for (final p in LlmProvider.values)
+            if (m.apiKeyFor(p) != null) p,
+        ];
+        final canChat = m.canUseAnyLlm;
+        if (canChat && withKeys.isNotEmpty && !withKeys.contains(m.activeLlmProvider)) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (!context.mounted) return;
-            if (m.apiKeyFor(m.activeLlmProvider) == null) {
+            if (!withKeys.contains(m.activeLlmProvider)) {
               m.setActiveLlmProvider(withKeys.first);
             }
           });
@@ -136,7 +141,7 @@ class _ChatTabState extends State<ChatTab> {
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
                   ),
                   const Spacer(),
-                  if (!hasAnyKey)
+                  if (!canChat)
                     _addKeyButton(widget.onGoToSettingsPermissions)
                   else ...[
                     Flexible(
@@ -149,7 +154,7 @@ class _ChatTabState extends State<ChatTab> {
                     const SizedBox(width: 8),
                   ],
                   const SizedBox(width: 10),
-                  FilledButton.icon(
+                  FilledButton(
                     onPressed: () async {
                       final agentId = await _pickAgent(context, m);
                       if (agentId == null) return;
@@ -188,8 +193,7 @@ class _ChatTabState extends State<ChatTab> {
                         ),
                       );
                     },
-                    icon: const Icon(Icons.add_comment),
-                    label: const Text('New'),
+                    child: const Text('New'),
                   ),
             ],
           ),
@@ -324,15 +328,6 @@ Future<String?> _pickAgent(BuildContext context, AppModel model) async {
           ),
           ...model.agents.map(
             (a) => ListTile(
-              leading: Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: model.accent.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(Icons.smart_toy, color: model.accent),
-              ),
               title: Text(a.name, style: const TextStyle(fontWeight: FontWeight.w900)),
               subtitle: Text(
                 '${_agentKindLabel(a.kind)} · ${a.description}',
