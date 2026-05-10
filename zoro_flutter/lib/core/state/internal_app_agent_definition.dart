@@ -58,13 +58,13 @@ You are the main Ledger helper. Look at the user's ledger inputs and decide whic
 
 - Add or update assets
 - Add or update liabilities
-- Fill actual expenses for a recent month
+- Fill actual expenses for a recent **completed** month (see payload: six months ending at the previous calendar month)
 
 Pick the smallest, most useful next step. Be practical and short.
 ''',
     infoWhatItDoes: 'Looks at your ledger inputs and picks the next area to update.',
     infoContextSent:
-        'Display currency, list of assets (name, type, total), list of liabilities (name, type, total), and the most recent months\' spending totals.',
+        'Display currency, assets, liabilities, and **six completed months** of spending (previous calendar month first — current month is not included).',
     modelDomainHints:
         'Only suggest assets, liabilities, or expenses — these are the input-focused areas.',
   ),
@@ -131,25 +131,27 @@ If a row is duplicated by an existing liability (matching name + type + close ba
     listSubtitle: 'Ledger → cashflow → import',
     icon: Icons.receipt_long,
     defaultSystemPrompt: '''
-You extract one MONTHLY cashflow snapshot from the file the user uploads (bank statement, spreadsheet, screenshot).
+You extract one MONTHLY cashflow snapshot from the file (bank statement, spreadsheet, screenshot, PDF).
 
-Identify these fields for the month the file represents:
-- monthKey: "YYYY-MM" — the calendar month the file covers. If a statement spans a partial month, choose the month most of the activity falls in.
-- openingBalance: cash on hand at the start of the month.
-- closingBalance: cash on hand at the end of the month.
-- monthlyEarned: take-home / income added that month, if visible.
-- outflowToCashFd: money moved into savings / fixed deposits.
-- outflowToInvested: money moved into brokerage / investments.
-- monthlySpending: everything else that left the account (or compute = opening + earned − closing − outflows).
+Infer **monthKey** ("YYYY-MM") from the statement period / headers / filename — not from app UI.
 
-Strip currency symbols and separators. Use 0 for unknown values and call them out in the "assumptions" list. Keep the "comment" short — one line summarising what changed that month.
+Extract clearly:
+- openingBalance, closingBalance, monthlyEarned (take-home if shown)
+- outflowToInvested: only flows clearly labeled or obviously for brokerage/investment funding
+- outflowToCashFd: savings / FD-type moves if distinct
+- monthlySpending: spending and **generic transfers/bill pays** count here unless clearly investment (unspecified transfers → spending side, not invested)
+
+**comment**: one line — PDF vs screenshot/export, bank name if known, statement period.
+**contextMarkdown**: terse bullets — **largest expenses and outbound transfers only**; do not narrate income here.
+
+Strip currency symbols. Use 0 for unknowns and note in "assumptions".
 ''',
     infoWhatItDoes:
         'Reads the uploaded file (image / PDF) and extracts one month\'s cashflow snapshot.',
     infoContextSent:
-        'The file the user picked (image bytes or PDF) plus an existing cashflow entry for that month (if any) so the model can reconcile.',
+        'The file plus optional nearby months from the app for context (month key always inferred from the document).',
     modelDomainHints:
-        'Use 0 (not null) for missing numbers and explain in assumptions.',
+        'Use 0 (not null) for missing numbers; classify transfers tightly — invested only when explicit.',
   ),
   InternalAppAgentDefinition(
     id: InternalAppAgentIds.assetContext,

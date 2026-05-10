@@ -24,7 +24,8 @@ class LedgerImportPage extends StatefulWidget {
     required this.kind,
     this.editAssetId,
     this.editLiabilityId,
-    this.editCashflowMonthKey,
+    /// Weak tie-break only — cashflow `monthKey` must come from the document.
+    this.cashflowEditorHintMonthKey,
   });
 
   final AppModel model;
@@ -36,8 +37,8 @@ class LedgerImportPage extends StatefulWidget {
   /// When set, user opened import while editing this liability.
   final String? editLiabilityId;
 
-  /// When set, cashflow import updates this month (from monthly editor).
-  final String? editCashflowMonthKey;
+  /// Month the user had selected when opening cashflow import (optional hint for ambiguous statements).
+  final String? cashflowEditorHintMonthKey;
 
   @override
   State<LedgerImportPage> createState() => _LedgerImportPageState();
@@ -57,7 +58,6 @@ class _LedgerImportPageState extends State<LedgerImportPage> {
 
   LedgerAssetRow? _beforeAsset;
   LedgerLiabilityRow? _beforeLiability;
-  MonthlyCashflowEntry? _beforeCashflow;
 
   /// Non-fatal notice when e.g. the model returned multiple rows in edit mode.
   String? _importWarning;
@@ -66,10 +66,7 @@ class _LedgerImportPageState extends State<LedgerImportPage> {
 
   bool get _editingLiability => widget.editLiabilityId != null;
 
-  bool get _editingCashflowMonth => widget.editCashflowMonthKey != null;
-
-  bool get _isRowEditMode =>
-      _editingAsset || _editingLiability || _editingCashflowMonth;
+  bool get _isRowEditMode => _editingAsset || _editingLiability;
 
   String get _title => switch (widget.kind) {
     LedgerImportKind.asset => _editingAsset
@@ -78,9 +75,7 @@ class _LedgerImportPageState extends State<LedgerImportPage> {
     LedgerImportKind.liability => _editingLiability
         ? 'Update liability from import'
         : 'Import liability(s)',
-    LedgerImportKind.cashflow => _editingCashflowMonth
-        ? 'Update month from import'
-        : 'Import cashflow',
+    LedgerImportKind.cashflow => 'Import cashflow',
   };
 
   String get _internalAgentId => switch (widget.kind) {
@@ -142,10 +137,17 @@ Return ONE JSON object only. No prose. Schema:
   "outflowToCashFd": 0,
   "outflowToInvested": 0,
   "monthlySpending": 0,
-  "comment":"short plain-text summary for the ledger",
-  "contextMarkdown":"(optional) markdown note for future context",
-  "assumptions":[ "(optional) bullets describing assumptions" ]
+  "comment":"One line: document type (PDF/screenshot/export), institution/bank if known, statement period; keep short",
+  "contextMarkdown":"Bullets: largest expenses & outbound transfers only — do NOT narrate income here",
+  "assumptions":[ "(optional) bullets when you inferred or split amounts" ]
 }
+Rules (cashflow):
+- Infer **monthKey** from the statement header / period / filename — **never** assume the app UI month.
+- Prioritize extracting **openingBalance**, **closingBalance**, **monthlyEarned** (take-home), **outflowToInvested** (brokerage/investment transfers only when explicitly labeled or clearly investment).
+- **Classification:** Treat generic transfers, bill pays, card payments, and unspecified outflows as **spending path**, i.e. affect **monthlySpending** or cash savings (**outflowToCashFd**) as appropriate. Only put flows in **outflowToInvested** when the document clearly indicates investment/brokerage funding (not generic transfers).
+- **monthlySpending**: discretionary/total spend or residual after known splits when that matches the doc.
+- **comment** = provenance (PDF vs screenshot, bank name). **contextMarkdown** = notable large debits/transfers/expenses only; terse bullets; **exclude** income storylines.
+- Valid JSON only.
 ''',
   };
 
@@ -234,29 +236,11 @@ Return ONE JSON object only. No prose. Schema:
       },
       LedgerImportKind.cashflow => {
         'displayCurrency': m.displayCurrency.name,
-        if (widget.editCashflowMonthKey != null) ...{
-          'mode': 'updateMonth',
-          'targetMonthKey': widget.editCashflowMonthKey,
-          'existingMonthRow': () {
-            final e = m.monthlyEntryFor(widget.editCashflowMonthKey!);
-            if (e == null) return null;
-            return {
-              'monthKey': e.monthKey,
-              'openingBalance': e.openingBalance,
-              'closingBalance': e.closingBalance,
-              'monthlyEarned': e.monthlyEarned,
-              'outflowToCashFd': e.outflowToCashFd,
-              'outflowToInvested': e.outflowToInvested,
-              'monthlySpending': e.monthlySpending,
-              'comment': e.comment,
-              'contextMarkdown': e.contextMarkdown ?? '',
-            };
-          }(),
-        } else ...{
-          'mode': 'inferOrCreateMonth',
-        },
+        'mode': 'inferMonthFromDocument',
+        if ((widget.cashflowEditorHintMonthKey ?? '').trim().isNotEmpty)
+          'optionalUiHintMonth': widget.cashflowEditorHintMonthKey,
         'recentMonths': [
-          for (final mk in AppModel.recentMonthKeys())
+          for (final mk in AppModel.recentMonthKeys(count: 6))
             {
               'monthKey': mk,
               'opening': m.monthlyEntryFor(mk)?.openingBalance,
@@ -286,22 +270,6 @@ Return ONE JSON object only. No prose. Schema:
       final l = m.liabilityById(widget.editLiabilityId!);
       if (l != null) _beforeLiability = l.clone();
     }
-    if (widget.editCashflowMonthKey != null) {
-      final e = m.monthlyEntryFor(widget.editCashflowMonthKey!);
-      if (e != null) {
-        _beforeCashflow = MonthlyCashflowEntry(
-          monthKey: e.monthKey,
-          openingBalance: e.openingBalance,
-          closingBalance: e.closingBalance,
-          monthlyEarned: e.monthlyEarned,
-          outflowToCashFd: e.outflowToCashFd,
-          outflowToInvested: e.outflowToInvested,
-          monthlySpending: e.monthlySpending,
-          comment: e.comment,
-          contextMarkdown: e.contextMarkdown,
-        );
-      }
-    }
   }
 
   /// Extra instructions when updating an existing ledger row (not add-new).
@@ -325,15 +293,19 @@ The user is editing saved liability id "${widget.editLiabilityId}".
 Return exactly ONE object in "liabilities". The app will keep id "${widget.editLiabilityId}".
 "comment" = import meta + dates; "contextMarkdown" = loan/card terms and details.''';
     }
-    if (widget.editCashflowMonthKey != null) {
-      return '''
+    return '';
+  }
+
+  /// Cashflow: optional UI month selection — never overrides statement-derived monthKey.
+  String _cashflowImportHints() {
+    if (widget.kind != LedgerImportKind.cashflow) return '';
+    final hint = (widget.cashflowEditorHintMonthKey ?? '').trim();
+    if (hint.isEmpty) return '';
+    return '''
 
 ---
-IMPORTANT — UPDATE MONTH ${widget.editCashflowMonthKey}
-Return fields for that month only. The app will force monthKey to "${widget.editCashflowMonthKey}" even if the file header differs.
-"comment" = high-level + statement period if known; "contextMarkdown" = extra detail about income/spending mix for that month.''';
-    }
-    return '';
+Optional UI hint (tie-break ONLY): the user had "$hint" selected before opening import.
+Infer **monthKey** from the document or statement period; use this hint only if the covered month is ambiguous.''';
   }
 
   Future<void> _pickAndExtract() async {
@@ -452,6 +424,7 @@ Return fields for that month only. The app will force monthKey to "${widget.edit
         'Existing context (so you can avoid duplicates):',
         const JsonEncoder.withIndent('  ').convert(_existingPayload()),
         _editModeInstructions(),
+        _cashflowImportHints(),
         if (bundle.promptText.trim().isNotEmpty) ...[
           '',
           '---',
@@ -592,8 +565,7 @@ Return fields for that month only. The app will force monthKey to "${widget.edit
         });
       } else {
         final parsedMonth = _normaliseMonthKey(obj['monthKey']);
-        final effectiveMonth = widget.editCashflowMonthKey ?? parsedMonth;
-        if (effectiveMonth == null) {
+        if (parsedMonth == null) {
           throw const FormatException(
             'Could not detect a month (YYYY-MM) in the file.',
           );
@@ -602,7 +574,7 @@ Return fields for that month only. The app will force monthKey to "${widget.edit
         final rawComment = (obj['comment']?.toString() ?? '').trim();
         final rawCtx = obj['contextMarkdown']?.toString();
         final mergedEntry = _finalizeCashflowPreview(
-          targetMonthKey: effectiveMonth,
+          targetMonthKey: parsedMonth,
           openingBalance: _toMoney(obj['openingBalance']),
           closingBalance: _toMoney(obj['closingBalance']),
           monthlyEarned: _toMoney(obj['monthlyEarned']),
@@ -623,8 +595,8 @@ Return fields for that month only. The app will force monthKey to "${widget.edit
           'kind': 'cashflow_import',
           'monthKey': mergedEntry.monthKey,
           'files': _pickedFiles.map((f) => f.name).join(', '),
-          if (widget.editCashflowMonthKey != null)
-            'editCashflowMonthKey': widget.editCashflowMonthKey,
+          if ((widget.cashflowEditorHintMonthKey ?? '').trim().isNotEmpty)
+            'cashflowEditorHintMonthKey': widget.cashflowEditorHintMonthKey,
         });
       }
     } catch (e) {
@@ -815,13 +787,8 @@ Return fields for that month only. The app will force monthKey to "${widget.edit
     required String comment,
     String? contextMarkdown,
   }) {
-    final before = _beforeCashflow;
-    final mergedComment =
-        comment.trim().isNotEmpty ? comment : (before?.comment ?? '');
-    final ctxTrim = (contextMarkdown ?? '').trim();
-    final mergedCtx =
-        ctxTrim.isNotEmpty ? contextMarkdown?.trim() : before?.contextMarkdown;
-
+    final c = comment.trim();
+    final ctx = contextMarkdown?.trim();
     return MonthlyCashflowEntry(
       monthKey: targetMonthKey,
       openingBalance: openingBalance,
@@ -830,9 +797,8 @@ Return fields for that month only. The app will force monthKey to "${widget.edit
       outflowToCashFd: outflowToCashFd,
       outflowToInvested: outflowToInvested,
       monthlySpending: monthlySpending,
-      comment: mergedComment,
-      contextMarkdown:
-          (mergedCtx ?? '').trim().isEmpty ? null : mergedCtx?.trim(),
+      comment: c,
+      contextMarkdown: (ctx ?? '').isEmpty ? null : ctx,
     );
   }
 
@@ -960,68 +926,14 @@ Return fields for that month only. The app will force monthKey to "${widget.edit
           ),
         ];
       case LedgerImportKind.cashflow:
-        final after = _cashflowPreview!;
-        final before = _beforeCashflow;
-        return [
-          _diffRow(ctx, 'Month', before?.monthKey, after.monthKey),
-          _diffRow(
-            ctx,
-            'Opening',
-            before == null ? null : _fmtMoney(before.openingBalance),
-            _fmtMoney(after.openingBalance),
-          ),
-          _diffRow(
-            ctx,
-            'Closing',
-            before == null ? null : _fmtMoney(before.closingBalance),
-            _fmtMoney(after.closingBalance),
-          ),
-          _diffRow(
-            ctx,
-            'Earned',
-            before == null ? null : _fmtMoney(before.monthlyEarned),
-            _fmtMoney(after.monthlyEarned),
-          ),
-          _diffRow(
-            ctx,
-            'Saved',
-            before == null ? null : _fmtMoney(before.outflowToCashFd),
-            _fmtMoney(after.outflowToCashFd),
-          ),
-          _diffRow(
-            ctx,
-            'Invested',
-            before == null ? null : _fmtMoney(before.outflowToInvested),
-            _fmtMoney(after.outflowToInvested),
-          ),
-          _diffRow(
-            ctx,
-            'Spending',
-            before == null ? null : _fmtMoney(before.monthlySpending),
-            _fmtMoney(after.monthlySpending),
-          ),
-          _diffRow(
-            ctx,
-            'Comment',
-            before?.comment,
-            after.comment,
-            truncate: true,
-          ),
-          _diffRow(
-            ctx,
-            'Context',
-            before?.contextMarkdown,
-            after.contextMarkdown ?? '',
-            truncate: true,
-          ),
-        ];
+        return const [];
     }
   }
 
   String _saveTargetLabel() => switch (widget.kind) {
         LedgerImportKind.asset => 'asset',
         LedgerImportKind.liability => 'liability',
-        LedgerImportKind.cashflow => 'cashflow month',
+        LedgerImportKind.cashflow => 'row',
       };
 
   Future<void> _save() async {
@@ -1129,7 +1041,10 @@ Return fields for that month only. The app will force monthKey to "${widget.edit
         behavior: SnackBarBehavior.floating,
       ),
     );
-    Navigator.of(context).pop();
+    final poppedMonth = widget.kind == LedgerImportKind.cashflow
+        ? _cashflowPreview?.monthKey
+        : null;
+    Navigator.of(context).pop<String?>(poppedMonth);
   }
 
   Widget _previewCard({required String title, required Widget child}) {
@@ -1154,7 +1069,7 @@ Return fields for that month only. The app will force monthKey to "${widget.edit
       LedgerImportKind.asset => (_assetsPreview ?? const []).isNotEmpty,
       LedgerImportKind.liability =>
         (_liabilitiesPreview ?? const []).isNotEmpty,
-      LedgerImportKind.cashflow => _cashflowPreview != null,
+      LedgerImportKind.cashflow => false,
     };
     if (!hasPreview) return const [];
     return [

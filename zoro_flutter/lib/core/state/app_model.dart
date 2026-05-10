@@ -783,11 +783,21 @@ class AppModel extends ChangeNotifier {
     return '${y.toString().padLeft(4, '0')}-${m.toString().padLeft(2, '0')}';
   }
 
-  static List<String> recentMonthKeys() {
+  /// Default month when opening a **new** monthly cashflow row — previous calendar month
+  /// (current month rarely has complete data).
+  static String defaultCashflowEditorMonthKey([DateTime? now]) {
+    final n = now ?? DateTime.now();
+    final prev = DateTime(n.year, n.month - 1, 1);
+    return monthKeyFor(prev);
+  }
+
+  /// Recent completed months for agents and payloads (**previous calendar month first**, then older).
+  /// Omits the current month (e.g. in May, first key is April — six completed months by default).
+  static List<String> recentMonthKeys({int count = 6}) {
     final now = DateTime.now();
-    // Current month + up to 6 months back.
-    return List.generate(7, (i) {
-      final d = DateTime(now.year, now.month - i, 1);
+    final anchor = DateTime(now.year, now.month - 1, 1);
+    return List.generate(count, (i) {
+      final d = DateTime(anchor.year, anchor.month - i, 1);
       return monthKeyFor(d);
     });
   }

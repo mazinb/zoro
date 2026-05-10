@@ -45,7 +45,8 @@ Pick the best next INPUT area for the user to update:
 Rules:
 - Only choose from the three input areas above.
 - If privacyHideAmounts is true, still choose a section; do not ask for numbers.
-- Prefer expenses if recent monthly spending is missing or obviously stale.
+- `recentMonths` is **six completed calendar months**, newest-first = **previous month** (e.g. in May, April is index 0). Month-to-date is not included.
+- Prefer expenses if recent monthly spending is missing or obviously stale (using those completed months).
 - Prefer liabilities if the user has debt and the row is missing basic info.
 - Prefer assets if a major balance looks stale or empty.
 ''';
@@ -80,12 +81,14 @@ Rules:
           }
       ],
       'recentMonths': [
-        for (final mk in AppModel.recentMonthKeys())
+        for (final mk in AppModel.recentMonthKeys(count: 6))
           {
             'monthKey': mk,
             'monthlySpending': m.monthlyEntryFor(mk)?.monthlySpending,
           }
       ],
+      'note':
+          'recentMonths: six completed months; first entry is previous calendar month (not current month-to-date).',
     };
   }
 

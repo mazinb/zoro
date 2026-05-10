@@ -197,7 +197,8 @@ class _LedgerTabState extends State<LedgerTab> {
   }) async {
     final m = widget.model;
     final lockMonth = initialMonthKey != null;
-    final month = initialMonthKey ?? AppModel.monthKeyFor(DateTime.now());
+    final month =
+        initialMonthKey ?? AppModel.defaultCashflowEditorMonthKey();
     final entry = await Navigator.of(context).push<MonthlyCashflowEntry?>(
       MaterialPageRoute<MonthlyCashflowEntry?>(
         fullscreenDialog: true,
@@ -555,17 +556,23 @@ class _MonthlyCashflowEditorPageState
     _commentCtrl.clear();
   }
 
-  void _openAiImport() {
-    Navigator.of(context).push<void>(
-      MaterialPageRoute<void>(
+  Future<void> _openAiImport() async {
+    final importedMonth = await Navigator.of(context).push<String?>(
+      MaterialPageRoute<String?>(
         fullscreenDialog: true,
         builder: (ctx) => LedgerImportPage(
           model: widget.model,
           kind: LedgerImportKind.cashflow,
-          editCashflowMonthKey: _monthKey,
+          cashflowEditorHintMonthKey: _monthKey,
         ),
       ),
     );
+    if (!mounted) return;
+    if ((importedMonth ?? '').isEmpty) return;
+    setState(() {
+      _monthKey = importedMonth!;
+      _loadMonth(importedMonth);
+    });
   }
 
   void _save() {

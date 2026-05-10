@@ -60,6 +60,17 @@ class _AgentRunnerPageState extends State<AgentRunnerPage> {
   late final TextEditingController _mdCtrl = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+    if (widget.template.targetKind == AgentTargetKind.month) {
+      _monthKey = AppModel.recentMonthKeys(count: 6).first;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _loadContextForSelection();
+    });
+  }
+
+  @override
   void dispose() {
     _mdCtrl.dispose();
     super.dispose();
