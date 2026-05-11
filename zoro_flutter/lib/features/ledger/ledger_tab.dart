@@ -1401,10 +1401,14 @@ class _AssetEditorSheetState extends State<_AssetEditorSheet> {
             const SizedBox(height: 12),
             TextField(
               controller: _nameCtrl,
-              decoration: const InputDecoration(
+              readOnly: widget.model.primaryCashBalanceIsMirrored(_row),
+              decoration: InputDecoration(
                 labelText: 'Name',
                 hintText: 'e.g. Main savings',
-                border: OutlineInputBorder(),
+                border: const OutlineInputBorder(),
+                helperText: widget.model.primaryCashBalanceIsMirrored(_row)
+                    ? 'Rename from Ledger → Cash tab'
+                    : null,
               ),
             ),
             const SizedBox(height: 12),
@@ -1463,6 +1467,7 @@ class _AssetEditorSheetState extends State<_AssetEditorSheet> {
               const SizedBox(height: 12),
               TextField(
                 controller: _labelCtrl,
+                readOnly: widget.model.primaryCashBalanceIsMirrored(_row),
                 decoration: const InputDecoration(
                   labelText: 'Label',
                   hintText: 'e.g. Other assets',
@@ -1531,31 +1536,33 @@ class _AssetEditorSheetState extends State<_AssetEditorSheet> {
                   border: OutlineInputBorder(),
                 ),
               ),
-            const SizedBox(height: 14),
-            _ledgerRowEditorActions(
-              context: context,
-              onImportWithAi: () {
-                Navigator.of(context).pop();
-                Navigator.of(widget.parentContext).push<void>(
-                  MaterialPageRoute<void>(
-                    fullscreenDialog: true,
-                    builder: (ctx) => LedgerImportPage(
-                      model: widget.model,
-                      kind: LedgerImportKind.asset,
-                      editAssetId:
-                          widget.allowCurrencyEdit ? null : widget.draft.id,
+            if (!widget.model.primaryCashBalanceIsMirrored(_row)) ...[
+              const SizedBox(height: 14),
+              _ledgerRowEditorActions(
+                context: context,
+                onImportWithAi: () {
+                  Navigator.of(context).pop();
+                  Navigator.of(widget.parentContext).push<void>(
+                    MaterialPageRoute<void>(
+                      fullscreenDialog: true,
+                      builder: (ctx) => LedgerImportPage(
+                        model: widget.model,
+                        kind: LedgerImportKind.asset,
+                        editAssetId:
+                            widget.allowCurrencyEdit ? null : widget.draft.id,
+                      ),
                     ),
-                  ),
-                );
-              },
-              canDelete: widget.canDelete,
-              onDelete: widget.canDelete
-                  ? () => Navigator.of(context).pop(
-                        const _RowEditorOutcome<LedgerAssetRow>(delete: true),
-                      )
-                  : null,
-              onSave: _save,
-            ),
+                  );
+                },
+                canDelete: widget.canDelete,
+                onDelete: widget.canDelete
+                    ? () => Navigator.of(context).pop(
+                          const _RowEditorOutcome<LedgerAssetRow>(delete: true),
+                        )
+                    : null,
+                onSave: _save,
+              ),
+            ],
           ],
         ),
       ),

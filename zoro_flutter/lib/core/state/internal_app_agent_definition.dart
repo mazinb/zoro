@@ -135,11 +135,17 @@ You extract one MONTHLY cashflow snapshot from the file (bank statement, spreads
 
 Infer **monthKey** ("YYYY-MM") from the statement period / headers / filename — not from app UI.
 
-Extract clearly:
-- openingBalance, closingBalance, monthlyEarned (take-home if shown)
+**Credits and monthlyEarned (critical):**
+- Statements often include a **period summary** for money in vs money out: total credits / total debits, counts, or equivalent wording — labels differ by bank and language, so infer the **money-IN total** from headers and layout, not only English phrases.
+- **monthlyEarned** = credits that represent **earned inflow**: wages, salary, payroll, benefits, business or freelance receipts, client/customer payments, and similar — sum the **credit / deposit / incoming** side of the transaction list where those apply.
+- **Exclude** from monthlyEarned only when a credit is clearly **not** earned income (e.g. transfer from own other account, loan principal disbursed to this account, error reversal paired with a debit) — list each exclusion in **assumptions**.
+- **Do not** set monthlyEarned to 0 when the statement shows **positive total credits** or multiple incoming lines unless every such line is explicitly non-earned in assumptions. If line-level classification is ambiguous but the **total credits** (or sum of credit-column amounts) is clear, set monthlyEarned to **that total minus** credits you flagged as non-earned.
+- Cross-check: openingBalance + (sum of credits) − (sum of debits) ≈ closingBalance within small rounding; if off, explain in assumptions.
+
+**Outflows (unchanged intent):**
 - outflowToInvested: only flows clearly labeled or obviously for brokerage/investment funding
 - outflowToCashFd: savings / FD-type moves if distinct
-- monthlySpending: spending and **generic transfers/bill pays** count here unless clearly investment (unspecified transfers → spending side, not invested)
+- monthlySpending: spending and **generic transfers/bill pays** unless clearly investment (unspecified outbound transfers → spending side, not invested)
 
 **comment**: one line — PDF vs screenshot/export, bank name if known, statement period.
 **contextMarkdown**: terse bullets — **largest expenses and outbound transfers only**; do not narrate income here.
@@ -151,7 +157,7 @@ Strip currency symbols. Use 0 for unknowns and note in "assumptions".
     infoContextSent:
         'The file plus optional nearby months from the app for context (month key always inferred from the document).',
     modelDomainHints:
-        'Use 0 (not null) for missing numbers; classify transfers tightly — invested only when explicit.',
+        'Use 0 (not null) for missing numbers; classify transfers tightly — invested only when explicit. monthlyEarned must reflect income-like incoming totals; use the statement period summary when line items are messy.',
   ),
   InternalAppAgentDefinition(
     id: InternalAppAgentIds.assetContext,

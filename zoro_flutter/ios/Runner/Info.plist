@@ -72,5 +72,14 @@
 	<string>Used for optional on-device model download and inference helpers.</string>
 	<key>UIFileSharingEnabled</key>
 	<true/>
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>fetch</string>
+		<string>processing</string>
+	</array>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>com.getzoro.zoroFlutter.refresh</string>
+	</array>
 </dict>
 </plist>

@@ -9,7 +9,7 @@ import '../state/app_model.dart';
 import 'agent_json.dart';
 
 const _fileName = 'user_agents_settings.json';
-const _version = 3;
+const _version = 4;
 
 class UserAgentsSettingsStore {
   static Future<File> _file() async {
@@ -30,13 +30,18 @@ class UserAgentsSettingsStore {
       if (decoded is! Map) return null;
       final root = Map<String, dynamic>.from(decoded);
       final ver = root['version'];
-      if (ver is! int || (ver != 2 && ver != 3)) return null;
+      if (ver is! int || (ver != 2 && ver != 3 && ver != 4)) return null;
       final agentsRaw = root['agents'];
       if (agentsRaw is! List) return null;
       final agents = <AppAgent>[];
       for (final e in agentsRaw) {
         final a = appAgentFromJson(e);
         if (a != null) agents.add(a);
+      }
+      final notif = root['notifications'];
+      NotificationPrefsSnap? notifSnap;
+      if (notif is Map) {
+        notifSnap = _parseNotificationPrefs(Map<String, dynamic>.from(notif));
       }
       return UserAgentsSettingsSnap(
         agents: agents,
@@ -50,10 +55,40 @@ class UserAgentsSettingsStore {
         homeCurrencyQuickPick1: _parseCurrency(root['homeCurrencyQuickPick1']?.toString()),
         homeCurrencyQuickPick2: _parseCurrency(root['homeCurrencyQuickPick2']?.toString()),
         themeMode: _parseThemeMode(root['themeMode']?.toString()),
+        notifications: notifSnap,
       );
     } catch (_) {
       return null;
     }
+  }
+
+  static NotificationPrefsSnap _parseNotificationPrefs(Map<String, dynamic> m) {
+    int? asInt(Object? v) {
+      if (v is int) return v;
+      if (v is num) return v.round();
+      return null;
+    }
+
+    DateTime? asUtcMs(Object? v) {
+      final ms = asInt(v);
+      if (ms == null) return null;
+      return DateTime.fromMillisecondsSinceEpoch(ms, isUtc: true);
+    }
+
+    return NotificationPrefsSnap(
+      notificationsEnabled: m['enabled'] == true,
+      reminderNotifyHour: asInt(m['reminderHour']),
+      reminderNotifyMinute: asInt(m['reminderMinute']),
+      remindersLastNotifiedExpenses: asUtcMs(m['lastExpensesMs']),
+      remindersLastNotifiedCashflow: asUtcMs(m['lastCashflowMs']),
+      remindersLastNotifiedIncome: asUtcMs(m['lastIncomeMs']),
+      remindersLastNotifiedAssets: asUtcMs(m['lastAssetsMs']),
+      remindersLastNotifiedLiabilities: asUtcMs(m['lastLiabilitiesMs']),
+      userTouchedExpenses: m['userTouchedExpenses'] == true,
+      userTouchedIncome: m['userTouchedIncome'] == true,
+      userTouchedAssets: m['userTouchedAssets'] == true,
+      userTouchedLiabilities: m['userTouchedLiabilities'] == true,
+    );
   }
 
   static LlmProvider? _parseLlm(String? s) {
@@ -92,8 +127,10 @@ class UserAgentsSettingsStore {
     required CurrencyCode homeCurrencyQuickPick1,
     required CurrencyCode homeCurrencyQuickPick2,
     required ThemeMode themeMode,
+    required NotificationPrefsSnap notifications,
   }) async {
     final f = await _file();
+    int? toMs(DateTime? d) => d?.toUtc().millisecondsSinceEpoch;
     final payload = <String, dynamic>{
       'version': _version,
       'agents': agents.map(appAgentToJson).toList(),
@@ -107,6 +144,25 @@ class UserAgentsSettingsStore {
       'homeCurrencyQuickPick1': homeCurrencyQuickPick1.name,
       'homeCurrencyQuickPick2': homeCurrencyQuickPick2.name,
       'themeMode': themeMode.name,
+      'notifications': {
+        'enabled': notifications.notificationsEnabled,
+        'reminderHour': notifications.reminderNotifyHour,
+        'reminderMinute': notifications.reminderNotifyMinute,
+        if (toMs(notifications.remindersLastNotifiedExpenses) != null)
+          'lastExpensesMs': toMs(notifications.remindersLastNotifiedExpenses),
+        if (toMs(notifications.remindersLastNotifiedCashflow) != null)
+          'lastCashflowMs': toMs(notifications.remindersLastNotifiedCashflow),
+        if (toMs(notifications.remindersLastNotifiedIncome) != null)
+          'lastIncomeMs': toMs(notifications.remindersLastNotifiedIncome),
+        if (toMs(notifications.remindersLastNotifiedAssets) != null)
+          'lastAssetsMs': toMs(notifications.remindersLastNotifiedAssets),
+        if (toMs(notifications.remindersLastNotifiedLiabilities) != null)
+          'lastLiabilitiesMs': toMs(notifications.remindersLastNotifiedLiabilities),
+        'userTouchedExpenses': notifications.userTouchedExpenses ?? false,
+        'userTouchedIncome': notifications.userTouchedIncome ?? false,
+        'userTouchedAssets': notifications.userTouchedAssets ?? false,
+        'userTouchedLiabilities': notifications.userTouchedLiabilities ?? false,
+      },
     };
     await f.writeAsString(const JsonEncoder.withIndent('  ').convert(payload));
   }
@@ -125,6 +181,7 @@ class UserAgentsSettingsSnap {
     this.homeCurrencyQuickPick1,
     this.homeCurrencyQuickPick2,
     this.themeMode,
+    this.notifications,
   });
 
   final List<AppAgent> agents;
@@ -138,4 +195,36 @@ class UserAgentsSettingsSnap {
   final CurrencyCode? homeCurrencyQuickPick1;
   final CurrencyCode? homeCurrencyQuickPick2;
   final ThemeMode? themeMode;
+  final NotificationPrefsSnap? notifications;
+}
+
+class NotificationPrefsSnap {
+  NotificationPrefsSnap({
+    this.notificationsEnabled = false,
+    this.reminderNotifyHour,
+    this.reminderNotifyMinute,
+    this.remindersLastNotifiedExpenses,
+    this.remindersLastNotifiedCashflow,
+    this.remindersLastNotifiedIncome,
+    this.remindersLastNotifiedAssets,
+    this.remindersLastNotifiedLiabilities,
+    this.userTouchedExpenses,
+    this.userTouchedIncome,
+    this.userTouchedAssets,
+    this.userTouchedLiabilities,
+  });
+
+  final bool notificationsEnabled;
+  final int? reminderNotifyHour;
+  final int? reminderNotifyMinute;
+  final DateTime? remindersLastNotifiedExpenses;
+  final DateTime? remindersLastNotifiedCashflow;
+  final DateTime? remindersLastNotifiedIncome;
+  final DateTime? remindersLastNotifiedAssets;
+  final DateTime? remindersLastNotifiedLiabilities;
+  // Nullable so we can distinguish "old store, no field" from "false".
+  final bool? userTouchedExpenses;
+  final bool? userTouchedIncome;
+  final bool? userTouchedAssets;
+  final bool? userTouchedLiabilities;
 }

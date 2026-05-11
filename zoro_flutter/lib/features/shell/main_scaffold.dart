@@ -1,5 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
+import '../../core/notifications/notification_payload.dart';
+import '../../core/notifications/notification_service.dart';
 import '../../core/state/app_model.dart';
 import '../../shared/widgets/liquid_glass.dart';
 import '../command_center/command_center_tab.dart';
@@ -61,14 +65,27 @@ class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver
     );
   }
 
+  StreamSubscription<NotificationPayload>? _notifTapSub;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _notifTapSub = NotificationService.instance.onTap.listen(_handleNotificationPayload);
+    // Drain any payload that launched the app from a terminated state.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final pending = NotificationService.instance.consumeLaunchPayload();
+      if (pending != null) {
+        _handleNotificationPayload(pending);
+      }
+      // Sync OS schedules with persisted preferences once the model is ready.
+      widget.model.syncNotifications();
+    });
   }
 
   @override
   void dispose() {
+    _notifTapSub?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _settingsTabIndex.dispose();
     super.dispose();
@@ -78,6 +95,25 @@ class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       widget.model.runDueScheduledAgentTasks();
+    }
+  }
+
+  void _handleNotificationPayload(NotificationPayload payload) {
+    if (!mounted) return;
+    switch (payload.kind) {
+      case NotificationKind.agentTask:
+        // Briefings land on Home; on-resume runner will refresh if still due.
+        setState(() {
+          _index = _homeIndex;
+          _ledgerFocus = null;
+        });
+      case NotificationKind.reminder:
+        final domain = payload.domain;
+        if (domain == null) return;
+        setState(() {
+          _index = _ledgerIndex;
+          _ledgerFocus = domain.name;
+        });
     }
   }
 

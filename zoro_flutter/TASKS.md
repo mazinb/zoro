@@ -48,11 +48,35 @@ Prefer `Theme.of(context).colorScheme` / `textTheme` over `AppTheme.slate*` and 
 
 ## Product backlog (later)
 
-1. Plan tab — one form vertical: UI + `POST /api/user-data` with `formType` aligned to web.  
-2. Money / Income — wire web `/income` when product-ready.  
-3. Expenses — mirror web estimates/monthly routes.  
-4. Universal Links — `applinks:www.getzoro.com` + token routing in iOS.  
-5. Subscriptions — entitlements + StoreKit 2; map 403/402 to paywall.
+1. Cashflow PDF import — keep refining **Import monthly cashflow** prompts; iteration context: `docs/cashflow_import_prompt_context.md`.
+2. Plan tab — one form vertical: UI + `POST /api/user-data` with `formType` aligned to web.  
+3. Money / Income — wire web `/income` when product-ready.  
+4. Expenses — mirror web estimates/monthly routes.  
+5. Universal Links — `applinks:www.getzoro.com` + token routing in iOS.  
+6. Subscriptions — entitlements + StoreKit 2; map 403/402 to paywall.
+
+## Native push notifications
+
+### Shipped
+
+- Local-only (`flutter_local_notifications` + `workmanager`); no APNs/FCM.
+- One master "Allow notifications" toggle (`AppModel.notificationsEnabled`) covers briefings + reminder summaries; defaults off. Per-scheduled-task `notify` flag. Per-domain silencing is done by setting that row's cadence to **Off** in the Reminders card.
+- `AppModel.isReminderNotifiable(domain)` is the only predicate the push path consults — requires master on, cadence ≠ Off, real user content (`userTouched*` / imported cashflow months), an overdue cadence anchor, and not-already-notified-this-period. Onboarding-spam regression test asserts a fresh `AppModel` with every cadence set produces zero notifications.
+- iOS: deployment target 14.0; `UIBackgroundModes` (`fetch`, `processing`) + `BGTaskSchedulerPermittedIdentifiers` (`com.getzoro.zoroFlutter.refresh`); `AppDelegate.swift` registers `WorkmanagerPlugin.registerPeriodicTask` before `super.application(...)` (mandatory or iOS crashes with `NSInternalInconsistencyException`). `DarwinNotificationDetails` sets `presentBanner` + `presentList` so iOS 14+ shows banners while the app is foreground.
+- Android: `POST_NOTIFICATIONS`, `RECEIVE_BOOT_COMPLETED`, `SCHEDULE_EXACT_ALARM`, `USE_EXACT_ALARM`, `WAKE_LOCK`; `ScheduledNotificationBootReceiver` so absolute-time alarms survive reboot.
+- iOS verified end-to-end on device: permission flow + foreground/lock-screen test fire works.
+
+### TODO — v2 content + routing polish
+
+- **Notification body content.** Right now the agent-task placeholder is the generic string `"Briefing ready — tap to open Zoro"` and `postReminderSummary` produces a flat `"X is due for an update."` sentence. Replace with:
+  - Agent task: the workmanager background dispatcher already runs the LLM and calls `postAgentBriefing`, but if Workmanager misses the slot the user sees the placeholder. Decide on a fallback — either run the agent on next foreground resume and replace, or include a smarter one-liner derived from `AppModel` (e.g. "Cash flow is down 12% vs last month").
+  - Reminder summary: surface the actual staleness ("Cash flow hasn't been updated in 67 days") and the cadence anchor that's due, not just the domain name. Pull from `*ReviewOverdueAt` siblings already on `AppModel`.
+- **Deep-link destinations (not Settings).** Today `_handleNotificationPayload` routes agent taps to Home and reminder taps to Ledger + section. Improve to land on the precise editing surface:
+  - Reminders → open the domain's edit sheet (Assets sheet / Liabilities sheet / Income editor / Expense bucket / Cashflow import) instead of just scrolling the Ledger to that section.
+  - Agent briefings → land on the briefing detail (or scroll Home to the "Updates" card), and mark the briefing read in `AppModel` so the tap doesn't keep nagging.
+  - Add a tiny `NotificationRoute` enum on `notification_payload.dart` so the payload carries the intended landing surface rather than re-deriving it in `MainScaffold`.
+- **Stale-data dismiss UX.** Tapping a reminder should call `AppModel.markDomainNotified(...)` immediately so we don't re-buzz the same period even if the user closes the destination without editing.
+- **Android device smoke test.** Pixel still pending: verify briefing fires, reminder summary fires only when the user has populated the domain, tap deep-links land correctly, fresh install during onboarding never buzzes, reboot keeps schedules.
 
 ---
 

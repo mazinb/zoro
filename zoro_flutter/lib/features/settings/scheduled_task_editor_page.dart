@@ -174,6 +174,20 @@ class _ScheduledTaskEditorPageState extends State<ScheduledTaskEditorPage> {
             value: _task.enabled,
             onChanged: (v) => setState(() => _task.enabled = v),
           ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Notify when this fires', style: TextStyle(fontWeight: FontWeight.w900)),
+            subtitle: Text(
+              widget.model.notificationsEnabled
+                  ? 'Posts a local notification when the briefing is ready.'
+                  : 'Turn on notifications in Settings → Notifications first.',
+              style: TextStyle(color: scheme.onSurfaceVariant),
+            ),
+            value: _task.notify && widget.model.notificationsEnabled,
+            onChanged: widget.model.notificationsEnabled
+                ? (v) => setState(() => _task.notify = v)
+                : null,
+          ),
           const SizedBox(height: 8),
           TextField(
             controller: _nameCtrl,

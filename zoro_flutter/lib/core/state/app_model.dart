@@ -10,6 +10,7 @@ import '../constants/web_expenses_income.dart';
 import '../finance/currency.dart';
 import '../../dev/compile_time_api_keys.dart';
 import '../llm/llm_key_store.dart';
+import '../notifications/notification_service.dart';
 import '../persistence/scheduled_agent_store.dart';
 import '../persistence/user_agents_settings_store.dart';
 import '../schedule/scheduled_agent_runner.dart';
@@ -153,6 +154,20 @@ class AppModel extends ChangeNotifier {
           homeCurrencyQuickPick1: homeCurrencyQuickPick1,
           homeCurrencyQuickPick2: homeCurrencyQuickPick2,
           themeMode: themeModePreference,
+          notifications: NotificationPrefsSnap(
+            notificationsEnabled: notificationsEnabled,
+            reminderNotifyHour: reminderNotifyHour,
+            reminderNotifyMinute: reminderNotifyMinute,
+            remindersLastNotifiedExpenses: remindersLastNotifiedExpenses,
+            remindersLastNotifiedCashflow: remindersLastNotifiedCashflow,
+            remindersLastNotifiedIncome: remindersLastNotifiedIncome,
+            remindersLastNotifiedAssets: remindersLastNotifiedAssets,
+            remindersLastNotifiedLiabilities: remindersLastNotifiedLiabilities,
+            userTouchedExpenses: userTouchedExpenses,
+            userTouchedIncome: userTouchedIncome,
+            userTouchedAssets: userTouchedAssets,
+            userTouchedLiabilities: userTouchedLiabilities,
+          ),
         );
       } catch (_) {}
     }
@@ -198,6 +213,25 @@ class AppModel extends ChangeNotifier {
     if (snap.themeMode != null) {
       themeModePreference = snap.themeMode!;
     }
+    final notif = snap.notifications;
+    if (notif != null) {
+      notificationsEnabled = notif.notificationsEnabled;
+      if (notif.reminderNotifyHour != null) {
+        reminderNotifyHour = notif.reminderNotifyHour!.clamp(0, 23);
+      }
+      if (notif.reminderNotifyMinute != null) {
+        reminderNotifyMinute = notif.reminderNotifyMinute!.clamp(0, 59);
+      }
+      remindersLastNotifiedExpenses = notif.remindersLastNotifiedExpenses;
+      remindersLastNotifiedCashflow = notif.remindersLastNotifiedCashflow;
+      remindersLastNotifiedIncome = notif.remindersLastNotifiedIncome;
+      remindersLastNotifiedAssets = notif.remindersLastNotifiedAssets;
+      remindersLastNotifiedLiabilities = notif.remindersLastNotifiedLiabilities;
+      if (notif.userTouchedExpenses != null) userTouchedExpenses = notif.userTouchedExpenses!;
+      if (notif.userTouchedIncome != null) userTouchedIncome = notif.userTouchedIncome!;
+      if (notif.userTouchedAssets != null) userTouchedAssets = notif.userTouchedAssets!;
+      if (notif.userTouchedLiabilities != null) userTouchedLiabilities = notif.userTouchedLiabilities!;
+    }
     _syncActiveProviderIfKeyRemoved();
     notifyListeners();
   }
@@ -239,6 +273,7 @@ class AppModel extends ChangeNotifier {
   void addScheduledTask(ScheduledAgentTask task) {
     scheduledAgentTasks.add(task);
     _scheduleScheduledPersist();
+    unawaited(_syncTaskNotification(task));
     notifyListeners();
   }
 
@@ -246,14 +281,25 @@ class AppModel extends ChangeNotifier {
     if (index < 0 || index >= scheduledAgentTasks.length) return;
     scheduledAgentTasks[index] = task;
     _scheduleScheduledPersist();
+    unawaited(_syncTaskNotification(task));
     notifyListeners();
   }
 
   void removeScheduledTaskAt(int index) {
     if (index < 0 || index >= scheduledAgentTasks.length) return;
-    scheduledAgentTasks.removeAt(index);
+    final removed = scheduledAgentTasks.removeAt(index);
     _scheduleScheduledPersist();
+    unawaited(NotificationService.instance.cancelAgentTask(removed.id));
     notifyListeners();
+  }
+
+  Future<void> _syncTaskNotification(ScheduledAgentTask t) async {
+    try {
+      await NotificationService.instance.scheduleAgentTask(
+        task: t,
+        masterEnabled: notificationsEnabled,
+      );
+    } catch (_) {}
   }
 
   /// Runs enabled schedules that are due (e.g. after app resume). Persists [lastRunAt] updates.
@@ -407,6 +453,33 @@ class AppModel extends ChangeNotifier {
   /// one year after the last update (anniversary), not this anchor.
   int remindersYearlyMonth = 3;
   int remindersYearlyDay = 31;
+
+  /// Master local-notifications switch (defaults off — user opts in from Settings).
+  /// When false, no notification of any kind is posted.
+  bool notificationsEnabled = false;
+
+  /// Local time-of-day used by the reminder-check background job to decide when to
+  /// post an "X items need attention" notification. Defaults to 09:00.
+  int reminderNotifyHour = 9;
+  int reminderNotifyMinute = 0;
+
+  /// Per-domain dismiss-back-off: timestamp of the last notification we posted for
+  /// this domain. Prevents re-buzzing the same domain twice in the same cadence
+  /// period (e.g. dismissed monthly cashflow on day 3 → no re-buzz until next month).
+  DateTime? remindersLastNotifiedExpenses;
+  DateTime? remindersLastNotifiedCashflow;
+  DateTime? remindersLastNotifiedIncome;
+  DateTime? remindersLastNotifiedAssets;
+  DateTime? remindersLastNotifiedLiabilities;
+
+  /// "Has the user actually touched this domain at least once?" — set by domain
+  /// mutation methods. Necessary because [_seedDummyCashflowData] pre-populates
+  /// [incomeLastUpdated]/etc. with fixed historic dates on first run, so a plain
+  /// `last != null` check would buzz fresh installs immediately.
+  bool userTouchedExpenses = false;
+  bool userTouchedIncome = false;
+  bool userTouchedAssets = false;
+  bool userTouchedLiabilities = false;
 
   /// THB matches [expensePresetCountry] bucket units so the Sankey and ledger stay aligned at boot.
   CurrencyCode displayCurrency = CurrencyCode.thb;
@@ -812,6 +885,7 @@ class AppModel extends ChangeNotifier {
     if (primaryIncomeAssetId == id) return;
     primaryIncomeAssetId = id;
     assetsLastReviewed = DateTime.now();
+    userTouchedAssets = true;
     notifyListeners();
   }
 
@@ -824,6 +898,7 @@ class AppModel extends ChangeNotifier {
     primaryIncomeAssetId = row.id;
     _sortAssetsByDisplayValueDescending();
     assetsLastReviewed = DateTime.now();
+    userTouchedAssets = true;
     notifyListeners();
   }
 
@@ -877,6 +952,7 @@ class AppModel extends ChangeNotifier {
       }
     }
     assetsLastReviewed = DateTime.now();
+    userTouchedAssets = true;
     touchMonthlyCashflowChanged();
     return complete;
   }
@@ -1171,6 +1247,153 @@ class AppModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setNotificationsEnabled(bool v) {
+    if (notificationsEnabled == v) return;
+    notificationsEnabled = v;
+    _scheduleUserSettingsPersist();
+    unawaited(syncNotifications());
+    notifyListeners();
+  }
+
+  void setReminderNotifyTime({required int hour, required int minute}) {
+    final h = hour.clamp(0, 23);
+    final m = minute.clamp(0, 59);
+    if (reminderNotifyHour == h && reminderNotifyMinute == m) return;
+    reminderNotifyHour = h;
+    reminderNotifyMinute = m;
+    _scheduleUserSettingsPersist();
+    unawaited(syncNotifications());
+    notifyListeners();
+  }
+
+  /// Records that we posted a notification for [d] now. Stops re-buzzing the same
+  /// domain within the same cadence period.
+  void markDomainNotified(ReminderDomain d, {DateTime? at}) {
+    final t = at ?? DateTime.now();
+    switch (d) {
+      case ReminderDomain.expenses:
+        remindersLastNotifiedExpenses = t;
+      case ReminderDomain.cashflow:
+        remindersLastNotifiedCashflow = t;
+      case ReminderDomain.income:
+        remindersLastNotifiedIncome = t;
+      case ReminderDomain.assets:
+        remindersLastNotifiedAssets = t;
+      case ReminderDomain.liabilities:
+        remindersLastNotifiedLiabilities = t;
+    }
+    _scheduleUserSettingsPersist();
+  }
+
+  DateTime? reminderLastNotifiedAt(ReminderDomain d) => switch (d) {
+        ReminderDomain.expenses => remindersLastNotifiedExpenses,
+        ReminderDomain.cashflow => remindersLastNotifiedCashflow,
+        ReminderDomain.income => remindersLastNotifiedIncome,
+        ReminderDomain.assets => remindersLastNotifiedAssets,
+        ReminderDomain.liabilities => remindersLastNotifiedLiabilities,
+      };
+
+  /// Returns the cadence configured for [d].
+  ReminderCadence reminderCadenceFor(ReminderDomain d) => switch (d) {
+        ReminderDomain.expenses => remindersExpensesCadence,
+        ReminderDomain.cashflow => remindersCashflowCadence,
+        ReminderDomain.income => remindersIncomeCadence,
+        ReminderDomain.assets => remindersAssetsCadence,
+        ReminderDomain.liabilities => remindersLiabilitiesCadence,
+      };
+
+  /// True iff the user has actually populated [d] with their own data (not just
+  /// the seeded dummies). Cashflow uses the presence of imported months rather
+  /// than a `userTouched` flag because the seed clears [monthlyCashflowByMonth].
+  bool userHasContentFor(ReminderDomain d) => switch (d) {
+        ReminderDomain.expenses => userTouchedExpenses,
+        ReminderDomain.cashflow => monthlyCashflowByMonth.isNotEmpty,
+        ReminderDomain.income => userTouchedIncome,
+        ReminderDomain.assets => userTouchedAssets,
+        ReminderDomain.liabilities => userTouchedLiabilities,
+      };
+
+  bool _reviewOverdueFor(ReminderDomain d, DateTime now) => switch (d) {
+        ReminderDomain.expenses => expensesReviewOverdueAt(now),
+        ReminderDomain.cashflow => cashflowReviewOverdueAt(now),
+        ReminderDomain.income => incomeReviewOverdueAt(now),
+        ReminderDomain.assets => assetsReviewOverdueAt(now),
+        ReminderDomain.liabilities => liabilitiesReviewOverdueAt(now),
+      };
+
+  /// Has the user been notified about [d] in the current cadence period?
+  /// (Per-domain back-off so we don't buzz the same domain twice in a row.)
+  bool _alreadyNotifiedThisPeriod(ReminderDomain d, DateTime now) {
+    final last = reminderLastNotifiedAt(d);
+    if (last == null) return false;
+    final cadence = reminderCadenceFor(d);
+    switch (cadence) {
+      case ReminderCadence.off:
+        return false;
+      case ReminderCadence.monthly:
+        final startOfMonth = DateTime(now.year, now.month, 1);
+        return !last.isBefore(startOfMonth);
+      case ReminderCadence.quarterly:
+        final anchor = _mostRecentQuarterlyAnchor(now);
+        return !last.isBefore(anchor);
+      case ReminderCadence.yearly:
+        final oneYearAgo = DateTime(now.year - 1, now.month, now.day);
+        return last.isAfter(oneYearAgo);
+    }
+  }
+
+  /// The ONLY predicate the notification path should consult. Stricter than the
+  /// in-app `*ReviewOverdueAt` chips: requires the master switch, a non-off
+  /// cadence, actual user content, and a non-spammy cadence anchor. Setting a
+  /// domain's cadence to [ReminderCadence.off] silences that domain.
+  bool isReminderNotifiable(ReminderDomain d, {DateTime? now}) {
+    if (!notificationsEnabled) return false;
+    if (reminderCadenceFor(d) == ReminderCadence.off) return false;
+    if (!userHasContentFor(d)) return false;
+    final n = now ?? DateTime.now();
+    if (!_reviewOverdueFor(d, n)) return false;
+    if (_alreadyNotifiedThisPeriod(d, n)) return false;
+    return true;
+  }
+
+  /// All reminder domains currently eligible to fire a notification. Empty
+  /// when there's nothing to nudge about — the background dispatcher posts
+  /// nothing in that case (no "you're all caught up" buzz).
+  List<ReminderDomain> notifiableReminderDomains({DateTime? now}) {
+    final n = now ?? DateTime.now();
+    return [
+      for (final d in ReminderDomain.values)
+        if (isReminderNotifiable(d, now: n)) d,
+    ];
+  }
+
+  /// Pushes the current notification configuration to the OS:
+  /// - cancels everything when [notificationsEnabled] is false,
+  /// - (re)schedules each `notify == true` agent task at its next local time,
+  /// - (re)schedules the daily reminder-check ping at [reminderNotifyHour]/Minute.
+  ///
+  /// Best-effort; failures (plugin unsupported on web, missing permission) are
+  /// swallowed so UI flows stay responsive.
+  Future<void> syncNotifications() async {
+    try {
+      final svc = NotificationService.instance;
+      if (!notificationsEnabled) {
+        await svc.cancelAll();
+        return;
+      }
+      for (final t in scheduledAgentTasks) {
+        await svc.scheduleAgentTask(task: t, masterEnabled: true);
+      }
+      await svc.scheduleReminderCheckDaily(
+        hour: reminderNotifyHour,
+        minute: reminderNotifyMinute,
+        masterEnabled: true,
+      );
+    } catch (_) {
+      // Notification sync is non-fatal.
+    }
+  }
+
   void setDisplayCurrency(CurrencyCode next) {
     if (displayCurrency == next) return;
     final from = displayCurrency;
@@ -1233,6 +1456,7 @@ class AppModel extends ChangeNotifier {
     assets.add(row);
     _sortAssetsByDisplayValueDescending();
     assetsLastReviewed = DateTime.now();
+    userTouchedAssets = true;
     notifyListeners();
   }
 
@@ -1240,6 +1464,7 @@ class AppModel extends ChangeNotifier {
     if (index < 0 || index >= assets.length) return;
     assets[index] = row;
     assetsLastReviewed = DateTime.now();
+    userTouchedAssets = true;
     notifyListeners();
   }
 
@@ -1251,12 +1476,14 @@ class AppModel extends ChangeNotifier {
       primaryIncomeAssetId = null;
     }
     assetsLastReviewed = DateTime.now();
+    userTouchedAssets = true;
     notifyListeners();
   }
 
   void addLiability(LedgerLiabilityRow row) {
     liabilities.add(row);
     liabilitiesLastReviewed = DateTime.now();
+    userTouchedLiabilities = true;
     notifyListeners();
   }
 
@@ -1264,6 +1491,7 @@ class AppModel extends ChangeNotifier {
     if (index < 0 || index >= liabilities.length) return;
     liabilities[index] = row;
     liabilitiesLastReviewed = DateTime.now();
+    userTouchedLiabilities = true;
     notifyListeners();
   }
 
@@ -1271,6 +1499,7 @@ class AppModel extends ChangeNotifier {
     if (index < 0 || index >= liabilities.length) return;
     liabilities.removeAt(index);
     liabilitiesLastReviewed = DateTime.now();
+    userTouchedLiabilities = true;
     notifyListeners();
   }
 
@@ -1281,6 +1510,7 @@ class AppModel extends ChangeNotifier {
       ),
     );
     incomeLastUpdated = DateTime.now();
+    userTouchedIncome = true;
     syncAllocationsFromFraction();
     notifyListeners();
   }
@@ -1289,6 +1519,7 @@ class AppModel extends ChangeNotifier {
     if (index < 0 || index >= incomeLines.length) return;
     incomeLines.removeAt(index);
     incomeLastUpdated = DateTime.now();
+    userTouchedIncome = true;
     syncAllocationsFromFraction();
     notifyListeners();
   }
@@ -1307,6 +1538,7 @@ class AppModel extends ChangeNotifier {
     if (primaryCashBalanceIsMirrored(a)) return false;
     a.total = total;
     assetsLastReviewed = DateTime.now();
+    userTouchedAssets = true;
     notifyListeners();
     return true;
   }
@@ -1316,12 +1548,14 @@ class AppModel extends ChangeNotifier {
     if (row == null) return false;
     row.total = total;
     liabilitiesLastReviewed = DateTime.now();
+    userTouchedLiabilities = true;
     notifyListeners();
     return true;
   }
 
   void notifyIncomeChanged() {
     incomeLastUpdated = DateTime.now();
+    userTouchedIncome = true;
     syncAllocationsFromFraction();
     notifyListeners();
   }
@@ -1329,18 +1563,21 @@ class AppModel extends ChangeNotifier {
   void setEffectiveTaxRatePct(double? v) {
     effectiveTaxRatePct = v;
     incomeLastUpdated = DateTime.now();
+    userTouchedIncome = true;
     syncAllocationsFromFraction();
     notifyListeners();
   }
 
   void setExpenseBucket(String key, double value) {
     expenseBuckets = {...expenseBuckets, key: value};
+    userTouchedExpenses = true;
     syncAllocationsFromFraction();
     notifyListeners();
   }
 
   void markExpenseEstimatesUpdated() {
     expenseEstimatesLastUpdated = DateTime.now();
+    userTouchedExpenses = true;
     notifyListeners();
   }
 
@@ -1385,6 +1622,7 @@ class AppModel extends ChangeNotifier {
 
   void touchAssetsChanged() {
     assetsLastReviewed = DateTime.now();
+    userTouchedAssets = true;
     notifyListeners();
   }
 
@@ -1420,6 +1658,7 @@ class AppModel extends ChangeNotifier {
     if (idx < 0) return;
     assets[idx].contextMarkdown = markdown;
     assetsLastReviewed = DateTime.now();
+    userTouchedAssets = true;
     _touchContextNoteSaved(contextKeyAsset(assetId));
     notifyListeners();
   }
@@ -1429,6 +1668,7 @@ class AppModel extends ChangeNotifier {
     if (idx < 0) return;
     liabilities[idx].contextMarkdown = markdown;
     liabilitiesLastReviewed = DateTime.now();
+    userTouchedLiabilities = true;
     _touchContextNoteSaved(contextKeyLiability(liabilityId));
     notifyListeners();
   }
@@ -1680,6 +1920,18 @@ String relativeLastUpdatedLabel({required DateTime lastCalendarDay, required Dat
 }
 
 enum ReminderCadence { off, monthly, quarterly, yearly }
+
+/// Reminder targets surfaced to the user (Command Center + Notifications).
+/// Order matches the Settings reminder block.
+enum ReminderDomain { expenses, cashflow, income, assets, liabilities }
+
+String reminderDomainLabel(ReminderDomain d) => switch (d) {
+      ReminderDomain.expenses => 'Expenses',
+      ReminderDomain.cashflow => 'Cash flow',
+      ReminderDomain.income => 'Income',
+      ReminderDomain.assets => 'Assets',
+      ReminderDomain.liabilities => 'Liabilities',
+    };
 
 enum LlmProvider { openai, anthropic, gemini }
 

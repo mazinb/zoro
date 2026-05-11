@@ -23,6 +23,7 @@ class ScheduledAgentTask {
     required this.monthlyDay,
     required this.yearlyMonth,
     required this.yearlyDay,
+    this.notify = false,
     this.lastRunAt,
     this.lastError,
   });
@@ -43,6 +44,10 @@ class ScheduledAgentTask {
   int monthlyDay;
   int yearlyMonth;
   int yearlyDay;
+  /// When true, post a local notification at the scheduled time (requires master
+  /// `AppModel.notificationsEnabled`). Defaults off so importing existing tasks
+  /// never auto-buzzes the user.
+  bool notify;
   DateTime? lastRunAt;
   String? lastError;
 
@@ -59,6 +64,7 @@ class ScheduledAgentTask {
         monthlyDay: monthlyDay,
         yearlyMonth: yearlyMonth,
         yearlyDay: yearlyDay,
+        notify: notify,
         lastRunAt: lastRunAt,
         lastError: lastError,
       );
@@ -106,6 +112,7 @@ class ScheduledAgentTask {
       monthlyDay: (m['monthlyDay'] is int ? m['monthlyDay'] as int : 1).clamp(1, 28),
       yearlyMonth: (m['yearlyMonth'] is int ? m['yearlyMonth'] as int : 1).clamp(1, 12),
       yearlyDay: (m['yearlyDay'] is int ? m['yearlyDay'] as int : 1).clamp(1, 28),
+      notify: m['notify'] == true,
       lastRunAt: lastRun,
       lastError: m['lastError']?.toString(),
     );
@@ -124,6 +131,7 @@ class ScheduledAgentTask {
         'monthlyDay': monthlyDay,
         'yearlyMonth': yearlyMonth,
         'yearlyDay': yearlyDay,
+        'notify': notify,
         if (lastRunAt != null) 'lastRunAtMs': lastRunAt!.toUtc().millisecondsSinceEpoch,
         if (lastError != null && lastError!.trim().isNotEmpty) 'lastError': lastError,
       };

@@ -142,9 +142,10 @@ Return ONE JSON object only. No prose. Schema:
 }
 Rules (cashflow):
 - Infer **monthKey** from the statement header / period / filename — **never** assume the app UI month.
-- Prioritize extracting **openingBalance**, **closingBalance**, **monthlyEarned** (take-home), **outflowToInvested** (brokerage/investment transfers only when explicitly labeled or clearly investment).
-- **Classification:** Treat generic transfers, bill pays, card payments, and unspecified outflows as **spending path**, i.e. affect **monthlySpending** or cash savings (**outflowToCashFd**) as appropriate. Only put flows in **outflowToInvested** when the document clearly indicates investment/brokerage funding (not generic transfers).
-- **monthlySpending**: discretionary/total spend or residual after known splits when that matches the doc.
+- Prioritize extracting **openingBalance**, **closingBalance**, **monthlyEarned**, **outflowToInvested** (brokerage/investment transfers only when explicitly labeled or clearly investment).
+- **Credits → monthlyEarned:** Use the statement’s **period summary for money in** (total credits, deposits, or equivalent — wording varies) and each **incoming** line. monthlyEarned = sum of **income-like credits** (payroll, wages, benefits, business or freelance receipts, customer payments, etc.). Exclude only credits clearly not earned (own-account transfers, loan principal to this account, paired reversals) and note them in **assumptions**. If the incoming total is stated but lines are ambiguous, set monthlyEarned to **that total minus** explicitly non-earned credits (do **not** default to 0 when total incoming > 0).
+- **Classification (debits):** Treat generic transfers, bill pays, card payments, and unspecified outflows as **spending path**, i.e. affect **monthlySpending** or cash savings (**outflowToCashFd**) as appropriate. Only put flows in **outflowToInvested** when the document clearly indicates investment/brokerage funding (not generic transfers).
+- **monthlySpending**: match **total debits** / spending subtotals from the statement when present; otherwise discretionary/total spend or residual after known splits.
 - **comment** = provenance (PDF vs screenshot, bank name). **contextMarkdown** = notable large debits/transfers/expenses only; terse bullets; **exclude** income storylines.
 - Valid JSON only.
 ''',

@@ -3,9 +3,11 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/finance/currency.dart';
+import '../../core/notifications/notification_service.dart';
 import '../../core/state/app_model.dart';
 import '../../core/state/internal_app_agent_definition.dart';
 import '../../core/state/scheduled_agent_task.dart';
@@ -192,16 +194,30 @@ class _GeneralPaneState extends State<_GeneralPane> {
     super.dispose();
   }
 
+  /// Solid Material 3 surface card. Matches Agents/API Keys panes (which use
+  /// [Card]/`surfaceContainerHighest`) so General tab cards stay visible
+  /// against the page background in light *and* dark mode.
+  Widget _settingsCard({required Widget child, EdgeInsetsGeometry? padding}) {
+    final cs = Theme.of(context).colorScheme;
+    return Material(
+      color: cs.surfaceContainerHighest,
+      borderRadius: BorderRadius.circular(18),
+      clipBehavior: Clip.antiAlias,
+      child: padding != null ? Padding(padding: padding, child: child) : child,
+    );
+  }
+
   Widget _currencyAssumptionsCard() {
     final cs = Theme.of(context).colorScheme;
-    return Card(
-      clipBehavior: Clip.antiAlias,
+    return _settingsCard(
       child: Theme(
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
           initiallyExpanded: false,
           tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           childrenPadding: const EdgeInsets.only(bottom: 12),
+          collapsedIconColor: cs.onSurfaceVariant,
+          iconColor: cs.onSurfaceVariant,
           title: const Text(
             'Interest & inflation',
             style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
@@ -298,20 +314,10 @@ class _GeneralPaneState extends State<_GeneralPane> {
     required ValueChanged<CurrencyCode> onCurrencyChanged,
   }) {
     final cs = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: cs.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: cs.outlineVariant),
-        boxShadow: [
-          BoxShadow(
-            color: cs.shadow.withValues(alpha: Theme.of(context).brightness == Brightness.dark ? 0.35 : 0.06),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final fieldFill = cs.surfaceContainerHighest.withValues(alpha: isDark ? 0.38 : 0.72);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         children: [
           const Text('🇺🇸', style: TextStyle(fontSize: 24)),
@@ -327,10 +333,23 @@ class _GeneralPaneState extends State<_GeneralPane> {
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               textAlign: TextAlign.center,
               style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 isDense: true,
-                contentPadding: EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-                border: OutlineInputBorder(),
+                filled: true,
+                fillColor: fieldFill,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide.none,
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide.none,
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide(color: cs.primary.withValues(alpha: 0.5), width: 1.5),
+                ),
               ),
             ),
           ),
@@ -362,46 +381,52 @@ class _GeneralPaneState extends State<_GeneralPane> {
 
   Widget _fxCard(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return Card(
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: cs.outlineVariant),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+    return _settingsCard(
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          initiallyExpanded: false,
+          tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          childrenPadding: const EdgeInsets.only(bottom: 12),
+          collapsedIconColor: cs.onSurfaceVariant,
+          iconColor: cs.onSurfaceVariant,
+          title: const Text(
+            'Exchange rates',
+            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
+          ),
           children: [
-            const Text(
-              'Exchange rates',
-              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
-            ),
-            const SizedBox(height: 14),
-            _fxRateRow(
-              context,
-              controller: _usdToThbCtrl,
-              selected: model.homeCurrencyQuickPick1,
-              onCurrencyChanged: (c) {
-                if (c == model.homeCurrencyQuickPick1) return;
-                model.setFxUsdPerUnitOverride(model.homeCurrencyQuickPick1, null);
-                model.setHomeCurrencyQuickPick(1, c);
-                _syncFxFieldsFromModel(); // load hard-coded default vs USD
-                _applyFxFromFieldsToModel(); // persist the default (or empty)
-              },
-            ),
-            const SizedBox(height: 12),
-            _fxRateRow(
-              context,
-              controller: _usdToInrCtrl,
-              selected: model.homeCurrencyQuickPick2,
-              onCurrencyChanged: (c) {
-                if (c == model.homeCurrencyQuickPick2) return;
-                model.setFxUsdPerUnitOverride(model.homeCurrencyQuickPick2, null);
-                model.setHomeCurrencyQuickPick(2, c);
-                _syncFxFieldsFromModel();
-                _applyFxFromFieldsToModel();
-              },
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _fxRateRow(
+                    context,
+                    controller: _usdToThbCtrl,
+                    selected: model.homeCurrencyQuickPick1,
+                    onCurrencyChanged: (c) {
+                      if (c == model.homeCurrencyQuickPick1) return;
+                      model.setFxUsdPerUnitOverride(model.homeCurrencyQuickPick1, null);
+                      model.setHomeCurrencyQuickPick(1, c);
+                      _syncFxFieldsFromModel();
+                      _applyFxFromFieldsToModel();
+                    },
+                  ),
+                  Divider(height: 1, thickness: 0.5, color: cs.outlineVariant.withValues(alpha: 0.35)),
+                  _fxRateRow(
+                    context,
+                    controller: _usdToInrCtrl,
+                    selected: model.homeCurrencyQuickPick2,
+                    onCurrencyChanged: (c) {
+                      if (c == model.homeCurrencyQuickPick2) return;
+                      model.setFxUsdPerUnitOverride(model.homeCurrencyQuickPick2, null);
+                      model.setHomeCurrencyQuickPick(2, c);
+                      _syncFxFieldsFromModel();
+                      _applyFxFromFieldsToModel();
+                    },
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -421,45 +446,43 @@ class _GeneralPaneState extends State<_GeneralPane> {
         return ListView(
           padding: const EdgeInsets.all(20),
           children: [
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      'Appearance',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w900,
-                          ),
-                    ),
-                    const SizedBox(height: 10),
-                    SegmentedButton<ThemeMode>(
-                      segments: const [
-                        ButtonSegment(
-                          value: ThemeMode.system,
-                          label: Text('System'),
-                          icon: Icon(Icons.brightness_auto, size: 18),
+            _settingsCard(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Appearance',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w900,
                         ),
-                        ButtonSegment(
-                          value: ThemeMode.light,
-                          label: Text('Light'),
-                          icon: Icon(Icons.light_mode, size: 18),
-                        ),
-                        ButtonSegment(
-                          value: ThemeMode.dark,
-                          label: Text('Dark'),
-                          icon: Icon(Icons.dark_mode, size: 18),
-                        ),
-                      ],
-                      selected: {model.themeModePreference},
-                      onSelectionChanged: (s) {
-                        if (s.isEmpty) return;
-                        model.setThemeMode(s.first);
-                      },
-                    ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(height: 10),
+                  SegmentedButton<ThemeMode>(
+                    segments: const [
+                      ButtonSegment(
+                        value: ThemeMode.system,
+                        label: Text('System'),
+                        icon: Icon(Icons.brightness_auto, size: 18),
+                      ),
+                      ButtonSegment(
+                        value: ThemeMode.light,
+                        label: Text('Light'),
+                        icon: Icon(Icons.light_mode, size: 18),
+                      ),
+                      ButtonSegment(
+                        value: ThemeMode.dark,
+                        label: Text('Dark'),
+                        icon: Icon(Icons.dark_mode, size: 18),
+                      ),
+                    ],
+                    selected: {model.themeModePreference},
+                    onSelectionChanged: (s) {
+                      if (s.isEmpty) return;
+                      model.setThemeMode(s.first);
+                    },
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 12),
@@ -467,14 +490,17 @@ class _GeneralPaneState extends State<_GeneralPane> {
             const SizedBox(height: 12),
             _currencyAssumptionsCard(),
             const SizedBox(height: 12),
+        const Text('Notifications', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+        const SizedBox(height: 8),
+        _NotificationsCard(model: model),
+        const SizedBox(height: 12),
         const Text('Reminders', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
         const SizedBox(height: 8),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
+        _settingsCard(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
                 _CadenceRow(
                   label: 'Expenses',
                   value: model.remindersExpensesCadence,
@@ -506,15 +532,13 @@ class _GeneralPaneState extends State<_GeneralPane> {
                 ),
               ],
             ),
-          ),
         ),
         const SizedBox(height: 12),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
+        _settingsCard(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
                 Row(
                   children: [
                     const Expanded(
@@ -606,7 +630,6 @@ class _GeneralPaneState extends State<_GeneralPane> {
                 ),
               ],
             ),
-          ),
         ),
         const SizedBox(height: 12),
         const SizedBox.shrink(),
@@ -1881,4 +1904,169 @@ class _AgentEditorSheetState extends State<_AgentEditorSheet> {
 }
 
 // (Linking assets/liabilities into agent context removed for now.)
+
+class _NotificationsCard extends StatefulWidget {
+  const _NotificationsCard({required this.model});
+
+  final AppModel model;
+
+  @override
+  State<_NotificationsCard> createState() => _NotificationsCardState();
+}
+
+class _NotificationsCardState extends State<_NotificationsCard> {
+  bool _busy = false;
+  NotificationAuthStatus _authStatus = NotificationAuthStatus.unknown;
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshAuthStatus();
+  }
+
+  Future<void> _refreshAuthStatus() async {
+    final s = await NotificationService.instance.currentAuthStatus();
+    if (!mounted) return;
+    setState(() => _authStatus = s);
+  }
+
+  Future<void> _onMasterChanged(bool v) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      if (v) {
+        final granted = await NotificationService.instance.requestPermission();
+        await _refreshAuthStatus();
+        if (!granted) {
+          if (!mounted) return;
+          final denied = _authStatus == NotificationAuthStatus.denied;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                denied
+                    ? 'Notifications are blocked at the OS level. Open System Settings to enable.'
+                    : 'Notifications were not granted.',
+              ),
+              behavior: SnackBarBehavior.floating,
+              action: denied
+                  ? SnackBarAction(
+                      label: 'Settings',
+                      onPressed: _openSystemSettings,
+                    )
+                  : null,
+            ),
+          );
+          return;
+        }
+      }
+      widget.model.setNotificationsEnabled(v);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _pickTime() async {
+    final model = widget.model;
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(hour: model.reminderNotifyHour, minute: model.reminderNotifyMinute),
+    );
+    if (picked == null) return;
+    model.setReminderNotifyTime(hour: picked.hour, minute: picked.minute);
+  }
+
+  Future<void> _openSystemSettings() async {
+    try {
+      await openAppSettings();
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not open system settings. Open iOS Settings → Zoro → Notifications.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  String _authLabel() => switch (_authStatus) {
+        NotificationAuthStatus.authorized => 'Granted',
+        NotificationAuthStatus.denied => 'Blocked in System Settings',
+        NotificationAuthStatus.unknown => 'Checking…',
+        NotificationAuthStatus.unsupported => 'Not supported',
+      };
+
+  Color _authColor(ColorScheme scheme) => switch (_authStatus) {
+        NotificationAuthStatus.authorized => scheme.primary,
+        NotificationAuthStatus.denied => scheme.error,
+        _ => scheme.onSurfaceVariant,
+      };
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final model = widget.model;
+    final timeLabel =
+        '${model.reminderNotifyHour.toString().padLeft(2, '0')}:${model.reminderNotifyMinute.toString().padLeft(2, '0')}';
+    final showPermissionRow = _authStatus != NotificationAuthStatus.authorized;
+    return Material(
+      color: scheme.surfaceContainerHighest,
+      borderRadius: BorderRadius.circular(18),
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Allow notifications', style: TextStyle(fontWeight: FontWeight.w900)),
+              value: model.notificationsEnabled,
+              onChanged: _busy ? null : _onMasterChanged,
+            ),
+            if (showPermissionRow) ...[
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  Icon(Icons.info_outline, size: 18, color: _authColor(scheme)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'OS permission: ${_authLabel()}',
+                      style: TextStyle(color: _authColor(scheme), fontSize: 12, fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                  if (_authStatus == NotificationAuthStatus.denied)
+                    TextButton(
+                      onPressed: _openSystemSettings,
+                      child: const Text('Open Settings'),
+                    ),
+                ],
+              ),
+            ],
+            if (model.notificationsEnabled) ...[
+              const Divider(height: 20),
+              InkWell(
+                onTap: _pickTime,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: Row(
+                    children: [
+                      Icon(Icons.schedule, color: scheme.onSurfaceVariant, size: 20),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Text('Reminder check time', style: TextStyle(fontWeight: FontWeight.w800)),
+                      ),
+                      Text(timeLabel, style: TextStyle(fontWeight: FontWeight.w800, color: scheme.onSurface)),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
 

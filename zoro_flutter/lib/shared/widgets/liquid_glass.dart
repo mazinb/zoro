@@ -9,24 +9,36 @@ class _GlassConstants {
   static const double sheetTopRadius = 20;
 }
 
-/// Light frosted inset (Home chrome: reminders header, Sankey hint, selection card).
-/// Softer blur than [LiquidGlassBar]. Do not wrap long scrollable lists.
+/// Light frosted inset (Home chrome, settings, etc.). Softer blur than [LiquidGlassBar].
+/// Set [showBorder] / [useGradient] false for flatter settings-style panels.
 class LiquidGlassPanel extends StatelessWidget {
   const LiquidGlassPanel({
     super.key,
     required this.child,
     this.borderRadius = const BorderRadius.all(Radius.circular(12)),
     this.padding,
+    this.showBorder = true,
+    this.useGradient = true,
   });
 
   final Widget child;
   final BorderRadius borderRadius;
   final EdgeInsetsGeometry? padding;
+  final bool showBorder;
+  final bool useGradient;
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final borderSide = showBorder
+        ? Border.all(
+            color: cs.primary.withValues(alpha: isDark ? 0.35 : 0.22),
+          )
+        : null;
+    final flat = isDark
+        ? Colors.white.withValues(alpha: 0.065)
+        : Colors.white.withValues(alpha: 0.13);
 
     return ClipRRect(
       borderRadius: borderRadius,
@@ -38,17 +50,18 @@ class LiquidGlassPanel extends StatelessWidget {
         child: DecoratedBox(
           decoration: BoxDecoration(
             borderRadius: borderRadius,
-            border: Border.all(
-              color: cs.primary.withValues(alpha: isDark ? 0.35 : 0.22),
-            ),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                cs.surface.withValues(alpha: isDark ? 0.42 : 0.65),
-                cs.surface.withValues(alpha: isDark ? 0.30 : 0.50),
-              ],
-            ),
+            border: borderSide,
+            gradient: useGradient
+                ? LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      cs.surface.withValues(alpha: isDark ? 0.42 : 0.65),
+                      cs.surface.withValues(alpha: isDark ? 0.30 : 0.50),
+                    ],
+                  )
+                : null,
+            color: useGradient ? null : flat,
           ),
           child: padding != null ? Padding(padding: padding!, child: child) : child,
         ),
