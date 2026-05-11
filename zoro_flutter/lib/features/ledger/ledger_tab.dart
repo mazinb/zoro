@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:dirham_symbol/dirham_symbol.dart';
 
 import '../../core/state/app_model.dart';
+import '../../shared/widgets/liquid_glass.dart';
 import '../../core/state/monthly_cashflow_entry.dart';
 import '../../core/state/ledger_rows.dart';
 import '../../core/constants/web_expenses_income.dart';
 import '../../core/finance/currency.dart';
-import '../../shared/theme/app_theme.dart';
 import 'expense_donut_chart.dart';
 import 'expense_estimates_editor_page.dart';
 import 'ledger_import_page.dart';
@@ -50,6 +50,59 @@ double? _ledgerParseGroupedDoubleOrNull(String raw) {
 String _ledgerHomeAmount(AppModel m, double v) =>
     formatGroupedInteger(v.round(), currency: m.displayCurrency);
 
+/// Single bottom row: Import with AI, optional Delete, Save (asset / liability editors).
+Widget _ledgerRowEditorActions({
+  required BuildContext context,
+  required VoidCallback onImportWithAi,
+  required bool canDelete,
+  VoidCallback? onDelete,
+  required VoidCallback onSave,
+}) {
+  final cs = Theme.of(context).colorScheme;
+  return Row(
+    crossAxisAlignment: CrossAxisAlignment.center,
+    children: [
+      Expanded(
+        child: TextButton.icon(
+          onPressed: onImportWithAi,
+          icon: const Icon(Icons.auto_awesome, size: 17),
+          label: const Text(
+            'Import with AI',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          style: TextButton.styleFrom(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+            visualDensity: VisualDensity.compact,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            alignment: Alignment.centerLeft,
+          ),
+        ),
+      ),
+      if (canDelete && onDelete != null) ...[
+        TextButton(
+          onPressed: onDelete,
+          style: TextButton.styleFrom(
+            foregroundColor: cs.error,
+            visualDensity: VisualDensity.compact,
+            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+          child: const Text('Delete'),
+        ),
+        const SizedBox(width: 4),
+      ],
+      FilledButton(
+        onPressed: onSave,
+        style: FilledButton.styleFrom(
+          textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+        ),
+        child: const Text('Save'),
+      ),
+    ],
+  );
+}
+
 class LedgerTab extends StatefulWidget {
   const LedgerTab({
     super.key,
@@ -74,7 +127,7 @@ class _LedgerTabState extends State<LedgerTab> {
   final _expensesKey = GlobalKey();
   final _allocKey = GlobalKey();
 
-  /// 0 = income, 1 = Split, 2 = expenses (default expenses when opening Cashflow).
+  /// 0 = income, 1 = Cash, 2 = expenses (default expenses when opening Cashflow).
   int _cashflowTabIndex = 2;
 
   void _privacyDenied() => widget.onPrivacyInteractionDenied?.call();
@@ -111,10 +164,11 @@ class _LedgerTabState extends State<LedgerTab> {
       final i => m.assets[i].clone(),
     };
     final outcome =
-        await showModalBottomSheet<_RowEditorOutcome<LedgerAssetRow>>(
+        await showLiquidGlassModalBottomSheet<_RowEditorOutcome<LedgerAssetRow>>(
           context: context,
           showDragHandle: true,
           isScrollControlled: true,
+          sizesToContent: true,
           builder: (ctx) => _AssetEditorSheet(
             draft: draft,
             allowCurrencyEdit: isNew,
@@ -149,10 +203,11 @@ class _LedgerTabState extends State<LedgerTab> {
       final i => m.liabilities[i].clone(),
     };
     final outcome =
-        await showModalBottomSheet<_RowEditorOutcome<LedgerLiabilityRow>>(
+        await showLiquidGlassModalBottomSheet<_RowEditorOutcome<LedgerLiabilityRow>>(
           context: context,
           showDragHandle: true,
           isScrollControlled: true,
+          sizesToContent: true,
           builder: (ctx) => _LiabilityEditorSheet(
             draft: draft,
             allowCurrencyEdit: isNew,
@@ -326,6 +381,7 @@ class _LedgerTabState extends State<LedgerTab> {
             (e) => Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: _LedgerAssetCard(
+                model: widget.model,
                 row: e.value,
                 accent: widget.model.accent,
                 displayCurrency: widget.model.displayCurrency,
@@ -644,6 +700,16 @@ class _MonthlyCashflowEditorPageState
       );
       return;
     }
+    final prev = m.monthlyEntryFor(_monthKey);
+    if (prev != null &&
+        ((prev.outflowToInvested - iv).abs() > 0.51 ||
+            (iv < 0.005 && prev.outflowToInvested > 0.005))) {
+      m.reverseInvestmentCreditsForMonth(_monthKey);
+    }
+    final reconciled = reconcileInvestmentLinesForMonthlySave(
+      newInvested: iv,
+      previous: prev?.investmentLines ?? const [],
+    );
     FocusManager.instance.primaryFocus?.unfocus();
     Navigator.of(context).pop(
       MonthlyCashflowEntry(
@@ -656,6 +722,7 @@ class _MonthlyCashflowEditorPageState
         monthlySpending: sp,
         comment: _commentCtrl.text.trim(),
         contextMarkdown: m.monthlyEntryFor(_monthKey)?.contextMarkdown,
+        investmentLines: reconciled,
       ),
     );
   }
@@ -882,31 +949,28 @@ class _MonthlyCashflowEditorPageState
                         m,
                         spending.abs() < 0.005 ? 0.0 : spending,
                       );
+                final cs = Theme.of(ctx).colorScheme;
                 return Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: ok
-                        ? AppTheme.slate50
-                        : Theme.of(
-                            ctx,
-                          ).colorScheme.errorContainer.withValues(alpha: 0.35),
+                        ? cs.surfaceContainerHighest
+                        : cs.errorContainer.withValues(alpha: 0.35),
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
                       color: ok
-                          ? AppTheme.slate100
-                          : Theme.of(
-                              ctx,
-                            ).colorScheme.error.withValues(alpha: 0.25),
+                          ? cs.outlineVariant
+                          : cs.error.withValues(alpha: 0.25),
                     ),
                   ),
                   child: Row(
                     children: [
-                      const Expanded(
+                      Expanded(
                         child: Text(
                           'Spending',
                           style: TextStyle(
                             fontWeight: FontWeight.w800,
-                            color: AppTheme.slate600,
+                            color: cs.onSurfaceVariant,
                           ),
                         ),
                       ),
@@ -916,8 +980,8 @@ class _MonthlyCashflowEditorPageState
                           fontWeight: FontWeight.w900,
                           fontSize: 18,
                           color: ok
-                              ? AppTheme.slate900
-                              : Theme.of(ctx).colorScheme.error,
+                              ? cs.onSurface
+                              : cs.error,
                         ),
                       ),
                     ],
@@ -957,6 +1021,7 @@ class _Segmented extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return SegmentedButton<LedgerMode>(
       segments: const [
         ButtonSegment(
@@ -982,14 +1047,14 @@ class _Segmented extends StatelessWidget {
           if (states.contains(WidgetState.selected)) {
             return accent.withValues(alpha: 0.12);
           }
-          return Colors.white;
+          return cs.surfaceContainerHigh;
         }),
         foregroundColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) return accent;
-          return AppTheme.slate600;
+          return cs.onSurfaceVariant;
         }),
-        side: const WidgetStatePropertyAll(
-          BorderSide(color: AppTheme.slate100),
+        side: WidgetStatePropertyAll(
+          BorderSide(color: cs.outlineVariant),
         ),
       ),
     );
@@ -998,6 +1063,7 @@ class _Segmented extends StatelessWidget {
 
 class _LedgerAssetCard extends StatelessWidget {
   const _LedgerAssetCard({
+    required this.model,
     required this.row,
     required this.accent,
     required this.displayCurrency,
@@ -1006,6 +1072,7 @@ class _LedgerAssetCard extends StatelessWidget {
     required this.onTap,
   });
 
+  final AppModel model;
   final LedgerAssetRow row;
   final Color accent;
   final CurrencyCode displayCurrency;
@@ -1015,13 +1082,8 @@ class _LedgerAssetCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final native = currencyCodeForPresetCountry(row.currencyCountry);
-    final displayValue = convertCurrency(
-      value: row.total,
-      from: native,
-      to: displayCurrency,
-      usdPerUnitOverrides: usdPerUnitOverrides,
-    );
+    final cs = Theme.of(context).colorScheme;
+    final displayValue = model.assetDisplayValue(row);
     final grouped = formatGroupedInteger(
       displayValue.round(),
       currency: displayCurrency,
@@ -1055,7 +1117,7 @@ class _LedgerAssetCard extends StatelessWidget {
                   children: [
                     Text(
                       title,
-                      style: const TextStyle(fontWeight: FontWeight.w800),
+                      style: TextStyle(fontWeight: FontWeight.w800, color: cs.onSurface),
                     ),
                     if (row.comment.trim().isNotEmpty) ...[
                       const SizedBox(height: 6),
@@ -1063,8 +1125,8 @@ class _LedgerAssetCard extends StatelessWidget {
                         row.comment.trim(),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: AppTheme.slate500,
+                        style: TextStyle(
+                          color: cs.outline,
                           fontSize: 12,
                         ),
                       ),
@@ -1075,13 +1137,14 @@ class _LedgerAssetCard extends StatelessWidget {
               const SizedBox(width: 10),
               Text(
                 amountText,
-                style: const TextStyle(
+                style: TextStyle(
                   fontWeight: FontWeight.w900,
                   fontSize: 16,
+                  color: cs.onSurface,
                 ),
               ),
               const SizedBox(width: 4),
-              const Icon(Icons.chevron_right, color: AppTheme.slate500),
+              Icon(Icons.chevron_right, color: cs.outline),
             ],
           ),
         ),
@@ -1109,6 +1172,7 @@ class _LedgerLiabilityCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final native = currencyCodeForPresetCountry(row.currencyCountry);
     final displayValue = convertCurrency(
       value: row.total,
@@ -1149,7 +1213,7 @@ class _LedgerLiabilityCard extends StatelessWidget {
                   children: [
                     Text(
                       title,
-                      style: const TextStyle(fontWeight: FontWeight.w800),
+                      style: TextStyle(fontWeight: FontWeight.w800, color: cs.onSurface),
                     ),
                     if (row.comment.trim().isNotEmpty) ...[
                       const SizedBox(height: 6),
@@ -1157,8 +1221,8 @@ class _LedgerLiabilityCard extends StatelessWidget {
                         row.comment.trim(),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: AppTheme.slate500,
+                        style: TextStyle(
+                          color: cs.outline,
                           fontSize: 12,
                         ),
                       ),
@@ -1169,13 +1233,14 @@ class _LedgerLiabilityCard extends StatelessWidget {
               const SizedBox(width: 10),
               Text(
                 amountText,
-                style: const TextStyle(
+                style: TextStyle(
                   fontWeight: FontWeight.w900,
                   fontSize: 16,
+                  color: cs.onSurface,
                 ),
               ),
               const SizedBox(width: 4),
-              const Icon(Icons.chevron_right, color: AppTheme.slate500),
+              Icon(Icons.chevron_right, color: cs.outline),
             ],
           ),
         ),
@@ -1197,21 +1262,13 @@ class _AddLedgerRowCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 0,
-      color: AppTheme.slate50,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: const BorderSide(
-          color: AppTheme.slate100,
-          style: BorderStyle.solid,
-        ),
-      ),
+    return Material(
+      color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
         onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 14),
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 2),
           child: Row(
             children: [
               Icon(Icons.add_circle_outline, color: accent),
@@ -1283,10 +1340,12 @@ class _AssetEditorSheetState extends State<_AssetEditorSheet> {
   void _save() {
     _row.name = _nameCtrl.text;
     _row.label = _labelCtrl.text;
-    _row.comment = _commentCtrl.text;
-    final digits = _totalCtrl.text.replaceAll(RegExp(r'[^0-9]'), '');
-    final t = double.tryParse(digits);
-    _row.total = t ?? 0;
+    if (!widget.model.primaryCashBalanceIsMirrored(_row)) {
+      _row.comment = _commentCtrl.text;
+      final digits = _totalCtrl.text.replaceAll(RegExp(r'[^0-9]'), '');
+      final t = double.tryParse(digits);
+      _row.total = t ?? 0;
+    }
     Navigator.of(context).pop(_RowEditorOutcome(row: _row));
   }
 
@@ -1294,19 +1353,34 @@ class _AssetEditorSheetState extends State<_AssetEditorSheet> {
   Widget build(BuildContext context) {
     final bottom = MediaQuery.of(context).viewInsets.bottom;
     final native = currencyCodeForPresetCountry(_row.currencyCountry);
+    final maxH = (MediaQuery.sizeOf(context).height * 0.88 - bottom).clamp(220.0, 4000.0);
     return Padding(
       padding: EdgeInsets.fromLTRB(16, 8, 16, 16 + bottom),
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: maxH),
+        child: ListView(
+          shrinkWrap: true,
+          physics: const ClampingScrollPhysics(),
           children: [
-            Text(
-              widget.allowCurrencyEdit ? 'New asset' : 'Edit asset',
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    widget.allowCurrencyEdit ? 'New asset' : 'Edit asset',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w900,
+                        ),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  tooltip: 'Close',
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+              ],
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 6),
             DropdownButtonFormField<LedgerAssetType>(
               initialValue: _row.type,
               decoration: const InputDecoration(
@@ -1317,10 +1391,12 @@ class _AssetEditorSheetState extends State<_AssetEditorSheet> {
                 for (final t in LedgerAssetType.values)
                   DropdownMenuItem(value: t, child: Text(t.label)),
               ],
-              onChanged: (v) {
-                if (v == null) return;
-                setState(() => _row.type = v);
-              },
+              onChanged: widget.model.primaryCashBalanceIsMirrored(_row)
+                  ? null
+                  : (v) {
+                      if (v == null) return;
+                      setState(() => _row.type = v);
+                    },
             ),
             const SizedBox(height: 12),
             TextField(
@@ -1346,23 +1422,25 @@ class _AssetEditorSheetState extends State<_AssetEditorSheet> {
                       child: Text('${c.flag} ${c.name} (${c.currencySymbol})'),
                     ),
                 ],
-                onChanged: (v) {
-                  if (v == null) return;
-                  setState(() {
-                    _row.currencyCountry = v;
-                    final cc = currencyCodeForPresetCountry(v);
-                    final digits = _totalCtrl.text.replaceAll(
-                      RegExp(r'[^0-9]'),
-                      '',
-                    );
-                    if (digits.isNotEmpty) {
-                      _totalCtrl.text = formatGroupedInteger(
-                        int.parse(digits),
-                        currency: cc,
-                      );
-                    }
-                  });
-                },
+                onChanged: widget.model.primaryCashBalanceIsMirrored(_row)
+                    ? null
+                    : (v) {
+                        if (v == null) return;
+                        setState(() {
+                          _row.currencyCountry = v;
+                          final cc = currencyCodeForPresetCountry(v);
+                          final digits = _totalCtrl.text.replaceAll(
+                            RegExp(r'[^0-9]'),
+                            '',
+                          );
+                          if (digits.isNotEmpty) {
+                            _totalCtrl.text = formatGroupedInteger(
+                              int.parse(digits),
+                              currency: cc,
+                            );
+                          }
+                        });
+                      },
               )
             else
               InputDecorator(
@@ -1393,73 +1471,90 @@ class _AssetEditorSheetState extends State<_AssetEditorSheet> {
               ),
             ],
             const SizedBox(height: 12),
-            TextField(
-              controller: _totalCtrl,
-              keyboardType: TextInputType.number,
-              inputFormatters: [
-                GroupedIntegerTextInputFormatter(currency: native),
-              ],
-              decoration: InputDecoration(
-                labelText: 'Total',
-                prefixText: native == CurrencyCode.aed ? null : native.symbol,
-                prefixIcon: native == CurrencyCode.aed
-                    ? const Padding(
-                        padding: EdgeInsetsDirectional.only(start: 12, end: 8),
-                        child: DirhamIcon(size: 16),
-                      )
-                    : null,
-                prefixIconConstraints: native == CurrencyCode.aed
-                    ? const BoxConstraints(minWidth: 38)
-                    : null,
-                border: const OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _commentCtrl,
-              maxLines: 3,
-              decoration: const InputDecoration(
-                labelText: 'Comment (optional)',
-                alignLabelWithHint: true,
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                TextButton.icon(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    Navigator.of(widget.parentContext).push<void>(
-                      MaterialPageRoute<void>(
-                        fullscreenDialog: true,
-                        builder: (ctx) => LedgerImportPage(
-                          model: widget.model,
-                          kind: LedgerImportKind.asset,
-                          editAssetId:
-                              widget.allowCurrencyEdit ? null : widget.draft.id,
-                        ),
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.auto_awesome, size: 18),
-                  label: const Text('Import with AI'),
+            if (widget.model.primaryCashBalanceIsMirrored(_row))
+              InputDecorator(
+                decoration: const InputDecoration(
+                  labelText: 'Balance',
+                  border: OutlineInputBorder(),
+                  helperText: 'Latest month closing (Cash tab).',
                 ),
-                if (widget.canDelete)
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(
-                      const _RowEditorOutcome<LedgerAssetRow>(delete: true),
-                    ),
-                    child: const Text('Delete'),
+                child: Text(
+                  formatGroupedInteger(
+                    (widget.model.latestCashClosingBalanceDisplay ?? 0).round(),
+                    currency: widget.model.displayCurrency,
                   ),
-                const Spacer(),
-                OutlinedButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Cancel'),
+                  style: const TextStyle(fontWeight: FontWeight.w800),
                 ),
-                const SizedBox(width: 8),
-                FilledButton(onPressed: _save, child: const Text('Save')),
-              ],
+              )
+            else
+              TextField(
+                controller: _totalCtrl,
+                keyboardType: TextInputType.number,
+                inputFormatters: [
+                  GroupedIntegerTextInputFormatter(currency: native),
+                ],
+                decoration: InputDecoration(
+                  labelText: 'Total',
+                  prefixText: native == CurrencyCode.aed ? null : native.symbol,
+                  prefixIcon: native == CurrencyCode.aed
+                      ? const Padding(
+                          padding: EdgeInsetsDirectional.only(start: 12, end: 8),
+                          child: DirhamIcon(size: 16),
+                        )
+                      : null,
+                  prefixIconConstraints: native == CurrencyCode.aed
+                      ? const BoxConstraints(minWidth: 38)
+                      : null,
+                  border: const OutlineInputBorder(),
+                ),
+              ),
+            const SizedBox(height: 12),
+            if (widget.model.primaryCashBalanceIsMirrored(_row))
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Text(
+                  'Balance from cashflow -> cash section',
+                  style: TextStyle(
+                    fontSize: 13,
+                    height: 1.35,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              )
+            else
+              TextField(
+                controller: _commentCtrl,
+                maxLines: 3,
+                decoration: const InputDecoration(
+                  labelText: 'Comment (optional)',
+                  alignLabelWithHint: true,
+                  border: OutlineInputBorder(),
+                ),
+              ),
+            const SizedBox(height: 14),
+            _ledgerRowEditorActions(
+              context: context,
+              onImportWithAi: () {
+                Navigator.of(context).pop();
+                Navigator.of(widget.parentContext).push<void>(
+                  MaterialPageRoute<void>(
+                    fullscreenDialog: true,
+                    builder: (ctx) => LedgerImportPage(
+                      model: widget.model,
+                      kind: LedgerImportKind.asset,
+                      editAssetId:
+                          widget.allowCurrencyEdit ? null : widget.draft.id,
+                    ),
+                  ),
+                );
+              },
+              canDelete: widget.canDelete,
+              onDelete: widget.canDelete
+                  ? () => Navigator.of(context).pop(
+                        const _RowEditorOutcome<LedgerAssetRow>(delete: true),
+                      )
+                  : null,
+              onSave: _save,
             ),
           ],
         ),
@@ -1530,19 +1625,34 @@ class _LiabilityEditorSheetState extends State<_LiabilityEditorSheet> {
   Widget build(BuildContext context) {
     final bottom = MediaQuery.of(context).viewInsets.bottom;
     final native = currencyCodeForPresetCountry(_row.currencyCountry);
+    final maxH = (MediaQuery.sizeOf(context).height * 0.88 - bottom).clamp(220.0, 4000.0);
     return Padding(
       padding: EdgeInsets.fromLTRB(16, 8, 16, 16 + bottom),
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: maxH),
+        child: ListView(
+          shrinkWrap: true,
+          physics: const ClampingScrollPhysics(),
           children: [
-            Text(
-              widget.allowCurrencyEdit ? 'New liability' : 'Edit liability',
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    widget.allowCurrencyEdit ? 'New liability' : 'Edit liability',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w900,
+                        ),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close),
+                  tooltip: 'Close',
+                  onPressed: () => Navigator.of(context).pop(),
+                ),
+              ],
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 6),
             DropdownButtonFormField<LedgerLiabilityType>(
               initialValue: _row.type,
               decoration: const InputDecoration(
@@ -1648,42 +1758,30 @@ class _LiabilityEditorSheetState extends State<_LiabilityEditorSheet> {
                 border: OutlineInputBorder(),
               ),
             ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                TextButton.icon(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    Navigator.of(widget.parentContext).push<void>(
-                      MaterialPageRoute<void>(
-                        fullscreenDialog: true,
-                        builder: (ctx) => LedgerImportPage(
-                          model: widget.model,
-                          kind: LedgerImportKind.liability,
-                          editLiabilityId:
-                              widget.allowCurrencyEdit ? null : widget.draft.id,
-                        ),
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.auto_awesome, size: 18),
-                  label: const Text('Import with AI'),
-                ),
-                if (widget.canDelete)
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(
-                      const _RowEditorOutcome<LedgerLiabilityRow>(delete: true),
+            const SizedBox(height: 14),
+            _ledgerRowEditorActions(
+              context: context,
+              onImportWithAi: () {
+                Navigator.of(context).pop();
+                Navigator.of(widget.parentContext).push<void>(
+                  MaterialPageRoute<void>(
+                    fullscreenDialog: true,
+                    builder: (ctx) => LedgerImportPage(
+                      model: widget.model,
+                      kind: LedgerImportKind.liability,
+                      editLiabilityId:
+                          widget.allowCurrencyEdit ? null : widget.draft.id,
                     ),
-                    child: const Text('Delete'),
                   ),
-                const Spacer(),
-                OutlinedButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Cancel'),
-                ),
-                const SizedBox(width: 8),
-                FilledButton(onPressed: _save, child: const Text('Save')),
-              ],
+                );
+              },
+              canDelete: widget.canDelete,
+              onDelete: widget.canDelete
+                  ? () => Navigator.of(context).pop(
+                        const _RowEditorOutcome<LedgerLiabilityRow>(delete: true),
+                      )
+                  : null,
+              onSave: _save,
             ),
           ],
         ),
@@ -1735,7 +1833,7 @@ class _CashflowPane extends StatelessWidget {
             if (tabIndex == 0)
               _IncomeSection(model: model, key: incomeKey)
             else if (tabIndex == 1)
-              _AllocateTabSection(
+              _CashTabSection(
                 model: model,
                 key: allocationsKey,
                 onMonthEntryTap: onMonthEntryTap,
@@ -1772,6 +1870,7 @@ class _CashflowTabToggle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return SegmentedButton<int>(
       showSelectedIcon: false,
       segments: [
@@ -1784,8 +1883,8 @@ class _CashflowTabToggle extends StatelessWidget {
         ),
         const ButtonSegment<int>(
           value: 1,
-          label: Text('Split'),
-          tooltip: 'Cash vs invest',
+          label: Text('Cash'),
+          tooltip: 'Balances & investments',
         ),
         const ButtonSegment<int>(value: 2, label: Text('Expenses')),
       ],
@@ -1802,18 +1901,18 @@ class _CashflowTabToggle extends StatelessWidget {
       style: ButtonStyle(
         visualDensity: VisualDensity.compact,
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        side: const WidgetStatePropertyAll(
-          BorderSide(color: AppTheme.slate100),
+        side: WidgetStatePropertyAll(
+          BorderSide(color: cs.outlineVariant),
         ),
         backgroundColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
             return accent.withValues(alpha: 0.12);
           }
-          return Colors.white;
+          return cs.surfaceContainerHigh;
         }),
         foregroundColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) return accent;
-          return AppTheme.slate600;
+          return cs.onSurfaceVariant;
         }),
       ),
     );
@@ -1860,32 +1959,33 @@ class _IncomeSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
+        Text(
           'Income sources',
-          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
+          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: cs.onSurface),
         ),
         const SizedBox(height: 4),
         Text(
           'Last updated ${_ledgerFmtDate(model.incomeLastUpdated)}',
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 12,
-            color: AppTheme.slate500,
+            color: cs.outline,
             fontWeight: FontWeight.w600,
           ),
         ),
         const SizedBox(height: 10),
         if (model.incomeLines.isEmpty)
-          const Padding(
-            padding: EdgeInsets.only(bottom: 8),
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
             child: Text(
               'No lines yet — add one per source (salary, bonus, rent, …). You can add as many as you need.',
               style: TextStyle(
                 fontSize: 13,
-                color: AppTheme.slate600,
+                color: cs.onSurfaceVariant,
                 height: 1.35,
               ),
             ),
@@ -1984,6 +2084,68 @@ class _IncomeSection extends StatelessWidget {
             isDense: true,
           ),
         ),
+        const SizedBox(height: 20),
+        Text(
+          'After-tax split target',
+          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: cs.onSurface),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Only used for Sankey. Last updated ${_ledgerFmtDate(model.allocationTargetLastUpdated)}',
+          style: TextStyle(
+            fontSize: 12,
+            color: cs.outline,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 10),
+        ListenableBuilder(
+          listenable: model,
+          builder: (ctx, _) {
+            final avail = model.availableAfterExpensesMonthly;
+            final sliderPct = (model.allocInvestFraction * 100).round();
+            final savedPct = 100 - sliderPct;
+            final headline = (sliderPct > 50)
+                ? '$sliderPct% invested'
+                : ((sliderPct == 50) ? '50% saved' : '$savedPct% saved');
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Center(
+                  child: Text(
+                    headline,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 18,
+                      color: Theme.of(ctx).colorScheme.onSurface,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Slider(
+                  value: avail <= 0
+                      ? 0.0
+                      : model.allocInvestFraction.clamp(0.0, 1.0),
+                  divisions: 20,
+                  onChanged: avail <= 0 ? null : model.setAllocInvestFraction,
+                ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'All cash',
+                      style: TextStyle(fontSize: 12, color: Theme.of(ctx).colorScheme.onSurfaceVariant),
+                    ),
+                    Text(
+                      'All invested',
+                      style: TextStyle(fontSize: 12, color: Theme.of(ctx).colorScheme.onSurfaceVariant),
+                    ),
+                  ],
+                ),
+              ],
+            );
+          },
+        ),
       ],
     );
   }
@@ -2003,6 +2165,7 @@ class _ExpensesSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final preset = presetForCountry(AppModel.expensePresetCountry);
     final predicted = model.totalExpensesMonthly;
     final segments = expenseDonutSegmentsFromPreset(
@@ -2029,12 +2192,15 @@ class _ExpensesSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Center(
-          child: ExpenseDonutChart(
-            segments: segments,
-            centerTitle: centerTitle,
-            centerSubtitle: 'est. / month',
-            size: 220,
-            strokeWidth: 38,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: ExpenseDonutChart(
+              segments: segments,
+              centerTitle: centerTitle,
+              centerSubtitle: 'est. / month',
+              size: 220,
+              strokeWidth: 38,
+            ),
           ),
         ),
         const SizedBox(height: 8),
@@ -2058,10 +2224,10 @@ class _ExpensesSection extends StatelessWidget {
                   const SizedBox(width: 6),
                   Text(
                     s.label,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
-                      color: AppTheme.slate600,
+                      color: cs.onSurfaceVariant,
                     ),
                   ),
                 ],
@@ -2074,9 +2240,9 @@ class _ExpensesSection extends StatelessWidget {
             Expanded(
               child: Text(
                 _ledgerFmtDate(model.expenseEstimatesLastUpdated),
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 12,
-                  color: AppTheme.slate500,
+                  color: cs.outline,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -2096,11 +2262,11 @@ class _ExpensesSection extends StatelessWidget {
               icon: Icon(
                 Icons.tune,
                 size: 18,
-                color: privacy ? AppTheme.slate500 : null,
+                color: privacy ? cs.outline : null,
               ),
               label: Text(
                 'Edit estimates',
-                style: TextStyle(color: privacy ? AppTheme.slate500 : null),
+                style: TextStyle(color: privacy ? cs.outline : null),
               ),
             ),
           ],
@@ -2118,7 +2284,7 @@ class _ExpensesSection extends StatelessWidget {
               child: Text(
                 'No months saved yet. Tap + to add any month (YYYY-MM or calendar).',
                 style: TextStyle(
-                  color: AppTheme.slate600,
+                  color: cs.onSurfaceVariant,
                   fontSize: 13,
                   height: 1.35,
                 ),
@@ -2127,7 +2293,7 @@ class _ExpensesSection extends StatelessWidget {
           else
             Container(
               decoration: BoxDecoration(
-                border: Border.all(color: AppTheme.slate100),
+                border: Border.all(color: cs.outlineVariant),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Column(
@@ -2158,19 +2324,26 @@ class _MonthTableHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: const BoxDecoration(
-        color: AppTheme.slate50,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(11)),
+      decoration: BoxDecoration(
+        color: Color.alphaBlend(
+          cs.primary.withValues(alpha: 0.07),
+          cs.surfaceContainerHigh,
+        ),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(11)),
+        border: Border(
+          bottom: BorderSide(color: cs.outlineVariant.withValues(alpha: 0.85)),
+        ),
       ),
       child: Row(
         children: [
-          const Expanded(
+          Expanded(
             flex: 3,
             child: Text(
               'Month',
-              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12),
+              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12, color: cs.onSurface),
             ),
           ),
           Expanded(
@@ -2181,7 +2354,7 @@ class _MonthTableHeader extends StatelessWidget {
               style: TextStyle(
                 fontWeight: FontWeight.w900,
                 fontSize: 12,
-                color: AppTheme.slate600,
+                color: cs.onSurfaceVariant,
               ),
             ),
           ),
@@ -2193,7 +2366,7 @@ class _MonthTableHeader extends StatelessWidget {
               style: TextStyle(
                 fontWeight: FontWeight.w900,
                 fontSize: 12,
-                color: AppTheme.slate600,
+                color: cs.onSurfaceVariant,
               ),
             ),
           ),
@@ -2205,7 +2378,7 @@ class _MonthTableHeader extends StatelessWidget {
               style: TextStyle(
                 fontWeight: FontWeight.w900,
                 fontSize: 12,
-                color: AppTheme.slate600,
+                color: cs.onSurfaceVariant,
               ),
             ),
           ),
@@ -2239,6 +2412,7 @@ class _MonthTotalRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final lineActual = model.actualSpendForMonth(monthKey);
     final hasRowData = lineActual > 0;
     final actual = lineActual;
@@ -2264,7 +2438,7 @@ class _MonthTotalRow extends StatelessWidget {
       decoration: BoxDecoration(
         border: Border(
           bottom: BorderSide(
-            color: showDivider ? AppTheme.slate100 : Colors.transparent,
+            color: showDivider ? cs.outlineVariant : Colors.transparent,
           ),
         ),
       ),
@@ -2275,7 +2449,7 @@ class _MonthTotalRow extends StatelessWidget {
             flex: 3,
             child: Text(
               AppModel.formatMonthKeyLabel(monthKey),
-              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: cs.onSurface),
             ),
           ),
           Expanded(
@@ -2283,7 +2457,7 @@ class _MonthTotalRow extends StatelessWidget {
             child: Text(
               predictedTxt,
               textAlign: TextAlign.end,
-              style: const TextStyle(fontSize: 12, color: AppTheme.slate600),
+              style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
             ),
           ),
           Expanded(
@@ -2340,8 +2514,541 @@ class _MonthTotalRow extends StatelessWidget {
   }
 }
 
-class _AllocateTabSection extends StatelessWidget {
-  const _AllocateTabSection({
+bool _monthInvestmentNeedsAction(AppModel model, String monthKey) {
+  final e = model.monthlyEntryFor(monthKey);
+  if (e == null || e.outflowToInvested <= 0.005) return false;
+  return !monthlyInvestmentLinkingComplete(e);
+}
+
+Future<void> _showMonthInvestmentLinkSheet(
+  BuildContext context,
+  AppModel model,
+  String monthKey,
+) {
+  return showLiquidGlassModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    isScrollControlled: true,
+    builder: (ctx) => Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(ctx).bottom),
+      child: SafeArea(
+        child: _MonthInvestmentLinkSheet(
+          model: model,
+          monthKey: monthKey,
+        ),
+      ),
+    ),
+  );
+}
+
+class _MonthInvestmentLinkSheet extends StatefulWidget {
+  const _MonthInvestmentLinkSheet({
+    required this.model,
+    required this.monthKey,
+  });
+
+  final AppModel model;
+  final String monthKey;
+
+  @override
+  State<_MonthInvestmentLinkSheet> createState() =>
+      _MonthInvestmentLinkSheetState();
+}
+
+class _MonthInvestmentLinkSheetState extends State<_MonthInvestmentLinkSheet> {
+  late List<MonthlyInvestmentLine> _lines;
+  final Map<String, TextEditingController> _amountCtrls = {};
+
+  double get _target =>
+      widget.model.monthlyEntryFor(widget.monthKey)?.outflowToInvested ?? 0;
+
+  @override
+  void initState() {
+    super.initState();
+    final e = widget.model.monthlyEntryFor(widget.monthKey)!;
+    _lines = [for (final l in e.investmentLines) l.clone()];
+    if (_lines.isEmpty && e.outflowToInvested > 0.005) {
+      _lines.add(MonthlyInvestmentLine.blank()..amount = e.outflowToInvested);
+    }
+    for (final l in _lines) {
+      _amountCtrls[l.id] = TextEditingController(
+        text: l.amount <= 0.005
+            ? ''
+            : formatGroupedInteger(
+                l.amount.round(),
+                currency: widget.model.displayCurrency,
+              ),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final c in _amountCtrls.values) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  TextEditingController _controllerFor(MonthlyInvestmentLine line) {
+    return _amountCtrls.putIfAbsent(
+      line.id,
+      () => TextEditingController(
+        text: line.amount <= 0.005
+            ? ''
+            : formatGroupedInteger(
+                line.amount.round(),
+                currency: widget.model.displayCurrency,
+              ),
+      ),
+    );
+  }
+
+  void _syncAmountsFromFields() {
+    for (final l in _lines) {
+      final c = _amountCtrls[l.id];
+      if (c != null) {
+        l.amount = _ledgerParseGroupedDouble(c.text);
+      }
+    }
+  }
+
+  void _addSplit() {
+    setState(() {
+      final n = MonthlyInvestmentLine.blank();
+      _lines.add(n);
+      _amountCtrls[n.id] = TextEditingController();
+    });
+  }
+
+  void _removeAt(int i) {
+    final line = _lines[i];
+    setState(() {
+      _lines.removeAt(i);
+      final c = _amountCtrls.remove(line.id);
+      c?.dispose();
+    });
+  }
+
+  void _save(BuildContext context) {
+    _syncAmountsFromFields();
+    final m = widget.model;
+    final target = _target;
+    if (target <= 0.005) {
+      Navigator.of(context).pop();
+      return;
+    }
+    final filtered = <MonthlyInvestmentLine>[];
+    for (final l in _lines) {
+      if (l.amount > 0.005) {
+        filtered.add(l);
+      }
+    }
+    if (filtered.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Add at least one amount.')),
+      );
+      return;
+    }
+    final sum = sumMonthlyInvestmentAmounts(filtered);
+    if ((sum - target).abs() > 0.51) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Allocated total must match invested (${formatGroupedInteger(target.round(), currency: m.displayCurrency)}).',
+          ),
+        ),
+      );
+      return;
+    }
+    for (final l in filtered) {
+      if ((l.assetId ?? '').isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Choose an asset for each line.')),
+        );
+        return;
+      }
+    }
+    final complete =
+        m.commitMonthInvestmentLinking(widget.monthKey, filtered);
+    if (!context.mounted) return;
+    Navigator.of(context).pop();
+    if (complete) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Asset value updated, import to update context'),
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final m = widget.model;
+    final dc = m.displayCurrency;
+    final cs = Theme.of(context).colorScheme;
+    const edge = EdgeInsets.fromLTRB(20, 8, 20, 24);
+    return ListenableBuilder(
+      listenable: m,
+      builder: (ctx, _) {
+        _syncAmountsFromFields();
+        final target = _target;
+        final sum = sumMonthlyInvestmentAmounts(_lines);
+        final match = target > 0.005 && (sum - target).abs() <= 0.51;
+        final targetTxt = formatGroupedInteger(target.round(), currency: dc);
+        final sumTxt = formatGroupedInteger(sum.round(), currency: dc);
+        return SingleChildScrollView(
+          padding: edge,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                AppModel.formatMonthKeyLabel(widget.monthKey),
+                style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 16,
+                  color: cs.onSurface,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Invested this month: $targetTxt',
+                style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
+              ),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Allocated: $sumTxt',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 14,
+                        color: match ? Colors.green.shade700 : cs.onSurface,
+                      ),
+                    ),
+                  ),
+                  if (match)
+                    Icon(Icons.check_circle, color: Colors.green.shade600, size: 22),
+                ],
+              ),
+              const SizedBox(height: 14),
+              for (var i = 0; i < _lines.length; i++)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _MonthInvestmentSplitRow(
+                    model: m,
+                    line: _lines[i],
+                    amountController: _controllerFor(_lines[i]),
+                    canRemove: _lines.length > 1,
+                    onRemove: () => _removeAt(i),
+                    onAmountChanged: () => setState(() {}),
+                    onAssetChanged: (id) =>
+                        setState(() => _lines[i].assetId = id),
+                  ),
+                ),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: _addSplit,
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('Add split'),
+                ),
+              ),
+              const SizedBox(height: 8),
+              FilledButton(
+                onPressed: () => _save(context),
+                child: const Text('Save'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _MonthInvestmentSplitRow extends StatelessWidget {
+  const _MonthInvestmentSplitRow({
+    required this.model,
+    required this.line,
+    required this.amountController,
+    required this.canRemove,
+    required this.onRemove,
+    required this.onAmountChanged,
+    required this.onAssetChanged,
+  });
+
+  final AppModel model;
+  final MonthlyInvestmentLine line;
+  final TextEditingController amountController;
+  final bool canRemove;
+  final VoidCallback onRemove;
+  final VoidCallback onAmountChanged;
+  final ValueChanged<String?> onAssetChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final dc = model.displayCurrency;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border.all(color: cs.outlineVariant),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: amountController,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [
+                      GroupedIntegerTextInputFormatter(currency: dc),
+                    ],
+                    decoration: InputDecoration(
+                      labelText: 'Amount',
+                      border: const OutlineInputBorder(),
+                      isDense: true,
+                      prefixText: dc == CurrencyCode.aed ? null : dc.symbol,
+                    ),
+                    onChanged: (_) => onAmountChanged(),
+                  ),
+                ),
+                if (canRemove)
+                  IconButton(
+                    onPressed: onRemove,
+                    icon: const Icon(Icons.remove_circle_outline),
+                    tooltip: 'Remove',
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<String?>(
+              key: ValueKey('lnk-${line.id}-${line.assetId}-${model.assets.length}'),
+              initialValue: line.assetId != null &&
+                      model.assetById(line.assetId!) != null
+                  ? line.assetId
+                  : null,
+              decoration: const InputDecoration(
+                labelText: 'Link to asset',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+              items: [
+                const DropdownMenuItem<String?>(
+                  value: null,
+                  child: Text('Choose asset'),
+                ),
+                for (final a in model.assets)
+                  DropdownMenuItem<String?>(
+                    value: a.id,
+                    child: Text(
+                      a.name.trim().isEmpty ? a.type.label : a.name.trim(),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+              ],
+              onChanged: onAssetChanged,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _CashPrimaryCashBar extends StatefulWidget {
+  const _CashPrimaryCashBar({required this.model});
+
+  final AppModel model;
+
+  @override
+  State<_CashPrimaryCashBar> createState() => _CashPrimaryCashBarState();
+}
+
+class _CashPrimaryCashBarState extends State<_CashPrimaryCashBar> {
+  late final TextEditingController _createNameCtrl;
+  bool _editingName = false;
+  TextEditingController? _editNameCtrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _createNameCtrl = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    _createNameCtrl.dispose();
+    _editNameCtrl?.dispose();
+    super.dispose();
+  }
+
+  void _commitCreate() {
+    final name = _createNameCtrl.text.trim();
+    if (name.isEmpty) return;
+    final row = LedgerAssetRow.blank(
+      defaultCurrencyCountry: widget.model.defaultLedgerCurrencyCountry,
+    );
+    row.type = LedgerAssetType.savings;
+    row.name = name;
+    row.total = 0;
+    widget.model.registerPrimaryCashAsset(row);
+    _createNameCtrl.clear();
+  }
+
+  void _startRename(LedgerAssetRow asset) {
+    _editNameCtrl?.dispose();
+    _editNameCtrl = TextEditingController(text: asset.name);
+    setState(() => _editingName = true);
+  }
+
+  void _commitRename(LedgerAssetRow asset) {
+    final raw = _editNameCtrl?.text.trim() ?? '';
+    asset.name = raw.isEmpty ? asset.type.label : raw;
+    _editNameCtrl?.dispose();
+    _editNameCtrl = null;
+    setState(() => _editingName = false);
+    widget.model.touchAssetsChanged();
+  }
+
+  void _cancelRename() {
+    _editNameCtrl?.dispose();
+    _editNameCtrl = null;
+    setState(() => _editingName = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return ListenableBuilder(
+      listenable: widget.model,
+      builder: (ctx, _) {
+        final m = widget.model;
+        final iid = m.primaryIncomeAssetId;
+        final asset = iid == null ? null : m.assetById(iid);
+        final linked = asset != null;
+
+        if (!linked) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 14),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _createNameCtrl,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: InputDecoration(
+                      hintText: 'Cash account',
+                      isDense: true,
+                      border: OutlineInputBorder(
+                        borderSide: BorderSide(color: cs.outlineVariant),
+                      ),
+                    ),
+                    onSubmitted: (_) => _commitCreate(),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Save',
+                  onPressed: _commitCreate,
+                  icon: Icon(Icons.check, color: cs.primary),
+                ),
+              ],
+            ),
+          );
+        }
+
+        final label =
+            asset.name.trim().isEmpty ? asset.type.label : asset.name.trim();
+
+        if (_editingName && _editNameCtrl != null) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 14),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _editNameCtrl,
+                    autofocus: true,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: InputDecoration(
+                      isDense: true,
+                      border: OutlineInputBorder(
+                        borderSide: BorderSide(color: cs.outlineVariant),
+                      ),
+                    ),
+                    onSubmitted: (_) => _commitRename(asset),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Save',
+                  onPressed: () => _commitRename(asset),
+                  icon: Icon(Icons.check, color: cs.primary),
+                ),
+                IconButton(
+                  tooltip: 'Cancel',
+                  onPressed: _cancelRename,
+                  icon: Icon(Icons.close, color: cs.onSurfaceVariant),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 10),
+          child: Material(
+            color: cs.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(10),
+            child: Padding(
+              padding: const EdgeInsetsDirectional.only(start: 4, end: 0, top: 4, bottom: 4),
+              child: Row(
+                children: [
+                  Padding(
+                    padding: const EdgeInsetsDirectional.only(start: 8),
+                    child: Icon(
+                      Icons.account_balance_wallet_outlined,
+                      size: 20,
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      label,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                        color: cs.onSurface,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Edit name',
+                    icon: Icon(Icons.edit_outlined, size: 20, color: cs.onSurfaceVariant),
+                    onPressed: () => _startRename(asset),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _CashTabSection extends StatelessWidget {
+  const _CashTabSection({
     super.key,
     required this.model,
     required this.onMonthEntryTap,
@@ -2354,93 +3061,22 @@ class _AllocateTabSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final privacy = model.privacyHideAmounts;
-    final avail = model.availableAfterExpensesMonthly;
     final monthKeysForTable = model.monthKeysWithCashflowData();
-    final sliderPct = (model.allocInvestFraction * 100).round();
-    final savedPct = 100 - sliderPct;
-    final headline = (sliderPct > 50)
-        ? '$sliderPct% invested'
-        : ((sliderPct == 50) ? '50% saved' : '$savedPct% saved');
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Text(
-          'Split after expenses',
-          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          'Last updated ${_ledgerFmtDate(model.allocationTargetLastUpdated)}',
-          style: const TextStyle(
-            fontSize: 12,
-            color: AppTheme.slate500,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const SizedBox(height: 10),
-        Center(
-          child: Text(
-            headline,
-            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 18),
-          ),
-        ),
-        const SizedBox(height: 2),
-        Slider(
-          value: avail <= 0 ? 0.0 : model.allocInvestFraction.clamp(0.0, 1.0),
-          divisions: 20,
-          onChanged: avail <= 0 ? null : model.setAllocInvestFraction,
-        ),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'All cash',
-              style: TextStyle(fontSize: 12, color: AppTheme.slate600),
-            ),
-            Text(
-              'All invested',
-              style: TextStyle(fontSize: 12, color: AppTheme.slate600),
-            ),
-          ],
-        ),
-        if (privacy) ...[
-          const SizedBox(height: 6),
-          const Text(
-            'Amounts hidden.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 12,
-              color: AppTheme.slate500,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-        const SizedBox(height: 24),
-        const Text(
-          'Each month',
-          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
-        ),
-        const SizedBox(height: 10),
+        _CashPrimaryCashBar(model: model),
         if (monthKeysForTable.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Text(
-              'No months saved yet. Tap + to add entries; all saved months appear here.',
-              style: TextStyle(
-                color: AppTheme.slate600,
-                fontSize: 13,
-                height: 1.35,
-              ),
-            ),
-          )
+          const SizedBox(height: 4)
         else
           Container(
             width: double.infinity,
             decoration: BoxDecoration(
-              border: Border.all(color: AppTheme.slate100),
+              border: Border.all(color: cs.outlineVariant),
               borderRadius: BorderRadius.circular(12),
             ),
             clipBehavior: Clip.antiAlias,
@@ -2460,7 +3096,122 @@ class _AllocateTabSection extends StatelessWidget {
               ],
             ),
           ),
+        const SizedBox(height: 12),
+        _MonthInvestmentsSection(
+          model: model,
+          onPrivacyInteractionDenied: onPrivacyInteractionDenied,
+        ),
       ],
+    );
+  }
+}
+
+class _MonthInvestmentsSection extends StatelessWidget {
+  const _MonthInvestmentsSection({
+    required this.model,
+    required this.onPrivacyInteractionDenied,
+  });
+
+  final AppModel model;
+  final VoidCallback onPrivacyInteractionDenied;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final months = model.monthKeysWithCashflowData();
+    final investMonths = <String>[];
+    for (final mk in months) {
+      final e = model.monthlyEntryFor(mk);
+      if (e != null && e.outflowToInvested > 0.005) {
+        investMonths.add(mk);
+      }
+    }
+    if (investMonths.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final needsAttention =
+        investMonths.any((mk) => _monthInvestmentNeedsAction(model, mk));
+    return ExpansionTile(
+      initiallyExpanded: needsAttention,
+      title: Text(
+        'Invest',
+        style: TextStyle(
+          fontWeight: FontWeight.w800,
+          fontSize: 14,
+          color: cs.onSurface,
+        ),
+      ),
+      subtitle: Text(
+        needsAttention ? 'Link to assets' : 'Linked by month',
+        style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+      ),
+      children: [
+        for (final mk in investMonths)
+          _MonthInvestmentMonthTile(
+            model: model,
+            monthKey: mk,
+            onPrivacyInteractionDenied: onPrivacyInteractionDenied,
+          ),
+      ],
+    );
+  }
+}
+
+class _MonthInvestmentMonthTile extends StatelessWidget {
+  const _MonthInvestmentMonthTile({
+    required this.model,
+    required this.monthKey,
+    required this.onPrivacyInteractionDenied,
+  });
+
+  final AppModel model;
+  final String monthKey;
+  final VoidCallback onPrivacyInteractionDenied;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final e = model.monthlyEntryFor(monthKey);
+    if (e == null) return const SizedBox.shrink();
+    final privacy = model.privacyHideAmounts;
+    final dc = model.displayCurrency;
+    final inv = e.outflowToInvested;
+    final complete = monthlyInvestmentLinkingComplete(e);
+    final needs = _monthInvestmentNeedsAction(model, monthKey);
+    final invTxt = privacy
+        ? maskSensitiveNumberString(
+            formatGroupedInteger(inv.round(), currency: dc),
+          )
+        : formatGroupedInteger(inv.round(), currency: dc);
+    final Widget leading = complete
+        ? Icon(Icons.check_circle, color: Colors.green.shade600, size: 22)
+        : Icon(
+            Icons.flag_outlined,
+            color: needs ? Colors.orange.shade800 : cs.onSurfaceVariant,
+            size: 22,
+          );
+    return ListTile(
+      dense: true,
+      leading: leading,
+      title: Text(
+        AppModel.formatMonthKeyLabel(monthKey),
+        style: TextStyle(
+          fontWeight: FontWeight.w700,
+          fontSize: 13,
+          color: cs.onSurface,
+        ),
+      ),
+      subtitle: Text(
+        invTxt,
+        style: TextStyle(
+          fontSize: 12,
+          color: cs.onSurfaceVariant,
+          height: 1.3,
+        ),
+      ),
+      onTap: privacy
+          ? onPrivacyInteractionDenied
+          : () => _showMonthInvestmentLinkSheet(context, model, monthKey),
     );
   }
 }
@@ -2470,40 +3221,47 @@ class _MonthlyCashflowSplitTableHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: const BoxDecoration(
-        color: AppTheme.slate50,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(11)),
+      decoration: BoxDecoration(
+        color: Color.alphaBlend(
+          cs.primary.withValues(alpha: 0.07),
+          cs.surfaceContainerHigh,
+        ),
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(11)),
+        border: Border(
+          bottom: BorderSide(color: cs.outlineVariant.withValues(alpha: 0.85)),
+        ),
       ),
       child: Row(
         children: [
-          const SizedBox(
+          SizedBox(
             width: 72,
             child: Text(
               'Month',
-              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 11),
+              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 11, color: cs.onSurface),
             ),
           ),
-          const Expanded(
+          Expanded(
             child: Text(
               'Earned',
               textAlign: TextAlign.end,
               style: TextStyle(
                 fontWeight: FontWeight.w900,
                 fontSize: 11,
-                color: AppTheme.slate600,
+                color: cs.onSurfaceVariant,
               ),
             ),
           ),
-          const Expanded(
+          Expanded(
             child: Text(
-              '% inv',
+              'Invested',
               textAlign: TextAlign.end,
               style: TextStyle(
                 fontWeight: FontWeight.w900,
                 fontSize: 11,
-                color: AppTheme.slate600,
+                color: cs.onSurfaceVariant,
               ),
             ),
           ),
@@ -2532,9 +3290,9 @@ class _MonthlyCashflowSplitTableRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final e = model.monthlyEntryFor(monthKey);
     final dc = model.displayCurrency;
-    final targetPct = (model.allocInvestFraction * 100).round();
 
     final earnedTxt = e == null
         ? '—'
@@ -2546,34 +3304,25 @@ class _MonthlyCashflowSplitTableRow extends StatelessWidget {
               : formatGroupedInteger(e.monthlyEarned.round(), currency: dc))
         : '—';
 
-    int? actualInvPct;
-    if (e != null) {
-      final cash = e.outflowToCashFd;
-      final inv = e.outflowToInvested;
-      final total = cash + inv;
-      if (total > 0) actualInvPct = (inv / total * 100).round();
-    }
-    final splitTxt = (e == null || actualInvPct == null)
+    final investedTxt = e == null || e.outflowToInvested <= 0
         ? '—'
-        : '$actualInvPct/$targetPct';
-
-    // Compare month split vs slider target (post-expenses allocations only).
-    const bandPctPoints = 5; // slider is quantized to 5% steps
-    final diff = (actualInvPct ?? targetPct) - targetPct;
-    final inBand = actualInvPct != null && diff.abs() <= bandPctPoints;
-    final splitColor = actualInvPct == null
-        ? AppTheme.slate600
-        : (inBand
-              ? AppTheme.slate600
-              : (diff > 0
-                    ? AppModel.spendUnderColor
-                    : AppModel.spendOverColor));
+        : (privacyHideAmounts
+              ? maskSensitiveNumberString(
+                  formatGroupedInteger(
+                    e.outflowToInvested.round(),
+                    currency: dc,
+                  ),
+                )
+              : formatGroupedInteger(
+                  e.outflowToInvested.round(),
+                  currency: dc,
+                ));
 
     final child = Container(
       decoration: BoxDecoration(
         border: Border(
           bottom: BorderSide(
-            color: showDivider ? AppTheme.slate100 : Colors.transparent,
+            color: showDivider ? cs.outlineVariant : Colors.transparent,
           ),
         ),
       ),
@@ -2584,24 +3333,24 @@ class _MonthlyCashflowSplitTableRow extends StatelessWidget {
             width: 72,
             child: Text(
               AppModel.formatMonthKeyLabel(monthKey),
-              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: cs.onSurface),
             ),
           ),
           Expanded(
             child: Text(
               earnedTxt,
               textAlign: TextAlign.end,
-              style: const TextStyle(fontSize: 11),
+              style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
             ),
           ),
           Expanded(
             child: Text(
-              splitTxt,
+              investedTxt,
               textAlign: TextAlign.end,
               style: TextStyle(
                 fontSize: 11,
-                fontWeight: FontWeight.w900,
-                color: splitColor,
+                fontWeight: FontWeight.w800,
+                color: cs.onSurfaceVariant,
               ),
             ),
           ),

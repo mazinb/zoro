@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 
-import '../../shared/theme/app_theme.dart';
-
 class HomeTab extends StatelessWidget {
   const HomeTab({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
@@ -14,13 +13,13 @@ class HomeTab extends StatelessWidget {
           'Welcome',
           style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                 fontWeight: FontWeight.w700,
-                color: AppTheme.slate900,
+                color: scheme.onSurface,
               ),
         ),
         const SizedBox(height: 4),
-        const Text(
+        Text(
           'UI-first mode (no login).',
-          style: TextStyle(color: AppTheme.slate600),
+          style: TextStyle(color: scheme.onSurfaceVariant),
         ),
         const SizedBox(height: 24),
         Text(
@@ -65,6 +64,7 @@ class _DashCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Card(
       child: InkWell(
         onTap: onTap,
@@ -76,14 +76,14 @@ class _DashCard extends StatelessWidget {
             children: [
               Text(
                 title,
-                style: const TextStyle(
+                style: TextStyle(
                   fontWeight: FontWeight.w600,
                   fontSize: 16,
-                  color: AppTheme.slate900,
+                  color: scheme.onSurface,
                 ),
               ),
               const SizedBox(height: 6),
-              Text(subtitle, style: const TextStyle(color: AppTheme.slate600)),
+              Text(subtitle, style: TextStyle(color: scheme.onSurfaceVariant)),
             ],
           ),
         ),

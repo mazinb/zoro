@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/state/app_model.dart';
+import '../../shared/widgets/liquid_glass.dart';
 import '../command_center/command_center_tab.dart';
 import '../context/context_tab.dart';
 import '../ledger/ledger_tab.dart';
@@ -107,44 +108,64 @@ class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver
       SettingsTab(model: widget.model, tabIndexListenable: _settingsTabIndex),
     ];
 
+    final bottomOverlayPad = MediaQuery.paddingOf(context).bottom +
+        kBottomNavigationBarHeight +
+        18; // floating pill margins + breathing room
+
     return Scaffold(
+      extendBody: true,
       body: SafeArea(
         bottom: false,
-        child: IndexedStack(
-          index: _index,
-          children: pages,
+        child: Padding(
+          padding: EdgeInsets.only(bottom: bottomOverlayPad),
+          child: IndexedStack(
+            index: _index,
+            children: pages,
+          ),
         ),
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _index,
-        onDestinationSelected: (i) => setState(() => _index = i),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.dashboard_outlined),
-            selectedIcon: Icon(Icons.dashboard),
-            label: 'Home',
+      bottomNavigationBar: Material(
+        color: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        shadowColor: Colors.transparent,
+        elevation: 0,
+        child: SafeArea(
+          top: false,
+          minimum: EdgeInsets.zero,
+          child: LiquidGlassBar(
+            child: NavigationBar(
+              selectedIndex: _index,
+              onDestinationSelected: (i) => setState(() => _index = i),
+              destinations: const [
+                NavigationDestination(
+                  icon: Icon(Icons.dashboard_outlined),
+                  selectedIcon: Icon(Icons.dashboard),
+                  label: 'Home',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.view_agenda_outlined),
+                  selectedIcon: Icon(Icons.view_agenda),
+                  label: 'Ledger',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.library_books_outlined),
+                  selectedIcon: Icon(Icons.library_books),
+                  label: 'Context',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.chat_bubble_outline),
+                  selectedIcon: Icon(Icons.chat_bubble),
+                  label: 'Chat',
+                ),
+                NavigationDestination(
+                  icon: Icon(Icons.settings_outlined),
+                  selectedIcon: Icon(Icons.settings),
+                  label: 'Settings',
+                ),
+              ],
+            ),
           ),
-          NavigationDestination(
-            icon: Icon(Icons.view_agenda_outlined),
-            selectedIcon: Icon(Icons.view_agenda),
-            label: 'Ledger',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.library_books_outlined),
-            selectedIcon: Icon(Icons.library_books),
-            label: 'Context',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.chat_bubble_outline),
-            selectedIcon: Icon(Icons.chat_bubble),
-            label: 'Chat',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.settings_outlined),
-            selectedIcon: Icon(Icons.settings),
-            label: 'Settings',
-          ),
-        ],
+        ),
       ),
     );
   }

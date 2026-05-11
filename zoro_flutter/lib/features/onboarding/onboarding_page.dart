@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../core/api/api_exception.dart';
 import '../../core/session/session_controller.dart';
-import '../../shared/theme/app_theme.dart';
 import '../../shared/widgets/animated_zoro_logo.dart';
 import '../../util/auth_link.dart';
 
@@ -94,6 +93,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       body: SafeArea(
         child: ListView(
@@ -108,7 +108,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.headlineMedium?.copyWith(
                     fontWeight: FontWeight.w700,
-                    color: AppTheme.slate900,
+                    color: scheme.onSurface,
                   ),
             ),
             const SizedBox(height: 8),
@@ -116,7 +116,7 @@ class _OnboardingPageState extends State<OnboardingPage> {
               'Enter your email. We’ll keep you signed in on this device.',
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: AppTheme.slate600,
+                    color: scheme.onSurfaceVariant,
                   ),
             ),
             const SizedBox(height: 32),
@@ -157,12 +157,12 @@ class _OnboardingPageState extends State<OnboardingPage> {
             Text(
               'New here? We’ll email a link to create or open your account.',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: AppTheme.slate500,
+                    color: scheme.onSurfaceVariant.withValues(alpha: 0.85),
                   ),
             ),
             if (_info != null) ...[
               const SizedBox(height: 20),
-              Text(_info!, style: const TextStyle(color: AppTheme.slate600)),
+              Text(_info!, style: TextStyle(color: scheme.onSurfaceVariant)),
             ],
             if (_error != null) ...[
               const SizedBox(height: 16),

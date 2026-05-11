@@ -4,8 +4,6 @@ import 'package:flutter/material.dart';
 import '../../core/schedule/scheduled_agent_runner.dart';
 import '../../core/state/app_model.dart';
 import '../../core/state/scheduled_agent_task.dart';
-import '../../shared/theme/app_theme.dart';
-
 /// Create or edit a recurring agent run (Settings → Agents → Schedule).
 class ScheduledTaskEditorPage extends StatefulWidget {
   const ScheduledTaskEditorPage({
@@ -152,6 +150,7 @@ class _ScheduledTaskEditorPageState extends State<ScheduledTaskEditorPage> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     final next = computeNextRunLocal(_task, notBefore: DateTime.now());
     return Scaffold(
       appBar: AppBar(
@@ -296,7 +295,7 @@ class _ScheduledTaskEditorPageState extends State<ScheduledTaskEditorPage> {
             title: const Text('Local time', style: TextStyle(fontWeight: FontWeight.w900)),
             subtitle: Text(
               '${_task.hour.toString().padLeft(2, '0')}:${_task.minute.toString().padLeft(2, '0')}',
-              style: const TextStyle(fontWeight: FontWeight.w800, color: AppTheme.slate900),
+              style: TextStyle(fontWeight: FontWeight.w800, color: scheme.onSurface),
             ),
             trailing: const Icon(Icons.schedule),
             onTap: () async {
@@ -311,14 +310,14 @@ class _ScheduledTaskEditorPageState extends State<ScheduledTaskEditorPage> {
           ),
           Text(
             'Next run (approx.): ${next.toLocal().toString().split(".").first}',
-            style: const TextStyle(color: AppTheme.slate600, fontSize: 13, fontWeight: FontWeight.w600),
+            style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13, fontWeight: FontWeight.w600),
           ),
           if (_task.lastRunAt != null)
             Padding(
               padding: const EdgeInsets.only(top: 6),
               child: Text(
                 'Last run: ${_task.lastRunAt!.toLocal().toString().split(".").first}',
-                style: const TextStyle(color: AppTheme.slate500, fontSize: 12),
+                style: TextStyle(color: scheme.onSurfaceVariant.withValues(alpha: 0.85), fontSize: 12),
               ),
             ),
           const SizedBox(height: 16),

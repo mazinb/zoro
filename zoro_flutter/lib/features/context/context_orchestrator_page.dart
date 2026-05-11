@@ -7,7 +7,6 @@ import '../../core/llm/llm_json.dart';
 import '../../core/state/app_model.dart';
 import '../../core/state/internal_app_agent_definition.dart';
 import '../../core/state/ledger_rows.dart';
-import '../../shared/theme/app_theme.dart';
 import 'context_editor_page.dart';
 
 class ContextOrchestratorPage extends StatefulWidget {
@@ -56,7 +55,7 @@ Rules:
             'id': a.id,
             'type': a.type.apiValue,
             'name': a.name,
-            'total': a.total,
+            'total': m.assetDisplayValue(a),
             'contextMarkdown': (a.contextMarkdown ?? '').trim(),
             'contextLastUpdated': m.contextNoteLastUpdatedIso(AppModel.contextKeyAsset(a.id)),
           }
@@ -210,7 +209,11 @@ Rules:
                     children: [
                       Text(
                         _message ?? '',
-                        style: const TextStyle(color: AppTheme.slate900, fontWeight: FontWeight.w800, height: 1.35),
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurface,
+                          fontWeight: FontWeight.w800,
+                          height: 1.35,
+                        ),
                       ),
                       const SizedBox(height: 16),
                       FilledButton(onPressed: _go, child: const Text('Go')),

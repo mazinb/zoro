@@ -10,7 +10,7 @@ import '../../core/state/app_model.dart';
 import '../../core/state/internal_app_agent_definition.dart';
 import '../../core/state/scheduled_agent_task.dart';
 import '../../dev/compile_time_api_keys.dart';
-import '../../shared/theme/app_theme.dart';
+import '../../shared/widgets/liquid_glass.dart';
 import 'internal_agent_prompt_editor_page.dart';
 import 'scheduled_task_editor_page.dart';
 
@@ -192,7 +192,8 @@ class _GeneralPaneState extends State<_GeneralPane> {
     super.dispose();
   }
 
-  Widget _currencyAssumptionsCard(BuildContext context) {
+  Widget _currencyAssumptionsCard() {
+    final cs = Theme.of(context).colorScheme;
     return Card(
       clipBehavior: Clip.antiAlias,
       child: Theme(
@@ -225,8 +226,8 @@ class _GeneralPaneState extends State<_GeneralPane> {
                           const SizedBox(height: 6),
                           Row(
                             children: [
-                              const Expanded(
-                                  child: Text('Invest', style: TextStyle(fontSize: 12, color: AppTheme.slate600))),
+                              Expanded(
+                                  child: Text('Invest', style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant))),
                               Text(
                                 '${(model.projectionInvestReturnPctAnnual[c] ?? 0).toStringAsFixed(1)}%',
                                 style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
@@ -240,8 +241,8 @@ class _GeneralPaneState extends State<_GeneralPane> {
                           ),
                           Row(
                             children: [
-                              const Expanded(
-                                  child: Text('Savings', style: TextStyle(fontSize: 12, color: AppTheme.slate600))),
+                              Expanded(
+                                  child: Text('Savings', style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant))),
                               Text(
                                 '${(model.projectionSavingsReturnPctAnnual[c] ?? 0).toStringAsFixed(1)}%',
                                 style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
@@ -255,8 +256,8 @@ class _GeneralPaneState extends State<_GeneralPane> {
                           ),
                           Row(
                             children: [
-                              const Expanded(
-                                  child: Text('Inflation', style: TextStyle(fontSize: 12, color: AppTheme.slate600))),
+                              Expanded(
+                                  child: Text('Inflation', style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant))),
                               Text(
                                 '${(model.projectionInflationPctAnnual[c] ?? 0).toStringAsFixed(1)}%',
                                 style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
@@ -290,20 +291,22 @@ class _GeneralPaneState extends State<_GeneralPane> {
     CurrencyCode.jpy,
   ];
 
-  Widget _fxRateRow({
+  Widget _fxRateRow(
+    BuildContext context, {
     required TextEditingController controller,
     required CurrencyCode selected,
     required ValueChanged<CurrencyCode> onCurrencyChanged,
   }) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cs.surfaceContainerHigh,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppTheme.slate100),
+        border: Border.all(color: cs.outlineVariant),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
+            color: cs.shadow.withValues(alpha: Theme.of(context).brightness == Brightness.dark ? 0.35 : 0.06),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -313,9 +316,9 @@ class _GeneralPaneState extends State<_GeneralPane> {
         children: [
           const Text('🇺🇸', style: TextStyle(fontSize: 24)),
           const SizedBox(width: 10),
-          const Text('1 USD', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: AppTheme.slate900)),
+          Text('1 USD', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: cs.onSurface)),
           const SizedBox(width: 8),
-          const Text('=', style: TextStyle(color: AppTheme.slate500, fontWeight: FontWeight.w700)),
+          Text('=', style: TextStyle(color: cs.onSurfaceVariant, fontWeight: FontWeight.w700)),
           const SizedBox(width: 8),
           SizedBox(
             width: 88,
@@ -342,7 +345,7 @@ class _GeneralPaneState extends State<_GeneralPane> {
                     value: c,
                     child: Text(
                       '${c.flag} ${c.code} · ${c.symbol}',
-                      style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: AppTheme.slate600),
+                      style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: cs.onSurfaceVariant),
                     ),
                   ),
               ],
@@ -357,12 +360,13 @@ class _GeneralPaneState extends State<_GeneralPane> {
     );
   }
 
-  Widget _fxCard() {
+  Widget _fxCard(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: AppTheme.slate100),
+        side: BorderSide(color: cs.outlineVariant),
       ),
       child: Padding(
         padding: const EdgeInsets.all(18),
@@ -375,6 +379,7 @@ class _GeneralPaneState extends State<_GeneralPane> {
             ),
             const SizedBox(height: 14),
             _fxRateRow(
+              context,
               controller: _usdToThbCtrl,
               selected: model.homeCurrencyQuickPick1,
               onCurrencyChanged: (c) {
@@ -387,6 +392,7 @@ class _GeneralPaneState extends State<_GeneralPane> {
             ),
             const SizedBox(height: 12),
             _fxRateRow(
+              context,
               controller: _usdToInrCtrl,
               selected: model.homeCurrencyQuickPick2,
               onCurrencyChanged: (c) {
@@ -415,9 +421,51 @@ class _GeneralPaneState extends State<_GeneralPane> {
         return ListView(
           padding: const EdgeInsets.all(20),
           children: [
-            _fxCard(),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'Appearance',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w900,
+                          ),
+                    ),
+                    const SizedBox(height: 10),
+                    SegmentedButton<ThemeMode>(
+                      segments: const [
+                        ButtonSegment(
+                          value: ThemeMode.system,
+                          label: Text('System'),
+                          icon: Icon(Icons.brightness_auto, size: 18),
+                        ),
+                        ButtonSegment(
+                          value: ThemeMode.light,
+                          label: Text('Light'),
+                          icon: Icon(Icons.light_mode, size: 18),
+                        ),
+                        ButtonSegment(
+                          value: ThemeMode.dark,
+                          label: Text('Dark'),
+                          icon: Icon(Icons.dark_mode, size: 18),
+                        ),
+                      ],
+                      selected: {model.themeModePreference},
+                      onSelectionChanged: (s) {
+                        if (s.isEmpty) return;
+                        model.setThemeMode(s.first);
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
             const SizedBox(height: 12),
-            _currencyAssumptionsCard(context),
+            _fxCard(context),
+            const SizedBox(height: 12),
+            _currencyAssumptionsCard(),
             const SizedBox(height: 12),
         const Text('Reminders', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
         const SizedBox(height: 8),
@@ -611,6 +659,7 @@ class _AgentsPaneState extends State<_AgentsPane> {
 
   Widget _iconSwitcher() {
     final accent = widget.model.accent;
+    final cs = Theme.of(context).colorScheme;
 
     Widget iconTab({
       required _AgentSettingsSection s,
@@ -625,10 +674,10 @@ class _AgentsPaneState extends State<_AgentsPane> {
           height: 44,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
-            color: on ? accent.withValues(alpha: 0.12) : AppTheme.slate50,
-            border: Border.all(color: on ? accent.withValues(alpha: 0.45) : AppTheme.slate100),
+            color: on ? accent.withValues(alpha: 0.12) : cs.surfaceContainerHighest,
+            border: Border.all(color: on ? accent.withValues(alpha: 0.45) : cs.outlineVariant),
           ),
-          child: Icon(icon, color: on ? accent : AppTheme.slate600),
+          child: Icon(icon, color: on ? accent : cs.onSurfaceVariant),
         ),
       );
     }
@@ -651,7 +700,8 @@ class _AgentsPaneState extends State<_AgentsPane> {
     );
   }
 
-  Widget _searchAndPlusRow({required VoidCallback onCreate, String searchHint = 'Search'}) {
+  Widget _searchAndPlusRow(BuildContext context, {required VoidCallback onCreate, String searchHint = 'Search'}) {
+    final cs = Theme.of(context).colorScheme;
     return Row(
       children: [
         Expanded(
@@ -671,8 +721,8 @@ class _AgentsPaneState extends State<_AgentsPane> {
           width: 48,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppTheme.slate100),
-            color: Colors.white,
+            border: Border.all(color: cs.outlineVariant),
+            color: cs.surfaceContainerHigh,
           ),
           child: IconButton(
             tooltip: 'Create',
@@ -732,6 +782,7 @@ class _AgentsPaneState extends State<_AgentsPane> {
 
   Widget _contextPane() {
     final model = widget.model;
+    final cs = Theme.of(context).colorScheme;
     const contextIds = {
       InternalAppAgentIds.assetContext,
       InternalAppAgentIds.liabilityContext,
@@ -762,8 +813,8 @@ class _AgentsPaneState extends State<_AgentsPane> {
                         child: Icon(def.icon, color: model.accent, size: 22),
                       ),
                       title: Text(def.title, style: const TextStyle(fontWeight: FontWeight.w900)),
-                      subtitle: Text(def.listSubtitle, style: const TextStyle(color: AppTheme.slate600, fontSize: 12)),
-                      trailing: const Icon(Icons.chevron_right, color: AppTheme.slate500),
+                      subtitle: Text(def.listSubtitle, style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12)),
+                      trailing: Icon(Icons.chevron_right, color: cs.outline),
                       onTap: () {
                         Navigator.of(context).push<void>(
                           MaterialPageRoute(
@@ -783,6 +834,7 @@ class _AgentsPaneState extends State<_AgentsPane> {
 
   Widget _ledgerPane() {
     final model = widget.model;
+    final cs = Theme.of(context).colorScheme;
     bool isLedger(InternalAppAgentDefinition d) =>
         d.id == InternalAppAgentIds.ledgerOrchestrator || d.id.startsWith('ledger_');
 
@@ -803,8 +855,8 @@ class _AgentsPaneState extends State<_AgentsPane> {
                         child: Icon(def.icon, color: model.accent, size: 22),
                       ),
                       title: Text(def.title, style: const TextStyle(fontWeight: FontWeight.w900)),
-                      subtitle: Text(def.listSubtitle, style: const TextStyle(color: AppTheme.slate600, fontSize: 12)),
-                      trailing: const Icon(Icons.chevron_right, color: AppTheme.slate500),
+                      subtitle: Text(def.listSubtitle, style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12)),
+                      trailing: Icon(Icons.chevron_right, color: cs.outline),
                       onTap: () {
                         Navigator.of(context).push<void>(
                           MaterialPageRoute(
@@ -827,15 +879,16 @@ class _AgentsPaneState extends State<_AgentsPane> {
     required VoidCallback onCreate,
     required String emptyText,
   }) {
+    final cs = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _searchAndPlusRow(onCreate: onCreate),
+        _searchAndPlusRow(context, onCreate: onCreate),
         const SizedBox(height: 12),
         if (agents.isEmpty)
           Padding(
             padding: const EdgeInsets.only(top: 12),
-            child: Text(emptyText, style: const TextStyle(color: AppTheme.slate600)),
+            child: Text(emptyText, style: TextStyle(color: cs.onSurfaceVariant)),
           )
         else
           Expanded(
@@ -859,16 +912,16 @@ class _AgentsPaneState extends State<_AgentsPane> {
                                   children: [
                                     Text(e.value.name, style: const TextStyle(fontWeight: FontWeight.w900)),
                                     const SizedBox(height: 2),
-                                    Text(e.value.description, style: const TextStyle(color: AppTheme.slate600)),
+                                    Text(e.value.description, style: TextStyle(color: cs.onSurfaceVariant)),
                                     const SizedBox(height: 6),
                                     Text(
                                       '${_userAgentKindLabel(e.value.kind)} · permissions: ${e.value.permissions.isEmpty ? 'none' : e.value.permissions.length}',
-                                      style: const TextStyle(color: AppTheme.slate500, fontSize: 12, fontWeight: FontWeight.w600),
+                                      style: TextStyle(color: cs.outline, fontSize: 12, fontWeight: FontWeight.w600),
                                     ),
                                   ],
                                 ),
                               ),
-                              const Icon(Icons.chevron_right, color: AppTheme.slate500),
+                              Icon(Icons.chevron_right, color: cs.outline),
                             ],
                           ),
                         ),
@@ -918,17 +971,17 @@ class _AgentsPaneState extends State<_AgentsPane> {
               ],
             ),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               'Local time. Open the app to run anything that was due while you were away.',
-              style: TextStyle(color: AppTheme.slate600, fontSize: 12, height: 1.35),
+              style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12, height: 1.35),
             ),
             const SizedBox(height: 12),
             if (tasks.isEmpty)
-              const Expanded(
+              Expanded(
                 child: Center(
                   child: Text(
                     'No schedules yet. Tap Add, or enable “Morning briefing” in the editor.',
-                    style: TextStyle(color: AppTheme.slate600),
+                    style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
                     textAlign: TextAlign.center,
                   ),
                 ),
@@ -969,12 +1022,16 @@ class _AgentsPaneState extends State<_AgentsPane> {
                                         const SizedBox(height: 4),
                                         Text(
                                           scheduleTaskSummaryLine(tasks[i]),
-                                          style: const TextStyle(color: AppTheme.slate600, fontSize: 13),
+                                          style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 13),
                                         ),
                                         const SizedBox(height: 4),
                                         Text(
                                           'Next: ${computeNextRunLocal(tasks[i], notBefore: DateTime.now()).toLocal().toString().split(".").first}',
-                                          style: const TextStyle(color: AppTheme.slate500, fontSize: 12, fontWeight: FontWeight.w600),
+                                          style: TextStyle(
+                                            color: Theme.of(context).colorScheme.outline,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                          ),
                                         ),
                                         if (tasks[i].lastError != null && tasks[i].lastError!.trim().isNotEmpty)
                                           Padding(
@@ -1056,7 +1113,7 @@ class _AgentsPaneState extends State<_AgentsPane> {
           )
         : model.agents[index].clone();
 
-    final outcome = await showModalBottomSheet<_AgentEditorOutcome>(
+    final outcome = await showLiquidGlassModalBottomSheet<_AgentEditorOutcome>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
@@ -1322,7 +1379,11 @@ class _ApiKeysPaneState extends State<_ApiKeysPane> {
                 const SizedBox(height: 6),
                 Text(
                   'Key length: ${_openAiCtrl.text.trim().length}',
-                  style: const TextStyle(color: AppTheme.slate500, fontSize: 12, fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.outline,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 const SizedBox(height: 10),
                 _ModelPicker(
@@ -1418,9 +1479,13 @@ class _ApiKeysPaneState extends State<_ApiKeysPane> {
                 const SizedBox(height: 16),
                 const Divider(),
                 const SizedBox(height: 10),
-                const Text(
+                Text(
                   'Ledger + imports use your selected provider above; you confirm before anything saves.',
-                  style: TextStyle(color: AppTheme.slate600, fontSize: 12, height: 1.35),
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontSize: 12,
+                    height: 1.35,
+                  ),
                 ),
               ],
             ),
@@ -1743,14 +1808,15 @@ class _AgentEditorSheetState extends State<_AgentEditorSheet> {
             const Text('Permissions', style: TextStyle(fontWeight: FontWeight.w900)),
             const SizedBox(height: 6),
             ...AgentDomain.values.map((d) {
+              final cs = Theme.of(context).colorScheme;
               return Padding(
                 padding: const EdgeInsets.only(bottom: 10),
                 child: Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: AppTheme.slate50,
+                    color: cs.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppTheme.slate100),
+                    border: Border.all(color: cs.outlineVariant),
                   ),
                   child: Row(
                     children: [
@@ -1758,10 +1824,10 @@ class _AgentEditorSheetState extends State<_AgentEditorSheet> {
                         width: 36,
                         height: 36,
                         decoration: BoxDecoration(
-                          color: AppTheme.slate100,
+                          color: cs.surfaceContainerHigh,
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: Icon(_domainIcon(d), color: AppTheme.slate600, size: 18),
+                        child: Icon(_domainIcon(d), color: cs.onSurfaceVariant, size: 18),
                       ),
                       const SizedBox(width: 10),
                       Expanded(

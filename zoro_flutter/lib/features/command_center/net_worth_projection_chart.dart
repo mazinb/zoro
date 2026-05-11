@@ -4,7 +4,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/state/app_model.dart';
-import '../../shared/theme/app_theme.dart';
 
 /// Horizontal bar chart for 10-year net worth projection (year 0 = now).
 /// Bars animate in staggered order left to right (0 → last). No x-axis; year is in the caption above.
@@ -89,6 +88,8 @@ class _NetWorthProjectionBarChartState extends State<NetWorthProjectionBarChart>
                     selectedYearIndex: widget.selectedYearIndex,
                     selectionBreakdown: widget.selectionBreakdown,
                     fillProgress: _fill.value,
+                    barStroke: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.35),
+                    barPrimary: Theme.of(context).colorScheme.primary,
                   ),
                 ),
               ),
@@ -107,6 +108,8 @@ class _ProjectionBarPainter extends CustomPainter {
     required this.selectedYearIndex,
     required this.selectionBreakdown,
     required this.fillProgress,
+    required this.barStroke,
+    required this.barPrimary,
   });
 
   final List<double> series;
@@ -114,6 +117,8 @@ class _ProjectionBarPainter extends CustomPainter {
   final int? selectedYearIndex;
   final NetWorthProjectionYearBreakdown? selectionBreakdown;
   final double fillProgress;
+  final Color barStroke;
+  final Color barPrimary;
 
   static const Radius _r = Radius.circular(4);
   static const Radius _z = Radius.zero;
@@ -138,8 +143,8 @@ class _ProjectionBarPainter extends CustomPainter {
   ) {
     if (totalH <= 1e-9) return;
 
-    final cLight = AppTheme.blue.withValues(alpha: 0.45);
-    final cBlue = AppTheme.blue.withValues(alpha: 0.88);
+    final cLight = barPrimary.withValues(alpha: 0.45);
+    final cBlue = barPrimary.withValues(alpha: 0.88);
     final cGreen = const Color(0xFF10B981).withValues(alpha: 0.9);
 
     var yBottom = baseY;
@@ -191,7 +196,7 @@ class _ProjectionBarPainter extends CustomPainter {
     canvas.drawRRect(
       RRect.fromRectAndRadius(Rect.fromLTWH(x, baseY - totalH, barInnerW, totalH), _r),
       Paint()
-        ..color = AppTheme.slate900
+        ..color = barStroke
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2,
     );
@@ -247,7 +252,7 @@ class _ProjectionBarPainter extends CustomPainter {
       }
 
       final fill = Paint()
-        ..color = (isSel ? AppTheme.primaryBlue : AppTheme.blue).withValues(alpha: i == 0 ? 0.45 : 0.88);
+        ..color = barPrimary.withValues(alpha: i == 0 ? 0.45 : 0.88);
       final rrect = RRect.fromRectAndRadius(
         Rect.fromLTWH(barInnerX, yTop, barInnerW, h.clamp(0, chartH)),
         _r,
@@ -257,7 +262,7 @@ class _ProjectionBarPainter extends CustomPainter {
         canvas.drawRRect(
           rrect,
           Paint()
-            ..color = AppTheme.slate900
+            ..color = barStroke
             ..style = PaintingStyle.stroke
             ..strokeWidth = 2,
         );
@@ -271,6 +276,8 @@ class _ProjectionBarPainter extends CustomPainter {
         oldDelegate.maxVal != maxVal ||
         oldDelegate.selectedYearIndex != selectedYearIndex ||
         oldDelegate.selectionBreakdown != selectionBreakdown ||
-        oldDelegate.fillProgress != fillProgress;
+        oldDelegate.fillProgress != fillProgress ||
+        oldDelegate.barStroke != barStroke ||
+        oldDelegate.barPrimary != barPrimary;
   }
 }

@@ -22,6 +22,7 @@ dependencies:
   dirham_symbol: ^0.3.2
   syncfusion_flutter_pdf: ^33.2.5
   pdf_struct_extractor: ^0.1.0
+  flutter_markdown: ^0.7.7+1
 
 dev_dependencies:
   flutter_test:

@@ -3,8 +3,6 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../core/state/app_model.dart';
-import '../../shared/theme/app_theme.dart';
-
 class HorizonTab extends StatefulWidget {
   const HorizonTab({super.key, required this.model});
 
@@ -24,6 +22,7 @@ class _HorizonTabState extends State<HorizonTab> {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final yrs = (_age - 37).round();
     final netWorth = 120000 + yrs * 38000;
     final score = (72 + yrs * 0.25).clamp(0.0, 100.0).toDouble();
@@ -67,7 +66,7 @@ class _HorizonTabState extends State<HorizonTab> {
                 const SizedBox(height: 6),
                 Text(
                   'Scrub through time — pins are draggable.',
-                  style: TextStyle(color: AppTheme.slate600.withValues(alpha: 0.9)),
+                  style: TextStyle(color: cs.onSurfaceVariant.withValues(alpha: 0.95)),
                 ),
                 const SizedBox(height: 14),
                 _OverlayStats(
@@ -81,12 +80,15 @@ class _HorizonTabState extends State<HorizonTab> {
                   height: 220,
                   width: double.infinity,
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: cs.surfaceContainerHigh,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppTheme.slate100),
+                    border: Border.all(color: cs.outlineVariant),
                   ),
                   child: CustomPaint(
-                    painter: _FanChartPainter(accent: widget.model.accent),
+                    painter: _FanChartPainter(
+                      accent: widget.model.accent,
+                      trackColor: cs.surfaceContainerHighest,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -170,12 +172,13 @@ class _StatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppTheme.slate50,
+        color: cs.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.slate100),
+        border: Border.all(color: cs.outlineVariant),
       ),
       child: Row(
         children: [
@@ -193,9 +196,9 @@ class _StatCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: const TextStyle(color: AppTheme.slate600, fontSize: 12)),
+                Text(label, style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12)),
                 const SizedBox(height: 2),
-                Text(value, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                Text(value, style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: cs.onSurface)),
               ],
             ),
           ),
@@ -231,6 +234,7 @@ class _ScrubBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return LayoutBuilder(
       builder: (context, c) {
         final w = c.maxWidth;
@@ -245,9 +249,9 @@ class _ScrubBar extends StatelessWidget {
                 Container(
                   height: 54,
                   decoration: BoxDecoration(
-                    color: AppTheme.slate50,
+                    color: cs.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: AppTheme.slate100),
+                    border: Border.all(color: cs.outlineVariant),
                   ),
                 ),
                 Positioned(
@@ -257,18 +261,18 @@ class _ScrubBar extends StatelessWidget {
                     width: 28,
                     height: 34,
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: cs.surfaceContainerHigh,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppTheme.slate100),
+                      border: Border.all(color: cs.outlineVariant),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.05),
+                          color: cs.shadow.withValues(alpha: 0.12),
                           blurRadius: 10,
                           offset: const Offset(0, 6),
                         ),
                       ],
                     ),
-                    child: const Icon(Icons.drag_handle, color: AppTheme.slate600),
+                    child: Icon(Icons.drag_handle, color: cs.onSurfaceVariant),
                   ),
                 ),
                 ...pins.map((p) {
@@ -319,9 +323,9 @@ class _ScrubBar extends StatelessWidget {
             ),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: const [
-                Text('37', style: TextStyle(color: AppTheme.slate600, fontSize: 12)),
-                Text('90', style: TextStyle(color: AppTheme.slate600, fontSize: 12)),
+              children: [
+                Text('37', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12)),
+                Text('90', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12)),
               ],
             ),
           ],
@@ -332,14 +336,15 @@ class _ScrubBar extends StatelessWidget {
 }
 
 class _FanChartPainter extends CustomPainter {
-  _FanChartPainter({required this.accent});
+  _FanChartPainter({required this.accent, required this.trackColor});
 
   final Color accent;
+  final Color trackColor;
 
   @override
   void paint(Canvas canvas, Size size) {
     final rect = Offset.zero & size;
-    final bg = Paint()..color = AppTheme.slate50;
+    final bg = Paint()..color = trackColor;
     canvas.drawRRect(
       RRect.fromRectAndRadius(rect, const Radius.circular(12)),
       bg,
@@ -394,6 +399,7 @@ class _FanChartPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _FanChartPainter oldDelegate) => oldDelegate.accent != accent;
+  bool shouldRepaint(covariant _FanChartPainter oldDelegate) =>
+      oldDelegate.accent != accent || oldDelegate.trackColor != trackColor;
 }
 

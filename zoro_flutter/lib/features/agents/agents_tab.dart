@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../core/state/app_model.dart';
 import 'agent_runner_page.dart';
-import '../../shared/theme/app_theme.dart';
 
 class AgentsTab extends StatelessWidget {
   const AgentsTab({
@@ -21,6 +20,7 @@ class AgentsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
@@ -34,13 +34,13 @@ class AgentsTab extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
-                color: AppTheme.slate50,
+                color: scheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: AppTheme.slate100),
+                border: Border.all(color: scheme.outlineVariant),
               ),
-              child: const Text(
+              child: Text(
                 'UI-only',
-                style: TextStyle(color: AppTheme.slate600, fontWeight: FontWeight.w900, fontSize: 12),
+                style: TextStyle(color: scheme.onSurfaceVariant, fontWeight: FontWeight.w900, fontSize: 12),
               ),
             ),
           ],
@@ -54,9 +54,9 @@ class AgentsTab extends StatelessWidget {
               children: [
                 const Text('Run an agent', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
                 const SizedBox(height: 6),
-                const Text(
+                Text(
                   'Pick a target (asset, liability, or month) and build context. Agents will write to your data.',
-                  style: TextStyle(color: AppTheme.slate600),
+                  style: TextStyle(color: scheme.onSurfaceVariant),
                 ),
                 const SizedBox(height: 12),
                 ...builtInAgentTemplates.map(
@@ -64,10 +64,10 @@ class AgentsTab extends StatelessWidget {
                     padding: const EdgeInsets.only(bottom: 10),
                     child: Card(
                       elevation: 0,
-                      color: AppTheme.slate50,
+                      color: scheme.surfaceContainerHighest,
                       child: ListTile(
                         title: Text(t.name, style: const TextStyle(fontWeight: FontWeight.w900)),
-                        subtitle: Text(t.description, style: const TextStyle(color: AppTheme.slate600)),
+                        subtitle: Text(t.description, style: TextStyle(color: scheme.onSurfaceVariant)),
                         trailing: const Icon(Icons.chevron_right),
                         onTap: () {
                           Navigator.of(context).push<void>(
@@ -93,9 +93,9 @@ class AgentsTab extends StatelessWidget {
               children: [
                 const Text('Agent library', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
                 const SizedBox(height: 6),
-                const Text(
+                Text(
                   'Reusable agents (prompts + tool permissions).',
-                  style: TextStyle(color: AppTheme.slate600),
+                  style: TextStyle(color: scheme.onSurfaceVariant),
                 ),
                 const SizedBox(height: 12),
                 ...model.agents.map((a) {
@@ -104,9 +104,9 @@ class AgentsTab extends StatelessWidget {
                     child: Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: AppTheme.slate50,
+                        color: scheme.surfaceContainerHighest,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppTheme.slate100),
+                        border: Border.all(color: scheme.outlineVariant),
                       ),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -127,11 +127,15 @@ class AgentsTab extends StatelessWidget {
                               children: [
                                 Text(a.name, style: const TextStyle(fontWeight: FontWeight.w900)),
                                 const SizedBox(height: 2),
-                                Text(a.description, style: const TextStyle(color: AppTheme.slate600)),
+                                Text(a.description, style: TextStyle(color: scheme.onSurfaceVariant)),
                                 const SizedBox(height: 8),
                                 Text(
                                   _contextHint(a.contextMarkdown),
-                                  style: const TextStyle(color: AppTheme.slate500, fontSize: 12, fontWeight: FontWeight.w700),
+                                  style: TextStyle(
+                                    color: scheme.onSurfaceVariant.withValues(alpha: 0.85),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                  ),
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
                                 ),

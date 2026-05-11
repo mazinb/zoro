@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../core/state/app_model.dart';
 import '../../core/state/internal_app_agent_definition.dart';
-import '../../shared/theme/app_theme.dart';
 import 'internal_agent_prompt_editor_page.dart';
 
 /// Built-in assistants (list). Add entries in [kInternalAppAgentDefinitions].
@@ -23,6 +22,7 @@ class InternalAppAgentsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       appBar: AppBar(
         title: const Text('App agents'),
@@ -32,7 +32,7 @@ class InternalAppAgentsPage extends StatelessWidget {
         children: [
           Text(
             'Built-in assistants use your API keys. Tap an agent to edit its system prompt.',
-            style: TextStyle(color: AppTheme.slate600.withValues(alpha: 0.95)),
+            style: TextStyle(color: scheme.onSurfaceVariant.withValues(alpha: 0.95)),
           ),
           const SizedBox(height: 16),
           AnimatedBuilder(
@@ -52,10 +52,10 @@ class InternalAppAgentsPage extends StatelessWidget {
                           title: Text(def.title, style: const TextStyle(fontWeight: FontWeight.w900)),
                           subtitle: Text(
                             '${def.listSubtitle}\n${_lastRunHint(def.id)}',
-                            style: const TextStyle(color: AppTheme.slate600, fontSize: 12, height: 1.3),
+                            style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12, height: 1.3),
                           ),
                           isThreeLine: true,
-                          trailing: const Icon(Icons.chevron_right, color: AppTheme.slate500),
+                          trailing: Icon(Icons.chevron_right, color: scheme.onSurfaceVariant),
                           onTap: () {
                             Navigator.of(context).push<void>(
                               MaterialPageRoute(

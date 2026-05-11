@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../core/state/app_model.dart';
+import '../../shared/widgets/liquid_glass.dart';
 import '../../core/state/internal_app_agent_definition.dart';
-import '../../shared/theme/app_theme.dart';
-
 /// Full-screen system prompt editor for one built-in agent; info in a bottom sheet.
 class InternalAgentPromptEditorPage extends StatefulWidget {
   const InternalAgentPromptEditorPage({
@@ -43,7 +42,7 @@ class _InternalAgentPromptEditorPageState extends State<InternalAgentPromptEdito
 
   void _showInfoSheet() {
     final def = widget.definition;
-    showModalBottomSheet<void>(
+    showLiquidGlassModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
       isScrollControlled: true,
@@ -81,22 +80,35 @@ class _InternalAgentPromptEditorPageState extends State<InternalAgentPromptEdito
                 const SizedBox(height: 16),
                 Text('What it does', style: Theme.of(ctx).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900)),
                 const SizedBox(height: 6),
-                Text(def.infoWhatItDoes, style: const TextStyle(color: AppTheme.slate600, height: 1.4)),
+                Text(
+                  def.infoWhatItDoes,
+                  style: TextStyle(color: Theme.of(ctx).colorScheme.onSurfaceVariant, height: 1.4),
+                ),
                 const SizedBox(height: 16),
                 Text('Context sent to the model', style: Theme.of(ctx).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900)),
                 const SizedBox(height: 6),
-                Text(def.infoContextSent, style: const TextStyle(color: AppTheme.slate600, height: 1.4)),
+                Text(
+                  def.infoContextSent,
+                  style: TextStyle(color: Theme.of(ctx).colorScheme.onSurfaceVariant, height: 1.4),
+                ),
                 const SizedBox(height: 16),
                 Text('Output format', style: Theme.of(ctx).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900)),
                 const SizedBox(height: 6),
-                const Text(
+                Text(
                   'The structured JSON the model returns is fixed by the app — you don\'t need to edit it. Your prompt above only controls the instructions.',
-                  style: TextStyle(color: AppTheme.slate600, height: 1.4),
+                  style: TextStyle(color: Theme.of(ctx).colorScheme.onSurfaceVariant, height: 1.4),
                 ),
                 const SizedBox(height: 20),
                 Text('Last run', style: Theme.of(ctx).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900)),
                 const SizedBox(height: 6),
-                Text(lastRunLine(), style: const TextStyle(color: AppTheme.slate500, fontSize: 12, fontWeight: FontWeight.w600)),
+                Text(
+                  lastRunLine(),
+                  style: TextStyle(
+                    color: Theme.of(ctx).colorScheme.onSurfaceVariant.withValues(alpha: 0.85),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
               ],
             ),
           ),

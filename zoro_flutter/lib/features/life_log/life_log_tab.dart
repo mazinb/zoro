@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../core/state/app_model.dart';
-import '../../shared/theme/app_theme.dart';
 
 class LifeLogTab extends StatelessWidget {
   const LifeLogTab({super.key, required this.model});
@@ -54,9 +53,9 @@ class LifeLogTab extends StatelessWidget {
               children: [
                 const Text('Stress tests', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
                 const SizedBox(height: 6),
-                const Text(
+                Text(
                   'Tap a button to run a scenario (UI-first mock).',
-                  style: TextStyle(color: AppTheme.slate600),
+                  style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
                 ),
                 const SizedBox(height: 14),
                 GridView.count(
@@ -131,8 +130,9 @@ class _QuestRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final dotColor = m.done ? AppTheme.slate500.withValues(alpha: 0.55) : accent;
-    final textColor = m.done ? AppTheme.slate600.withValues(alpha: 0.8) : AppTheme.slate900;
+    final scheme = Theme.of(context).colorScheme;
+    final dotColor = m.done ? scheme.onSurfaceVariant.withValues(alpha: 0.55) : accent;
+    final textColor = m.done ? scheme.onSurfaceVariant.withValues(alpha: 0.85) : scheme.onSurface;
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
@@ -149,7 +149,7 @@ class _QuestRow extends StatelessWidget {
                 width: 2,
                 height: 34,
                 margin: const EdgeInsets.only(top: 6),
-                color: AppTheme.slate100,
+                color: scheme.outlineVariant,
               ),
             ],
           ),
@@ -158,9 +158,9 @@ class _QuestRow extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: scheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppTheme.slate100),
+                border: Border.all(color: scheme.outlineVariant),
               ),
               child: Row(
                 children: [
@@ -170,7 +170,7 @@ class _QuestRow extends StatelessWidget {
                       children: [
                         Text(m.title, style: TextStyle(fontWeight: FontWeight.w900, color: textColor)),
                         const SizedBox(height: 4),
-                        Text(m.when, style: const TextStyle(color: AppTheme.slate600)),
+                        Text(m.when, style: TextStyle(color: scheme.onSurfaceVariant)),
                       ],
                     ),
                   ),
@@ -226,7 +226,10 @@ class _StressButton extends StatelessWidget {
               const Spacer(),
               Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
               const SizedBox(height: 4),
-              Text(subtitle, style: const TextStyle(color: AppTheme.slate600)),
+              Text(
+                subtitle,
+                style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+              ),
             ],
           ),
         ),

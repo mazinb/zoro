@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/state/app_model.dart';
-import '../../shared/theme/app_theme.dart';
+import '../../shared/widgets/liquid_glass.dart';
 
 class SandboxTab extends StatefulWidget {
   const SandboxTab({super.key, required this.model});
@@ -63,12 +63,12 @@ class _SandboxTabState extends State<SandboxTab> {
                 padding: const EdgeInsets.all(16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: const [
-                    Text('Lab notes', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
-                    SizedBox(height: 6),
+                  children: [
+                    const Text('Lab notes', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                    const SizedBox(height: 6),
                     Text(
                       'Every tweak should propagate instantly through the app state (UI-first mock right now).',
-                      style: TextStyle(color: AppTheme.slate600),
+                      style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
                     ),
                   ],
                 ),
@@ -86,7 +86,7 @@ class _SandboxTabState extends State<SandboxTab> {
   }
 
   void _openLevers() {
-    showModalBottomSheet<void>(
+    showLiquidGlassModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
       isScrollControlled: true,
@@ -174,6 +174,7 @@ class _ScenarioCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(14),
@@ -205,20 +206,20 @@ class _ScenarioCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 8),
-            Text(subtitle, style: const TextStyle(color: AppTheme.slate600)),
+            Text(subtitle, style: TextStyle(color: scheme.onSurfaceVariant)),
             const SizedBox(height: 12),
             Container(
               height: 84,
               width: double.infinity,
               decoration: BoxDecoration(
-                color: AppTheme.slate50,
+                color: scheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppTheme.slate100),
+                border: Border.all(color: scheme.outlineVariant),
               ),
-              child: const Center(
+              child: Center(
                 child: Text(
                   'Scenario preview',
-                  style: TextStyle(color: AppTheme.slate600),
+                  style: TextStyle(color: scheme.onSurfaceVariant),
                 ),
               ),
             ),
@@ -272,16 +273,18 @@ class _ImpactHud extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final shadow = Theme.of(context).brightness == Brightness.dark ? 0.35 : 0.06;
     return Container(
       constraints: const BoxConstraints(maxWidth: 240),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: scheme.surfaceContainerHigh,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppTheme.slate100),
+        border: Border.all(color: scheme.outlineVariant),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.06),
+            color: Colors.black.withValues(alpha: shadow),
             blurRadius: 14,
             offset: const Offset(0, 8),
           ),
@@ -300,7 +303,7 @@ class _ImpactHud extends StatelessWidget {
           Expanded(
             child: Text(
               text,
-              style: const TextStyle(color: AppTheme.slate600, fontSize: 12),
+              style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12),
             ),
           ),
         ],

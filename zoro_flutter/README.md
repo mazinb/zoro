@@ -75,8 +75,6 @@ flutter run -d macos --dart-define=API_BASE_URL=https://www.getzoro.com
 
 Display currency supports **USD / THB / INR** with hard-coded spot rates in `lib/core/finance/currency.dart` (`usdPerUnit`).
 
-## Deploy mindset (pre–TestFlight)
+## Ship / TestFlight
 
-- Keep `flutter analyze` clean.
-- Treat iOS signing + build as the release gate.
-- Next step after v0 cleanup: TestFlight distribution (handled separately).
+Use **`TASKS.md`** in this folder for the current pre-commit checklist, iOS signing steps, CI notes, and post-ship backlog.

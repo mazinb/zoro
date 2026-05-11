@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../shared/theme/app_theme.dart';
 import 'expenses_ai_card.dart';
 
 class MoneyTab extends StatelessWidget {
@@ -8,16 +7,17 @@ class MoneyTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return DefaultTabController(
       length: 2,
       child: Column(
         children: [
-          const Material(
-            color: Colors.white,
+          Material(
+            color: scheme.surface,
             child: TabBar(
-              labelColor: AppTheme.primaryBlue,
-              unselectedLabelColor: AppTheme.slate600,
-              tabs: [
+              labelColor: scheme.primary,
+              unselectedLabelColor: scheme.onSurfaceVariant,
+              tabs: const [
                 Tab(text: 'Income'),
                 Tab(text: 'Expenses'),
               ],
@@ -42,21 +42,22 @@ class _IncomePane extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return ListView(
       padding: const EdgeInsets.all(20),
-      children: const [
+      children: [
         Text(
           'Income',
           style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.w700,
-            color: AppTheme.slate900,
+            color: scheme.onSurface,
           ),
         ),
-        SizedBox(height: 8),
+        const SizedBox(height: 8),
         Text(
           'Match web /income — manual entry and /api/income/parse-statement will plug in here. v1 is a placeholder.',
-          style: TextStyle(color: AppTheme.slate600),
+          style: TextStyle(color: scheme.onSurfaceVariant),
         ),
       ],
     );
@@ -68,21 +69,22 @@ class _ExpensesPane extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        const Text(
+        Text(
           'Expenses',
           style: TextStyle(
             fontSize: 20,
             fontWeight: FontWeight.w700,
-            color: AppTheme.slate900,
+            color: scheme.onSurface,
           ),
         ),
         const SizedBox(height: 8),
-        const Text(
+        Text(
           'Manual buckets and monthly actuals will mirror the web expenses flow. AI import uses your existing backend.',
-          style: TextStyle(color: AppTheme.slate600),
+          style: TextStyle(color: scheme.onSurfaceVariant),
         ),
         const SizedBox(height: 20),
         const ExpensesAiCard(),
@@ -92,7 +94,7 @@ class _ExpensesPane extends StatelessWidget {
             padding: const EdgeInsets.all(16),
             child: Text(
               'Manual entry: use /api/expenses/estimates and /api/expenses/monthly from the web app as reference for the next iteration.',
-              style: TextStyle(color: AppTheme.slate600.withValues(alpha: 0.9)),
+              style: TextStyle(color: scheme.onSurfaceVariant.withValues(alpha: 0.95)),
             ),
           ),
         ),

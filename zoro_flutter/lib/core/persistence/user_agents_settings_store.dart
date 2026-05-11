@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../finance/currency.dart';
@@ -8,7 +9,7 @@ import '../state/app_model.dart';
 import 'agent_json.dart';
 
 const _fileName = 'user_agents_settings.json';
-const _version = 2;
+const _version = 3;
 
 class UserAgentsSettingsStore {
   static Future<File> _file() async {
@@ -28,7 +29,8 @@ class UserAgentsSettingsStore {
       final decoded = jsonDecode(text);
       if (decoded is! Map) return null;
       final root = Map<String, dynamic>.from(decoded);
-      if (root['version'] != _version) return null;
+      final ver = root['version'];
+      if (ver is! int || (ver != 2 && ver != 3)) return null;
       final agentsRaw = root['agents'];
       if (agentsRaw is! List) return null;
       final agents = <AppAgent>[];
@@ -47,6 +49,7 @@ class UserAgentsSettingsStore {
         displayCurrency: _parseCurrency(root['displayCurrency']?.toString()),
         homeCurrencyQuickPick1: _parseCurrency(root['homeCurrencyQuickPick1']?.toString()),
         homeCurrencyQuickPick2: _parseCurrency(root['homeCurrencyQuickPick2']?.toString()),
+        themeMode: _parseThemeMode(root['themeMode']?.toString()),
       );
     } catch (_) {
       return null;
@@ -57,6 +60,14 @@ class UserAgentsSettingsStore {
     if (s == null || s.isEmpty) return null;
     for (final p in LlmProvider.values) {
       if (p.name == s) return p;
+    }
+    return null;
+  }
+
+  static ThemeMode? _parseThemeMode(String? s) {
+    if (s == null || s.isEmpty) return null;
+    for (final m in ThemeMode.values) {
+      if (m.name == s) return m;
     }
     return null;
   }
@@ -80,6 +91,7 @@ class UserAgentsSettingsStore {
     required CurrencyCode displayCurrency,
     required CurrencyCode homeCurrencyQuickPick1,
     required CurrencyCode homeCurrencyQuickPick2,
+    required ThemeMode themeMode,
   }) async {
     final f = await _file();
     final payload = <String, dynamic>{
@@ -94,6 +106,7 @@ class UserAgentsSettingsStore {
       'displayCurrency': displayCurrency.name,
       'homeCurrencyQuickPick1': homeCurrencyQuickPick1.name,
       'homeCurrencyQuickPick2': homeCurrencyQuickPick2.name,
+      'themeMode': themeMode.name,
     };
     await f.writeAsString(const JsonEncoder.withIndent('  ').convert(payload));
   }
@@ -111,6 +124,7 @@ class UserAgentsSettingsSnap {
     this.displayCurrency,
     this.homeCurrencyQuickPick1,
     this.homeCurrencyQuickPick2,
+    this.themeMode,
   });
 
   final List<AppAgent> agents;
@@ -123,4 +137,5 @@ class UserAgentsSettingsSnap {
   final CurrencyCode? displayCurrency;
   final CurrencyCode? homeCurrencyQuickPick1;
   final CurrencyCode? homeCurrencyQuickPick2;
+  final ThemeMode? themeMode;
 }

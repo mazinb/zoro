@@ -8,11 +8,10 @@ import '../../core/llm/llm_json.dart';
 import '../../core/llm/llm_client.dart';
 import '../../core/finance/currency.dart';
 import '../../core/state/app_model.dart';
+import '../../shared/widgets/liquid_glass.dart';
 import '../../core/state/internal_app_agent_definition.dart';
 import '../../core/state/ledger_rows.dart';
 import '../../core/state/monthly_cashflow_entry.dart';
-import '../../shared/theme/app_theme.dart';
-
 enum LedgerImportKind { asset, liability, cashflow }
 
 enum _LedgerImportPickerKind { photos, files }
@@ -183,7 +182,7 @@ Rules (cashflow):
               'name': a.name,
               'type': a.type.apiValue,
               'currencyCountry': a.currencyCountry,
-              'total': a.total,
+              'total': m.assetDisplayValue(a),
               'comment': a.comment,
               'contextMarkdown': a.contextMarkdown ?? '',
             };
@@ -198,7 +197,7 @@ Rules (cashflow):
               'name': a.name,
               'type': a.type.apiValue,
               'currencyCountry': a.currencyCountry,
-              'total': a.total,
+              'total': m.assetDisplayValue(a),
             },
         ],
       },
@@ -320,9 +319,10 @@ Infer **monthKey** from the document or statement period; use this hint only if 
 
     final allowMultipleImages = widget.kind == LedgerImportKind.asset;
 
-    final pickerKind = await showModalBottomSheet<_LedgerImportPickerKind>(
+    final pickerKind = await showLiquidGlassModalBottomSheet<_LedgerImportPickerKind>(
       context: context,
       showDragHandle: true,
+      sizesToContent: true,
       builder: (ctx) {
         return SafeArea(
           child: Padding(
@@ -573,6 +573,7 @@ Infer **monthKey** from the document or statement period; use this hint only if 
 
         final rawComment = (obj['comment']?.toString() ?? '').trim();
         final rawCtx = obj['contextMarkdown']?.toString();
+        final existingEntry = m.monthlyEntryFor(parsedMonth);
         final mergedEntry = _finalizeCashflowPreview(
           targetMonthKey: parsedMonth,
           openingBalance: _toMoney(obj['openingBalance']),
@@ -583,6 +584,7 @@ Infer **monthKey** from the document or statement period; use this hint only if 
           monthlySpending: _toMoney(obj['monthlySpending']),
           comment: rawComment,
           contextMarkdown: rawCtx,
+          preserveInvestmentLines: existingEntry?.investmentLines,
         );
 
         setState(() {
@@ -786,9 +788,13 @@ Infer **monthKey** from the document or statement period; use this hint only if 
     required double monthlySpending,
     required String comment,
     String? contextMarkdown,
+    List<MonthlyInvestmentLine>? preserveInvestmentLines,
   }) {
     final c = comment.trim();
     final ctx = contextMarkdown?.trim();
+    final preserved = preserveInvestmentLines != null
+        ? preserveInvestmentLines.map((e) => e.clone()).toList()
+        : <MonthlyInvestmentLine>[];
     return MonthlyCashflowEntry(
       monthKey: targetMonthKey,
       openingBalance: openingBalance,
@@ -799,6 +805,7 @@ Infer **monthKey** from the document or statement period; use this hint only if 
       monthlySpending: monthlySpending,
       comment: c,
       contextMarkdown: (ctx ?? '').isEmpty ? null : ctx,
+      investmentLines: preserved,
     );
   }
 
@@ -849,7 +856,7 @@ Infer **monthKey** from the document or statement period; use this hint only if 
               'Was: ${beforeDisp.isEmpty ? '—' : beforeDisp}',
               style: TextStyle(
                 fontSize: 12,
-                color: AppTheme.slate600,
+                color: scheme.onSurfaceVariant,
                 decoration: TextDecoration.lineThrough,
               ),
             ),
@@ -1086,6 +1093,7 @@ Infer **monthKey** from the document or statement period; use this hint only if 
 
   @override
   Widget build(BuildContext context) {
+    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
     final fileName = _pickedFiles.isEmpty
         ? ''
         : _pickedFiles.map((f) => f.name).join(', ');
@@ -1157,9 +1165,9 @@ Infer **monthKey** from the document or statement period; use this hint only if 
                   _pickedText!,
                   maxLines: 12,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
-                    color: AppTheme.slate600,
+                    color: muted,
                     height: 1.3,
                   ),
                 ),
@@ -1170,9 +1178,9 @@ Infer **monthKey** from the document or statement period; use this hint only if 
                 title: 'Context / assumptions',
                 child: Text(
                   _contextPreviewMarkdown!.trim(),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
-                    color: AppTheme.slate600,
+                    color: muted,
                     height: 1.3,
                   ),
                 ),
@@ -1196,8 +1204,8 @@ Infer **monthKey** from the document or statement period; use this hint only if 
                           children: [
                             Text(
                               '${a.currencyCountry} · ${a.type.label}',
-                              style: const TextStyle(
-                                color: AppTheme.slate600,
+                              style: TextStyle(
+                                color: muted,
                                 fontSize: 12,
                               ),
                             ),
@@ -1206,8 +1214,8 @@ Infer **monthKey** from the document or statement period; use this hint only if 
                                 padding: const EdgeInsets.only(top: 4),
                                 child: Text(
                                   'Comment: ${_truncate(a.comment, 280)}',
-                                  style: const TextStyle(
-                                    color: AppTheme.slate600,
+                                  style: TextStyle(
+                                    color: muted,
                                     fontSize: 12,
                                     height: 1.3,
                                   ),
@@ -1218,8 +1226,8 @@ Infer **monthKey** from the document or statement period; use this hint only if 
                                 padding: const EdgeInsets.only(top: 4),
                                 child: Text(
                                   'Context: ${_truncate(a.contextMarkdown, 360)}',
-                                  style: const TextStyle(
-                                    color: AppTheme.slate600,
+                                  style: TextStyle(
+                                    color: muted,
                                     fontSize: 12,
                                     height: 1.3,
                                   ),
@@ -1253,8 +1261,8 @@ Infer **monthKey** from the document or statement period; use this hint only if 
                           children: [
                             Text(
                               '${l.currencyCountry} · ${l.type.label}',
-                              style: const TextStyle(
-                                color: AppTheme.slate600,
+                              style: TextStyle(
+                                color: muted,
                                 fontSize: 12,
                               ),
                             ),
@@ -1263,8 +1271,8 @@ Infer **monthKey** from the document or statement period; use this hint only if 
                                 padding: const EdgeInsets.only(top: 4),
                                 child: Text(
                                   'Comment: ${_truncate(l.comment, 280)}',
-                                  style: const TextStyle(
-                                    color: AppTheme.slate600,
+                                  style: TextStyle(
+                                    color: muted,
                                     fontSize: 12,
                                     height: 1.3,
                                   ),
@@ -1275,8 +1283,8 @@ Infer **monthKey** from the document or statement period; use this hint only if 
                                 padding: const EdgeInsets.only(top: 4),
                                 child: Text(
                                   'Context: ${_truncate(l.contextMarkdown, 360)}',
-                                  style: const TextStyle(
-                                    color: AppTheme.slate600,
+                                  style: TextStyle(
+                                    color: muted,
                                     fontSize: 12,
                                     height: 1.3,
                                   ),
@@ -1303,18 +1311,18 @@ Infer **monthKey** from the document or statement period; use this hint only if 
                       style: const TextStyle(fontWeight: FontWeight.w800),
                     ),
                     const SizedBox(height: 8),
-                    _kv('Opening', _cashflowPreview!.openingBalance),
-                    _kv('Closing', _cashflowPreview!.closingBalance),
-                    _kv('Earned', _cashflowPreview!.monthlyEarned),
-                    _kv('Saved', _cashflowPreview!.outflowToCashFd),
-                    _kv('Invested', _cashflowPreview!.outflowToInvested),
-                    _kv('Spending', _cashflowPreview!.monthlySpending),
+                    _kv(context, 'Opening', _cashflowPreview!.openingBalance),
+                    _kv(context, 'Closing', _cashflowPreview!.closingBalance),
+                    _kv(context, 'Earned', _cashflowPreview!.monthlyEarned),
+                    _kv(context, 'Saved', _cashflowPreview!.outflowToCashFd),
+                    _kv(context, 'Invested', _cashflowPreview!.outflowToInvested),
+                    _kv(context, 'Spending', _cashflowPreview!.monthlySpending),
                     if (_cashflowPreview!.comment.trim().isNotEmpty) ...[
                       const SizedBox(height: 8),
                       Text(
                         'Comment: ${_truncate(_cashflowPreview!.comment, 360)}',
-                        style: const TextStyle(
-                          color: AppTheme.slate600,
+                        style: TextStyle(
+                          color: muted,
                           fontSize: 12,
                           height: 1.35,
                         ),
@@ -1326,8 +1334,8 @@ Infer **monthKey** from the document or statement period; use this hint only if 
                       const SizedBox(height: 8),
                       Text(
                         'Context: ${_truncate(_cashflowPreview!.contextMarkdown, 420)}',
-                        style: const TextStyle(
-                          color: AppTheme.slate600,
+                        style: TextStyle(
+                          color: muted,
                           fontSize: 12,
                           height: 1.35,
                         ),
@@ -1347,7 +1355,8 @@ Infer **monthKey** from the document or statement period; use this hint only if 
     );
   }
 
-  Widget _kv(String label, double v) {
+  Widget _kv(BuildContext context, String label, double v) {
+    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
@@ -1355,7 +1364,7 @@ Infer **monthKey** from the document or statement period; use this hint only if 
           Expanded(
             child: Text(
               label,
-              style: const TextStyle(color: AppTheme.slate600),
+              style: TextStyle(color: muted),
             ),
           ),
           Text(

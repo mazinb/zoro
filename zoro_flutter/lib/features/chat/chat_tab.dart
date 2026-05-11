@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/state/app_model.dart';
-import '../../shared/theme/app_theme.dart';
+import '../../shared/widgets/liquid_glass.dart';
 import '../settings/scheduled_task_editor_page.dart';
 import 'agent_chat_thread_page.dart';
 
@@ -28,30 +28,35 @@ class _ChatTabState extends State<ChatTab> {
         LlmProvider.gemini => 'Gemini',
       };
 
-  Widget _addKeyButton(VoidCallback onTap) {
+  Widget _addKeyButton(BuildContext context, VoidCallback onTap) {
+    final cs = Theme.of(context).colorScheme;
     return OutlinedButton(
       onPressed: onTap,
       style: OutlinedButton.styleFrom(
-        backgroundColor: Colors.white,
-        foregroundColor: AppTheme.slate900,
-        side: const BorderSide(color: AppTheme.slate100),
+        backgroundColor: cs.surfaceContainerHigh,
+        foregroundColor: cs.onSurface,
+        side: BorderSide(color: cs.outlineVariant),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       ),
       child: const Text('Add key', style: TextStyle(fontWeight: FontWeight.w800)),
     );
   }
 
-  Widget _providerPicker(AppModel m, List<LlmProvider> withKeys, LlmProvider selectedProvider) {
+  Widget _providerPicker(
+    BuildContext context,
+    AppModel m,
+    List<LlmProvider> withKeys,
+    LlmProvider selectedProvider,
+  ) {
+    final cs = Theme.of(context).colorScheme;
     if (withKeys.length <= 1) {
       return Text(
         _providerShortLabel(withKeys.single),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: const TextStyle(fontWeight: FontWeight.w800, color: AppTheme.slate600),
+        style: TextStyle(fontWeight: FontWeight.w800, color: cs.onSurfaceVariant),
       );
     }
-    // DropdownButton aligns the selected row with the field and can flip/shift
-    // upward; PopupMenuPosition.under always opens below the control.
     return LayoutBuilder(
       builder: (context, constraints) {
         final cap = constraints.maxWidth;
@@ -60,7 +65,7 @@ class _ChatTabState extends State<ChatTab> {
           position: PopupMenuPosition.under,
           offset: const Offset(0, 6),
           initialValue: selectedProvider,
-          color: Colors.white,
+          color: cs.surfaceContainerHigh,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           onSelected: m.setActiveLlmProvider,
           itemBuilder: (ctx) => [
@@ -79,9 +84,9 @@ class _ChatTabState extends State<ChatTab> {
             constraints: BoxConstraints(maxWidth: maxW),
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: cs.surfaceContainerHigh,
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppTheme.slate100),
+              border: Border.all(color: cs.outlineVariant),
             ),
             child: Row(
               children: [
@@ -90,13 +95,17 @@ class _ChatTabState extends State<ChatTab> {
                     _providerShortLabel(selectedProvider),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontWeight: FontWeight.w800, color: AppTheme.slate900, fontSize: 14),
+                    style: TextStyle(fontWeight: FontWeight.w800, color: cs.onSurface, fontSize: 14),
                   ),
                 ),
                 const SizedBox(width: 4),
                 Text(
                   '▾',
-                  style: TextStyle(fontWeight: FontWeight.w900, color: AppTheme.slate600.withValues(alpha: 0.85), fontSize: 12),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    color: cs.onSurfaceVariant.withValues(alpha: 0.85),
+                    fontSize: 12,
+                  ),
                 ),
               ],
             ),
@@ -112,6 +121,7 @@ class _ChatTabState extends State<ChatTab> {
       listenable: widget.model,
       builder: (context, _) {
         final m = widget.model;
+        final cs = Theme.of(context).colorScheme;
         final withKeys = <LlmProvider>[
           for (final p in LlmProvider.values)
             if (m.apiKeyFor(p) != null) p,
@@ -142,13 +152,13 @@ class _ChatTabState extends State<ChatTab> {
                   ),
                   const Spacer(),
                   if (!canChat)
-                    _addKeyButton(widget.onGoToSettingsPermissions)
+                    _addKeyButton(context, widget.onGoToSettingsPermissions)
                   else ...[
                     Flexible(
                       fit: FlexFit.loose,
                       child: Align(
                         alignment: Alignment.centerRight,
-                        child: _providerPicker(m, withKeys, selectedProvider),
+                        child: _providerPicker(context, m, withKeys, selectedProvider),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -195,104 +205,107 @@ class _ChatTabState extends State<ChatTab> {
                     },
                     child: const Text('New'),
                   ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 10),
-        Expanded(
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-            children: [
-              if (chats.isEmpty)
-                Card(
-                  elevation: 0,
-                  color: AppTheme.slate50,
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: const [
-                        Text('No chats yet', style: TextStyle(fontWeight: FontWeight.w900)),
-                        SizedBox(height: 6),
-                        Text('Create a new chat and pick an agent.', style: TextStyle(color: AppTheme.slate600)),
-                      ],
-                    ),
-                  ),
-                )
-              else
-                ...chats.map((t) {
-                  final agent = widget.model.agents.where((a) => a.id == t.agentId).cast<AppAgent?>().firstOrNull;
-                  final agentName = agent?.name ?? 'Unknown agent';
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: Card(
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(12),
-                        onTap: () {
-                          Navigator.of(context).push<void>(
-                            MaterialPageRoute<void>(
-                              builder: (ctx) => AgentChatThreadPage(
-                                model: widget.model,
-                                threadId: t.id,
-                                onNoKey: widget.toastGoToSettingsPermissions,
-                                onScheduleBriefing: (agentId, suggested) {
-                                  Navigator.of(ctx).push<void>(
-                                    MaterialPageRoute<void>(
-                                      builder: (ctx2) => ScheduledTaskEditorPage(
-                                        model: widget.model,
-                                        initialAgentId: agentId,
-                                        initialRunMessage: suggested,
-                                      ),
-                                    ),
-                                  );
-                                },
-                              ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                children: [
+                  if (chats.isEmpty)
+                    Card(
+                      elevation: 0,
+                      color: cs.surfaceContainerHighest,
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text('No chats yet', style: TextStyle(fontWeight: FontWeight.w900, color: cs.onSurface)),
+                            const SizedBox(height: 6),
+                            Text(
+                              'Create a new chat and pick an agent.',
+                              style: TextStyle(color: cs.onSurfaceVariant),
                             ),
-                          );
-                        },
-                        child: Padding(
-                          padding: const EdgeInsets.all(14),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      t.title,
-                                      style: const TextStyle(fontWeight: FontWeight.w900),
-                                    ),
-                                    Text(
-                                      (t.lastLine.trim().isEmpty ? agentName : t.lastLine),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(color: AppTheme.slate600, fontWeight: FontWeight.w700),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              PopupMenuButton<String>(
-                                onSelected: (v) {
-                                  if (v == 'delete') {
-                                    widget.model.removeChatById(t.id);
-                                  }
-                                },
-                                itemBuilder: (ctx) => const [
-                                  PopupMenuItem(value: 'delete', child: Text('Delete')),
-                                ],
-                              ),
-                            ],
-                          ),
+                          ],
                         ),
                       ),
-                    ),
-                  );
-                }),
-            ],
-          ),
-        ),
-      ],
-    );
+                    )
+                  else
+                    ...chats.map((t) {
+                      final agent = widget.model.agents.where((a) => a.id == t.agentId).cast<AppAgent?>().firstOrNull;
+                      final agentName = agent?.name ?? 'Unknown agent';
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Card(
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: () {
+                              Navigator.of(context).push<void>(
+                                MaterialPageRoute<void>(
+                                  builder: (ctx) => AgentChatThreadPage(
+                                    model: widget.model,
+                                    threadId: t.id,
+                                    onNoKey: widget.toastGoToSettingsPermissions,
+                                    onScheduleBriefing: (agentId, suggested) {
+                                      Navigator.of(ctx).push<void>(
+                                        MaterialPageRoute<void>(
+                                          builder: (ctx2) => ScheduledTaskEditorPage(
+                                            model: widget.model,
+                                            initialAgentId: agentId,
+                                            initialRunMessage: suggested,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+                              );
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.all(14),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          t.title,
+                                          style: TextStyle(fontWeight: FontWeight.w900, color: cs.onSurface),
+                                        ),
+                                        Text(
+                                          (t.lastLine.trim().isEmpty ? agentName : t.lastLine),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(color: cs.onSurfaceVariant, fontWeight: FontWeight.w700),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  PopupMenuButton<String>(
+                                    onSelected: (v) {
+                                      if (v == 'delete') {
+                                        widget.model.removeChatById(t.id);
+                                      }
+                                    },
+                                    itemBuilder: (ctx) => const [
+                                      PopupMenuItem(value: 'delete', child: Text('Delete')),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    }),
+                ],
+              ),
+            ),
+          ],
+        );
       },
     );
   }
@@ -315,7 +328,7 @@ Future<String?> _pickAgent(BuildContext context, AppModel model) async {
     );
     return null;
   }
-  return showModalBottomSheet<String>(
+  return showLiquidGlassModalBottomSheet<String>(
     context: context,
     showDragHandle: true,
     builder: (ctx) {

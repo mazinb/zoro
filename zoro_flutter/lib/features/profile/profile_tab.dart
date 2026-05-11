@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../shared/theme/app_theme.dart';
-
 class ProfileTab extends StatelessWidget {
   const ProfileTab({super.key});
 
@@ -22,9 +20,9 @@ class ProfileTab extends StatelessWidget {
           subtitle: const Text('Login disabled (UI pass)'),
         ),
         const SizedBox(height: 24),
-        const Text(
+        Text(
           'Profile + account settings will land after the UI is stable.',
-          style: TextStyle(color: AppTheme.slate600, fontSize: 13),
+          style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 13),
         ),
       ],
     );

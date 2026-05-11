@@ -5,8 +5,6 @@ import 'package:flutter/material.dart';
 import '../../core/constants/web_expenses_income.dart';
 import '../../core/state/app_model.dart';
 import '../../core/finance/currency.dart';
-import '../../shared/theme/app_theme.dart';
-
 /// Full-screen editor for monthly expense estimate buckets (sliders + fields).
 class ExpenseEstimatesEditorPage extends StatefulWidget {
   const ExpenseEstimatesEditorPage({super.key, required this.model});
@@ -44,6 +42,7 @@ class _ExpenseEstimatesEditorPageState extends State<ExpenseEstimatesEditorPage>
     final preset = presetForCountry(AppModel.expensePresetCountry);
     final presetCurrency = currencyCodeForPresetCountry(AppModel.expensePresetCountry);
     final displayCurrency = model.displayCurrency;
+    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
 
     return PopScope(
       onPopInvokedWithResult: (didPop, result) {
@@ -69,7 +68,7 @@ class _ExpenseEstimatesEditorPageState extends State<ExpenseEstimatesEditorPage>
           children: [
             Text(
               'These are your planned monthly budgets. Changes apply immediately to the Sankey and donut chart.',
-              style: TextStyle(color: AppTheme.slate600, fontSize: 13),
+              style: TextStyle(color: muted, fontSize: 13),
             ),
             const SizedBox(height: 20),
             const Text('Monthly buckets', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
@@ -182,6 +181,7 @@ class _EditorBucketRowState extends State<_EditorBucketRow> {
 
   @override
   Widget build(BuildContext context) {
+    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -221,8 +221,8 @@ class _EditorBucketRowState extends State<_EditorBucketRow> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(money(widget.min, currency: widget.displayCurrency), style: const TextStyle(color: AppTheme.slate600, fontSize: 12)),
-            Text(money(widget.max, currency: widget.displayCurrency), style: const TextStyle(color: AppTheme.slate600, fontSize: 12)),
+            Text(money(widget.min, currency: widget.displayCurrency), style: TextStyle(color: muted, fontSize: 12)),
+            Text(money(widget.max, currency: widget.displayCurrency), style: TextStyle(color: muted, fontSize: 12)),
           ],
         ),
       ],

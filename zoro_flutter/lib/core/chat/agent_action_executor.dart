@@ -310,6 +310,9 @@ bool _applyOne(String op, Map<String, dynamic> a, {required AppAgent agent, requ
           monthlySpending: spend,
           comment: existing?.comment ?? '',
           contextMarkdown: existing?.contextMarkdown,
+          investmentLines: existing?.investmentLines
+              .map((e) => e.clone())
+              .toList(),
         ),
       );
       return true;

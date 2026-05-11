@@ -4,7 +4,6 @@ import '../../core/constants/web_expenses_income.dart';
 import '../../core/finance/currency.dart';
 import '../../core/state/app_model.dart';
 import '../../core/state/ledger_rows.dart';
-import '../../shared/theme/app_theme.dart';
 import 'context_orchestrator_page.dart';
 import 'context_editor_page.dart';
 
@@ -31,8 +30,23 @@ class _ContextTabState extends State<ContextTab> {
   String _money(double v, AppModel model) => formatCurrencyDisplay(v, currency: model.displayCurrency);
 
   /// Ledger row totals are stored in the row’s native currency — show that here (not converted to Home).
+  /// Primary cash asset uses latest month closing in home/display currency.
   String _moneyNativeAsset(LedgerAssetRow a, {required bool hide}) {
-    if (hide) return maskSensitiveNumberString(formatCurrencyDisplay(a.total, currency: currencyCodeForPresetCountry(a.currencyCountry)));
+    final m = widget.model;
+    if (m.primaryCashBalanceIsMirrored(a)) {
+      final v = m.latestCashClosingBalanceDisplay ?? 0;
+      if (hide) {
+        return maskSensitiveNumberString(
+          formatCurrencyDisplay(v, currency: m.displayCurrency),
+        );
+      }
+      return formatCurrencyDisplay(v, currency: m.displayCurrency);
+    }
+    if (hide) {
+      return maskSensitiveNumberString(
+        formatCurrencyDisplay(a.total, currency: currencyCodeForPresetCountry(a.currencyCountry)),
+      );
+    }
     return formatCurrencyDisplay(a.total, currency: currencyCodeForPresetCountry(a.currencyCountry));
   }
 
@@ -44,6 +58,7 @@ class _ContextTabState extends State<ContextTab> {
   @override
   Widget build(BuildContext context) {
     final model = widget.model;
+    final cs = Theme.of(context).colorScheme;
     final hide = model.privacyHideAmounts;
     final predictedMonthly = model.totalExpensesMonthly;
     final monthsWithData = model.monthKeysWithCashflowData();
@@ -96,7 +111,7 @@ class _ContextTabState extends State<ContextTab> {
                   children: [
                     Text(
                       valueText,
-                      style: const TextStyle(color: AppTheme.slate900, fontWeight: FontWeight.w900, fontSize: 12),
+                      style: TextStyle(color: cs.onSurface, fontWeight: FontWeight.w900, fontSize: 12),
                     ),
                     const SizedBox(width: 8),
                     const Icon(Icons.chevron_right),
@@ -132,7 +147,7 @@ class _ContextTabState extends State<ContextTab> {
                   children: [
                     Text(
                       valueText,
-                      style: const TextStyle(color: AppTheme.slate900, fontWeight: FontWeight.w900, fontSize: 12),
+                      style: TextStyle(color: cs.onSurface, fontWeight: FontWeight.w900, fontSize: 12),
                     ),
                     const SizedBox(width: 8),
                     const Icon(Icons.chevron_right),
@@ -159,7 +174,7 @@ class _ContextTabState extends State<ContextTab> {
             title: const Text('Estimates', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
             subtitle: Text(
               _estimatesExpanded ? 'Tap to collapse' : 'Tap to expand',
-              style: const TextStyle(color: AppTheme.slate600, fontSize: 12),
+              style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12),
             ),
             initiallyExpanded: _estimatesExpanded,
             onExpansionChanged: (v) => setState(() => _estimatesExpanded = v),
@@ -192,7 +207,7 @@ class _ContextTabState extends State<ContextTab> {
                                 (model.expenseBuckets[k] ?? presetForCountry(AppModel.expensePresetCountry).buckets[k]?.value ?? 0).toDouble(),
                                 model,
                               ),
-                              style: const TextStyle(color: AppTheme.slate900, fontWeight: FontWeight.w900, fontSize: 12),
+                              style: TextStyle(color: cs.onSurface, fontWeight: FontWeight.w900, fontSize: 12),
                             ),
                           const SizedBox(width: 8),
                           const Icon(Icons.chevron_right),
@@ -221,7 +236,7 @@ class _ContextTabState extends State<ContextTab> {
             title: const Text('Actuals', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
             subtitle: Text(
               _actualsExpanded ? 'Tap to collapse' : 'Tap to expand',
-              style: const TextStyle(color: AppTheme.slate600, fontSize: 12),
+              style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12),
             ),
             initiallyExpanded: _actualsExpanded,
             onExpansionChanged: (v) => setState(() => _actualsExpanded = v),
@@ -251,8 +266,8 @@ class _ContextTabState extends State<ContextTab> {
                           if (!hide)
                             Text(
                               _money((model.monthlyEntryFor(mk)?.monthlySpending ?? 0).toDouble(), model),
-                              style: const TextStyle(
-                                color: AppTheme.slate900,
+                              style: TextStyle(
+                                color: cs.onSurface,
                                 fontWeight: FontWeight.w900,
                                 fontSize: 12,
                               ),

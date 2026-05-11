@@ -6,9 +6,9 @@ import 'package:sankey_flutter/sankey_link.dart';
 import 'package:sankey_flutter/sankey_node.dart';
 
 import '../../core/state/app_model.dart';
+import '../../shared/widgets/liquid_glass.dart';
 import '../../core/constants/web_expenses_income.dart';
 import '../../core/finance/currency.dart';
-import '../../shared/theme/app_theme.dart';
 import 'net_worth_projection_chart.dart';
 import 'zoro_interactive_sankey_painter.dart';
 
@@ -71,14 +71,18 @@ class _CommandCenterTabState extends State<CommandCenterTab> with TickerProvider
     }
   }
 
-  Widget _projectionCaption(List<double> series, bool hideNet) {
-    const baseStyle = TextStyle(color: AppTheme.slate600, fontWeight: FontWeight.w800, height: 1.25);
+  Widget _projectionCaption(BuildContext context, List<double> series, bool hideNet) {
+    final baseStyle = TextStyle(
+      color: Theme.of(context).colorScheme.onSurfaceVariant,
+      fontWeight: FontWeight.w800,
+      height: 1.25,
+    );
     final y = _projectionSelectedYear;
     if (y == null || series.isEmpty) {
-      return const Text('Tap a year', textAlign: TextAlign.center, style: baseStyle);
+      return Text('Tap a year', textAlign: TextAlign.center, style: baseStyle);
     }
     if (y < 0 || y >= series.length) {
-      return const Text('Tap a year', textAlign: TextAlign.center, style: baseStyle);
+      return Text('Tap a year', textAlign: TextAlign.center, style: baseStyle);
     }
 
     final b = widget.model.projectionYearBreakdown(y, series);
@@ -108,7 +112,7 @@ class _CommandCenterTabState extends State<CommandCenterTab> with TickerProvider
           const TextSpan(text: ' · '),
           TextSpan(
             text: savedM,
-            style: const TextStyle(color: AppTheme.blue, fontWeight: FontWeight.w900),
+            style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w900),
           ),
           const TextSpan(text: ' · '),
           TextSpan(
@@ -122,15 +126,15 @@ class _CommandCenterTabState extends State<CommandCenterTab> with TickerProvider
   }
 
   /// Subtitle under the hero net worth when 10-year projection is on: year-10 surplus vs returns (bar key colors).
-  Widget _tenYearProjectionSubtitle(List<double> projSeries, bool hideNet) {
-    const meta = TextStyle(
-      color: AppTheme.slate500,
+  Widget _tenYearProjectionSubtitle(BuildContext context, List<double> projSeries, bool hideNet) {
+    final meta = TextStyle(
+      color: Theme.of(context).colorScheme.outline,
       fontSize: 11,
       height: 1.15,
       fontWeight: FontWeight.w600,
     );
-    const savingsAmtStyle = TextStyle(
-      color: AppTheme.blue,
+    final savingsAmtStyle = TextStyle(
+      color: Theme.of(context).colorScheme.primary,
       fontSize: 11,
       height: 1.15,
       fontWeight: FontWeight.w900,
@@ -185,6 +189,7 @@ class _CommandCenterTabState extends State<CommandCenterTab> with TickerProvider
     final projSeries = widget.model.netWorthProjection11Y();
     final projected10 = projSeries.isNotEmpty ? projSeries.last : widget.model.netWorthDisplay;
     final now = widget.previewNowForReminders ?? DateTime.now();
+    final cs = Theme.of(context).colorScheme;
     final reminders = <_ReminderItem>[
       if (widget.model.remindersExpensesCadence != ReminderCadence.off)
         _ReminderItem(
@@ -256,30 +261,35 @@ class _CommandCenterTabState extends State<CommandCenterTab> with TickerProvider
                 const SizedBox(width: 10),
                 SizedBox(
                   height: 44,
-                  child: SegmentedButton<CurrencyCode>(
-                    segments: [
-                      const ButtonSegment(value: CurrencyCode.usd, label: Text('USD')),
-                      ButtonSegment(value: widget.model.homeCurrencyQuickPick1, label: Text(widget.model.homeCurrencyQuickPick1.code)),
-                      ButtonSegment(value: widget.model.homeCurrencyQuickPick2, label: Text(widget.model.homeCurrencyQuickPick2.code)),
-                    ],
-                    selected: {widget.model.displayCurrency},
-                    onSelectionChanged: (s) => widget.model.setDisplayCurrency(s.first),
-                    style: ButtonStyle(
-                      minimumSize: const WidgetStatePropertyAll(Size(0, 44)),
-                      padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 12, vertical: 12)),
-                      tapTargetSize: MaterialTapTargetSize.padded,
-                      side: const WidgetStatePropertyAll(BorderSide(color: AppTheme.slate100)),
-                      backgroundColor: WidgetStateProperty.resolveWith((states) {
-                        if (states.contains(WidgetState.selected)) {
-                          return widget.model.accent.withValues(alpha: 0.12);
-                        }
-                        return Colors.white;
-                      }),
-                      foregroundColor: WidgetStateProperty.resolveWith((states) {
-                        if (states.contains(WidgetState.selected)) return widget.model.accent;
-                        return AppTheme.slate600;
-                      }),
-                    ),
+                  child: Builder(
+                    builder: (ctx) {
+                      final cs = Theme.of(ctx).colorScheme;
+                      return SegmentedButton<CurrencyCode>(
+                        segments: [
+                          const ButtonSegment(value: CurrencyCode.usd, label: Text('USD')),
+                          ButtonSegment(value: widget.model.homeCurrencyQuickPick1, label: Text(widget.model.homeCurrencyQuickPick1.code)),
+                          ButtonSegment(value: widget.model.homeCurrencyQuickPick2, label: Text(widget.model.homeCurrencyQuickPick2.code)),
+                        ],
+                        selected: {widget.model.displayCurrency},
+                        onSelectionChanged: (s) => widget.model.setDisplayCurrency(s.first),
+                        style: ButtonStyle(
+                          minimumSize: const WidgetStatePropertyAll(Size(0, 44)),
+                          padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 12, vertical: 12)),
+                          tapTargetSize: MaterialTapTargetSize.padded,
+                          side: WidgetStatePropertyAll(BorderSide(color: cs.outlineVariant)),
+                          backgroundColor: WidgetStateProperty.resolveWith((states) {
+                            if (states.contains(WidgetState.selected)) {
+                              return widget.model.accent.withValues(alpha: 0.12);
+                            }
+                            return cs.surfaceContainerHigh;
+                          }),
+                          foregroundColor: WidgetStateProperty.resolveWith((states) {
+                            if (states.contains(WidgetState.selected)) return widget.model.accent;
+                            return cs.onSurfaceVariant;
+                          }),
+                        ),
+                      );
+                    },
                   ),
                 ),
               ],
@@ -295,8 +305,8 @@ class _CommandCenterTabState extends State<CommandCenterTab> with TickerProvider
                 padding: const EdgeInsets.all(14),
                 child: Text(
                   widget.model.homeSummaryText.trim(),
-                  style: const TextStyle(
-                    color: AppTheme.slate900,
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurface,
                     fontWeight: FontWeight.w400,
                     fontSize: 15,
                     height: 1.55,
@@ -336,12 +346,12 @@ class _CommandCenterTabState extends State<CommandCenterTab> with TickerProvider
                             fontWeight: FontWeight.w900,
                             fontSize: 26,
                             height: 1.1,
-                            color: hideNet ? AppTheme.slate500.withValues(alpha: 0.9) : AppTheme.slate900,
+                            color: hideNet ? cs.outline.withValues(alpha: 0.9) : cs.onSurface,
                           ),
                         ),
                         const SizedBox(height: 2),
                         _tenYearProjection
-                            ? _tenYearProjectionSubtitle(projSeries, hideNet)
+                            ? _tenYearProjectionSubtitle(context, projSeries, hideNet)
                             : Text(
                                 hideNet
                                     ? maskSensitiveNumberString(
@@ -351,8 +361,8 @@ class _CommandCenterTabState extends State<CommandCenterTab> with TickerProvider
                                     : 'Assets ${formatCurrencyDisplay(widget.model.totalAssetsDisplay, currency: widget.model.displayCurrency)} • '
                                         'Liabilities ${formatCurrencyDisplay(widget.model.totalLiabilitiesDisplay, currency: widget.model.displayCurrency)}',
                                 textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                  color: AppTheme.slate500,
+                                style: TextStyle(
+                                  color: cs.outline,
                                   fontSize: 11,
                                   height: 1.15,
                                   fontWeight: FontWeight.w600,
@@ -382,6 +392,9 @@ class _CommandCenterTabState extends State<CommandCenterTab> with TickerProvider
         Card(
           margin: EdgeInsets.zero,
           shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+          color: Theme.of(context).brightness == Brightness.dark
+              ? Theme.of(context).colorScheme.surfaceContainerLowest
+              : null,
           child: Padding(
             padding: const EdgeInsets.fromLTRB(0, 16, 0, 16),
             child: Column(
@@ -410,13 +423,12 @@ class _CommandCenterTabState extends State<CommandCenterTab> with TickerProvider
                                     children: [
                                         Padding(
                                           padding: const EdgeInsets.symmetric(horizontal: 16),
-                                          child: _projectionCaption(projSeries, hideNet),
+                                          child: _projectionCaption(context, projSeries, hideNet),
                                         ),
                                       const SizedBox(height: 10),
-                                      Container(
+                                      SizedBox(
                                         height: 300,
                                         width: double.infinity,
-                                        color: AppTheme.slate50,
                                         child: NetWorthProjectionBarChart(
                                           key: const ValueKey<String>('nw-proj-chart'),
                                           series: projSeries,
@@ -474,19 +486,22 @@ class _CommandCenterTabState extends State<CommandCenterTab> with TickerProvider
                         animation: _chartFlipController,
                         builder: (context, _) {
                           final faceProjection = _chartFlipController.value >= 0.5;
+                          final pillCs = Theme.of(context).colorScheme;
                           return Center(
                             child: DecoratedBox(
                               decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.92),
+                                color: pillCs.surfaceContainerHigh.withValues(alpha: 0.97),
                                 borderRadius: BorderRadius.circular(21),
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.06),
+                                    color: pillCs.shadow.withValues(
+                                      alpha: Theme.of(context).brightness == Brightness.dark ? 0.4 : 0.08,
+                                    ),
                                     blurRadius: 8,
                                     offset: const Offset(0, 2),
                                   ),
                                 ],
-                                border: Border.all(color: AppTheme.slate100),
+                                border: Border.all(color: pillCs.outlineVariant),
                               ),
                               child: Material(
                                 type: MaterialType.transparency,
@@ -553,7 +568,7 @@ class _CommandCenterTabState extends State<CommandCenterTab> with TickerProvider
 
   Future<double?> _quickEditValue(BuildContext context, String title, double current) async {
     final ctrl = TextEditingController(text: current.round().toString());
-    final res = await showModalBottomSheet<double>(
+    final res = await showLiquidGlassModalBottomSheet<double>(
       context: context,
       showDragHandle: true,
       isScrollControlled: true,
@@ -572,7 +587,7 @@ class _CommandCenterTabState extends State<CommandCenterTab> with TickerProvider
                     ),
               ),
               const SizedBox(height: 6),
-              Text(title, style: const TextStyle(color: AppTheme.slate600)),
+              Text(title, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
               const SizedBox(height: 14),
               TextField(
                 controller: ctrl,
@@ -680,25 +695,27 @@ class _SankeyPlaceholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Column(
       children: [
         Padding(
           padding: EdgeInsets.symmetric(horizontal: fullBleed ? 16 : 0),
-          child: Text(
-            _selectionTitle(context),
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: AppTheme.slate600, fontWeight: FontWeight.w800),
+          child: LiquidGlassPanel(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            child: Text(
+              _selectionTitle(context),
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Theme.of(context).brightness == Brightness.dark ? Colors.white : cs.onSurfaceVariant,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
           ),
         ),
         const SizedBox(height: 10),
-        Container(
+        SizedBox(
           height: 300,
           width: double.infinity,
-          decoration: BoxDecoration(
-            color: AppTheme.slate50,
-            borderRadius: BorderRadius.circular(fullBleed ? 0 : 12),
-            border: fullBleed ? null : Border.all(color: AppTheme.slate100),
-          ),
           child: LayoutBuilder(
             builder: (context, c) {
               final w = c.maxWidth.isFinite && c.maxWidth > 0
@@ -733,18 +750,6 @@ class _SankeyPlaceholder extends StatelessWidget {
                 for (final n in graph.nodes) n.displayLabel: colorForNodeLabel(nodeDisplayName(n)),
               };
               final selectedId = selectedNode?.id;
-              if (selectedId is int) {
-                // Selection: tint the selected node (glass sinks keep their own look in the painter).
-                final selected = graph.nodes.where((n) => n.id == selectedId).cast<SankeyNode?>().firstOrNull;
-                if (selected != null) {
-                  final h = nodeDisplayName(selected).split(RegExp(r'\s{2,}')).first.trim().toLowerCase();
-                  final isGlass = h == 'investments' || h == 'savings' || h == 'expenses' || h == 'taxes';
-                  if (!isGlass) {
-                    nodeColors[selected.displayLabel] =
-                        Theme.of(context).colorScheme.primary.withValues(alpha: 0.75);
-                  }
-                }
-              }
 
               final chart = GestureDetector(
                 onTapDown: (details) {
@@ -764,6 +769,9 @@ class _SankeyPlaceholder extends StatelessWidget {
                     selectedNodeId: selectedId as int?,
                     showLabels: true,
                     showTexture: true,
+                    chartDark: Theme.of(context).brightness == Brightness.dark,
+                    rightLabelStrong: Theme.of(context).colorScheme.onSurface,
+                    rightLabelMuted: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ),
               );
@@ -828,6 +836,7 @@ class _SelectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final narrow = MediaQuery.sizeOf(context).width < 420;
     final ctaStyle = FilledButton.styleFrom(minimumSize: const Size(_ctaMinWidth, 48));
     late final String title;
@@ -874,20 +883,15 @@ class _SelectionCard extends StatelessWidget {
         break;
     }
 
-    return Container(
+    return LiquidGlassPanel(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppTheme.slate50,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.slate100),
-      ),
       child: narrow
           ? Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(title, style: const TextStyle(fontWeight: FontWeight.w900, color: AppTheme.slate900)),
+                Text(title, style: TextStyle(fontWeight: FontWeight.w900, color: cs.onSurface)),
                 const SizedBox(height: 4),
-                Text(subtitle, style: const TextStyle(color: AppTheme.slate600)),
+                Text(subtitle, style: TextStyle(color: cs.onSurfaceVariant)),
                 const SizedBox(height: 10),
                 FilledButton(
                   style: ctaStyle,
@@ -902,9 +906,9 @@ class _SelectionCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(title, style: const TextStyle(fontWeight: FontWeight.w900, color: AppTheme.slate900)),
+                      Text(title, style: TextStyle(fontWeight: FontWeight.w900, color: cs.onSurface)),
                       const SizedBox(height: 4),
-                      Text(subtitle, style: const TextStyle(color: AppTheme.slate600)),
+                      Text(subtitle, style: TextStyle(color: cs.onSurfaceVariant)),
                     ],
                   ),
                 ),
@@ -933,6 +937,7 @@ class _ExpenseDetailsRows extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final preset = presetForCountry(AppModel.expensePresetCountry);
     final rows = <({String key, String label, double monthly, Color color})>[];
     for (final k in recurringExpenseBucketKeys) {
@@ -944,9 +949,9 @@ class _ExpenseDetailsRows extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cs.surfaceContainerHigh,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppTheme.slate100),
+        border: Border.all(color: cs.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -970,14 +975,14 @@ class _ExpenseDetailsRows extends StatelessWidget {
                   Expanded(
                     child: Text(
                       r.label,
-                      style: const TextStyle(color: AppTheme.slate600, fontWeight: FontWeight.w600),
+                      style: TextStyle(color: cs.onSurfaceVariant, fontWeight: FontWeight.w600),
                     ),
                   ),
                   Text(
                     maskAmounts
                         ? maskSensitiveNumberString(money(r.monthly, currency: model.displayCurrency))
                         : money(r.monthly, currency: model.displayCurrency),
-                    style: const TextStyle(fontWeight: FontWeight.w900, color: AppTheme.slate900),
+                    style: TextStyle(fontWeight: FontWeight.w900, color: cs.onSurface),
                   ),
                 ],
               ),
@@ -1015,27 +1020,48 @@ class _RemindersCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Text(
-              'Updates',
-              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final hasUrgent = items.any((e) => e.overdue);
+    final titleColor = hasUrgent
+        ? cs.onSurface
+        : isDark
+            ? cs.onSurfaceVariant.withValues(alpha: 0.42)
+            : cs.onSurfaceVariant.withValues(alpha: 0.88);
+    final titleWeight = hasUrgent ? FontWeight.w900 : FontWeight.w600;
+
+    return LiquidGlassPanel(
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Updates',
+            style: TextStyle(
+              fontWeight: titleWeight,
+              fontSize: 15,
+              color: titleColor,
             ),
-            const SizedBox(height: 10),
-            ...items.map(
+          ),
+          const SizedBox(height: 10),
+          ...items.map(
               (it) => Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Material(
                   key: it.rowKey,
-                  color: it.overdue ? accent.withValues(alpha: 0.09) : AppTheme.slate100.withValues(alpha: 0.35),
+                  color: it.overdue
+                      ? accent.withValues(alpha: 0.09)
+                      : isDark
+                          ? cs.surfaceContainerHighest.withValues(alpha: hasUrgent ? 0.65 : 0.38)
+                          : cs.outlineVariant.withValues(alpha: hasUrgent ? 0.14 : 0.10),
                   borderRadius: BorderRadius.circular(12),
                   child: InkWell(
                     onTap: it.onTap,
                     borderRadius: BorderRadius.circular(12),
+                    splashFactory: it.overdue ? InkSparkle.splashFactory : NoSplash.splashFactory,
+                    splashColor: it.overdue ? null : Colors.transparent,
+                    highlightColor: it.overdue ? null : Colors.transparent,
+                    hoverColor: it.overdue ? null : Colors.transparent,
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                       child: Row(
@@ -1044,7 +1070,11 @@ class _RemindersCard extends StatelessWidget {
                           Icon(
                             it.icon,
                             size: 22,
-                            color: it.overdue ? accent : AppTheme.slate500.withValues(alpha: 0.65),
+                            color: it.overdue
+                                ? accent
+                                : isDark
+                                    ? cs.outline.withValues(alpha: hasUrgent ? 0.85 : 0.45)
+                                    : cs.outline.withValues(alpha: hasUrgent ? 0.85 : 0.55),
                           ),
                           const SizedBox(width: 10),
                           Expanded(
@@ -1055,9 +1085,13 @@ class _RemindersCard extends StatelessWidget {
                                 Text(
                                   it.title,
                                   style: TextStyle(
-                                    fontWeight: FontWeight.w800,
+                                    fontWeight: it.overdue ? FontWeight.w800 : FontWeight.w600,
                                     fontSize: 15,
-                                    color: it.overdue ? accent : AppTheme.slate600,
+                                    color: it.overdue
+                                        ? accent
+                                        : isDark
+                                            ? cs.onSurfaceVariant.withValues(alpha: hasUrgent ? 0.95 : 0.52)
+                                            : cs.onSurfaceVariant,
                                   ),
                                 ),
                                 const SizedBox(height: 2),
@@ -1067,7 +1101,11 @@ class _RemindersCard extends StatelessWidget {
                                     fontWeight: FontWeight.w600,
                                     fontSize: 13,
                                     height: 1.25,
-                                    color: it.overdue ? accent.withValues(alpha: 0.88) : AppTheme.slate500,
+                                    color: it.overdue
+                                        ? accent.withValues(alpha: 0.88)
+                                        : isDark
+                                            ? cs.outline.withValues(alpha: hasUrgent ? 1.0 : 0.42)
+                                            : cs.outline,
                                   ),
                                   maxLines: 2,
                                   overflow: TextOverflow.ellipsis,
@@ -1078,7 +1116,11 @@ class _RemindersCard extends StatelessWidget {
                           Icon(
                             Icons.chevron_right,
                             size: 22,
-                            color: it.overdue ? accent : AppTheme.slate500.withValues(alpha: 0.65),
+                            color: it.overdue
+                                ? accent
+                                : isDark
+                                    ? cs.outline.withValues(alpha: hasUrgent ? 0.85 : 0.32)
+                                    : cs.outline.withValues(alpha: hasUrgent ? 0.85 : 0.45),
                           ),
                         ],
                       ),
@@ -1089,7 +1131,6 @@ class _RemindersCard extends StatelessWidget {
             ),
           ],
         ),
-      ),
     );
   }
 }

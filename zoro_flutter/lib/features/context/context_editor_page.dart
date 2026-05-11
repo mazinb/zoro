@@ -11,6 +11,8 @@ import '../../core/state/app_model.dart';
 import '../../core/state/internal_app_agent_definition.dart';
 import '../../core/state/ledger_rows.dart';
 import '../../core/state/monthly_cashflow_entry.dart';
+import '../../shared/widgets/context_markdown_view.dart';
+import '../../shared/widgets/liquid_glass.dart';
 import 'context_planner_config.dart';
 import 'context_planner_page.dart';
 
@@ -190,14 +192,71 @@ class _ContextEditorPageState extends State<ContextEditorPage> {
     text: widget.initialMarkdown,
   );
 
+  /// When false, shows rendered markdown; when true, plain editor + AI + Save.
+  bool _editing = false;
+
+  /// Text at last edit entry or after Save; used for unsaved-change prompts.
+  String _editBaseline = '';
+
   @override
   void dispose() {
     _ctrl.dispose();
     super.dispose();
   }
 
+  String _markdownFromModel() {
+    final m = widget.model;
+    return switch (widget.kind) {
+      ContextKind.asset => m.assetById(widget.plannerAssetId!)?.contextMarkdown ?? '',
+      ContextKind.liability =>
+        m.liabilityById(widget.plannerLiabilityId!)?.contextMarkdown ?? '',
+      ContextKind.bucket =>
+        m.expenseBucketContextMarkdown[widget.plannerBucketKey!] ?? '',
+      ContextKind.month =>
+        m.monthlyEntryFor(widget.plannerMonthKey!)?.contextMarkdown ?? '',
+    };
+  }
+
+  void _openEdit() {
+    setState(() {
+      _editing = true;
+      _ctrl.text = _markdownFromModel();
+      _editBaseline = _ctrl.text.trim();
+    });
+  }
+
+  Future<void> _leaveEditIfAllowed() async {
+    if (_ctrl.text.trim() == _editBaseline) {
+      setState(() => _editing = false);
+      return;
+    }
+    final discard = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Discard changes?'),
+        content: const Text(
+          'You have unsaved edits. Leave the editor and discard them?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Keep editing'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Discard'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted || discard != true) return;
+    setState(() => _editing = false);
+  }
+
   void _save() {
     widget.onSave(_ctrl.text.trim());
+    _editBaseline = _ctrl.text.trim();
+    setState(() => _editing = false);
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Saved'),
@@ -222,9 +281,10 @@ class _ContextEditorPageState extends State<ContextEditorPage> {
   }
 
   Future<void> _openAssistantOptions() async {
-    final action = await showModalBottomSheet<_ContextAssistantAction>(
+    final action = await showLiquidGlassModalBottomSheet<_ContextAssistantAction>(
       context: context,
       showDragHandle: true,
+      sizesToContent: true,
       builder: (ctx) {
         return SafeArea(
           child: Padding(
@@ -444,43 +504,115 @@ class _ContextEditorPageState extends State<ContextEditorPage> {
     ContextKind.bucket => 'Add notes the chat/agents can use later…',
   };
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      resizeToAvoidBottomInset: true,
-      appBar: AppBar(
-        title: Text(widget.title),
-        actions: [
-          if (widget._hasPlanner)
-            IconButton(
-              tooltip: 'Assistant',
-              icon: const Icon(Icons.auto_awesome),
-              onPressed: _openAssistantOptions,
-            ),
-          TextButton(onPressed: _save, child: const Text('Save')),
-        ],
-      ),
-      body: SafeArea(
+  Widget _buildPreviewBody() {
+    final md = _markdownFromModel();
+    final theme = Theme.of(context);
+    if (md.trim().isEmpty) {
+      return Center(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-          child: SizedBox.expand(
-            child: TextField(
-              controller: _ctrl,
-              expands: true,
-              maxLines: null,
-              minLines: null,
-              keyboardType: TextInputType.multiline,
-              textAlignVertical: TextAlignVertical.top,
-              decoration: InputDecoration(
-                border: const OutlineInputBorder(),
-                hintText: _fieldHint,
-                contentPadding: const EdgeInsets.all(12),
-                isDense: false,
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.article_outlined,
+                size: 48,
+                color: theme.colorScheme.outline,
               ),
-            ),
+              const SizedBox(height: 16),
+              Text(
+                'No context note yet',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Add notes assistants can use when helping with this item.',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 24),
+              FilledButton.icon(
+                onPressed: _openEdit,
+                icon: const Icon(Icons.edit_outlined),
+                label: const Text('Add note'),
+              ),
+            ],
           ),
         ),
-      ),
+      );
+    }
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+      child: ContextMarkdownView(markdown: md),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: widget.model,
+      builder: (context, _) {
+        return PopScope(
+          canPop: !_editing,
+          onPopInvokedWithResult: (didPop, _) {
+            if (didPop || !_editing) return;
+            _leaveEditIfAllowed();
+          },
+          child: Scaffold(
+            resizeToAvoidBottomInset: true,
+            appBar: AppBar(
+              leading: _editing
+                  ? IconButton(
+                      icon: const Icon(Icons.arrow_back),
+                      onPressed: _leaveEditIfAllowed,
+                    )
+                  : null,
+              title: Text(widget.title),
+              actions: _editing
+                  ? [
+                      if (widget._hasPlanner)
+                        IconButton(
+                          tooltip: 'Assistant',
+                          icon: const Icon(Icons.auto_awesome),
+                          onPressed: _openAssistantOptions,
+                        ),
+                      TextButton(onPressed: _save, child: const Text('Save')),
+                    ]
+                  : [
+                      TextButton(onPressed: _openEdit, child: const Text('Edit')),
+                    ],
+            ),
+            body: SafeArea(
+              child: _editing
+                  ? Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                      child: SizedBox.expand(
+                        child: TextField(
+                          controller: _ctrl,
+                          expands: true,
+                          maxLines: null,
+                          minLines: null,
+                          keyboardType: TextInputType.multiline,
+                          textAlignVertical: TextAlignVertical.top,
+                          decoration: InputDecoration(
+                            border: const OutlineInputBorder(),
+                            hintText: _fieldHint,
+                            contentPadding: const EdgeInsets.all(12),
+                            isDense: false,
+                          ),
+                        ),
+                      ),
+                    )
+                  : _buildPreviewBody(),
+            ),
+          ),
+        );
+      },
     );
   }
 }

@@ -111,6 +111,16 @@ class AppModel extends ChangeNotifier {
   /// When true, monetary figures are masked (e.g. on Home and Ledger). Toggled from Home.
   bool privacyHideAmounts = false;
 
+  /// Drives [MaterialApp.themeMode]. Persisted in user settings JSON.
+  ThemeMode themeModePreference = ThemeMode.system;
+
+  void setThemeMode(ThemeMode mode) {
+    if (themeModePreference == mode) return;
+    themeModePreference = mode;
+    _scheduleUserSettingsPersist();
+    notifyListeners();
+  }
+
   /// Optional short motivation/summary shown at the top of Home when non-empty.
   String homeSummaryText = '';
 
@@ -142,6 +152,7 @@ class AppModel extends ChangeNotifier {
           displayCurrency: displayCurrency,
           homeCurrencyQuickPick1: homeCurrencyQuickPick1,
           homeCurrencyQuickPick2: homeCurrencyQuickPick2,
+          themeMode: themeModePreference,
         );
       } catch (_) {}
     }
@@ -183,6 +194,9 @@ class AppModel extends ChangeNotifier {
     }
     if (snap.homeCurrencyQuickPick2 != null) {
       homeCurrencyQuickPick2 = snap.homeCurrencyQuickPick2!;
+    }
+    if (snap.themeMode != null) {
+      themeModePreference = snap.themeMode!;
     }
     _syncActiveProviderIfKeyRemoved();
     notifyListeners();
@@ -751,8 +765,124 @@ class AppModel extends ChangeNotifier {
   /// Month key → single [MonthlyCashflowEntry] for that month (split + spending + note).
   final Map<String, MonthlyCashflowEntry> monthlyCashflowByMonth = {};
 
+  /// Primary cash / income account — Ledger → Cash tab name strip.
+  /// When this row is **savings**, lists and net worth use the **latest month’s cash closing** (display currency), not [LedgerAssetRow.total].
+  String? primaryIncomeAssetId;
+
+  /// Latest saved month’s closing balance (display currency), or null if no cashflow months.
+  double? get latestCashClosingBalanceDisplay {
+    final keys = monthKeysWithCashflowData(limit: 1);
+    if (keys.isEmpty) return null;
+    return monthlyEntryFor(keys.first)?.closingBalance;
+  }
+
+  bool isPrimaryCashAsset(LedgerAssetRow r) =>
+      primaryIncomeAssetId != null && r.id == primaryIncomeAssetId;
+
+  /// Primary **savings** row tracks the latest month closing (Cash tab); other types use [LedgerAssetRow.total].
+  bool primaryCashBalanceIsMirrored(LedgerAssetRow r) =>
+      isPrimaryCashAsset(r) && r.type == LedgerAssetType.savings;
+
+  /// Contribution to net worth / home currency for one asset row.
+  double assetDisplayValue(LedgerAssetRow r) {
+    if (primaryCashBalanceIsMirrored(r)) {
+      return latestCashClosingBalanceDisplay ?? 0;
+    }
+    return moneyInDisplayCurrency(r.total, currencyCodeForPresetCountry(r.currencyCountry));
+  }
+
+  void _sortAssetsByDisplayValueDescending() {
+    if (assets.length <= 1) return;
+    final withIx = <({int ix, LedgerAssetRow row})>[
+      for (var i = 0; i < assets.length; i++) (ix: i, row: assets[i]),
+    ];
+    withIx.sort((a, b) {
+      final va = assetDisplayValue(a.row);
+      final vb = assetDisplayValue(b.row);
+      final c = vb.compareTo(va);
+      if (c != 0) return c;
+      return a.ix.compareTo(b.ix);
+    });
+    assets
+      ..clear()
+      ..addAll(withIx.map((e) => e.row));
+  }
+
+  void setPrimaryIncomeAssetId(String? id) {
+    if (primaryIncomeAssetId == id) return;
+    primaryIncomeAssetId = id;
+    assetsLastReviewed = DateTime.now();
+    notifyListeners();
+  }
+
+  /// Registers the primary cash row and links it (list order follows value, not “pinned” to top).
+  void registerPrimaryCashAsset(LedgerAssetRow row) {
+    final ix = assets.indexWhere((a) => a.id == row.id);
+    if (ix < 0) {
+      assets.add(row);
+    }
+    primaryIncomeAssetId = row.id;
+    _sortAssetsByDisplayValueDescending();
+    assetsLastReviewed = DateTime.now();
+    notifyListeners();
+  }
+
+  void _applyDisplayDeltaToAssetTotal(String assetId, double deltaDisplay) {
+    final a = assetById(assetId);
+    if (a == null || deltaDisplay.abs() < 0.005) return;
+    final to = currencyCodeForPresetCountry(a.currencyCountry);
+    final converted = convertCurrency(
+      value: deltaDisplay,
+      from: displayCurrency,
+      to: to,
+      usdPerUnitOverrides: fxUsdPerUnitResolved,
+    );
+    a.total += converted;
+  }
+
+  /// Undo [MonthlyInvestmentLine.amountAppliedToAssets] for this month (display-currency amounts).
+  void reverseInvestmentCreditsForMonth(String monthKey) {
+    final e = monthlyEntryFor(monthKey);
+    if (e == null) return;
+    for (final line in e.investmentLines) {
+      final applied = line.amountAppliedToAssets;
+      if (applied < 0.005 || (line.assetId ?? '').isEmpty) {
+        line.amountAppliedToAssets = 0;
+        continue;
+      }
+      _applyDisplayDeltaToAssetTotal(line.assetId!, -applied);
+      line.amountAppliedToAssets = 0;
+    }
+  }
+
+  /// Replaces month investment lines and credits asset totals when linking is complete.
+  /// Returns whether the month is fully linked (totals match and every split has an asset).
+  bool commitMonthInvestmentLinking(
+    String monthKey,
+    List<MonthlyInvestmentLine> newLinesRaw,
+  ) {
+    reverseInvestmentCreditsForMonth(monthKey);
+    final e = monthlyEntryFor(monthKey);
+    if (e == null) return false;
+    final next = newLinesRaw.map((x) => x.clone()..amountAppliedToAssets = 0).toList();
+    e.investmentLines
+      ..clear()
+      ..addAll(next);
+    final complete = monthlyInvestmentLinkingComplete(e);
+    if (complete) {
+      for (final line in e.investmentLines) {
+        if (line.amount <= 0.005 || (line.assetId ?? '').isEmpty) continue;
+        _applyDisplayDeltaToAssetTotal(line.assetId!, line.amount);
+        line.amountAppliedToAssets = line.amount;
+      }
+    }
+    assetsLastReviewed = DateTime.now();
+    touchMonthlyCashflowChanged();
+    return complete;
+  }
+
   /// Portion of post-expense net income allocated to investments (rest is cash / FDs).
-  /// Range 0–1, always a multiple of 5% (matches Split slider increments).
+  /// Range 0–1, always a multiple of 5% (Sankey target split).
   double allocInvestFraction = 0.6;
 
   static const int _allocFractionSteps = 20;
@@ -1057,6 +1187,15 @@ class AppModel extends ChangeNotifier {
       e.outflowToCashFd = convertCurrency(value: e.outflowToCashFd, from: from, to: next, usdPerUnitOverrides: fx);
       e.outflowToInvested = convertCurrency(value: e.outflowToInvested, from: from, to: next, usdPerUnitOverrides: fx);
       e.monthlySpending = convertCurrency(value: e.monthlySpending, from: from, to: next, usdPerUnitOverrides: fx);
+      for (final il in e.investmentLines) {
+        il.amount = convertCurrency(value: il.amount, from: from, to: next, usdPerUnitOverrides: fx);
+        il.amountAppliedToAssets = convertCurrency(
+          value: il.amountAppliedToAssets,
+          from: from,
+          to: next,
+          usdPerUnitOverrides: fx,
+        );
+      }
     }
     syncAllocationsFromFraction();
     _scheduleUserSettingsPersist();
@@ -1077,10 +1216,8 @@ class AppModel extends ChangeNotifier {
     return formatMoney(converted, currency: displayCurrency, decimals: decimals);
   }
 
-  double get totalAssetsDisplay => assets.fold<double>(
-        0,
-        (s, r) => s + moneyInDisplayCurrency(r.total, currencyCodeForPresetCountry(r.currencyCountry)),
-      );
+  double get totalAssetsDisplay =>
+      assets.fold<double>(0, (s, r) => s + assetDisplayValue(r));
 
   double get totalLiabilitiesDisplay => liabilities.fold<double>(
         0,
@@ -1094,6 +1231,7 @@ class AppModel extends ChangeNotifier {
 
   void addAsset(LedgerAssetRow row) {
     assets.add(row);
+    _sortAssetsByDisplayValueDescending();
     assetsLastReviewed = DateTime.now();
     notifyListeners();
   }
@@ -1107,7 +1245,11 @@ class AppModel extends ChangeNotifier {
 
   void removeAssetAt(int index) {
     if (assets.length <= 1 || index < 0 || index >= assets.length) return;
+    final removedId = assets[index].id;
     assets.removeAt(index);
+    if (primaryIncomeAssetId == removedId) {
+      primaryIncomeAssetId = null;
+    }
     assetsLastReviewed = DateTime.now();
     notifyListeners();
   }
@@ -1162,6 +1304,7 @@ class AppModel extends ChangeNotifier {
   bool tryUpdateAssetTotalById(String id, double total) {
     final a = assetById(id);
     if (a == null) return false;
+    if (primaryCashBalanceIsMirrored(a)) return false;
     a.total = total;
     assetsLastReviewed = DateTime.now();
     notifyListeners();
@@ -1232,6 +1375,16 @@ class AppModel extends ChangeNotifier {
 
   void upsertMonthlyCashflow(MonthlyCashflowEntry entry) {
     monthlyCashflowByMonth[entry.monthKey] = entry;
+    notifyListeners();
+  }
+
+  /// After editing a [MonthlyInvestmentLine] in place (e.g. Cash → Invest detail sheet).
+  void touchMonthlyCashflowChanged() {
+    notifyListeners();
+  }
+
+  void touchAssetsChanged() {
+    assetsLastReviewed = DateTime.now();
     notifyListeners();
   }
 
@@ -1503,6 +1656,10 @@ class AppModel extends ChangeNotifier {
 
   ThemeData themedLight() {
     return AppTheme.light;
+  }
+
+  ThemeData themedDark() {
+    return AppTheme.dark;
   }
 }
 

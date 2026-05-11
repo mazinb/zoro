@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../shared/theme/app_theme.dart';
-
 class PlanTab extends StatelessWidget {
   const PlanTab({super.key});
 
@@ -15,6 +13,7 @@ class PlanTab extends StatelessWidget {
       ('Tax', 'Coming soon'),
     ];
 
+    final scheme = Theme.of(context).colorScheme;
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
@@ -25,9 +24,9 @@ class PlanTab extends StatelessWidget {
               ),
         ),
         const SizedBox(height: 8),
-        const Text(
+        Text(
           'These will reuse the same flows as the web app.',
-          style: TextStyle(color: AppTheme.slate600),
+          style: TextStyle(color: scheme.onSurfaceVariant),
         ),
         const SizedBox(height: 20),
         ...areas.map(

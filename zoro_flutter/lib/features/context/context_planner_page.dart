@@ -6,7 +6,6 @@ import '../../core/llm/active_llm_completion.dart';
 import '../../core/llm/llm_json.dart';
 import '../../core/state/app_model.dart';
 import '../../core/state/internal_app_agent_definition.dart';
-import '../../shared/theme/app_theme.dart';
 import 'context_planner_config.dart';
 
 class ContextPlannerResult {
@@ -362,7 +361,7 @@ Use the subject block, existingContextMarkdown, contextLastUpdated if present, a
           _buildMainBody(context, accent),
           if (_success)
             ColoredBox(
-              color: Colors.white.withValues(alpha: 0.92),
+              color: Theme.of(context).colorScheme.surface.withValues(alpha: 0.92),
               child: Center(
                 child: ScaleTransition(
                   scale: _tickScale,
@@ -403,6 +402,7 @@ Use the subject block, existingContextMarkdown, contextLastUpdated if present, a
 
     final currentStepNum = _done.length + 1;
     final q = _current!;
+    final scheme = Theme.of(context).colorScheme;
 
     return Padding(
       padding: const EdgeInsets.all(20),
@@ -412,7 +412,7 @@ Use the subject block, existingContextMarkdown, contextLastUpdated if present, a
           Text(
             'Step $currentStepNum',
             style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                  color: AppTheme.slate600,
+                  color: scheme.onSurfaceVariant,
                   fontWeight: FontWeight.w800,
                 ),
           ),
@@ -439,7 +439,7 @@ Use the subject block, existingContextMarkdown, contextLastUpdated if present, a
                 backgroundColor: accent,
                 child: Text(
                   '$currentStepNum',
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900),
+                  style: TextStyle(color: scheme.onPrimary, fontWeight: FontWeight.w900),
                 ),
               ),
             ],
@@ -447,14 +447,14 @@ Use the subject block, existingContextMarkdown, contextLastUpdated if present, a
           const SizedBox(height: 6),
           Text(
             'Tap a number to change an earlier answer.',
-            style: TextStyle(color: AppTheme.slate500.withValues(alpha: 0.9), fontSize: 12),
+            style: TextStyle(color: scheme.onSurfaceVariant.withValues(alpha: 0.9), fontSize: 12),
           ),
           const SizedBox(height: 14),
           Text(q.prompt, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
           const SizedBox(height: 6),
           Text(
             q.allowMultiple ? 'Select all that fit' : 'Pick one',
-            style: const TextStyle(color: AppTheme.slate600, fontSize: 13),
+            style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13),
           ),
           const SizedBox(height: 12),
           Expanded(

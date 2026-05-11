@@ -28,6 +28,8 @@ class _ZoroAppState extends State<ZoroApp> {
         return MaterialApp(
           title: 'Zoro',
           theme: _model.themedLight(),
+          darkTheme: _model.themedDark(),
+          themeMode: _model.themeModePreference,
           home: MainScaffold(model: _model),
         );
       },

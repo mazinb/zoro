@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../shared/theme/app_theme.dart';
-
 class ExpensesAiCard extends StatelessWidget {
   const ExpensesAiCard({super.key});
 
@@ -20,9 +18,9 @@ class ExpensesAiCard extends StatelessWidget {
                   ),
             ),
             const SizedBox(height: 6),
-            const Text(
+            Text(
               'Disabled for UI-first build. We’ll re-enable this once token auth + DB wiring is back.',
-              style: TextStyle(color: AppTheme.slate600, fontSize: 13),
+              style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 13),
             ),
             const SizedBox(height: 16),
             FilledButton.icon(

@@ -17,6 +17,7 @@ class AppTheme {
   static const Color slate50 = Color(0xFFF8FAFC);
 
   static ThemeData get light {
+    // Keep cards and M3 “container” roles white in light mode (seed scheme greys them).
     final scheme = ColorScheme.fromSeed(
       seedColor: primaryBlue,
       brightness: Brightness.light,
@@ -24,6 +25,11 @@ class AppTheme {
     ).copyWith(
       primary: blue,
       secondary: blueDark,
+      surfaceContainerLowest: slate50,
+      surfaceContainerLow: Colors.white,
+      surfaceContainer: Colors.white,
+      surfaceContainerHigh: Colors.white,
+      surfaceContainerHighest: Colors.white,
     );
     return ThemeData(
       useMaterial3: true,
@@ -40,6 +46,10 @@ class AppTheme {
         foregroundColor: Colors.white,
       ),
       navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        shadowColor: Colors.transparent,
         indicatorColor: primaryBlue.withValues(alpha: 0.15),
         labelTextStyle: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
@@ -63,6 +73,65 @@ class AppTheme {
         elevation: 0,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         color: Colors.white,
+        margin: EdgeInsets.zero,
+      ),
+    );
+  }
+
+  /// Paired with [light]; wired on [MaterialApp.darkTheme]. Keep [ThemeMode.light]
+  /// until hardcoded surfaces are migrated (see `TASKS.md` → Dark mode).
+  static ThemeData get dark {
+    final scheme = ColorScheme.fromSeed(
+      seedColor: primaryBlue,
+      brightness: Brightness.dark,
+    ).copyWith(
+      primary: blue,
+      onPrimary: Colors.white,
+      secondary: blueLight,
+      onSecondary: slate900,
+    );
+    return ThemeData(
+      useMaterial3: true,
+      colorScheme: scheme,
+      scaffoldBackgroundColor: scheme.surfaceContainerLowest,
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: blue,
+          foregroundColor: Colors.white,
+        ),
+      ),
+      floatingActionButtonTheme: const FloatingActionButtonThemeData(
+        backgroundColor: blue,
+        foregroundColor: Colors.white,
+      ),
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        shadowColor: Colors.transparent,
+        indicatorColor: primaryBlue.withValues(alpha: 0.28),
+        labelTextStyle: WidgetStateProperty.resolveWith((states) {
+          if (states.contains(WidgetState.selected)) {
+            return TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: scheme.primary,
+            );
+          }
+          return TextStyle(fontSize: 12, color: scheme.onSurfaceVariant);
+        }),
+      ),
+      appBarTheme: AppBarTheme(
+        centerTitle: true,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        backgroundColor: scheme.surface,
+        foregroundColor: scheme.onSurface,
+      ),
+      cardTheme: CardThemeData(
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        color: scheme.surfaceContainerHigh,
         margin: EdgeInsets.zero,
       ),
     );

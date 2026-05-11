@@ -3,8 +3,6 @@ import 'package:flutter/material.dart';
 import '../../core/state/app_model.dart';
 import '../../core/state/ledger_rows.dart';
 import '../../core/state/monthly_cashflow_entry.dart';
-import '../../shared/theme/app_theme.dart';
-
 enum AgentTargetKind { asset, liability, month }
 
 class BuiltInAgentTemplate {
@@ -289,7 +287,10 @@ class _AgentRunnerPageState extends State<AgentRunnerPage> {
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
-          Text(template.description, style: const TextStyle(color: AppTheme.slate600)),
+          Text(
+            template.description,
+            style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+          ),
           const SizedBox(height: 16),
           targetPicker(),
           const SizedBox(height: 16),

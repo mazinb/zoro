@@ -41,17 +41,18 @@ class ContextPlannerConfig {
       buildPayload: (m, qa) {
         final row = m.assetById(assetId);
         if (row == null) return {'qaHistory': qa};
+        final displayVal = m.assetDisplayValue(row);
         return {
           'asset': {
             'id': row.id,
             'type': row.type.apiValue,
             'name': row.name,
-            'total': row.total,
+            'total': displayVal,
             'currencyCountry': row.currencyCountry,
             'label': row.label,
             'comment': row.comment,
             'displayCurrency': m.displayCurrency.name,
-            'valueFormatted': formatCurrencyDisplay(row.total, currency: m.displayCurrency),
+            'valueFormatted': formatCurrencyDisplay(displayVal, currency: m.displayCurrency),
           },
           'existingContextMarkdown': initialMarkdown,
           'contextLastUpdated': m.contextNoteLastUpdatedIso(key),

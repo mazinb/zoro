@@ -8,7 +8,7 @@ import '../../core/chat/agent_chat_prompts.dart';
 import '../../core/chat/chat_message.dart';
 import '../../core/llm/llm_client.dart';
 import '../../core/state/app_model.dart';
-import '../../shared/theme/app_theme.dart';
+import '../../shared/widgets/liquid_glass.dart';
 
 extension _FirstOrNullExt<T> on Iterable<T> {
   T? get firstOrNull => isEmpty ? null : first;
@@ -129,7 +129,7 @@ class _AgentChatThreadPageState extends State<AgentChatThreadPage> {
     _playgroundSuffixCtrl.text = t.systemPromptSuffix ?? '';
     _playgroundToolsCtrl.text = t.enabledToolIds?.join(', ') ?? '';
 
-    await showModalBottomSheet<void>(
+    await showLiquidGlassModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
@@ -222,7 +222,7 @@ class _AgentChatThreadPageState extends State<AgentChatThreadPage> {
   }
 
   Future<void> _pickAgentForThread(AgentChatThread t) async {
-    final picked = await showModalBottomSheet<String>(
+    final picked = await showLiquidGlassModalBottomSheet<String>(
       context: context,
       showDragHandle: true,
       builder: (ctx) {
@@ -382,10 +382,11 @@ class _AgentChatThreadPageState extends State<AgentChatThreadPage> {
     final t = widget.model.chats.where((x) => x.id == widget.threadId).cast<AgentChatThread?>().firstOrNull;
     final agent = t == null ? null : widget.model.agents.where((a) => a.id == t.agentId).cast<AppAgent?>().firstOrNull;
     final sheetTitle = agent?.kind == AppAgentKind.helper ? 'Attach context (helper)' : 'Attach context';
-    await showModalBottomSheet<void>(
+    await showLiquidGlassModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
       builder: (ctx) {
+        final sheetCs = Theme.of(ctx).colorScheme;
         return Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
@@ -394,11 +395,11 @@ class _AgentChatThreadPageState extends State<AgentChatThreadPage> {
             children: [
               Text(sheetTitle, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
               if (agent?.kind == AppAgentKind.helper)
-                const Padding(
-                  padding: EdgeInsets.only(top: 6),
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
                   child: Text(
                     'Helpers focus on guidance—monthly detail is off by default.',
-                    style: TextStyle(color: AppTheme.slate600, fontSize: 13),
+                    style: TextStyle(color: sheetCs.onSurfaceVariant, fontSize: 13),
                   ),
                 ),
               const SizedBox(height: 8),
@@ -500,6 +501,7 @@ class _AgentChatThreadPageState extends State<AgentChatThreadPage> {
     final provider = _resolveChatProvider(agent: agent, model: widget.model, thread: t);
     final llmBlocked = widget.model.apiKeyFor(provider) == null;
 
+    final cs = Theme.of(context).colorScheme;
     final menuItems = <PopupMenuEntry<String>>[
       const PopupMenuItem(value: 'attach_file', child: Text('Attach file')),
       const PopupMenuItem(value: 'attach_context', child: Text('Attach context')),
@@ -549,12 +551,12 @@ class _AgentChatThreadPageState extends State<AgentChatThreadPage> {
                   onTap: () => _pickAgentForThread(t),
                   child: Text(
                     agent.name,
-                    style: const TextStyle(color: AppTheme.slate900, fontWeight: FontWeight.w900),
+                    style: TextStyle(color: cs.onSurface, fontWeight: FontWeight.w900),
                   ),
                 ),
                 Text(
                   '${_kindLabel(agent.kind)} · ${_routeSubtitle(model: widget.model, agent: agent, thread: t)}',
-                  style: const TextStyle(color: AppTheme.slate600, fontWeight: FontWeight.w700, fontSize: 12),
+                  style: TextStyle(color: cs.onSurfaceVariant, fontWeight: FontWeight.w700, fontSize: 12),
                 ),
               ],
             ),
@@ -566,26 +568,26 @@ class _AgentChatThreadPageState extends State<AgentChatThreadPage> {
         children: [
           if (_pendingAttachments.isNotEmpty)
             Material(
-              color: AppTheme.slate50,
+              color: cs.surfaceContainerHighest,
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(14, 8, 14, 4),
                 child: Text(
                   'Staged: ${_pendingAttachments.map((a) => a.fileName).join(', ')}',
-                  style: const TextStyle(fontSize: 12, color: AppTheme.slate600, fontWeight: FontWeight.w700),
+                  style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant, fontWeight: FontWeight.w700),
                 ),
               ),
             ),
           if (geminiMissing)
             Material(
-              color: AppTheme.slate50,
+              color: cs.surfaceContainerHighest,
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
                 child: Row(
                   children: [
-                    const Expanded(
+                    Expanded(
                       child: Text(
                         'Add a Gemini API key in Settings → API keys to send messages with this researcher on Gemini.',
-                        style: TextStyle(color: AppTheme.slate600, fontSize: 13, height: 1.3),
+                        style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13, height: 1.3),
                       ),
                     ),
                     TextButton(onPressed: widget.onNoKey, child: const Text('Keys')),
@@ -599,8 +601,8 @@ class _AgentChatThreadPageState extends State<AgentChatThreadPage> {
               itemCount: _messages.length,
               itemBuilder: (context, i) {
                 final msg = _messages[i];
-                final bg = msg.fromUser ? widget.model.accent.withValues(alpha: 0.10) : AppTheme.slate50;
-                final border = msg.fromUser ? widget.model.accent.withValues(alpha: 0.25) : AppTheme.slate100;
+                final bg = msg.fromUser ? widget.model.accent.withValues(alpha: 0.10) : cs.surfaceContainerHighest;
+                final border = msg.fromUser ? widget.model.accent.withValues(alpha: 0.25) : cs.outlineVariant;
                 return Align(
                   alignment: msg.fromUser ? Alignment.centerRight : Alignment.centerLeft,
                   child: Container(
@@ -620,10 +622,10 @@ class _AgentChatThreadPageState extends State<AgentChatThreadPage> {
                             padding: const EdgeInsets.only(bottom: 6),
                             child: Text(
                               msg.attachments.map((a) => a.fileName).join('\n'),
-                              style: const TextStyle(color: AppTheme.slate600, fontSize: 12, fontWeight: FontWeight.w700),
+                              style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.w700),
                             ),
                           ),
-                        Text(msg.text, style: const TextStyle(color: AppTheme.slate900)),
+                        Text(msg.text, style: TextStyle(color: cs.onSurface)),
                       ],
                     ),
                   ),
