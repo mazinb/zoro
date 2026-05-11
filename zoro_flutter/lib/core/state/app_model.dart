@@ -4,15 +4,15 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../shared/theme/app_theme.dart';
-import '../chat/chat_local_store.dart';
 import '../chat/chat_message.dart';
 import '../constants/web_expenses_income.dart';
 import '../finance/currency.dart';
 import '../../dev/compile_time_api_keys.dart';
 import '../llm/llm_key_store.dart';
 import '../notifications/notification_service.dart';
-import '../persistence/scheduled_agent_store.dart';
-import '../persistence/user_agents_settings_store.dart';
+import '../persistence/agent_json.dart';
+import '../persistence/app_state_codec.dart' as app_state;
+import '../persistence/app_state_store.dart';
 import '../schedule/scheduled_agent_runner.dart';
 import 'cashflow_income_line.dart';
 import 'internal_app_agent_definition.dart';
@@ -94,10 +94,11 @@ class AppModel extends ChangeNotifier {
         }
       }
 
+      final disk = await AppStateStore.load();
+      if (disk != null) {
+        applyPersistedSnapshot(disk);
+      }
       _syncActiveProviderIfKeyRemoved();
-      await loadPersistedUserAgentsAndSettings();
-      await loadPersistedChats();
-      await loadPersistedScheduledAgentTasks();
       await runDueScheduledAgentTasks();
     } finally {
       _bootstrapped = true;
@@ -112,13 +113,13 @@ class AppModel extends ChangeNotifier {
   /// When true, monetary figures are masked (e.g. on Home and Ledger). Toggled from Home.
   bool privacyHideAmounts = false;
 
-  /// Drives [MaterialApp.themeMode]. Persisted in user settings JSON.
+  /// Drives [MaterialApp.themeMode]. Persisted in [AppStateStore].
   ThemeMode themeModePreference = ThemeMode.system;
 
   void setThemeMode(ThemeMode mode) {
     if (themeModePreference == mode) return;
     themeModePreference = mode;
-    _scheduleUserSettingsPersist();
+    _scheduleAppStatePersist();
     notifyListeners();
   }
 
@@ -127,152 +128,47 @@ class AppModel extends ChangeNotifier {
 
   void setHomeSummaryText(String value) {
     homeSummaryText = value;
-    _scheduleUserSettingsPersist();
+    _scheduleAppStatePersist();
     notifyListeners();
   }
 
   /// Agents (UI-only). Seeded in constructor; replaced when persisted settings load.
   final List<AppAgent> agents = [];
 
-  int _userSettingsPersistRevision = 0;
+  int _appStatePersistRevision = 0;
 
-  void _scheduleUserSettingsPersist() {
-    _userSettingsPersistRevision++;
-    final rev = _userSettingsPersistRevision;
+  void _scheduleAppStatePersist() {
+    _appStatePersistRevision++;
+    final rev = _appStatePersistRevision;
     Future<void> run() async {
-      if (rev != _userSettingsPersistRevision) return;
+      if (rev != _appStatePersistRevision) return;
       try {
-        await UserAgentsSettingsStore.save(
-          agents: List<AppAgent>.from(agents),
-          activeLlmProvider: activeLlmProvider,
-          openAiModel: openAiModel,
-          anthropicModel: anthropicModel,
-          geminiModel: geminiModel,
-          privacyHideAmounts: privacyHideAmounts,
-          homeSummaryText: homeSummaryText,
-          displayCurrency: displayCurrency,
-          homeCurrencyQuickPick1: homeCurrencyQuickPick1,
-          homeCurrencyQuickPick2: homeCurrencyQuickPick2,
-          themeMode: themeModePreference,
-          notifications: NotificationPrefsSnap(
-            notificationsEnabled: notificationsEnabled,
-            reminderNotifyHour: reminderNotifyHour,
-            reminderNotifyMinute: reminderNotifyMinute,
-            remindersLastNotifiedExpenses: remindersLastNotifiedExpenses,
-            remindersLastNotifiedCashflow: remindersLastNotifiedCashflow,
-            remindersLastNotifiedIncome: remindersLastNotifiedIncome,
-            remindersLastNotifiedAssets: remindersLastNotifiedAssets,
-            remindersLastNotifiedLiabilities: remindersLastNotifiedLiabilities,
-            userTouchedExpenses: userTouchedExpenses,
-            userTouchedIncome: userTouchedIncome,
-            userTouchedAssets: userTouchedAssets,
-            userTouchedLiabilities: userTouchedLiabilities,
-          ),
-        );
+        await AppStateStore.save(buildPersistedSnapshot());
       } catch (_) {}
     }
 
     Future.microtask(run);
   }
 
-  Future<void> loadPersistedUserAgentsAndSettings() async {
-    final snap = await UserAgentsSettingsStore.load();
-    if (snap == null) return;
-    if (snap.agents.isNotEmpty) {
-      agents
-        ..clear()
-        ..addAll(snap.agents);
-    }
-    if (snap.activeLlmProvider != null) {
-      activeLlmProvider = snap.activeLlmProvider!;
-    }
-    if (snap.openAiModel != null && snap.openAiModel!.trim().isNotEmpty) {
-      openAiModel = snap.openAiModel!.trim();
-    }
-    if (snap.anthropicModel != null && snap.anthropicModel!.trim().isNotEmpty) {
-      anthropicModel = snap.anthropicModel!.trim();
-    }
-    if (snap.geminiModel != null && snap.geminiModel!.trim().isNotEmpty) {
-      geminiModel = snap.geminiModel!.trim();
-    }
-    if (snap.privacyHideAmounts != null) {
-      privacyHideAmounts = snap.privacyHideAmounts!;
-    }
-    if (snap.homeSummaryText != null) {
-      homeSummaryText = snap.homeSummaryText!;
-    }
-    if (snap.displayCurrency != null) {
-      displayCurrency = snap.displayCurrency!;
-    }
-    if (snap.homeCurrencyQuickPick1 != null) {
-      homeCurrencyQuickPick1 = snap.homeCurrencyQuickPick1!;
-    }
-    if (snap.homeCurrencyQuickPick2 != null) {
-      homeCurrencyQuickPick2 = snap.homeCurrencyQuickPick2!;
-    }
-    if (snap.themeMode != null) {
-      themeModePreference = snap.themeMode!;
-    }
-    final notif = snap.notifications;
-    if (notif != null) {
-      notificationsEnabled = notif.notificationsEnabled;
-      if (notif.reminderNotifyHour != null) {
-        reminderNotifyHour = notif.reminderNotifyHour!.clamp(0, 23);
-      }
-      if (notif.reminderNotifyMinute != null) {
-        reminderNotifyMinute = notif.reminderNotifyMinute!.clamp(0, 59);
-      }
-      remindersLastNotifiedExpenses = notif.remindersLastNotifiedExpenses;
-      remindersLastNotifiedCashflow = notif.remindersLastNotifiedCashflow;
-      remindersLastNotifiedIncome = notif.remindersLastNotifiedIncome;
-      remindersLastNotifiedAssets = notif.remindersLastNotifiedAssets;
-      remindersLastNotifiedLiabilities = notif.remindersLastNotifiedLiabilities;
-      if (notif.userTouchedExpenses != null) userTouchedExpenses = notif.userTouchedExpenses!;
-      if (notif.userTouchedIncome != null) userTouchedIncome = notif.userTouchedIncome!;
-      if (notif.userTouchedAssets != null) userTouchedAssets = notif.userTouchedAssets!;
-      if (notif.userTouchedLiabilities != null) userTouchedLiabilities = notif.userTouchedLiabilities!;
-    }
-    _syncActiveProviderIfKeyRemoved();
-    notifyListeners();
+  Future<void> persistAppStateToDisk() async {
+    try {
+      await AppStateStore.save(buildPersistedSnapshot());
+    } catch (_) {}
   }
 
-  final List<ScheduledAgentTask> scheduledAgentTasks = [];
+  /// Restores state from [AppStateStore] JSON (e.g. after load or in tests).
+  void applyPersistedSnapshot(Map<String, dynamic> root) => _applyAppStateMap(root);
 
-  int _scheduledPersistRevision = 0;
+  /// Full on-disk snapshot (API keys excluded).
+  Map<String, dynamic> buildPersistedSnapshot() => _buildAppStateMap();
 
-  Future<void> loadPersistedScheduledAgentTasks() async {
-    final snap = await ScheduledAgentStore.load();
-    if (snap == null) {
-      scheduledAgentTasks
-        ..clear()
-        ..add(ScheduledAgentTask.defaultMorningBriefing(agentId: morningBriefingAgentId));
-      try {
-        await ScheduledAgentStore.save(scheduledAgentTasks);
-      } catch (_) {}
-    } else {
-      scheduledAgentTasks
-        ..clear()
-        ..addAll(snap);
-    }
-    notifyListeners();
-  }
-
-  void _scheduleScheduledPersist() {
-    _scheduledPersistRevision++;
-    final rev = _scheduledPersistRevision;
-    Future<void> run() async {
-      if (rev != _scheduledPersistRevision) return;
-      try {
-        await ScheduledAgentStore.save(List<ScheduledAgentTask>.from(scheduledAgentTasks));
-      } catch (_) {}
-    }
-
-    Future.microtask(run);
-  }
+  final List<ScheduledAgentTask> scheduledAgentTasks = [
+    ScheduledAgentTask.defaultMorningBriefing(agentId: morningBriefingAgentId),
+  ];
 
   void addScheduledTask(ScheduledAgentTask task) {
     scheduledAgentTasks.add(task);
-    _scheduleScheduledPersist();
+    _scheduleAppStatePersist();
     unawaited(_syncTaskNotification(task));
     notifyListeners();
   }
@@ -280,7 +176,7 @@ class AppModel extends ChangeNotifier {
   void updateScheduledTaskAt(int index, ScheduledAgentTask task) {
     if (index < 0 || index >= scheduledAgentTasks.length) return;
     scheduledAgentTasks[index] = task;
-    _scheduleScheduledPersist();
+    _scheduleAppStatePersist();
     unawaited(_syncTaskNotification(task));
     notifyListeners();
   }
@@ -288,7 +184,7 @@ class AppModel extends ChangeNotifier {
   void removeScheduledTaskAt(int index) {
     if (index < 0 || index >= scheduledAgentTasks.length) return;
     final removed = scheduledAgentTasks.removeAt(index);
-    _scheduleScheduledPersist();
+    _scheduleAppStatePersist();
     unawaited(NotificationService.instance.cancelAgentTask(removed.id));
     notifyListeners();
   }
@@ -307,7 +203,7 @@ class AppModel extends ChangeNotifier {
     final runner = ScheduledAgentRunner();
     final n = await runner.runDueTasks(this, scheduledAgentTasks);
     if (n > 0) {
-      _scheduleScheduledPersist();
+      _scheduleAppStatePersist();
       notifyListeners();
     }
     return n;
@@ -324,6 +220,7 @@ class AppModel extends ChangeNotifier {
 
   void setInternalAgentSystemPrompt(String agentId, String value) {
     _internalAgentSystemPromptById[agentId] = value;
+    _scheduleAppStatePersist();
     notifyListeners();
   }
 
@@ -335,6 +232,7 @@ class AppModel extends ChangeNotifier {
   void recordInternalAgentRun(String agentId, Map<String, Object?> structured) {
     internalAgentLastStructuredById[agentId] = Map<String, Object?>.from(structured);
     internalAgentLastRunById[agentId] = DateTime.now();
+    _scheduleAppStatePersist();
     notifyListeners();
   }
 
@@ -363,14 +261,14 @@ class AppModel extends ChangeNotifier {
   /// Call when a context note is saved outside the usual setters (e.g. new month row).
   void markContextNoteSaved(String storageKey) {
     _touchContextNoteSaved(storageKey);
+    _scheduleAppStatePersist();
     notifyListeners();
   }
 
-  /// Chats are always tied to an agent; threads and messages persist locally (see [bootstrap]).
+  /// Chats are always tied to an agent; threads and messages persist in [AppStateStore].
   final List<AgentChatThread> chats = [];
 
   final Map<String, List<ChatMessage>> _chatMessagesByThreadId = {};
-  int _chatPersistRevision = 0;
 
   List<ChatMessage> chatMessagesFor(String threadId) {
     final list = _chatMessagesByThreadId[threadId];
@@ -380,43 +278,13 @@ class AppModel extends ChangeNotifier {
 
   void setChatMessagesFor(String threadId, List<ChatMessage> messages) {
     _chatMessagesByThreadId[threadId] = List<ChatMessage>.from(messages);
-    _scheduleChatPersist();
+    _scheduleAppStatePersist();
     notifyListeners();
   }
 
   void appendChatMessage(String threadId, ChatMessage message) {
     _chatMessagesByThreadId.putIfAbsent(threadId, () => []).add(message);
-    _scheduleChatPersist();
-    notifyListeners();
-  }
-
-  void _scheduleChatPersist() {
-    _chatPersistRevision++;
-    final rev = _chatPersistRevision;
-    Future<void> run() async {
-      if (rev != _chatPersistRevision) return;
-      try {
-        await ChatLocalStore.save(
-          threads: List<AgentChatThread>.from(chats),
-          messagesByThread: {
-            for (final e in _chatMessagesByThreadId.entries) e.key: List<ChatMessage>.from(e.value),
-          },
-        );
-      } catch (_) {}
-    }
-
-    Future.microtask(run);
-  }
-
-  Future<void> loadPersistedChats() async {
-    final snap = await ChatLocalStore.load();
-    if (snap == null) return;
-    chats
-      ..clear()
-      ..addAll(snap.threads);
-    _chatMessagesByThreadId
-      ..clear()
-      ..addAll(snap.messages);
+    _scheduleAppStatePersist();
     notifyListeners();
   }
 
@@ -511,7 +379,7 @@ class AppModel extends ChangeNotifier {
     if (sav != null) projectionSavingsReturnPctAnnual[next] = sav;
     if (inf != null) projectionInflationPctAnnual[next] = inf;
 
-    _scheduleUserSettingsPersist();
+    _scheduleAppStatePersist();
     notifyListeners();
   }
 
@@ -535,6 +403,7 @@ class AppModel extends ChangeNotifier {
     } else {
       _fxUsdPerUnitOverride[currency] = usdPerUnit;
     }
+    _scheduleAppStatePersist();
     notifyListeners();
   }
 
@@ -581,6 +450,7 @@ class AppModel extends ChangeNotifier {
     if (investPct != null) projectionInvestReturnPctAnnual[c] = investPct.clamp(-20.0, 50.0);
     if (savingsPct != null) projectionSavingsReturnPctAnnual[c] = savingsPct.clamp(-20.0, 50.0);
     if (inflationPct != null) projectionInflationPctAnnual[c] = inflationPct.clamp(-5.0, 50.0);
+    _scheduleAppStatePersist();
     notifyListeners();
   }
 
@@ -886,6 +756,7 @@ class AppModel extends ChangeNotifier {
     primaryIncomeAssetId = id;
     assetsLastReviewed = DateTime.now();
     userTouchedAssets = true;
+    _scheduleAppStatePersist();
     notifyListeners();
   }
 
@@ -899,6 +770,7 @@ class AppModel extends ChangeNotifier {
     _sortAssetsByDisplayValueDescending();
     assetsLastReviewed = DateTime.now();
     userTouchedAssets = true;
+    _scheduleAppStatePersist();
     notifyListeners();
   }
 
@@ -1042,27 +914,27 @@ class AppModel extends ChangeNotifier {
   void setPrivacyHideAmounts(bool value) {
     if (privacyHideAmounts == value) return;
     privacyHideAmounts = value;
-    _scheduleUserSettingsPersist();
+    _scheduleAppStatePersist();
     notifyListeners();
   }
 
   void addAgent(AppAgent agent) {
     agents.add(agent);
-    _scheduleUserSettingsPersist();
+    _scheduleAppStatePersist();
     notifyListeners();
   }
 
   void updateAgent(int index, AppAgent agent) {
     if (index < 0 || index >= agents.length) return;
     agents[index] = agent;
-    _scheduleUserSettingsPersist();
+    _scheduleAppStatePersist();
     notifyListeners();
   }
 
   void removeAgentAt(int index) {
     if (index < 0 || index >= agents.length) return;
     agents.removeAt(index);
-    _scheduleUserSettingsPersist();
+    _scheduleAppStatePersist();
     notifyListeners();
   }
 
@@ -1073,7 +945,7 @@ class AppModel extends ChangeNotifier {
     } else {
       agents.add(incoming);
     }
-    _scheduleUserSettingsPersist();
+    _scheduleAppStatePersist();
     notifyListeners();
   }
 
@@ -1081,7 +953,7 @@ class AppModel extends ChangeNotifier {
     final idx = agents.indexWhere((a) => a.id == id);
     if (idx < 0) return false;
     agents.removeAt(idx);
-    _scheduleUserSettingsPersist();
+    _scheduleAppStatePersist();
     notifyListeners();
     return true;
   }
@@ -1089,7 +961,7 @@ class AppModel extends ChangeNotifier {
   void addChat(AgentChatThread t) {
     chats.add(t);
     _chatMessagesByThreadId.putIfAbsent(t.id, () => []);
-    _scheduleChatPersist();
+    _scheduleAppStatePersist();
     notifyListeners();
   }
 
@@ -1098,7 +970,7 @@ class AppModel extends ChangeNotifier {
     if (idx < 0) return;
     chats.removeAt(idx);
     _chatMessagesByThreadId.remove(id);
-    _scheduleChatPersist();
+    _scheduleAppStatePersist();
     notifyListeners();
   }
 
@@ -1112,21 +984,21 @@ class AppModel extends ChangeNotifier {
     t.lastLine = '';
     chats[idx] = t;
     _chatMessagesByThreadId[id] = [];
-    _scheduleChatPersist();
+    _scheduleAppStatePersist();
     notifyListeners();
   }
 
   void updateChat(int index, AgentChatThread t) {
     if (index < 0 || index >= chats.length) return;
     chats[index] = t;
-    _scheduleChatPersist();
+    _scheduleAppStatePersist();
     notifyListeners();
   }
 
   void setActiveLlmProvider(LlmProvider p) {
     if (activeLlmProvider == p) return;
     activeLlmProvider = p;
-    _scheduleUserSettingsPersist();
+    _scheduleAppStatePersist();
     notifyListeners();
   }
 
@@ -1181,7 +1053,7 @@ class AppModel extends ChangeNotifier {
       case LlmProvider.gemini:
         geminiModel = next;
     }
-    _scheduleUserSettingsPersist();
+    _scheduleAppStatePersist();
     notifyListeners();
   }
 
@@ -1194,26 +1066,31 @@ class AppModel extends ChangeNotifier {
 
   void setReminderCadenceExpenses(ReminderCadence v) {
     remindersExpensesCadence = v;
+    _scheduleAppStatePersist();
     notifyListeners();
   }
 
   void setReminderCadenceCashflow(ReminderCadence v) {
     remindersCashflowCadence = v;
+    _scheduleAppStatePersist();
     notifyListeners();
   }
 
   void setReminderCadenceIncome(ReminderCadence v) {
     remindersIncomeCadence = v;
+    _scheduleAppStatePersist();
     notifyListeners();
   }
 
   void setReminderCadenceAssets(ReminderCadence v) {
     remindersAssetsCadence = v;
+    _scheduleAppStatePersist();
     notifyListeners();
   }
 
   void setReminderCadenceLiabilities(ReminderCadence v) {
     remindersLiabilitiesCadence = v;
+    _scheduleAppStatePersist();
     notifyListeners();
   }
 
@@ -1221,6 +1098,7 @@ class AppModel extends ChangeNotifier {
     final next = d.clamp(1, 28);
     if (remindersMonthlyDayOfMonth == next) return;
     remindersMonthlyDayOfMonth = next;
+    _scheduleAppStatePersist();
     notifyListeners();
   }
 
@@ -1235,6 +1113,7 @@ class AppModel extends ChangeNotifier {
     if (remindersQuarterMonthInQuarter == m && remindersQuarterDay == d) return;
     remindersQuarterMonthInQuarter = m;
     remindersQuarterDay = d;
+    _scheduleAppStatePersist();
     notifyListeners();
   }
 
@@ -1244,13 +1123,14 @@ class AppModel extends ChangeNotifier {
     if (remindersYearlyMonth == m && remindersYearlyDay == d) return;
     remindersYearlyMonth = m;
     remindersYearlyDay = d;
+    _scheduleAppStatePersist();
     notifyListeners();
   }
 
   void setNotificationsEnabled(bool v) {
     if (notificationsEnabled == v) return;
     notificationsEnabled = v;
-    _scheduleUserSettingsPersist();
+    _scheduleAppStatePersist();
     unawaited(syncNotifications());
     notifyListeners();
   }
@@ -1261,7 +1141,7 @@ class AppModel extends ChangeNotifier {
     if (reminderNotifyHour == h && reminderNotifyMinute == m) return;
     reminderNotifyHour = h;
     reminderNotifyMinute = m;
-    _scheduleUserSettingsPersist();
+    _scheduleAppStatePersist();
     unawaited(syncNotifications());
     notifyListeners();
   }
@@ -1282,7 +1162,7 @@ class AppModel extends ChangeNotifier {
       case ReminderDomain.liabilities:
         remindersLastNotifiedLiabilities = t;
     }
-    _scheduleUserSettingsPersist();
+    _scheduleAppStatePersist();
   }
 
   DateTime? reminderLastNotifiedAt(ReminderDomain d) => switch (d) {
@@ -1421,7 +1301,7 @@ class AppModel extends ChangeNotifier {
       }
     }
     syncAllocationsFromFraction();
-    _scheduleUserSettingsPersist();
+    _scheduleAppStatePersist();
     notifyListeners();
   }
 
@@ -1457,6 +1337,7 @@ class AppModel extends ChangeNotifier {
     _sortAssetsByDisplayValueDescending();
     assetsLastReviewed = DateTime.now();
     userTouchedAssets = true;
+    _scheduleAppStatePersist();
     notifyListeners();
   }
 
@@ -1465,6 +1346,7 @@ class AppModel extends ChangeNotifier {
     assets[index] = row;
     assetsLastReviewed = DateTime.now();
     userTouchedAssets = true;
+    _scheduleAppStatePersist();
     notifyListeners();
   }
 
@@ -1477,6 +1359,7 @@ class AppModel extends ChangeNotifier {
     }
     assetsLastReviewed = DateTime.now();
     userTouchedAssets = true;
+    _scheduleAppStatePersist();
     notifyListeners();
   }
 
@@ -1484,6 +1367,7 @@ class AppModel extends ChangeNotifier {
     liabilities.add(row);
     liabilitiesLastReviewed = DateTime.now();
     userTouchedLiabilities = true;
+    _scheduleAppStatePersist();
     notifyListeners();
   }
 
@@ -1492,6 +1376,7 @@ class AppModel extends ChangeNotifier {
     liabilities[index] = row;
     liabilitiesLastReviewed = DateTime.now();
     userTouchedLiabilities = true;
+    _scheduleAppStatePersist();
     notifyListeners();
   }
 
@@ -1500,6 +1385,7 @@ class AppModel extends ChangeNotifier {
     liabilities.removeAt(index);
     liabilitiesLastReviewed = DateTime.now();
     userTouchedLiabilities = true;
+    _scheduleAppStatePersist();
     notifyListeners();
   }
 
@@ -1512,6 +1398,7 @@ class AppModel extends ChangeNotifier {
     incomeLastUpdated = DateTime.now();
     userTouchedIncome = true;
     syncAllocationsFromFraction();
+    _scheduleAppStatePersist();
     notifyListeners();
   }
 
@@ -1521,6 +1408,7 @@ class AppModel extends ChangeNotifier {
     incomeLastUpdated = DateTime.now();
     userTouchedIncome = true;
     syncAllocationsFromFraction();
+    _scheduleAppStatePersist();
     notifyListeners();
   }
 
@@ -1539,6 +1427,7 @@ class AppModel extends ChangeNotifier {
     a.total = total;
     assetsLastReviewed = DateTime.now();
     userTouchedAssets = true;
+    _scheduleAppStatePersist();
     notifyListeners();
     return true;
   }
@@ -1549,6 +1438,7 @@ class AppModel extends ChangeNotifier {
     row.total = total;
     liabilitiesLastReviewed = DateTime.now();
     userTouchedLiabilities = true;
+    _scheduleAppStatePersist();
     notifyListeners();
     return true;
   }
@@ -1557,6 +1447,7 @@ class AppModel extends ChangeNotifier {
     incomeLastUpdated = DateTime.now();
     userTouchedIncome = true;
     syncAllocationsFromFraction();
+    _scheduleAppStatePersist();
     notifyListeners();
   }
 
@@ -1565,6 +1456,7 @@ class AppModel extends ChangeNotifier {
     incomeLastUpdated = DateTime.now();
     userTouchedIncome = true;
     syncAllocationsFromFraction();
+    _scheduleAppStatePersist();
     notifyListeners();
   }
 
@@ -1572,18 +1464,21 @@ class AppModel extends ChangeNotifier {
     expenseBuckets = {...expenseBuckets, key: value};
     userTouchedExpenses = true;
     syncAllocationsFromFraction();
+    _scheduleAppStatePersist();
     notifyListeners();
   }
 
   void markExpenseEstimatesUpdated() {
     expenseEstimatesLastUpdated = DateTime.now();
     userTouchedExpenses = true;
+    _scheduleAppStatePersist();
     notifyListeners();
   }
 
   void setExpenseBucketContextMarkdown({required String bucketKey, required String markdown}) {
     expenseBucketContextMarkdown = {...expenseBucketContextMarkdown, bucketKey: markdown};
     _touchContextNoteSaved(contextKeyBucket(bucketKey));
+    _scheduleAppStatePersist();
     notifyListeners();
   }
 
@@ -1612,17 +1507,20 @@ class AppModel extends ChangeNotifier {
 
   void upsertMonthlyCashflow(MonthlyCashflowEntry entry) {
     monthlyCashflowByMonth[entry.monthKey] = entry;
+    _scheduleAppStatePersist();
     notifyListeners();
   }
 
   /// After editing a [MonthlyInvestmentLine] in place (e.g. Cash → Invest detail sheet).
   void touchMonthlyCashflowChanged() {
+    _scheduleAppStatePersist();
     notifyListeners();
   }
 
   void touchAssetsChanged() {
     assetsLastReviewed = DateTime.now();
     userTouchedAssets = true;
+    _scheduleAppStatePersist();
     notifyListeners();
   }
 
@@ -1631,11 +1529,13 @@ class AppModel extends ChangeNotifier {
     if (e == null) return;
     e.contextMarkdown = markdown.trim();
     _touchContextNoteSaved(contextKeyMonth(monthKey));
+    _scheduleAppStatePersist();
     notifyListeners();
   }
 
   void removeMonthlyCashflow(String monthKey) {
     monthlyCashflowByMonth.remove(monthKey);
+    _scheduleAppStatePersist();
     notifyListeners();
   }
 
@@ -1660,6 +1560,7 @@ class AppModel extends ChangeNotifier {
     assetsLastReviewed = DateTime.now();
     userTouchedAssets = true;
     _touchContextNoteSaved(contextKeyAsset(assetId));
+    _scheduleAppStatePersist();
     notifyListeners();
   }
 
@@ -1670,6 +1571,7 @@ class AppModel extends ChangeNotifier {
     liabilitiesLastReviewed = DateTime.now();
     userTouchedLiabilities = true;
     _touchContextNoteSaved(contextKeyLiability(liabilityId));
+    _scheduleAppStatePersist();
     notifyListeners();
   }
 
@@ -1678,6 +1580,7 @@ class AppModel extends ChangeNotifier {
     if (e == null) return;
     e.contextMarkdown = markdown;
     _touchContextNoteSaved(contextKeyMonth(monthKey));
+    _scheduleAppStatePersist();
     notifyListeners();
   }
 
@@ -1848,6 +1751,7 @@ class AppModel extends ChangeNotifier {
     allocInvestFraction = _quantizeAllocInvestFraction(f);
     allocationTargetLastUpdated = DateTime.now();
     syncAllocationsFromFraction();
+    _scheduleAppStatePersist();
   }
 
   void syncAllocationsFromFraction({bool notify = true}) {
@@ -1868,12 +1772,14 @@ class AppModel extends ChangeNotifier {
       allocInvestFraction = 0;
       allocInvestmentsMonthly = 0;
       allocSavingsMonthly = 0;
+      _scheduleAppStatePersist();
       notifyListeners();
       return;
     }
     allocInvestFraction = _quantizeAllocInvestFraction(v / avail);
     allocationTargetLastUpdated = DateTime.now();
     syncAllocationsFromFraction();
+    _scheduleAppStatePersist();
   }
 
   void setAllocationSavings(double v) {
@@ -1882,16 +1788,380 @@ class AppModel extends ChangeNotifier {
       allocInvestFraction = 0;
       allocInvestmentsMonthly = 0;
       allocSavingsMonthly = 0;
+      _scheduleAppStatePersist();
       notifyListeners();
       return;
     }
     allocInvestFraction = _quantizeAllocInvestFraction(1.0 - (v / avail));
     allocationTargetLastUpdated = DateTime.now();
     syncAllocationsFromFraction();
+    _scheduleAppStatePersist();
   }
 
   void normalizeAllocations({bool notify = true}) {
     syncAllocationsFromFraction(notify: notify);
+  }
+
+  Map<String, dynamic> _buildAppStateMap() {
+    return {
+      'formatVersion': app_state.kAppStateFormatVersion,
+      'savedAtMs': DateTime.now().toUtc().millisecondsSinceEpoch,
+      'settings': {
+        'agents': agents.map(appAgentToJson).toList(),
+        'activeLlmProvider': activeLlmProvider.name,
+        'openAiModel': openAiModel,
+        'anthropicModel': anthropicModel,
+        'geminiModel': geminiModel,
+        'privacyHideAmounts': privacyHideAmounts,
+        'homeSummaryText': homeSummaryText,
+        'displayCurrency': displayCurrency.name,
+        'homeCurrencyQuickPick1': homeCurrencyQuickPick1.name,
+        'homeCurrencyQuickPick2': homeCurrencyQuickPick2.name,
+        'themeMode': themeModePreference.name,
+        'notifications': app_state.encodeNotificationsBlock(this),
+        'remindersExpensesCadence': remindersExpensesCadence.name,
+        'remindersCashflowCadence': remindersCashflowCadence.name,
+        'remindersIncomeCadence': remindersIncomeCadence.name,
+        'remindersAssetsCadence': remindersAssetsCadence.name,
+        'remindersLiabilitiesCadence': remindersLiabilitiesCadence.name,
+        'remindersMonthlyDayOfMonth': remindersMonthlyDayOfMonth,
+        'remindersQuarterMonthInQuarter': remindersQuarterMonthInQuarter,
+        'remindersQuarterDay': remindersQuarterDay,
+        'remindersYearlyMonth': remindersYearlyMonth,
+        'remindersYearlyDay': remindersYearlyDay,
+      },
+      'ledger': {
+        'assets': assets.map(app_state.encodeLedgerAssetRow).toList(),
+        'liabilities': liabilities.map(app_state.encodeLedgerLiabilityRow).toList(),
+        'incomeLines': incomeLines.map(app_state.encodeIncomeLine).toList(),
+        'expenseBuckets': expenseBuckets,
+        'expenseBucketContextMarkdown': expenseBucketContextMarkdown,
+        'monthlyCashflowByMonth': {
+          for (final e in monthlyCashflowByMonth.entries) e.key: app_state.encodeMonthlyCashflowEntry(e.value),
+        },
+        'primaryIncomeAssetId': primaryIncomeAssetId,
+        'effectiveTaxRatePct': effectiveTaxRatePct,
+        'incomeLastUpdated': incomeLastUpdated?.toUtc().toIso8601String(),
+        'expenseEstimatesLastUpdated': expenseEstimatesLastUpdated?.toUtc().toIso8601String(),
+        'allocationTargetLastUpdated': allocationTargetLastUpdated?.toUtc().toIso8601String(),
+        'assetsLastReviewed': assetsLastReviewed?.toUtc().toIso8601String(),
+        'liabilitiesLastReviewed': liabilitiesLastReviewed?.toUtc().toIso8601String(),
+        'allocInvestFraction': allocInvestFraction,
+        'allocInvestmentsMonthly': allocInvestmentsMonthly,
+        'allocSavingsMonthly': allocSavingsMonthly,
+        'fxUsdPerUnitOverride': {
+          for (final e in _fxUsdPerUnitOverride.entries) e.key.name: e.value,
+        },
+        'projectionInvestReturnPctAnnual': app_state.encodeProjectionMap(projectionInvestReturnPctAnnual),
+        'projectionSavingsReturnPctAnnual': app_state.encodeProjectionMap(projectionSavingsReturnPctAnnual),
+        'projectionInflationPctAnnual': app_state.encodeProjectionMap(projectionInflationPctAnnual),
+      },
+      'context': {
+        'noteSavedAtUtc': {
+          for (final e in contextNoteSavedAtUtc.entries) e.key: e.value.toUtc().millisecondsSinceEpoch,
+        },
+      },
+      'internalAgents': {
+        'systemPromptById': Map<String, String>.from(_internalAgentSystemPromptById),
+        'lastStructuredById': {
+          for (final e in internalAgentLastStructuredById.entries) e.key: app_state.tryJsonSafeEncode(e.value),
+        },
+        'lastRunById': {
+          for (final e in internalAgentLastRunById.entries) e.key: e.value.toUtc().millisecondsSinceEpoch,
+        },
+      },
+      'chats': {
+        'version': 2,
+        'threads': chats.map(app_state.encodeChatThread).toList(),
+        'messages': {
+          for (final e in _chatMessagesByThreadId.entries)
+            e.key: e.value.map((m) => m.toJson()).toList(),
+        },
+      },
+      'scheduledTasks': scheduledAgentTasks.map((t) => t.toJson()).toList(),
+    };
+  }
+
+  void _applyAppStateMap(Map<String, dynamic> root) {
+    final settings = root['settings'];
+    if (settings is Map) {
+      final s = Map<String, dynamic>.from(settings);
+      final agentsRaw = s['agents'];
+      if (agentsRaw is List) {
+        agents
+          ..clear()
+          ..addAll([
+            for (final e in agentsRaw)
+              if (appAgentFromJson(e) != null) appAgentFromJson(e)!,
+          ]);
+      }
+      final llm = s['activeLlmProvider']?.toString();
+      if (llm != null) {
+        for (final p in LlmProvider.values) {
+          if (p.name == llm) {
+            activeLlmProvider = p;
+            break;
+          }
+        }
+      }
+      final oa = s['openAiModel']?.toString();
+      if (oa != null && oa.trim().isNotEmpty) openAiModel = oa.trim();
+      final an = s['anthropicModel']?.toString();
+      if (an != null && an.trim().isNotEmpty) anthropicModel = an.trim();
+      final gm = s['geminiModel']?.toString();
+      if (gm != null && gm.trim().isNotEmpty) geminiModel = gm.trim();
+      if (s['privacyHideAmounts'] == true) privacyHideAmounts = true;
+      final h = s['homeSummaryText']?.toString();
+      if (h != null) homeSummaryText = h;
+      final dc = s['displayCurrency']?.toString();
+      if (dc != null) {
+        for (final c in CurrencyCode.values) {
+          if (c.name == dc) {
+            displayCurrency = c;
+            break;
+          }
+        }
+      }
+      final hq1 = s['homeCurrencyQuickPick1']?.toString();
+      if (hq1 != null) {
+        for (final c in CurrencyCode.values) {
+          if (c.name == hq1) {
+            homeCurrencyQuickPick1 = c;
+            break;
+          }
+        }
+      }
+      final hq2 = s['homeCurrencyQuickPick2']?.toString();
+      if (hq2 != null) {
+        for (final c in CurrencyCode.values) {
+          if (c.name == hq2) {
+            homeCurrencyQuickPick2 = c;
+            break;
+          }
+        }
+      }
+      final tm = s['themeMode']?.toString();
+      if (tm != null) {
+        for (final mode in ThemeMode.values) {
+          if (mode.name == tm) {
+            themeModePreference = mode;
+            break;
+          }
+        }
+      }
+      app_state.decodeNotificationsBlock(this, s['notifications']);
+      remindersExpensesCadence = app_state.reminderCadenceFromJson(s['remindersExpensesCadence']);
+      remindersCashflowCadence = app_state.reminderCadenceFromJson(s['remindersCashflowCadence']);
+      remindersIncomeCadence = app_state.reminderCadenceFromJson(s['remindersIncomeCadence']);
+      remindersAssetsCadence = app_state.reminderCadenceFromJson(s['remindersAssetsCadence']);
+      remindersLiabilitiesCadence = app_state.reminderCadenceFromJson(s['remindersLiabilitiesCadence']);
+      final md = s['remindersMonthlyDayOfMonth'];
+      if (md is int) remindersMonthlyDayOfMonth = md.clamp(1, 28);
+      if (md is num) remindersMonthlyDayOfMonth = md.round().clamp(1, 28);
+      final qm = s['remindersQuarterMonthInQuarter'];
+      if (qm is int) remindersQuarterMonthInQuarter = qm.clamp(1, 3);
+      if (qm is num) remindersQuarterMonthInQuarter = qm.round().clamp(1, 3);
+      final qd = s['remindersQuarterDay'];
+      if (qd is int) remindersQuarterDay = qd.clamp(1, 31);
+      if (qd is num) remindersQuarterDay = qd.round().clamp(1, 31);
+      final ym = s['remindersYearlyMonth'];
+      if (ym is int) remindersYearlyMonth = ym.clamp(1, 12);
+      if (ym is num) remindersYearlyMonth = ym.round().clamp(1, 12);
+      final yd = s['remindersYearlyDay'];
+      if (yd is int) remindersYearlyDay = yd.clamp(1, 31);
+      if (yd is num) remindersYearlyDay = yd.round().clamp(1, 31);
+    }
+
+    final ledger = root['ledger'];
+    if (ledger is Map) {
+      final L = Map<String, dynamic>.from(ledger);
+      final assetsRaw = L['assets'];
+      if (assetsRaw is List) {
+        assets
+          ..clear()
+          ..addAll([
+            for (final e in assetsRaw)
+              if (app_state.decodeLedgerAssetRow(e) != null) app_state.decodeLedgerAssetRow(e)!,
+          ]);
+      }
+      final liabRaw = L['liabilities'];
+      if (liabRaw is List) {
+        liabilities
+          ..clear()
+          ..addAll([
+            for (final e in liabRaw)
+              if (app_state.decodeLedgerLiabilityRow(e) != null) app_state.decodeLedgerLiabilityRow(e)!,
+          ]);
+      }
+      final incRaw = L['incomeLines'];
+      if (incRaw is List) {
+        incomeLines
+          ..clear()
+          ..addAll([
+            for (final e in incRaw)
+              if (app_state.decodeIncomeLine(e) != null) app_state.decodeIncomeLine(e)!,
+          ]);
+      }
+      final eb = L['expenseBuckets'];
+      if (eb is Map) {
+        for (final k in expenseBucketKeys) {
+          final v = eb[k];
+          final d = v is num ? v.toDouble() : double.tryParse(v?.toString() ?? '');
+          if (d != null) expenseBuckets[k] = d;
+        }
+      }
+      final ectx = L['expenseBucketContextMarkdown'];
+      if (ectx is Map) {
+        for (final e in ectx.entries) {
+          final key = e.key.toString();
+          if (expenseBucketKeys.contains(key)) {
+            expenseBucketContextMarkdown[key] = e.value?.toString() ?? '';
+          }
+        }
+      }
+      final mc = L['monthlyCashflowByMonth'];
+      if (mc is Map) {
+        monthlyCashflowByMonth.clear();
+        for (final e in mc.entries) {
+          final entry = app_state.decodeMonthlyCashflowEntry(e.value);
+          if (entry != null) monthlyCashflowByMonth[e.key.toString()] = entry;
+        }
+      }
+      final pid = L['primaryIncomeAssetId']?.toString();
+      primaryIncomeAssetId = (pid == null || pid.isEmpty) ? null : pid;
+      if (L.containsKey('effectiveTaxRatePct')) {
+        final tax = L['effectiveTaxRatePct'];
+        effectiveTaxRatePct = tax == null ? null : (tax is num ? tax.toDouble() : double.tryParse(tax.toString()));
+      }
+      incomeLastUpdated = app_state.dateTimeFromJsonField(L['incomeLastUpdated']);
+      expenseEstimatesLastUpdated = app_state.dateTimeFromJsonField(L['expenseEstimatesLastUpdated']);
+      allocationTargetLastUpdated = app_state.dateTimeFromJsonField(L['allocationTargetLastUpdated']);
+      assetsLastReviewed = app_state.dateTimeFromJsonField(L['assetsLastReviewed']);
+      liabilitiesLastReviewed = app_state.dateTimeFromJsonField(L['liabilitiesLastReviewed']);
+      final aif = L['allocInvestFraction'];
+      if (aif is num) allocInvestFraction = aif.toDouble();
+      final aim = L['allocInvestmentsMonthly'];
+      if (aim is num) allocInvestmentsMonthly = aim.toDouble();
+      final asm = L['allocSavingsMonthly'];
+      if (asm is num) allocSavingsMonthly = asm.toDouble();
+      _fxUsdPerUnitOverride.clear();
+      final fx = L['fxUsdPerUnitOverride'];
+      if (fx is Map) {
+        for (final e in fx.entries) {
+          final name = e.key.toString();
+          CurrencyCode? c;
+          for (final x in CurrencyCode.values) {
+            if (x.name == name) {
+              c = x;
+              break;
+            }
+          }
+          if (c == null || c == CurrencyCode.usd) continue;
+          final v = e.value;
+          final d = v is num ? v.toDouble() : double.tryParse(v?.toString() ?? '');
+          if (d != null && d > 0) _fxUsdPerUnitOverride[c] = d;
+        }
+      }
+      app_state.decodeProjectionMap(projectionInvestReturnPctAnnual, L['projectionInvestReturnPctAnnual']);
+      app_state.decodeProjectionMap(projectionSavingsReturnPctAnnual, L['projectionSavingsReturnPctAnnual']);
+      app_state.decodeProjectionMap(projectionInflationPctAnnual, L['projectionInflationPctAnnual']);
+    }
+
+    final ctx = root['context'];
+    if (ctx is Map) {
+      final c = Map<String, dynamic>.from(ctx);
+      final at = c['noteSavedAtUtc'];
+      contextNoteSavedAtUtc.clear();
+      if (at is Map) {
+        for (final e in at.entries) {
+          final ms = e.value;
+          if (ms is int) {
+            contextNoteSavedAtUtc[e.key.toString()] = DateTime.fromMillisecondsSinceEpoch(ms, isUtc: true);
+          } else if (ms is num) {
+            contextNoteSavedAtUtc[e.key.toString()] = DateTime.fromMillisecondsSinceEpoch(ms.round(), isUtc: true);
+          }
+        }
+      }
+    }
+
+    final ia = root['internalAgents'];
+    if (ia is Map) {
+      final im = Map<String, dynamic>.from(ia);
+      _internalAgentSystemPromptById.clear();
+      internalAgentLastStructuredById.clear();
+      internalAgentLastRunById.clear();
+      final sp = im['systemPromptById'];
+      if (sp is Map) {
+        for (final e in sp.entries) {
+          _internalAgentSystemPromptById[e.key.toString()] = e.value?.toString() ?? '';
+        }
+      }
+      final st = im['lastStructuredById'];
+      if (st is Map) {
+        for (final e in st.entries) {
+          final key = e.key.toString();
+          final val = e.value;
+          if (val is Map) {
+            final m = Map<String, dynamic>.from(val);
+            internalAgentLastStructuredById[key] = m.map((k, v) => MapEntry(k.toString(), v as Object?));
+          }
+        }
+      }
+      final lr = im['lastRunById'];
+      if (lr is Map) {
+        for (final e in lr.entries) {
+          final ms = e.value;
+          if (ms is int) {
+            internalAgentLastRunById[e.key.toString()] = DateTime.fromMillisecondsSinceEpoch(ms, isUtc: true);
+          } else if (ms is num) {
+            internalAgentLastRunById[e.key.toString()] = DateTime.fromMillisecondsSinceEpoch(ms.round(), isUtc: true);
+          }
+        }
+      }
+    }
+
+    final chatsRoot = root['chats'];
+    if (chatsRoot is Map) {
+      final ch = Map<String, dynamic>.from(chatsRoot);
+      chats.clear();
+      _chatMessagesByThreadId.clear();
+      final threadsRaw = ch['threads'];
+      if (threadsRaw is List) {
+        for (final e in threadsRaw) {
+          final t = app_state.decodeChatThread(e);
+          if (t != null) {
+            chats.add(t);
+            _chatMessagesByThreadId.putIfAbsent(t.id, () => []);
+          }
+        }
+      }
+      final msgRoot = ch['messages'];
+      if (msgRoot is Map) {
+        for (final e in msgRoot.entries) {
+          final id = e.key.toString();
+          final list = e.value;
+          if (list is! List) continue;
+          final out = <ChatMessage>[];
+          for (final row in list) {
+            final cm = ChatMessage.fromJson(row);
+            if (cm != null) out.add(cm);
+          }
+          _chatMessagesByThreadId[id] = out;
+        }
+      }
+    }
+
+    final sched = root['scheduledTasks'];
+    if (sched is List) {
+      scheduledAgentTasks
+        ..clear()
+        ..addAll([
+          for (final e in sched)
+            if (ScheduledAgentTask.fromJson(e) != null) ScheduledAgentTask.fromJson(e)!,
+        ]);
+    }
+
+    syncAllocationsFromFraction(notify: false);
   }
 
   ThemeData themedLight() {

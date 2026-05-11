@@ -1989,11 +1989,11 @@ class _NotificationsCardState extends State<_NotificationsCard> {
     }
   }
 
-  String _authLabel() => switch (_authStatus) {
-        NotificationAuthStatus.authorized => 'Granted',
-        NotificationAuthStatus.denied => 'Blocked in System Settings',
-        NotificationAuthStatus.unknown => 'Checking…',
+  String _permissionRowText() => switch (_authStatus) {
+        NotificationAuthStatus.denied => 'Disabled in system settings',
+        NotificationAuthStatus.unknown => 'Checking system settings',
         NotificationAuthStatus.unsupported => 'Not supported',
+        NotificationAuthStatus.authorized => '',
       };
 
   Color _authColor(ColorScheme scheme) => switch (_authStatus) {
@@ -2032,7 +2032,7 @@ class _NotificationsCardState extends State<_NotificationsCard> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      'OS permission: ${_authLabel()}',
+                      _permissionRowText(),
                       style: TextStyle(color: _authColor(scheme), fontSize: 12, fontWeight: FontWeight.w700),
                     ),
                   ),

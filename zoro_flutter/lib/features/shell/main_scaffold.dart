@@ -93,6 +93,9 @@ class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused || state == AppLifecycleState.detached) {
+      unawaited(widget.model.persistAppStateToDisk());
+    }
     if (state == AppLifecycleState.resumed) {
       widget.model.runDueScheduledAgentTasks();
     }
