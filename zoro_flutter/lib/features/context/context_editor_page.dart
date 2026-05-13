@@ -5,8 +5,8 @@ import 'package:flutter/material.dart';
 
 import '../../core/constants/web_expenses_income.dart';
 import '../../core/import/document_ingest.dart';
+import '../../core/llm/active_llm_completion.dart';
 import '../../core/llm/llm_client.dart';
-import '../../core/llm/llm_json.dart';
 import '../../core/state/app_model.dart';
 import '../../core/state/internal_app_agent_definition.dart';
 import '../../core/state/ledger_rows.dart';
@@ -277,7 +277,20 @@ class _ContextEditorPageState extends State<ContextEditorPage> {
     );
     if (!mounted || res == null) return;
     setState(() => _ctrl.text = res.contextMarkdown);
+    widget.onSave(res.contextMarkdown);
     widget.model.recordInternalAgentRun(widget._plannerAgentId, res.structured);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          (res.structured['summary']?.toString().trim().isNotEmpty ?? false)
+              ? 'Saved: ${res.structured['summary']}'
+              : 'Context saved from planner',
+        ),
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 5),
+      ),
+    );
   }
 
   Future<void> _openAssistantOptions() async {
@@ -426,7 +439,7 @@ class _ContextEditorPageState extends State<ContextEditorPage> {
         maxOutputTokens: 1800,
         preferJsonObjectOutput: m.activeLlmProvider == LlmProvider.openai,
       );
-      final obj = decodeLlmJsonObject(raw);
+      final obj = await decodeActiveProviderJsonWithRepair(m, raw);
       final md = obj['contextMarkdown']?.toString().trim();
       if (md == null || md.isEmpty) {
         throw const FormatException(
@@ -440,11 +453,17 @@ class _ContextEditorPageState extends State<ContextEditorPage> {
 
       if (!mounted) return;
       setState(() => _ctrl.text = md);
+      widget.onSave(md);
       widget.model.recordInternalAgentRun(widget._plannerAgentId, structured);
       messenger.showSnackBar(
-        const SnackBar(
-          content: Text('Context updated from upload'),
+        SnackBar(
+          content: Text(
+            structured['summary']?.toString().trim().isNotEmpty == true
+                ? 'Saved: ${structured['summary']}'
+                : 'Context updated and saved',
+          ),
           behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 5),
         ),
       );
     } catch (e) {
@@ -552,6 +571,32 @@ class _ContextEditorPageState extends State<ContextEditorPage> {
     );
   }
 
+  Widget _previewAssistantBar() {
+    if (!widget._hasPlanner) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+      child: Row(
+        children: [
+          Expanded(
+            child: OutlinedButton.icon(
+              onPressed: _openAssistantOptions,
+              icon: const Icon(Icons.auto_awesome_outlined, size: 18),
+              label: const Text('Update with AI'),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: OutlinedButton.icon(
+              onPressed: _openEdit,
+              icon: const Icon(Icons.edit_outlined, size: 18),
+              label: const Text('Edit'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -588,27 +633,34 @@ class _ContextEditorPageState extends State<ContextEditorPage> {
                     ],
             ),
             body: SafeArea(
-              child: _editing
-                  ? Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-                      child: SizedBox.expand(
-                        child: TextField(
-                          controller: _ctrl,
-                          expands: true,
-                          maxLines: null,
-                          minLines: null,
-                          keyboardType: TextInputType.multiline,
-                          textAlignVertical: TextAlignVertical.top,
-                          decoration: InputDecoration(
-                            border: const OutlineInputBorder(),
-                            hintText: _fieldHint,
-                            contentPadding: const EdgeInsets.all(12),
-                            isDense: false,
-                          ),
-                        ),
-                      ),
-                    )
-                  : _buildPreviewBody(),
+              child: Column(
+                children: [
+                  Expanded(
+                    child: _editing
+                        ? Padding(
+                            padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+                            child: SizedBox.expand(
+                              child: TextField(
+                                controller: _ctrl,
+                                expands: true,
+                                maxLines: null,
+                                minLines: null,
+                                keyboardType: TextInputType.multiline,
+                                textAlignVertical: TextAlignVertical.top,
+                                decoration: InputDecoration(
+                                  border: const OutlineInputBorder(),
+                                  hintText: _fieldHint,
+                                  contentPadding: const EdgeInsets.all(12),
+                                  isDense: false,
+                                ),
+                              ),
+                            ),
+                          )
+                        : _buildPreviewBody(),
+                  ),
+                  if (!_editing) _previewAssistantBar(),
+                ],
+              ),
             ),
           ),
         );

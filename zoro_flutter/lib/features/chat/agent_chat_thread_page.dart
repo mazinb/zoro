@@ -150,6 +150,7 @@ class _AgentChatThreadPageState extends State<AgentChatThreadPage> {
                       decoration: const InputDecoration(labelText: 'LLM route', border: OutlineInputBorder()),
                       items: const [
                         DropdownMenuItem(value: AgentChatLlmOverride.useDefault, child: Text('Default (agent + global)')),
+                        DropdownMenuItem(value: AgentChatLlmOverride.appleFoundation, child: Text('Apple on-device')),
                         DropdownMenuItem(value: AgentChatLlmOverride.openai, child: Text('OpenAI')),
                         DropdownMenuItem(value: AgentChatLlmOverride.anthropic, child: Text('Anthropic')),
                         DropdownMenuItem(value: AgentChatLlmOverride.gemini, child: Text('Gemini')),
@@ -372,6 +373,7 @@ class _AgentChatThreadPageState extends State<AgentChatThreadPage> {
     required AgentChatThread thread,
   }) {
     final override = thread.llmOverride;
+    if (override == AgentChatLlmOverride.appleFoundation) return LlmProvider.appleFoundation;
     if (override == AgentChatLlmOverride.openai) return LlmProvider.openai;
     if (override == AgentChatLlmOverride.anthropic) return LlmProvider.anthropic;
     if (override == AgentChatLlmOverride.gemini) return LlmProvider.gemini;
@@ -469,12 +471,14 @@ class _AgentChatThreadPageState extends State<AgentChatThreadPage> {
   static String _routeSubtitle({required AppModel model, required AppAgent agent, required AgentChatThread thread}) {
     final provider = (() {
       final override = thread.llmOverride;
+      if (override == AgentChatLlmOverride.appleFoundation) return LlmProvider.appleFoundation;
       if (override == AgentChatLlmOverride.openai) return LlmProvider.openai;
       if (override == AgentChatLlmOverride.anthropic) return LlmProvider.anthropic;
       if (override == AgentChatLlmOverride.gemini) return LlmProvider.gemini;
       return llmProviderForUserAgent(agent, model);
     })();
     final label = switch (provider) {
+      LlmProvider.appleFoundation => 'Apple',
       LlmProvider.openai => 'GPT',
       LlmProvider.anthropic => 'Claude',
       LlmProvider.gemini => 'Gemini',

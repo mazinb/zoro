@@ -1,5 +1,6 @@
 import '../state/app_model.dart';
 import 'llm_client.dart';
+import 'llm_json.dart';
 
 /// Uses [AppModel.activeLlmProvider] (cloud API key or on-device model).
 Future<String> completeForActiveProvider(
@@ -22,5 +23,24 @@ Future<String> completeForActiveProvider(
     user: user,
     maxOutputTokens: maxOutputTokens,
     preferJsonObjectOutput: preferJsonObjectOutput && provider == LlmProvider.openai,
+  );
+}
+
+/// Parses model JSON; on failure runs one repair pass via the active provider.
+Future<Map<String, dynamic>> decodeActiveProviderJsonWithRepair(
+  AppModel model,
+  String raw, {
+  int maxRepairTokens = 8192,
+}) {
+  return decodeLlmJsonObjectWithRepair(
+    raw,
+    repairWith: (broken) => completeForActiveProvider(
+      model,
+      system:
+          'You only fix broken JSON. Return a single valid JSON object preserving schema and meaning. No markdown fences or prose outside JSON.',
+      user: broken,
+      maxOutputTokens: maxRepairTokens,
+      preferJsonObjectOutput: model.activeLlmProvider == LlmProvider.openai,
+    ),
   );
 }

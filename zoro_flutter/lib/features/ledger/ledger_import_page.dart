@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/import/document_ingest.dart';
+import '../../core/llm/llm_error_helpers.dart';
 import '../../core/llm/llm_json.dart';
 import '../../core/llm/llm_client.dart';
 import '../../core/finance/currency.dart';
@@ -47,6 +48,9 @@ class _LedgerImportPageState extends State<LedgerImportPage> {
   bool _busy = false;
   String? _error;
 
+  /// When null, use [AppModel.activeLlmProvider].
+  LlmProvider? _importProviderOverride;
+
   List<PlatformFile> _pickedFiles = const [];
   String? _pickedText;
 
@@ -76,6 +80,9 @@ class _LedgerImportPageState extends State<LedgerImportPage> {
         : 'Import liability(s)',
     LedgerImportKind.cashflow => 'Import cashflow',
   };
+
+  LlmProvider get _effectiveImportProvider =>
+      _importProviderOverride ?? widget.model.activeLlmProvider;
 
   String get _internalAgentId => switch (widget.kind) {
     LedgerImportKind.asset => InternalAppAgentIds.ledgerAddAssets,
@@ -172,6 +179,10 @@ Rules (cashflow):
     return switch (widget.kind) {
       LedgerImportKind.asset => {
         'displayCurrency': m.displayCurrency.name,
+        'currencyNote':
+            'displayCurrency is only for how amounts are formatted in the app UI. '
+            'Set each asset currencyCountry from the statement or institution (e.g. India fund → India); '
+            'do not copy displayCurrency into currencyCountry unless the document is actually in that currency.',
         if (widget.editAssetId != null) ...{
           'mode': 'updateExistingRow',
           'targetAssetId': widget.editAssetId,
@@ -282,7 +293,8 @@ IMPORTANT — UPDATE EXISTING ASSET ROW
 The user is editing saved asset id "${widget.editAssetId}" (same real-world account).
 Return exactly ONE object in "assets" with the updated account-level total and refreshed fields.
 The app will keep id "${widget.editAssetId}". Use "total" for the full account value; put holdings/positions breakdown in "contextMarkdown".
-"comment" = import provenance + statement or screenshot date when known. "contextMarkdown" = what is actually in that account.''';
+"comment" = import provenance + statement or screenshot date when known. "contextMarkdown" = what is actually in that account.
+Preserve the existing row currencyCountry unless the document clearly shows a different legal/statement currency.''';
     }
     if (widget.editLiabilityId != null) {
       return '''
@@ -400,7 +412,7 @@ Infer **monthKey** from the document or statement period; use this hint only if 
 
   Future<void> _extract() async {
     final m = widget.model;
-    final provider = m.activeLlmProvider;
+    final provider = _effectiveImportProvider;
     final key = m.apiKeyFor(provider);
     if (key == null) {
       setState(() => _error = 'Add an API key in Settings → API keys first.');
@@ -418,6 +430,19 @@ Infer **monthKey** from the document or statement period; use this hint only if 
         requestPdfPassword: _requestPdfPassword,
       );
 
+      if (provider == LlmProvider.appleFoundation && bundle.attachments.isNotEmpty) {
+        setState(() {
+          _busy = false;
+          _error = _importErrorWithSuggestions(
+            m,
+            provider,
+            'Apple on-device cannot use images or raw PDF bytes for this import. '
+            'Pick OpenAI or Gemini (or turn off Apple and use Anthropic text-only after local PDF extract).',
+          );
+        });
+        return;
+      }
+
       final userPrompt = [
         'Files: ${_pickedFiles.map((f) => f.name).join(', ')}',
         '',
@@ -434,19 +459,30 @@ Infer **monthKey** from the document or statement period; use this hint only if 
         ],
       ].join('\n').trim();
 
-      final raw = await LlmClient().complete(
-        provider: provider,
-        apiKey: key,
-        model: m.modelFor(provider),
-        system: _systemPrompt(),
-        user: userPrompt,
-        attachments: bundle.attachments,
-        // Imports can return large JSON; low limits truncate mid-string and break jsonDecode.
-        maxOutputTokens: 8192,
-        preferJsonObjectOutput:
-            provider == LlmProvider.openai || provider == LlmProvider.gemini,
+      Future<String> runComplete(String system, String user, {bool? preferJson}) async {
+        return LlmClient().complete(
+          provider: provider,
+          apiKey: key,
+          model: m.modelFor(provider),
+          system: system,
+          user: user,
+          attachments: bundle.attachments,
+          maxOutputTokens: 8192,
+          preferJsonObjectOutput:
+              preferJson ?? (provider == LlmProvider.openai || provider == LlmProvider.gemini),
+        );
+      }
+
+      final raw = await runComplete(_systemPrompt(), userPrompt);
+      final obj = await decodeLlmJsonObjectWithRepair(
+        raw,
+        repairWith: (broken) => runComplete(
+          'You fix JSON only. Return a single valid JSON object with the same schema and meaning as the broken output. '
+              'No markdown fences, no commentary, no prose outside the JSON.',
+          broken,
+          preferJson: provider == LlmProvider.openai || provider == LlmProvider.gemini,
+        ),
       );
-      final obj = decodeLlmJsonObject(raw);
 
       if (widget.kind == LedgerImportKind.asset) {
         final list = obj['assets'];
@@ -603,7 +639,7 @@ Infer **monthKey** from the document or statement period; use this hint only if 
         });
       }
     } catch (e) {
-      setState(() => _error = e.toString());
+      setState(() => _error = _importErrorWithSuggestions(m, _effectiveImportProvider, e.toString()));
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -1092,6 +1128,63 @@ Infer **monthKey** from the document or statement period; use this hint only if 
     ];
   }
 
+  String _importErrorWithSuggestions(AppModel m, LlmProvider current, String base) {
+    final hint = otherLlmSuggestionLine(m, current: current);
+    final ctx = messageLooksLikeContextOrTokenLimit(base)
+        ? 'Large PDFs / long extracts need a bigger on-device or cloud context — try Gemini or OpenAI if you have a key.'
+        : '';
+    if (ctx.isEmpty && hint == null) return base;
+    return '$base${ctx.isEmpty ? '' : '\n\n$ctx'}${hint == null ? '' : '\n\n$hint'}';
+  }
+
+  Widget _buildImportModelSwitcher(BuildContext context) {
+    return ListenableBuilder(
+      listenable: widget.model,
+      builder: (context, _) {
+        final m = widget.model;
+        final ready = llmProvidersReady(m);
+        if (ready.isEmpty) return const SizedBox.shrink();
+        final cs = Theme.of(context).colorScheme;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Model for this import',
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                color: cs.onSurfaceVariant,
+                fontSize: 12,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                ChoiceChip(
+                  label: Text('Settings default (${shortLlmLabel(m.activeLlmProvider)})'),
+                  selected: _importProviderOverride == null,
+                  onSelected: (v) {
+                    if (v) setState(() => _importProviderOverride = null);
+                  },
+                ),
+                for (final p in ready)
+                  ChoiceChip(
+                    label: Text(shortLlmLabel(p)),
+                    selected: _importProviderOverride == p,
+                    onSelected: (v) {
+                      if (v) setState(() => _importProviderOverride = p);
+                    },
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+          ],
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final muted = Theme.of(context).colorScheme.onSurfaceVariant;
@@ -1138,6 +1231,8 @@ Infer **monthKey** from the document or statement period; use this hint only if 
                 ),
               ],
             ),
+            const SizedBox(height: 12),
+            _buildImportModelSwitcher(context),
             const SizedBox(height: 12),
             if (_busy)
               const LinearProgressIndicator(minHeight: 3)

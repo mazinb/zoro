@@ -23,6 +23,7 @@ class ChatTab extends StatefulWidget {
 
 class _ChatTabState extends State<ChatTab> {
   static String _providerShortLabel(LlmProvider p) => switch (p) {
+        LlmProvider.appleFoundation => 'Apple',
         LlmProvider.openai => 'GPT',
         LlmProvider.anthropic => 'Claude',
         LlmProvider.gemini => 'Gemini',

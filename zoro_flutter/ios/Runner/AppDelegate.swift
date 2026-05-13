@@ -29,5 +29,6 @@ import workmanager_apple
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+    AppleFoundationModelsPlugin.register(with: engineBridge.applicationRegistrar.messenger())
   }
 }

@@ -80,6 +80,9 @@ class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver
       }
       // Sync OS schedules with persisted preferences once the model is ready.
       widget.model.syncNotifications();
+      // Foreground catch-up: if Workmanager missed the user's notify slot
+      // we still want exactly one rotation push to land today.
+      unawaited(widget.model.maybePostDailyReminder());
     });
   }
 
@@ -98,6 +101,7 @@ class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver
     }
     if (state == AppLifecycleState.resumed) {
       widget.model.runDueScheduledAgentTasks();
+      unawaited(widget.model.maybePostDailyReminder());
     }
   }
 

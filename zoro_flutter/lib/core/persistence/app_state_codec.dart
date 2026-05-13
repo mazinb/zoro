@@ -276,6 +276,8 @@ Map<String, dynamic> encodeNotificationsBlock(AppModel m) {
     if (toMs(m.remindersLastNotifiedIncome) != null) 'lastIncomeMs': toMs(m.remindersLastNotifiedIncome),
     if (toMs(m.remindersLastNotifiedAssets) != null) 'lastAssetsMs': toMs(m.remindersLastNotifiedAssets),
     if (toMs(m.remindersLastNotifiedLiabilities) != null) 'lastLiabilitiesMs': toMs(m.remindersLastNotifiedLiabilities),
+    if (toMs(m.remindersLastFiredOn) != null) 'lastFiredOnMs': toMs(m.remindersLastFiredOn),
+    if (m.remindersLastFiredDomain != null) 'lastFiredDomain': m.remindersLastFiredDomain!.name,
     'userTouchedExpenses': m.userTouchedExpenses,
     'userTouchedIncome': m.userTouchedIncome,
     'userTouchedAssets': m.userTouchedAssets,
@@ -298,6 +300,16 @@ void decodeNotificationsBlock(AppModel m, Object? raw) {
   m.remindersLastNotifiedIncome = dateTimeFromJsonField(n['lastIncomeMs']);
   m.remindersLastNotifiedAssets = dateTimeFromJsonField(n['lastAssetsMs']);
   m.remindersLastNotifiedLiabilities = dateTimeFromJsonField(n['lastLiabilitiesMs']);
+  m.remindersLastFiredOn = dateTimeFromJsonField(n['lastFiredOnMs']);
+  final firedName = n['lastFiredDomain']?.toString();
+  if (firedName != null) {
+    for (final d in ReminderDomain.values) {
+      if (d.name == firedName) {
+        m.remindersLastFiredDomain = d;
+        break;
+      }
+    }
+  }
   if (n['userTouchedExpenses'] == true) m.userTouchedExpenses = true;
   if (n['userTouchedIncome'] == true) m.userTouchedIncome = true;
   if (n['userTouchedAssets'] == true) m.userTouchedAssets = true;

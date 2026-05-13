@@ -403,6 +403,7 @@ bool _applyOne(String op, Map<String, dynamic> a, {required AppAgent agent, requ
       if (!agent.toolSettingsAdmin) return false;
       final name = a['provider']?.toString().trim().toLowerCase();
       final p = switch (name) {
+        'apple' || 'apple_foundation' || 'applefoundation' => LlmProvider.appleFoundation,
         'openai' => LlmProvider.openai,
         'anthropic' => LlmProvider.anthropic,
         'gemini' => LlmProvider.gemini,
@@ -415,14 +416,17 @@ bool _applyOne(String op, Map<String, dynamic> a, {required AppAgent agent, requ
       if (!agent.toolSettingsAdmin) return false;
       final name = a['provider']?.toString().trim().toLowerCase();
       final p = switch (name) {
+        'apple' || 'apple_foundation' || 'applefoundation' => LlmProvider.appleFoundation,
         'openai' => LlmProvider.openai,
         'anthropic' => LlmProvider.anthropic,
         'gemini' => LlmProvider.gemini,
         _ => null,
       };
       final m = a['model']?.toString().trim();
-      if (p == null || m == null || m.isEmpty) return false;
-      model.setModelFor(p, m);
+      if (p == null) return false;
+      if (p != LlmProvider.appleFoundation && (m == null || m.isEmpty)) return false;
+      if (p == LlmProvider.appleFoundation) return true;
+      model.setModelFor(p, m!);
       return true;
     case 'set_privacy_hide_amounts':
       if (!agent.toolSettingsAdmin) return false;

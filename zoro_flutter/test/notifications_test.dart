@@ -125,20 +125,6 @@ void main() {
       expect(m.isReminderNotifiable(ReminderDomain.expenses, now: now), isTrue);
     });
 
-    test('dismiss back-off prevents re-buzz within the same cadence period', () {
-      final m = AppModel();
-      m.notificationsEnabled = true;
-      m.remindersAssetsCadence = ReminderCadence.monthly;
-      m.userTouchedAssets = true;
-      m.assetsLastReviewed = DateTime(2030, 4, 10);
-      final now = DateTime(2030, 6, 15);
-      expect(m.isReminderNotifiable(ReminderDomain.assets, now: now), isTrue);
-      m.markDomainNotified(ReminderDomain.assets, at: DateTime(2030, 6, 14));
-      expect(m.isReminderNotifiable(ReminderDomain.assets, now: now), isFalse);
-      // Next month — back to eligible.
-      expect(m.isReminderNotifiable(ReminderDomain.assets, now: DateTime(2030, 7, 2)), isTrue);
-    });
-
     test('cashflow gates on imported months rather than userTouched', () {
       final m = AppModel();
       m.notificationsEnabled = true;
@@ -146,6 +132,94 @@ void main() {
       final now = DateTime(2030, 6, 15);
       // No months imported yet → never overdue for notifications.
       expect(m.isReminderNotifiable(ReminderDomain.cashflow, now: now), isFalse);
+    });
+  });
+
+  group('AppModel daily rotation gate', () {
+    AppModel modelWithEligible({required Iterable<ReminderDomain> domains}) {
+      final m = AppModel();
+      m.notificationsEnabled = true;
+      m.reminderNotifyHour = 9;
+      m.reminderNotifyMinute = 0;
+      for (final d in domains) {
+        switch (d) {
+          case ReminderDomain.expenses:
+            m.remindersExpensesCadence = ReminderCadence.monthly;
+            m.userTouchedExpenses = true;
+            m.expenseEstimatesLastUpdated = DateTime(2030, 1, 1);
+          case ReminderDomain.cashflow:
+            // Cashflow eligibility relies on imported months, which require
+            // populating MonthlyCashflowEntry. Skip for the rotation tests.
+            throw UnsupportedError('cashflow not used in rotation tests');
+          case ReminderDomain.income:
+            m.remindersIncomeCadence = ReminderCadence.monthly;
+            m.userTouchedIncome = true;
+            m.incomeLastUpdated = DateTime(2030, 1, 1);
+          case ReminderDomain.assets:
+            m.remindersAssetsCadence = ReminderCadence.monthly;
+            m.userTouchedAssets = true;
+            m.assetsLastReviewed = DateTime(2030, 1, 1);
+          case ReminderDomain.liabilities:
+            m.remindersLiabilitiesCadence = ReminderCadence.monthly;
+            m.userTouchedLiabilities = true;
+            m.liabilitiesLastReviewed = DateTime(2030, 1, 1);
+        }
+      }
+      return m;
+    }
+
+    test('canFireDailyReminderNow honors the notify hour and master switch', () {
+      final m = modelWithEligible(domains: {ReminderDomain.expenses});
+      final today = DateTime(2030, 6, 15);
+      // Before 09:00 → gate closed.
+      expect(m.canFireDailyReminderNow(now: DateTime(2030, 6, 15, 8, 59)), isFalse);
+      // 09:00 sharp → gate opens.
+      expect(m.canFireDailyReminderNow(now: DateTime(2030, 6, 15, 9, 0)), isTrue);
+      // Master switch closes the gate.
+      m.notificationsEnabled = false;
+      expect(m.canFireDailyReminderNow(now: today.add(const Duration(hours: 10))), isFalse);
+    });
+
+    test('blocks a second fire on the same day even with eligible domains', () {
+      final m = modelWithEligible(domains: {ReminderDomain.expenses, ReminderDomain.assets});
+      final at = DateTime(2030, 6, 15, 9, 5);
+      expect(m.canFireDailyReminderNow(now: at), isTrue);
+      m.recordDailyReminderFired(ReminderDomain.expenses, at: at);
+      expect(m.canFireDailyReminderNow(now: DateTime(2030, 6, 15, 23, 59)), isFalse);
+    });
+
+    test('rotates to the next eligible domain after midnight', () {
+      final m = modelWithEligible(
+        domains: {ReminderDomain.expenses, ReminderDomain.income, ReminderDomain.assets},
+      );
+      final day1 = DateTime(2030, 6, 15, 9, 5);
+      // First fire picks the first eligible (Expenses is first in ReminderDomain.values).
+      final first = m.nextRotationDomain(now: day1);
+      expect(first, ReminderDomain.expenses);
+      m.recordDailyReminderFired(first!, at: day1);
+
+      // Next day → cycles to the next eligible (Cashflow is not eligible, so Income).
+      final day2 = DateTime(2030, 6, 16, 9, 5);
+      expect(m.canFireDailyReminderNow(now: day2), isTrue);
+      final second = m.nextRotationDomain(now: day2);
+      expect(second, ReminderDomain.income);
+      m.recordDailyReminderFired(second!, at: day2);
+
+      // Day 3 → Assets.
+      final day3 = DateTime(2030, 6, 17, 9, 5);
+      final third = m.nextRotationDomain(now: day3);
+      expect(third, ReminderDomain.assets);
+      m.recordDailyReminderFired(third!, at: day3);
+
+      // Day 4 → wraps back to Expenses (skipping ineligible Cashflow/Liabilities).
+      final day4 = DateTime(2030, 6, 18, 9, 5);
+      expect(m.nextRotationDomain(now: day4), ReminderDomain.expenses);
+    });
+
+    test('nextRotationDomain returns null when nothing is eligible', () {
+      final m = AppModel();
+      m.notificationsEnabled = true;
+      expect(m.nextRotationDomain(now: DateTime(2030, 6, 15, 9, 5)), isNull);
     });
   });
 }

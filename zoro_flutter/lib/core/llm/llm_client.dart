@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../state/app_model.dart';
+import 'apple_foundation_channel.dart';
 
 class LlmAttachment {
   const LlmAttachment({
@@ -20,9 +21,14 @@ class LlmAttachment {
 }
 
 class LlmClient {
-  LlmClient({http.Client? httpClient}) : _http = httpClient ?? http.Client();
+  LlmClient({
+    http.Client? httpClient,
+    AppleFoundationChannel? appleFoundationChannel,
+  })  : _http = httpClient ?? http.Client(),
+        _apple = appleFoundationChannel ?? AppleFoundationChannel();
 
   final http.Client _http;
+  final AppleFoundationChannel _apple;
 
   Future<String> complete({
     required LlmProvider provider,
@@ -35,6 +41,19 @@ class LlmClient {
     bool preferJsonObjectOutput = false,
   }) async {
     switch (provider) {
+      case LlmProvider.appleFoundation:
+        if (attachments.isNotEmpty) {
+          throw const LlmException('Attachments are not supported with Apple on-device model yet.');
+        }
+        try {
+          return await _apple.complete(
+            system: system,
+            user: user,
+            maxOutputTokens: maxOutputTokens,
+          );
+        } on AppleFoundationChannelException catch (e) {
+          throw LlmException(e.message);
+        }
       case LlmProvider.openai:
         return _openAiChatCompletions(
           apiKey: apiKey,
@@ -83,7 +102,6 @@ class LlmClient {
       effectiveSystem =
           '$system\n\nWhen you return zoro_actions or other structured output, reply as a JSON object (valid json).';
     }
-    final uri = Uri.parse('https://api.openai.com/v1/chat/completions');
     final hasAttachments = attachments.isNotEmpty;
     final userContent = hasAttachments
         ? <Map<String, Object?>>[
@@ -111,21 +129,56 @@ class LlmClient {
         {'role': 'user', 'content': userContent},
       ],
     };
-    if (maxOutputTokens != null) {
-      requestBody['max_tokens'] = maxOutputTokens;
-    }
+    _applyOpenAiOutputTokenLimit(requestBody, model: model, maxOutputTokens: maxOutputTokens);
     if (preferJsonObjectOutput) {
       requestBody['response_format'] = {'type': 'json_object'};
     }
-    final res = await _http.post(
-      uri,
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer $apiKey',
-      },
-      body: jsonEncode(requestBody),
-    );
-    final body = _decodeJson(res.body);
+    return _postOpenAiChatCompletionWithTokenFallback(apiKey: apiKey, requestBody: requestBody);
+  }
+
+  static bool _openAiPrefersMaxCompletionTokens(String model) {
+    final m = model.toLowerCase();
+    return m.startsWith('gpt-5') || m.startsWith('o1') || m.startsWith('o3');
+  }
+
+  static void _applyOpenAiOutputTokenLimit(
+    Map<String, dynamic> requestBody, {
+    required String model,
+    required int? maxOutputTokens,
+  }) {
+    requestBody.remove('max_tokens');
+    requestBody.remove('max_completion_tokens');
+    if (maxOutputTokens == null) return;
+    if (_openAiPrefersMaxCompletionTokens(model)) {
+      requestBody['max_completion_tokens'] = maxOutputTokens;
+    } else {
+      requestBody['max_tokens'] = maxOutputTokens;
+    }
+  }
+
+  Future<String> _postOpenAiChatCompletionWithTokenFallback({
+    required String apiKey,
+    required Map<String, dynamic> requestBody,
+  }) async {
+    Future<http.Response> post() => _http.post(
+          Uri.parse('https://api.openai.com/v1/chat/completions'),
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer $apiKey',
+          },
+          body: jsonEncode(requestBody),
+        );
+
+    var res = await post();
+    var body = _decodeJson(res.body);
+    if (res.statusCode == 400) {
+      final msg = body['error']?['message']?.toString().toLowerCase() ?? '';
+      final swapped = _swapOpenAiTokenParamOn400(requestBody, errorMessage: msg);
+      if (swapped) {
+        res = await post();
+        body = _decodeJson(res.body);
+      }
+    }
     if (res.statusCode < 200 || res.statusCode >= 300) {
       final msg = body['error']?['message']?.toString() ?? body['error']?.toString() ?? 'OpenAI request failed';
       throw LlmException(msg, statusCode: res.statusCode);
@@ -136,6 +189,23 @@ class LlmClient {
       if (content != null && content.trim().isNotEmpty) return content.trim();
     }
     throw const LlmException('OpenAI returned no content');
+  }
+
+  /// Returns true if the request body was modified for a retry.
+  static bool _swapOpenAiTokenParamOn400(Map<String, dynamic> requestBody, {required String errorMessage}) {
+    if (requestBody.containsKey('max_tokens') && errorMessage.contains('max_completion_tokens')) {
+      final v = requestBody.remove('max_tokens');
+      requestBody['max_completion_tokens'] = v;
+      return true;
+    }
+    if (requestBody.containsKey('max_completion_tokens') &&
+        errorMessage.contains('max_tokens') &&
+        !errorMessage.contains('max_completion_tokens')) {
+      final v = requestBody.remove('max_completion_tokens');
+      requestBody['max_tokens'] = v;
+      return true;
+    }
+    return false;
   }
 
   Future<String> _anthropicMessages({

@@ -1356,15 +1356,35 @@ class _ApiKeysPaneState extends State<_ApiKeysPane> {
       );
     }
 
-    return ListView(
-      padding: const EdgeInsets.all(20),
-      children: [
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
+    return ListenableBuilder(
+      listenable: m,
+      builder: (context, _) {
+        return ListView(
+          padding: const EdgeInsets.all(20),
+          children: [
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Apple on-device'),
+              value: m.appleFoundationEnabled && m.appleFoundationRuntimeAvailable,
+              onChanged: m.appleFoundationRuntimeAvailable ? m.setAppleFoundationEnabled : null,
+              subtitle: (!m.appleFoundationRuntimeAvailable &&
+                      (m.appleFoundationDisabledReason ?? '').trim().isNotEmpty)
+                  ? Text(
+                      m.appleFoundationDisabledReason!.trim(),
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        fontSize: 12,
+                      ),
+                    )
+                  : null,
+            ),
+            const SizedBox(height: 12),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
                 TextField(
                   controller: _openAiCtrl,
                   obscureText: !_revealOpenAi,
@@ -1397,15 +1417,6 @@ class _ApiKeysPaneState extends State<_ApiKeysPane> {
                         ),
                       ],
                     ),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Key length: ${_openAiCtrl.text.trim().length}',
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.outline,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -1499,22 +1510,13 @@ class _ApiKeysPaneState extends State<_ApiKeysPane> {
                   options: _geminiModelOptions,
                   onChanged: (v) => m.setModelFor(LlmProvider.gemini, v),
                 ),
-                const SizedBox(height: 16),
-                const Divider(),
-                const SizedBox(height: 10),
-                Text(
-                  'Ledger + imports use your selected provider above; you confirm before anything saves.',
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    fontSize: 12,
-                    height: 1.35,
-                  ),
+                  ],
                 ),
-              ],
+              ),
             ),
-          ),
-        ),
-      ],
+          ],
+        );
+      },
     );
   }
 }
@@ -1809,6 +1811,7 @@ class _AgentEditorSheetState extends State<_AgentEditorSheet> {
                   DropdownMenuItem(
                     value: p,
                     child: Text(switch (p) {
+                      LlmProvider.appleFoundation => 'Apple on-device',
                       LlmProvider.openai => 'OpenAI',
                       LlmProvider.anthropic => 'Anthropic',
                       LlmProvider.gemini => 'Gemini',

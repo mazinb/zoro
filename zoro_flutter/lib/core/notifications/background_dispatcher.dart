@@ -36,8 +36,14 @@ void zoroBackgroundDispatcher() {
   });
 }
 
-/// Loads state, runs due agent tasks (posting briefings), and posts a single
-/// grouped reminder summary for any domains that pass [AppModel.isReminderNotifiable].
+/// Loads state, runs due agent tasks (posting briefings), and emits at most
+/// one rotation reminder when the daily gate is open.
+///
+/// Persistence is awaited at the end of each step because the Workmanager
+/// isolate is short-lived: a microtask-only persist (the foreground default)
+/// can be torn down before disk is flushed, which previously caused the same
+/// "fired today" flag to be lost and the same reminder to fire again on the
+/// next 15-minute wake.
 Future<void> _runRefresh() async {
   final service = NotificationService.instance;
   await service.init();
@@ -49,7 +55,12 @@ Future<void> _runRefresh() async {
   }
 
   await _runDueAgentTasks(model, service);
-  await _postReminderSummary(model, service);
+  final firedDomain = await model.maybePostDailyReminder();
+  _log('rotation reminder fired=${firedDomain?.name ?? "none"}');
+  // Belt-and-braces: even if maybePostDailyReminder didn't post (e.g. nothing
+  // eligible), agent task state may have changed and needs to survive the
+  // isolate dying.
+  await model.persistAppStateToDisk();
 }
 
 Future<void> _runDueAgentTasks(AppModel model, NotificationService service) async {
@@ -67,22 +78,9 @@ Future<void> _runDueAgentTasks(AppModel model, NotificationService service) asyn
       _log('agent task ${task.id} failed: ${outcome.error}');
       continue;
     }
-    final preview = model.homeSummaryText.trim();
     await service.postAgentBriefing(
       taskId: task.id,
       title: task.name,
-      body: preview.isEmpty ? 'Briefing ready — tap to open Zoro' : preview,
     );
-  }
-}
-
-Future<void> _postReminderSummary(AppModel model, NotificationService service) async {
-  final domains = model.notifiableReminderDomains();
-  _log('reminder domains eligible=${domains.length}');
-  if (domains.isEmpty) return;
-  await service.postReminderSummary(domains);
-  final now = DateTime.now();
-  for (final d in domains) {
-    model.markDomainNotified(d, at: now);
   }
 }

@@ -33,3 +33,16 @@ Map<String, dynamic> decodeLlmJsonObject(String raw) {
   if (decoded is Map) return Map<String, dynamic>.from(decoded);
   throw const LlmException('LLM output was not a JSON object');
 }
+
+/// If [raw] is not valid JSON, runs [repairWith] once and parses its output.
+Future<Map<String, dynamic>> decodeLlmJsonObjectWithRepair(
+  String raw, {
+  required Future<String> Function(String brokenJson) repairWith,
+}) async {
+  try {
+    return decodeLlmJsonObject(raw);
+  } catch (_) {
+    final fixed = await repairWith(raw);
+    return decodeLlmJsonObject(fixed);
+  }
+}

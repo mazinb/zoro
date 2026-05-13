@@ -224,7 +224,7 @@ class NotificationService {
     await _plugin.zonedSchedule(
       id,
       title,
-      'Briefing ready — tap to open Zoro',
+      'Is ready for you to review',
       tzWhen,
       _defaultDetails(),
       androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
@@ -240,75 +240,53 @@ class NotificationService {
     _log('canceled agent task id=$taskId');
   }
 
-  /// Schedules a daily reminder-check ping at [hour]:[minute] local time. The
-  /// background dispatcher reuses this firing to inspect overdue domains and
-  /// post a richer "X items need attention" notification when appropriate.
-  Future<void> scheduleReminderCheckDaily({
-    required int hour,
-    required int minute,
-    required bool masterEnabled,
-  }) async {
+  /// Cancels any leftover daily reminder-check slot from earlier builds.
+  /// Older versions of the app scheduled a recurring payload-less placeholder
+  /// at the user's notify time. The rotation flow posts pushes on the fly
+  /// from the background dispatcher / lifecycle hooks instead, so we just
+  /// make sure the stale alarm is gone.
+  Future<void> cancelLegacyReminderCheckSlot() async {
     await init();
     await _plugin.cancel(_reminderSummaryId);
-    if (!masterEnabled) return;
-    final now = DateTime.now();
-    var when = DateTime(now.year, now.month, now.day, hour, minute);
-    if (!when.isAfter(now)) {
-      when = when.add(const Duration(days: 1));
-    }
-    final tzWhen = tz.TZDateTime.from(when, tz.local);
-    await _plugin.zonedSchedule(
-      _reminderSummaryId,
-      'Zoro',
-      'Time to check on your numbers',
-      tzWhen,
-      _defaultDetails(),
-      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-      payload: null,
-      matchDateTimeComponents: DateTimeComponents.time,
-    );
-    _log('scheduled reminder check at $when');
   }
 
-  /// Posts an immediate (or immediately-scheduled) summary about the given
-  /// overdue domains. No-op when the list is empty — no "all caught up" buzz.
-  Future<void> postReminderSummary(List<ReminderDomain> domains) async {
+  /// Posts a single rotation reminder for [domain]. Used by
+  /// `AppModel.maybePostDailyReminder` from the Workmanager background
+  /// dispatcher and from foreground lifecycle hooks. Re-using
+  /// `_reminderSummaryId` keeps at most one reminder visible at a time —
+  /// successive calls supersede the previous notification rather than
+  /// stacking.
+  Future<void> postReminderForDomain(ReminderDomain domain) async {
     await init();
-    if (domains.isEmpty) {
-      await _plugin.cancel(_reminderSummaryId);
-      return;
-    }
-    final body = _summarizeDomains(domains);
-    // Deep-link to the first domain on tap; the body still mentions all.
-    final payload = NotificationPayload.reminder(domain: domains.first).encode();
+    final payload = NotificationPayload.reminder(domain: domain).encode();
     await _plugin.show(
       _reminderSummaryId,
-      'Your numbers need a refresh',
-      body,
+      _reminderTitleFor(domain),
+      _reminderBodyFor(domain),
       _defaultDetails(),
       payload: payload,
     );
-    _log('posted reminder summary for $domains');
+    _log('posted rotation reminder for $domain');
   }
 
-  /// Replaces the placeholder agent-task notification with a body containing
-  /// the freshly-generated briefing preview. Called by the background
-  /// dispatcher after a successful LLM run.
+  /// Replaces the pre-scheduled agent-task notification once the background
+  /// LLM run completes. We keep the body identical to the scheduled push so
+  /// foreground/background outcomes look the same to the user; the freshly
+  /// generated briefing text is what they will see when they tap and land on
+  /// Home / the briefing surface.
   Future<void> postAgentBriefing({
     required String taskId,
     required String title,
-    required String body,
   }) async {
     await init();
-    final preview = _previewBriefing(body);
     await _plugin.show(
       _idForAgentTask(taskId),
       title.trim().isEmpty ? 'Zoro briefing' : title.trim(),
-      preview,
-      _defaultDetails(bigText: body),
+      'Is ready for you to review',
+      _defaultDetails(),
       payload: NotificationPayload.agentTask(taskId: taskId).encode(),
     );
-    _log('posted briefing for task=$taskId len=${body.length}');
+    _log('posted briefing notification for task=$taskId');
   }
 
   /// Cancels every notification we've scheduled. Useful when the master
@@ -319,7 +297,7 @@ class NotificationService {
     _log('canceled all');
   }
 
-  NotificationDetails _defaultDetails({String? bigText}) {
+  NotificationDetails _defaultDetails() {
     return NotificationDetails(
       android: AndroidNotificationDetails(
         _channelId,
@@ -327,9 +305,6 @@ class NotificationService {
         channelDescription: _channelDescription,
         importance: Importance.defaultImportance,
         priority: Priority.defaultPriority,
-        styleInformation: bigText == null
-            ? null
-            : BigTextStyleInformation(bigText, summaryText: 'Zoro briefing'),
       ),
       iOS: const DarwinNotificationDetails(
         // pre-iOS 14
@@ -361,19 +336,21 @@ class NotificationService {
   int _idForAgentTask(String taskId) =>
       _agentTaskIdBase + (taskId.hashCode.abs() % 10000);
 
-  String _previewBriefing(String body) {
-    final cleaned = body.replaceAll('\n', ' ').trim();
-    if (cleaned.length <= 140) return cleaned;
-    return '${cleaned.substring(0, 140)}…';
-  }
+  static String _reminderTitleFor(ReminderDomain d) => switch (d) {
+        ReminderDomain.expenses => 'Expenses need a refresh',
+        ReminderDomain.cashflow => 'Cash flow needs a refresh',
+        ReminderDomain.income => 'Income needs a refresh',
+        ReminderDomain.assets => 'Assets need a refresh',
+        ReminderDomain.liabilities => 'Liabilities need a refresh',
+      };
 
-  String _summarizeDomains(List<ReminderDomain> domains) {
-    final labels = [for (final d in domains) reminderDomainLabel(d)];
-    if (labels.length == 1) return '${labels.first} is due for an update.';
-    if (labels.length == 2) return '${labels.first} and ${labels.last} are due for an update.';
-    final head = labels.sublist(0, labels.length - 1).join(', ');
-    return '$head and ${labels.last} are due for an update.';
-  }
+  static String _reminderBodyFor(ReminderDomain d) => switch (d) {
+        ReminderDomain.expenses => 'Tap to update your expense estimates.',
+        ReminderDomain.cashflow => 'A new month is here — log your latest cash flow.',
+        ReminderDomain.income => 'Confirm your income lines are still accurate.',
+        ReminderDomain.assets => 'Take a moment to refresh your asset balances.',
+        ReminderDomain.liabilities => 'Update your liability balances.',
+      };
 }
 
 /// Top-level background response handler annotation for the plugin.

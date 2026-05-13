@@ -8,6 +8,7 @@ import '../chat/chat_message.dart';
 import '../constants/web_expenses_income.dart';
 import '../finance/currency.dart';
 import '../../dev/compile_time_api_keys.dart';
+import '../llm/apple_foundation_channel.dart';
 import '../llm/llm_key_store.dart';
 import '../notifications/notification_service.dart';
 import '../persistence/agent_json.dart';
@@ -98,6 +99,7 @@ class AppModel extends ChangeNotifier {
       if (disk != null) {
         applyPersistedSnapshot(disk);
       }
+      await refreshAppleFoundationCapabilities();
       _syncActiveProviderIfKeyRemoved();
       await runDueScheduledAgentTasks();
     } finally {
@@ -294,6 +296,39 @@ class AppModel extends ChangeNotifier {
   String? anthropicApiKey;
   String? geminiApiKey;
 
+  /// Apple on-device model (no API key). When [appleFoundationEnabled] and runtime says available, [apiKeyFor] uses a sentinel.
+  bool appleFoundationEnabled = false;
+  bool _appleFoundationEnabledReadFromDisk = false;
+  AppleFoundationCapabilities _appleFoundationCaps = AppleFoundationCapabilities.unsupported;
+  final AppleFoundationChannel _appleFoundationChannel = AppleFoundationChannel();
+
+  static const String appleOnDeviceApiKeySentinel = '__zoro_ondevice_apple__';
+
+  bool get appleFoundationRuntimeAvailable => _appleFoundationCaps.available;
+
+  String? get appleFoundationDisabledReason => _appleFoundationCaps.disabledReason;
+
+  Future<void> refreshAppleFoundationCapabilities() async {
+    _appleFoundationCaps = await _appleFoundationChannel.getCapabilities();
+    if (!_appleFoundationEnabledReadFromDisk && _appleFoundationCaps.available) {
+      appleFoundationEnabled = true;
+      _scheduleAppStatePersist();
+    }
+    notifyListeners();
+  }
+
+  void setAppleFoundationEnabled(bool value) {
+    _appleFoundationEnabledReadFromDisk = true;
+    if (appleFoundationEnabled == value) {
+      notifyListeners();
+      return;
+    }
+    appleFoundationEnabled = value;
+    _syncActiveProviderIfKeyRemoved();
+    _scheduleAppStatePersist();
+    notifyListeners();
+  }
+
   /// Optional tuning (kept simple for now).
   String openAiModel = 'gpt-4.1-mini';
   // NOTE: These defaults should track currently-supported model IDs.
@@ -331,14 +366,23 @@ class AppModel extends ChangeNotifier {
   int reminderNotifyHour = 9;
   int reminderNotifyMinute = 0;
 
-  /// Per-domain dismiss-back-off: timestamp of the last notification we posted for
-  /// this domain. Prevents re-buzzing the same domain twice in the same cadence
-  /// period (e.g. dismissed monthly cashflow on day 3 → no re-buzz until next month).
+  /// Per-domain timestamp of the last notification posted for that domain.
+  /// Kept around for analytics / future fine-grained back-off, but no longer
+  /// gates [isReminderNotifiable]; the once-per-day rotation gate below is
+  /// what actually prevents spam.
   DateTime? remindersLastNotifiedExpenses;
   DateTime? remindersLastNotifiedCashflow;
   DateTime? remindersLastNotifiedIncome;
   DateTime? remindersLastNotifiedAssets;
   DateTime? remindersLastNotifiedLiabilities;
+
+  /// Calendar day (local) on which the daily rotation push last fired.
+  /// `null` means "never fired" — first eligible day will fire.
+  DateTime? remindersLastFiredOn;
+
+  /// Domain that fired during the most recent daily push. Drives rotation —
+  /// the next fire picks the *next* eligible domain after this one.
+  ReminderDomain? remindersLastFiredDomain;
 
   /// "Has the user actually touched this domain at least once?" — set by domain
   /// mutation methods. Necessary because [_seedDummyCashflowData] pre-populates
@@ -1003,9 +1047,12 @@ class AppModel extends ChangeNotifier {
   }
 
   void setApiKey({required LlmProvider provider, String? key}) {
+    if (provider == LlmProvider.appleFoundation) return;
     final trimmed = (key ?? '').trim();
     final v = trimmed.isEmpty ? null : trimmed;
     switch (provider) {
+      case LlmProvider.appleFoundation:
+        break;
       case LlmProvider.openai:
         openAiApiKey = v;
       case LlmProvider.anthropic:
@@ -1031,21 +1078,27 @@ class AppModel extends ChangeNotifier {
   }
 
   String? apiKeyFor(LlmProvider provider) => switch (provider) {
+        LlmProvider.appleFoundation =>
+          (appleFoundationRuntimeAvailable && appleFoundationEnabled) ? appleOnDeviceApiKeySentinel : null,
         LlmProvider.openai => openAiApiKey,
         LlmProvider.anthropic => anthropicApiKey,
         LlmProvider.gemini => geminiApiKey,
       };
 
   String modelFor(LlmProvider provider) => switch (provider) {
+        LlmProvider.appleFoundation => 'apple-on-device',
         LlmProvider.openai => openAiModel,
         LlmProvider.anthropic => anthropicModel,
         LlmProvider.gemini => geminiModel,
       };
 
   void setModelFor(LlmProvider provider, String model) {
+    if (provider == LlmProvider.appleFoundation) return;
     final next = model.trim();
     if (next.isEmpty) return;
     switch (provider) {
+      case LlmProvider.appleFoundation:
+        break;
       case LlmProvider.openai:
         openAiModel = next;
       case LlmProvider.anthropic:
@@ -1061,8 +1114,9 @@ class AppModel extends ChangeNotifier {
 
   bool get hasAnyApiKey => openAiApiKey != null || anthropicApiKey != null || geminiApiKey != null;
 
-  /// Cloud API key or installed on-device weights.
-  bool get canUseAnyLlm => hasAnyApiKey;
+  /// Cloud API key or Apple on-device model when enabled and available.
+  bool get canUseAnyLlm =>
+      hasAnyApiKey || (appleFoundationEnabled && appleFoundationRuntimeAvailable);
 
   void setReminderCadenceExpenses(ReminderCadence v) {
     remindersExpensesCadence = v;
@@ -1201,44 +1255,23 @@ class AppModel extends ChangeNotifier {
         ReminderDomain.liabilities => liabilitiesReviewOverdueAt(now),
       };
 
-  /// Has the user been notified about [d] in the current cadence period?
-  /// (Per-domain back-off so we don't buzz the same domain twice in a row.)
-  bool _alreadyNotifiedThisPeriod(ReminderDomain d, DateTime now) {
-    final last = reminderLastNotifiedAt(d);
-    if (last == null) return false;
-    final cadence = reminderCadenceFor(d);
-    switch (cadence) {
-      case ReminderCadence.off:
-        return false;
-      case ReminderCadence.monthly:
-        final startOfMonth = DateTime(now.year, now.month, 1);
-        return !last.isBefore(startOfMonth);
-      case ReminderCadence.quarterly:
-        final anchor = _mostRecentQuarterlyAnchor(now);
-        return !last.isBefore(anchor);
-      case ReminderCadence.yearly:
-        final oneYearAgo = DateTime(now.year - 1, now.month, now.day);
-        return last.isAfter(oneYearAgo);
-    }
-  }
-
-  /// The ONLY predicate the notification path should consult. Stricter than the
-  /// in-app `*ReviewOverdueAt` chips: requires the master switch, a non-off
-  /// cadence, actual user content, and a non-spammy cadence anchor. Setting a
-  /// domain's cadence to [ReminderCadence.off] silences that domain.
+  /// Eligibility predicate for the daily rotation. Domain-only checks: master
+  /// switch on, cadence ≠ Off, user actually has content, and review is
+  /// overdue. The "fire at most once a day" gate lives in
+  /// [canFireDailyReminderNow] / [maybePostDailyReminder] so eligibility stays
+  /// independent of dispatch timing.
   bool isReminderNotifiable(ReminderDomain d, {DateTime? now}) {
     if (!notificationsEnabled) return false;
     if (reminderCadenceFor(d) == ReminderCadence.off) return false;
     if (!userHasContentFor(d)) return false;
     final n = now ?? DateTime.now();
     if (!_reviewOverdueFor(d, n)) return false;
-    if (_alreadyNotifiedThisPeriod(d, n)) return false;
     return true;
   }
 
   /// All reminder domains currently eligible to fire a notification. Empty
-  /// when there's nothing to nudge about — the background dispatcher posts
-  /// nothing in that case (no "you're all caught up" buzz).
+  /// when there's nothing to nudge about — the rotation poster does nothing
+  /// (no "you're all caught up" buzz).
   List<ReminderDomain> notifiableReminderDomains({DateTime? now}) {
     final n = now ?? DateTime.now();
     return [
@@ -1247,10 +1280,82 @@ class AppModel extends ChangeNotifier {
     ];
   }
 
+  static bool _isSameLocalDay(DateTime a, DateTime b) {
+    final al = a.toLocal();
+    final bl = b.toLocal();
+    return al.year == bl.year && al.month == bl.month && al.day == bl.day;
+  }
+
+  /// True when the rotation gate is currently open: notifications on, today's
+  /// notify slot has been reached, and no reminder fired yet today.
+  bool canFireDailyReminderNow({DateTime? now}) {
+    if (!notificationsEnabled) return false;
+    final n = (now ?? DateTime.now()).toLocal();
+    final last = remindersLastFiredOn;
+    if (last != null && _isSameLocalDay(last, n)) return false;
+    final slot = DateTime(n.year, n.month, n.day, reminderNotifyHour, reminderNotifyMinute);
+    if (n.isBefore(slot)) return false;
+    return true;
+  }
+
+  /// The domain that should fire *next*: the first eligible domain after
+  /// [remindersLastFiredDomain] in [ReminderDomain.values] order, wrapping
+  /// around. Returns `null` when nothing is eligible right now.
+  ReminderDomain? nextRotationDomain({DateTime? now}) {
+    final eligible = notifiableReminderDomains(now: now);
+    if (eligible.isEmpty) return null;
+    final last = remindersLastFiredDomain;
+    if (last == null) return eligible.first;
+    final all = ReminderDomain.values;
+    final startIdx = all.indexOf(last);
+    for (var i = 1; i <= all.length; i++) {
+      final candidate = all[(startIdx + i) % all.length];
+      if (eligible.contains(candidate)) return candidate;
+    }
+    return eligible.first;
+  }
+
+  /// Records that a rotation push was fired for [domain] at [at] (defaults to
+  /// now). Used by [maybePostDailyReminder]; tests can call it directly to
+  /// stage state.
+  void recordDailyReminderFired(ReminderDomain domain, {DateTime? at}) {
+    final t = at ?? DateTime.now();
+    remindersLastFiredOn = t;
+    remindersLastFiredDomain = domain;
+    markDomainNotified(domain, at: t);
+  }
+
+  /// Single entry point used by both the Workmanager background dispatcher and
+  /// the foreground app lifecycle hooks. When the gate is open and there's an
+  /// eligible domain, posts one rotation push and persists state synchronously
+  /// (await — important: the background isolate dies right after this returns
+  /// and a microtask-only persist can lose the "fired today" flag).
+  ///
+  /// Returns the domain that fired, or `null` when nothing was posted.
+  Future<ReminderDomain?> maybePostDailyReminder({DateTime? now}) async {
+    final n = now ?? DateTime.now();
+    if (!canFireDailyReminderNow(now: n)) return null;
+    final domain = nextRotationDomain(now: n);
+    if (domain == null) return null;
+    try {
+      await NotificationService.instance.postReminderForDomain(domain);
+    } catch (_) {
+      return null;
+    }
+    recordDailyReminderFired(domain, at: n);
+    await persistAppStateToDisk();
+    notifyListeners();
+    return domain;
+  }
+
   /// Pushes the current notification configuration to the OS:
   /// - cancels everything when [notificationsEnabled] is false,
-  /// - (re)schedules each `notify == true` agent task at its next local time,
-  /// - (re)schedules the daily reminder-check ping at [reminderNotifyHour]/Minute.
+  /// - (re)schedules each `notify == true` agent task at its next local time.
+  ///
+  /// Reminder pushes are *not* pre-scheduled here. They are emitted at
+  /// runtime by [maybePostDailyReminder] from Workmanager background runs and
+  /// app foreground/resume hooks. We also cancel any legacy daily
+  /// reminder-check slot so it doesn't fire its payload-less placeholder.
   ///
   /// Best-effort; failures (plugin unsupported on web, missing permission) are
   /// swallowed so UI flows stay responsive.
@@ -1264,11 +1369,8 @@ class AppModel extends ChangeNotifier {
       for (final t in scheduledAgentTasks) {
         await svc.scheduleAgentTask(task: t, masterEnabled: true);
       }
-      await svc.scheduleReminderCheckDaily(
-        hour: reminderNotifyHour,
-        minute: reminderNotifyMinute,
-        masterEnabled: true,
-      );
+      // Make sure no leftover daily placeholder push exists from older builds.
+      await svc.cancelLegacyReminderCheckSlot();
     } catch (_) {
       // Notification sync is non-fatal.
     }
@@ -1809,6 +1911,7 @@ class AppModel extends ChangeNotifier {
       'settings': {
         'agents': agents.map(appAgentToJson).toList(),
         'activeLlmProvider': activeLlmProvider.name,
+        'appleFoundationEnabled': appleFoundationEnabled,
         'openAiModel': openAiModel,
         'anthropicModel': anthropicModel,
         'geminiModel': geminiModel,
@@ -1903,6 +2006,10 @@ class AppModel extends ChangeNotifier {
             break;
           }
         }
+      }
+      if (s.containsKey('appleFoundationEnabled')) {
+        _appleFoundationEnabledReadFromDisk = true;
+        appleFoundationEnabled = s['appleFoundationEnabled'] == true;
       }
       final oa = s['openAiModel']?.toString();
       if (oa != null && oa.trim().isNotEmpty) openAiModel = oa.trim();
@@ -2203,7 +2310,7 @@ String reminderDomainLabel(ReminderDomain d) => switch (d) {
       ReminderDomain.liabilities => 'Liabilities',
     };
 
-enum LlmProvider { openai, anthropic, gemini }
+enum LlmProvider { appleFoundation, openai, anthropic, gemini }
 
 enum AgentDomain { expenses, cashflow, income, assets, liabilities, projection }
 
@@ -2278,6 +2385,7 @@ class AppAgent {
 /// Playground override for which LLM route a thread uses (default = agent + global settings).
 enum AgentChatLlmOverride {
   useDefault,
+  appleFoundation,
   openai,
   anthropic,
   gemini,

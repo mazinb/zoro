@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 
 import '../../core/llm/active_llm_completion.dart';
-import '../../core/llm/llm_json.dart';
 import '../../core/state/app_model.dart';
 import '../../core/state/internal_app_agent_definition.dart';
 import 'context_planner_config.dart';
@@ -190,7 +189,7 @@ Use the subject block, existingContextMarkdown, contextLastUpdated if present, a
         preferJsonObjectOutput: m.activeLlmProvider == LlmProvider.openai,
       );
 
-      final obj = decodeLlmJsonObject(raw);
+      final obj = await decodeActiveProviderJsonWithRepair(m, raw);
       final kind = obj['kind']?.toString();
       if (kind == 'done') {
         await _runSynthesize();
@@ -267,7 +266,7 @@ Use the subject block, existingContextMarkdown, contextLastUpdated if present, a
         preferJsonObjectOutput: m.activeLlmProvider == LlmProvider.openai,
       );
 
-      final obj = decodeLlmJsonObject(raw);
+      final obj = await decodeActiveProviderJsonWithRepair(m, raw);
       final md = obj['contextMarkdown']?.toString().trim() ?? '';
       Map<String, Object?> structured = {};
       final s = obj['structured'];
