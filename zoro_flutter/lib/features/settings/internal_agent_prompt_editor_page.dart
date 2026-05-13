@@ -48,68 +48,73 @@ class _InternalAgentPromptEditorPageState extends State<InternalAgentPromptEdito
       isScrollControlled: true,
       builder: (ctx) {
         final bottom = MediaQuery.viewInsetsOf(ctx).bottom;
-        final lastAt = widget.model.internalAgentLastRunById[def.id];
-
-        String lastRunLine() {
-          if (lastAt == null) return 'No run recorded yet.';
-          final ago = DateTime.now().difference(lastAt);
-          if (ago.inMinutes < 2) return 'Last run: just now';
-          if (ago.inHours < 1) return 'Last run: ${ago.inMinutes} min ago';
-          if (ago.inHours < 48) return 'Last run: ${ago.inHours} h ago';
-          return 'Last run: ${lastAt.toLocal().toString().split('.').first}';
-        }
-
         return Padding(
           padding: EdgeInsets.fromLTRB(20, 6, 20, 20 + bottom),
           child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
+            child: ListenableBuilder(
+              listenable: widget.model,
+              builder: (context, _) {
+                final lastAt = widget.model.internalAgentLastRunById[def.id];
+
+                String lastRunLine() {
+                  if (lastAt == null) return 'No run recorded yet.';
+                  final ago = DateTime.now().difference(lastAt);
+                  if (ago.inMinutes < 2) return 'Last run: just now';
+                  if (ago.inHours < 1) return 'Last run: ${ago.inMinutes} min ago';
+                  if (ago.inHours < 48) return 'Last run: ${ago.inHours} h ago';
+                  return 'Last run: ${lastAt.toLocal().toString().split('.').first}';
+                }
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Icon(def.icon, color: Theme.of(ctx).colorScheme.primary),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        def.title,
-                        style: Theme.of(ctx).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+                    Row(
+                      children: [
+                        Icon(def.icon, color: Theme.of(context).colorScheme.primary),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            def.title,
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Text('What it does', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900)),
+                    const SizedBox(height: 6),
+                    Text(
+                      def.infoWhatItDoes,
+                      style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.4),
+                    ),
+                    const SizedBox(height: 16),
+                    Text('Context sent to the model', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900)),
+                    const SizedBox(height: 6),
+                    Text(
+                      def.infoContextSent,
+                      style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.4),
+                    ),
+                    const SizedBox(height: 16),
+                    Text('Output format', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900)),
+                    const SizedBox(height: 6),
+                    Text(
+                      'The structured JSON the model returns is fixed by the app — you don\'t need to edit it. Your prompt above only controls the instructions.',
+                      style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.4),
+                    ),
+                    const SizedBox(height: 20),
+                    Text('Last run', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900)),
+                    const SizedBox(height: 6),
+                    Text(
+                      lastRunLine(),
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.85),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ],
-                ),
-                const SizedBox(height: 16),
-                Text('What it does', style: Theme.of(ctx).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900)),
-                const SizedBox(height: 6),
-                Text(
-                  def.infoWhatItDoes,
-                  style: TextStyle(color: Theme.of(ctx).colorScheme.onSurfaceVariant, height: 1.4),
-                ),
-                const SizedBox(height: 16),
-                Text('Context sent to the model', style: Theme.of(ctx).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900)),
-                const SizedBox(height: 6),
-                Text(
-                  def.infoContextSent,
-                  style: TextStyle(color: Theme.of(ctx).colorScheme.onSurfaceVariant, height: 1.4),
-                ),
-                const SizedBox(height: 16),
-                Text('Output format', style: Theme.of(ctx).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900)),
-                const SizedBox(height: 6),
-                Text(
-                  'The structured JSON the model returns is fixed by the app — you don\'t need to edit it. Your prompt above only controls the instructions.',
-                  style: TextStyle(color: Theme.of(ctx).colorScheme.onSurfaceVariant, height: 1.4),
-                ),
-                const SizedBox(height: 20),
-                Text('Last run', style: Theme.of(ctx).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900)),
-                const SizedBox(height: 6),
-                Text(
-                  lastRunLine(),
-                  style: TextStyle(
-                    color: Theme.of(ctx).colorScheme.onSurfaceVariant.withValues(alpha: 0.85),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
+                );
+              },
             ),
           ),
         );

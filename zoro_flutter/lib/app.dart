@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'core/state/app_model.dart';
@@ -16,8 +18,11 @@ class _ZoroAppState extends State<ZoroApp> {
   @override
   void initState() {
     super.initState();
-    // Load locally stored secrets (LLM keys) and preferences.
-    _model.bootstrap();
+    // Run after the first frame so the shell paints and stays responsive while
+    // disk + hydration work runs (large app_state.json was freezing taps on device).
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      unawaited(_model.bootstrap());
+    });
   }
 
   @override

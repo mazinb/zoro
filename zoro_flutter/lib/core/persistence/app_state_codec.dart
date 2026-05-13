@@ -271,13 +271,10 @@ Map<String, dynamic> encodeNotificationsBlock(AppModel m) {
     'enabled': m.notificationsEnabled,
     'reminderHour': m.reminderNotifyHour,
     'reminderMinute': m.reminderNotifyMinute,
-    if (toMs(m.remindersLastNotifiedExpenses) != null) 'lastExpensesMs': toMs(m.remindersLastNotifiedExpenses),
-    if (toMs(m.remindersLastNotifiedCashflow) != null) 'lastCashflowMs': toMs(m.remindersLastNotifiedCashflow),
-    if (toMs(m.remindersLastNotifiedIncome) != null) 'lastIncomeMs': toMs(m.remindersLastNotifiedIncome),
-    if (toMs(m.remindersLastNotifiedAssets) != null) 'lastAssetsMs': toMs(m.remindersLastNotifiedAssets),
-    if (toMs(m.remindersLastNotifiedLiabilities) != null) 'lastLiabilitiesMs': toMs(m.remindersLastNotifiedLiabilities),
     if (toMs(m.remindersLastFiredOn) != null) 'lastFiredOnMs': toMs(m.remindersLastFiredOn),
     if (m.remindersLastFiredDomain != null) 'lastFiredDomain': m.remindersLastFiredDomain!.name,
+    if (toMs(m.remindersScheduledFireOn) != null) 'scheduledFireOnMs': toMs(m.remindersScheduledFireOn),
+    if (m.remindersPendingDomain != null) 'pendingDomain': m.remindersPendingDomain!.name,
     'userTouchedExpenses': m.userTouchedExpenses,
     'userTouchedIncome': m.userTouchedIncome,
     'userTouchedAssets': m.userTouchedAssets,
@@ -295,17 +292,22 @@ void decodeNotificationsBlock(AppModel m, Object? raw) {
   if (rh is num) m.reminderNotifyHour = rh.round().clamp(0, 23);
   if (rm is int) m.reminderNotifyMinute = rm.clamp(0, 59);
   if (rm is num) m.reminderNotifyMinute = rm.round().clamp(0, 59);
-  m.remindersLastNotifiedExpenses = dateTimeFromJsonField(n['lastExpensesMs']);
-  m.remindersLastNotifiedCashflow = dateTimeFromJsonField(n['lastCashflowMs']);
-  m.remindersLastNotifiedIncome = dateTimeFromJsonField(n['lastIncomeMs']);
-  m.remindersLastNotifiedAssets = dateTimeFromJsonField(n['lastAssetsMs']);
-  m.remindersLastNotifiedLiabilities = dateTimeFromJsonField(n['lastLiabilitiesMs']);
   m.remindersLastFiredOn = dateTimeFromJsonField(n['lastFiredOnMs']);
   final firedName = n['lastFiredDomain']?.toString();
   if (firedName != null) {
     for (final d in ReminderDomain.values) {
       if (d.name == firedName) {
         m.remindersLastFiredDomain = d;
+        break;
+      }
+    }
+  }
+  m.remindersScheduledFireOn = dateTimeFromJsonField(n['scheduledFireOnMs']);
+  final pendingName = n['pendingDomain']?.toString();
+  if (pendingName != null) {
+    for (final d in ReminderDomain.values) {
+      if (d.name == pendingName) {
+        m.remindersPendingDomain = d;
         break;
       }
     }

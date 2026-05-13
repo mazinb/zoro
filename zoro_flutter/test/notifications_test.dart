@@ -221,5 +221,15 @@ void main() {
       m.notificationsEnabled = true;
       expect(m.nextRotationDomain(now: DateTime(2030, 6, 15, 9, 5)), isNull);
     });
+
+    test('gate is closed while an OS-scheduled push is pending', () {
+      final m = modelWithEligible(domains: {ReminderDomain.expenses});
+      final at = DateTime(2030, 6, 15, 9, 5);
+      expect(m.canFireDailyReminderNow(now: at), isTrue);
+      // Simulate sync having scheduled the next OS push.
+      m.remindersScheduledFireOn = DateTime(2030, 6, 15);
+      m.remindersPendingDomain = ReminderDomain.expenses;
+      expect(m.canFireDailyReminderNow(now: at), isFalse);
+    });
   });
 }

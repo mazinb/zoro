@@ -3440,6 +3440,9 @@ class _GroupedIntFieldState extends State<_GroupedIntField> {
     return TextField(
       controller: _ctrl,
       keyboardType: TextInputType.number,
+      textInputAction: TextInputAction.done,
+      onEditingComplete: () => FocusManager.instance.primaryFocus?.unfocus(),
+      onSubmitted: (_) => FocusManager.instance.primaryFocus?.unfocus(),
       inputFormatters: [
         GroupedIntegerTextInputFormatter(currency: widget.currency),
       ],

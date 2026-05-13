@@ -261,3 +261,18 @@ InternalAppAgentDefinition? internalAppAgentDefinitionById(String id) {
   }
   return null;
 }
+
+/// Human-friendly "x min ago" rendering of when an internal agent last ran.
+/// Returns `null` when the agent has never run, so callers can decide whether
+/// to show the fallback subtitle.
+String? formatAgentLastRunRelative(DateTime? lastAt, {DateTime? now}) {
+  if (lastAt == null) return null;
+  final n = now ?? DateTime.now();
+  final ago = n.difference(lastAt);
+  if (ago.isNegative) return 'just now';
+  if (ago.inMinutes < 2) return 'just now';
+  if (ago.inHours < 1) return '${ago.inMinutes} min ago';
+  if (ago.inHours < 48) return '${ago.inHours} h ago';
+  if (ago.inDays < 14) return '${ago.inDays} d ago';
+  return lastAt.toLocal().toString().split(' ').first;
+}

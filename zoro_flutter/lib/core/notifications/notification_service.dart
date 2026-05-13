@@ -206,8 +206,13 @@ class NotificationService {
     await init();
     await cancelAgentTask(task.id);
     if (!masterEnabled || !task.enabled || !task.notify) return;
-    final when = computeNextRunLocal(task, notBefore: DateTime.now());
-    if (when.isBefore(DateTime.now())) return;
+    var when = computeNextRunLocal(task, notBefore: DateTime.now());
+    final now = DateTime.now();
+    // If the computed slot is in the past (clock skew / same-millisecond race),
+    // still schedule a near-future fire; skipping leaves users with no alarm at all.
+    if (!when.isAfter(now)) {
+      when = now.add(const Duration(seconds: 5));
+    }
     final tzWhen = tz.TZDateTime.from(when, tz.local);
 
     final id = _idForAgentTask(task.id);
@@ -240,22 +245,43 @@ class NotificationService {
     _log('canceled agent task id=$taskId');
   }
 
-  /// Cancels any leftover daily reminder-check slot from earlier builds.
-  /// Older versions of the app scheduled a recurring payload-less placeholder
-  /// at the user's notify time. The rotation flow posts pushes on the fly
-  /// from the background dispatcher / lifecycle hooks instead, so we just
-  /// make sure the stale alarm is gone.
-  Future<void> cancelLegacyReminderCheckSlot() async {
+  /// Cancels the rotation reminder slot, if any. Safe to call when nothing
+  /// is scheduled.
+  Future<void> cancelReminderSlot() async {
     await init();
     await _plugin.cancel(_reminderSummaryId);
   }
 
-  /// Posts a single rotation reminder for [domain]. Used by
-  /// `AppModel.maybePostDailyReminder` from the Workmanager background
-  /// dispatcher and from foreground lifecycle hooks. Re-using
-  /// `_reminderSummaryId` keeps at most one reminder visible at a time —
-  /// successive calls supersede the previous notification rather than
-  /// stacking.
+  /// Schedules a one-shot OS local notification at [when] (local time) with
+  /// per-domain content + a reminder payload deep-linking into [domain].
+  /// This is the primary delivery path for rotation reminders — iOS guarantees
+  /// the buzz at [when] regardless of whether Dart is running.
+  ///
+  /// Calling this with a different [domain]/[when] supersedes any previous
+  /// schedule on the same id (`_reminderSummaryId`).
+  Future<void> scheduleReminderForDomainAt({
+    required ReminderDomain domain,
+    required DateTime when,
+  }) async {
+    await init();
+    await _plugin.cancel(_reminderSummaryId);
+    final tzWhen = tz.TZDateTime.from(when, tz.local);
+    final payload = NotificationPayload.reminder(domain: domain).encode();
+    await _plugin.zonedSchedule(
+      _reminderSummaryId,
+      _reminderTitleFor(domain),
+      _reminderBodyFor(domain),
+      tzWhen,
+      _defaultDetails(),
+      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      payload: payload,
+    );
+    _log('scheduled rotation reminder for $domain at $when');
+  }
+
+  /// Immediate-fire fallback used by `AppModel.maybePostDailyReminder` when
+  /// the OS-scheduled slot isn't an option (e.g. scheduling failed). Re-uses
+  /// `_reminderSummaryId` so a stale schedule is superseded.
   Future<void> postReminderForDomain(ReminderDomain domain) async {
     await init();
     final payload = NotificationPayload.reminder(domain: domain).encode();

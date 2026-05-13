@@ -233,14 +233,12 @@ class AppModel extends ChangeNotifier {
 
   void recordInternalAgentRun(String agentId, Map<String, Object?> structured) {
     internalAgentLastStructuredById[agentId] = Map<String, Object?>.from(structured);
-    internalAgentLastRunById[agentId] = DateTime.now();
+    internalAgentLastRunById[agentId] = DateTime.now().toUtc();
     _scheduleAppStatePersist();
     notifyListeners();
-  }
-
-  /// Convenience for the asset context planner flow.
-  void recordAssetContextPlannerRun(Map<String, Object?> structured) {
-    recordInternalAgentRun(InternalAppAgentIds.assetContext, structured);
+    // Flush soon so last-run survives app kill and Settings → (i) always sees
+    // fresh data (microtask-only persist can lag behind user navigation).
+    unawaited(persistAppStateToDisk());
   }
 
   /// When this context note was last saved (for assistant + display). Keys: `asset:id`, `liability:id`, `bucket:key`, `month:yyyy-mm`.
@@ -366,16 +364,6 @@ class AppModel extends ChangeNotifier {
   int reminderNotifyHour = 9;
   int reminderNotifyMinute = 0;
 
-  /// Per-domain timestamp of the last notification posted for that domain.
-  /// Kept around for analytics / future fine-grained back-off, but no longer
-  /// gates [isReminderNotifiable]; the once-per-day rotation gate below is
-  /// what actually prevents spam.
-  DateTime? remindersLastNotifiedExpenses;
-  DateTime? remindersLastNotifiedCashflow;
-  DateTime? remindersLastNotifiedIncome;
-  DateTime? remindersLastNotifiedAssets;
-  DateTime? remindersLastNotifiedLiabilities;
-
   /// Calendar day (local) on which the daily rotation push last fired.
   /// `null` means "never fired" — first eligible day will fire.
   DateTime? remindersLastFiredOn;
@@ -383,6 +371,17 @@ class AppModel extends ChangeNotifier {
   /// Domain that fired during the most recent daily push. Drives rotation —
   /// the next fire picks the *next* eligible domain after this one.
   ReminderDomain? remindersLastFiredDomain;
+
+  /// Calendar day (local, midnight) of the next OS-scheduled rotation push,
+  /// or `null` when nothing is scheduled. iOS local notifications guarantee
+  /// delivery at the user's notify slot even without Dart running, so this
+  /// is the primary delivery path; [maybePostDailyReminder] is a safety net
+  /// for when scheduling fails (revoked permission, plugin error, etc.).
+  DateTime? remindersScheduledFireOn;
+
+  /// Domain whose content was baked into the OS-scheduled push referenced by
+  /// [remindersScheduledFireOn]. Consulted on commit to advance rotation.
+  ReminderDomain? remindersPendingDomain;
 
   /// "Has the user actually touched this domain at least once?" — set by domain
   /// mutation methods. Necessary because [_seedDummyCashflowData] pre-populates
@@ -1200,33 +1199,6 @@ class AppModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Records that we posted a notification for [d] now. Stops re-buzzing the same
-  /// domain within the same cadence period.
-  void markDomainNotified(ReminderDomain d, {DateTime? at}) {
-    final t = at ?? DateTime.now();
-    switch (d) {
-      case ReminderDomain.expenses:
-        remindersLastNotifiedExpenses = t;
-      case ReminderDomain.cashflow:
-        remindersLastNotifiedCashflow = t;
-      case ReminderDomain.income:
-        remindersLastNotifiedIncome = t;
-      case ReminderDomain.assets:
-        remindersLastNotifiedAssets = t;
-      case ReminderDomain.liabilities:
-        remindersLastNotifiedLiabilities = t;
-    }
-    _scheduleAppStatePersist();
-  }
-
-  DateTime? reminderLastNotifiedAt(ReminderDomain d) => switch (d) {
-        ReminderDomain.expenses => remindersLastNotifiedExpenses,
-        ReminderDomain.cashflow => remindersLastNotifiedCashflow,
-        ReminderDomain.income => remindersLastNotifiedIncome,
-        ReminderDomain.assets => remindersLastNotifiedAssets,
-        ReminderDomain.liabilities => remindersLastNotifiedLiabilities,
-      };
-
   /// Returns the cadence configured for [d].
   ReminderCadence reminderCadenceFor(ReminderDomain d) => switch (d) {
         ReminderDomain.expenses => remindersExpensesCadence,
@@ -1286,10 +1258,13 @@ class AppModel extends ChangeNotifier {
     return al.year == bl.year && al.month == bl.month && al.day == bl.day;
   }
 
-  /// True when the rotation gate is currently open: notifications on, today's
-  /// notify slot has been reached, and no reminder fired yet today.
+  /// True when the Dart fallback may fire a rotation push *right now*:
+  /// notifications on, today's notify slot has been reached, no reminder
+  /// fired yet today, and no OS-scheduled push already pending (the OS
+  /// path is the primary delivery channel).
   bool canFireDailyReminderNow({DateTime? now}) {
     if (!notificationsEnabled) return false;
+    if (remindersScheduledFireOn != null) return false;
     final n = (now ?? DateTime.now()).toLocal();
     final last = remindersLastFiredOn;
     if (last != null && _isSameLocalDay(last, n)) return false;
@@ -1319,10 +1294,9 @@ class AppModel extends ChangeNotifier {
   /// now). Used by [maybePostDailyReminder]; tests can call it directly to
   /// stage state.
   void recordDailyReminderFired(ReminderDomain domain, {DateTime? at}) {
-    final t = at ?? DateTime.now();
-    remindersLastFiredOn = t;
+    remindersLastFiredOn = at ?? DateTime.now();
     remindersLastFiredDomain = domain;
-    markDomainNotified(domain, at: t);
+    _scheduleAppStatePersist();
   }
 
   /// Single entry point used by both the Workmanager background dispatcher and
@@ -1350,12 +1324,12 @@ class AppModel extends ChangeNotifier {
 
   /// Pushes the current notification configuration to the OS:
   /// - cancels everything when [notificationsEnabled] is false,
-  /// - (re)schedules each `notify == true` agent task at its next local time.
-  ///
-  /// Reminder pushes are *not* pre-scheduled here. They are emitted at
-  /// runtime by [maybePostDailyReminder] from Workmanager background runs and
-  /// app foreground/resume hooks. We also cancel any legacy daily
-  /// reminder-check slot so it doesn't fire its payload-less placeholder.
+  /// - (re)schedules each `notify == true` agent task at its next local time,
+  /// - commits any past-scheduled reminder push and (re)schedules the next
+  ///   one-shot reminder for the upcoming notify slot with the next rotation
+  ///   domain's content. iOS local notifications fire on time without Dart
+  ///   running, so this is the primary delivery path; the Workmanager-driven
+  ///   [maybePostDailyReminder] is only a fallback for when scheduling fails.
   ///
   /// Best-effort; failures (plugin unsupported on web, missing permission) are
   /// swallowed so UI flows stay responsive.
@@ -1364,16 +1338,75 @@ class AppModel extends ChangeNotifier {
       final svc = NotificationService.instance;
       if (!notificationsEnabled) {
         await svc.cancelAll();
+        remindersScheduledFireOn = null;
+        remindersPendingDomain = null;
         return;
       }
       for (final t in scheduledAgentTasks) {
         await svc.scheduleAgentTask(task: t, masterEnabled: true);
       }
-      // Make sure no leftover daily placeholder push exists from older builds.
-      await svc.cancelLegacyReminderCheckSlot();
+      await _scheduleNextReminderSlot();
     } catch (_) {
       // Notification sync is non-fatal.
     }
+  }
+
+  /// Cancels any current reminder schedule, commits past pending fires into
+  /// the rotation cursor, and schedules a new OS one-shot for the upcoming
+  /// notify slot with the next rotation domain's content. Idempotent: calling
+  /// multiple times before the slot fires reschedules the same domain without
+  /// advancing rotation. Persists to disk before returning.
+  Future<void> _scheduleNextReminderSlot() async {
+    final svc = NotificationService.instance;
+    final now = DateTime.now();
+
+    // Commit any previously-scheduled fire whose slot has already passed.
+    // We treat the OS push as "fired" once its scheduled moment is in the
+    // past; this is best-effort (we can't actually inspect iOS delivery),
+    // but it keeps rotation moving forward.
+    final pending = remindersScheduledFireOn;
+    if (pending != null) {
+      final fireMoment = DateTime(
+        pending.year,
+        pending.month,
+        pending.day,
+        reminderNotifyHour,
+        reminderNotifyMinute,
+      );
+      if (!now.isBefore(fireMoment)) {
+        remindersLastFiredOn = fireMoment;
+        if (remindersPendingDomain != null) {
+          remindersLastFiredDomain = remindersPendingDomain;
+        }
+        remindersScheduledFireOn = null;
+        remindersPendingDomain = null;
+      }
+    }
+
+    final todaySlot = DateTime(
+      now.year,
+      now.month,
+      now.day,
+      reminderNotifyHour,
+      reminderNotifyMinute,
+    );
+    final nextSlot =
+        now.isBefore(todaySlot) ? todaySlot : todaySlot.add(const Duration(days: 1));
+
+    final domain = nextRotationDomain(now: nextSlot);
+
+    await svc.cancelReminderSlot();
+    if (domain == null) {
+      remindersScheduledFireOn = null;
+      remindersPendingDomain = null;
+      await persistAppStateToDisk();
+      return;
+    }
+
+    await svc.scheduleReminderForDomainAt(domain: domain, when: nextSlot);
+    remindersScheduledFireOn = DateTime(nextSlot.year, nextSlot.month, nextSlot.day);
+    remindersPendingDomain = domain;
+    await persistAppStateToDisk();
   }
 
   void setDisplayCurrency(CurrencyCode next) {

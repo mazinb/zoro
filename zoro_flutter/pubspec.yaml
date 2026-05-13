@@ -12,7 +12,6 @@ dependencies:
     sdk: flutter
   cupertino_icons: ^1.0.8
   http: ^1.6.0
-  firebase_core: ^3.15.2
   flutter_secure_storage: ^9.2.4
   flutter_svg: ^2.2.3
   sankey_flutter: ^0.0.3
@@ -39,6 +38,13 @@ flutter_launcher_icons:
   ios: true
   image_path: "../zoro-app/public/icon-light.png"
   remove_alpha_ios: true
+
+# path_provider_foundation 2.6+ depends on package:objective_c (native iOS hooks). On some
+# Xcode / Flutter combos the wrong slice (iOS-simulator) gets embedded for device builds,
+# causing dlopen "incompatible platform (have 'iOS-simulator', need 'iOS')" at runtime.
+# 2.5.1 uses the classic Pigeon plugin without objective_c — safe until upstream fixes land.
+dependency_overrides:
+  path_provider_foundation: 2.5.1
 
 flutter:
   uses-material-design: true

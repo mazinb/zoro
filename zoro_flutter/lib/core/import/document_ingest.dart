@@ -1,11 +1,27 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
-import 'package:pdf_struct_extractor/pdf_struct_extractor.dart';
-import 'package:syncfusion_flutter_pdf/pdf.dart';
+import 'package:flutter/foundation.dart';
 
 import '../llm/llm_client.dart';
+import 'document_ingest_isolate.dart';
+
+/// Top-level for [Isolate.run] (must not be a closure).
+String zoroTextImportExcerptIsolate(Uint8List bytes) {
+  String decoded;
+  try {
+    decoded = utf8.decode(bytes, allowMalformed: true);
+  } catch (_) {
+    try {
+      decoded = latin1.decode(bytes, allowInvalid: true);
+    } catch (_) {
+      decoded = '';
+    }
+  }
+  const maxChars = 12000;
+  if (decoded.length <= maxChars) return decoded;
+  return '${decoded.substring(0, maxChars)}\n...[truncated ${decoded.length - maxChars} chars]';
+}
 
 class PdfPasswordRequiredException implements Exception {
   const PdfPasswordRequiredException(this.fileName);
@@ -130,9 +146,12 @@ Future<IngestedDocument> ingestPlatformFile({
     );
   }
 
+  final excerpt = bytes.length > 80000
+      ? await compute(zoroTextImportExcerptIsolate, Uint8List.fromList(bytes))
+      : _truncate(text, 12000);
   return IngestedDocument(
     fileName: f.name,
-    summary: 'File ${f.name} text excerpt:\n${_truncate(text, 12000)}',
+    summary: 'File ${f.name} text excerpt:\n$excerpt',
   );
 }
 
@@ -141,53 +160,18 @@ Future<IngestedDocument> _ingestPdf(
   List<int> bytes, {
   required String? password,
 }) async {
-  PdfDocument? document;
   try {
-    document = PdfDocument(inputBytes: bytes, password: password);
-  } catch (_) {
-    if (password == null) throw PdfPasswordRequiredException(fileName);
-    rethrow;
-  }
-
-  try {
-    final extractor = PdfTextExtractor(document);
-    final text = extractor.extractText().trim();
-    final lines = extractor
-        .extractTextLines()
-        .take(250)
-        .map((line) => line.text.trim())
-        .where((line) => line.isNotEmpty)
-        .toList();
-
-    Map<String, Object?>? structured;
-    try {
-      final unlockedBytes = document.saveSync();
-      final data = await PdfStructuredExtractor.extractFromBytes(
-        Uint8List.fromList(unlockedBytes),
-        sourceName: fileName,
-      );
-      structured = Map<String, Object?>.from(data);
-    } catch (e) {
-      structured = {
-        'warning':
-            'pdf_struct_extractor could not parse layout for this PDF: $e',
-      };
-    }
-
-    final payload = {
-      'fileName': fileName,
-      'text': _truncate(text, 16000),
-      'textLines': lines,
-      'structuredLayout': structured,
-    };
-
-    return IngestedDocument(
+    final summary = await runPdfTextExtractionInIsolate(
       fileName: fileName,
-      summary:
-          'Local PDF extraction for $fileName:\n${const JsonEncoder.withIndent('  ').convert(payload)}',
+      bytes: bytes,
+      password: password,
     );
-  } finally {
-    document.dispose();
+    return IngestedDocument(fileName: fileName, summary: summary);
+  } catch (e) {
+    if (isPdfPasswordRequiredFromIsolate(e)) {
+      throw PdfPasswordRequiredException(fileName);
+    }
+    rethrow;
   }
 }
 

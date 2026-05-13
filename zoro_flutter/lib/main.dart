@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:workmanager/workmanager.dart';
@@ -10,9 +9,8 @@ import 'app.dart';
 import 'core/notifications/background_dispatcher.dart';
 import 'core/notifications/notification_service.dart';
 
-Future<void> main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  await Firebase.initializeApp();
   // Initialize the notification plugin so foreground reschedules + tap routing
   // work the moment the app launches. Permission is requested lazily when the
   // user enables the master switch in Settings.

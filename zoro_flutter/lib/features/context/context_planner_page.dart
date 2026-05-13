@@ -299,6 +299,10 @@ Use the subject block, existingContextMarkdown, contextLastUpdated if present, a
     _tickController.forward(from: 0);
     await Future<void>.delayed(const Duration(milliseconds: 1200));
     if (!mounted) return;
+    // Record here as well as in [ContextEditorPage] so last-run is set even if
+    // the parent route is popped before it processes the result.
+    widget.model.recordInternalAgentRun(widget.config.internalAgentId, structured);
+    if (!mounted) return;
     Navigator.of(context).pop(ContextPlannerResult(contextMarkdown: md, structured: structured));
   }
 

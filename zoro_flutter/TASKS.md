@@ -1,101 +1,64 @@
-# Zoro Flutter — backlog
+# Zoro Flutter — reference
 
-Privacy-first: sensitive finance data stays on device; the app talks to your existing **Zoro web** API (`getzoro.com`) like the Next.js site.
+Privacy-first: sensitive finance data stays on device; the app talks to the existing **Zoro web** API (`getzoro.com`) like the Next.js site.
+
+No open tasks.
 
 ---
 
 ## Ship checklist (before you commit / tag)
 
-- [ ] `cd zoro_flutter && dart analyze` — clean  
-- [ ] `flutter test` — green (no Xcode required)  
-- [ ] On a **device**: smoke Home → Ledger → Settings; dark + light if you use dark builds  
-- [ ] **Release** builds: no `--dart-define-from-file` with secrets; App Store / TestFlight use prod signing (`com.getzoro.zoroFlutter`)  
-- [ ] `API_BASE_URL` points at production when you mean production  
+- [ ] `cd zoro_flutter && dart analyze` — clean
+- [ ] `flutter test` — green (no Xcode required)
+- [ ] On a **device**: smoke Command center → Ledger → Context → Chat → Settings; dark + light if you use dark builds
+- [ ] **Release** builds: no `--dart-define-from-file` with secrets; App Store / TestFlight use prod signing (`com.getzoro.zoroFlutter`)
+- [ ] `API_BASE_URL` points at production when you mean production
 
 **iOS (first time on a Mac):** Xcode + CocoaPods, `./scripts/setup_ios.sh`, open `ios/Runner.xcworkspace`, pick Team + device, Run. Detail: see **iOS quick reference** below.
 
 ---
 
-## After first ship — final pass
+## App surface
 
-Use this when you come back from living in the app for a bit:
+Five tabs live in `MainScaffold` and are the entire UI surface:
 
-- Dark theme: flip remaining tabs to `colorScheme` / fix hardcoded light surfaces (see table).  
-- Persist **ThemeMode** (system / light / dark) + Settings toggle + `MaterialApp.themeMode`.  
-- Small UI regressions, copy, and performance only—no new big features unless listed in **Product backlog**.
-
----
-
-## Dark mode (phased)
-
-**Done in tree:** `AppTheme.dark`, `AppModel.themedDark()`, `MaterialApp` wired for dark theme (default theme mode is still **light** until you persist a preference).
-
-**Done / strong progress:** Command center (Sankey liquid nodes, flow card, glass modals), bottom **liquid** nav (flat frost, `extendBody`, transparent slot), Home Updates / Sankey chrome panels, modal sheets via `showLiquidGlassModalBottomSheet` across Ledger / Chat / Context / Settings / Sandbox.
-
-| Area | Status |
-|------|--------|
-| Chat tab shell | Open |
-| Context tab lists | Open |
-| Settings chrome | Open |
-| Horizon / Life log | Open |
-| Ledger (remaining rows/sheets) | Mostly OK; polish when dark on |
-| Onboarding / Sandbox | Open |
-| **Enable dark for users** | Persist `ThemeMode` + toggle (Settings) |
-
-Prefer `Theme.of(context).colorScheme` / `textTheme` over `AppTheme.slate*` and raw `Colors.white`.
+1. **Command center** (`features/command_center/command_center_tab.dart`) — Sankey, net-worth projection
+2. **Ledger** (`features/ledger/ledger_tab.dart`) — assets, liabilities, income, expenses, cashflow rows + import / orchestrator pages
+3. **Context** (`features/context/context_tab.dart`) — context editor, orchestrator, planner
+4. **Chat** (`features/chat/chat_tab.dart`) — per-agent threads
+5. **Settings** (`features/settings/settings_tab.dart`) — API keys, scheduled tasks, internal agent prompts, notifications, reminders
 
 ---
 
-## Product backlog (later)
+## Notifications — architecture (shipped)
 
-0. **Apple on-device LLM** — Settings → API keys: Apple on-device toggle; requires iOS 26+ + Apple Intelligence + Xcode with Foundation Models SDK. Android unchanged. Smoke: chat + scheduled agent with Apple when available; `dart analyze` / `flutter test` green without Xcode.
-1. Cashflow PDF import — keep refining **Import monthly cashflow** prompts; iteration context: `docs/cashflow_import_prompt_context.md`.
-2. Plan tab — one form vertical: UI + `POST /api/user-data` with `formType` aligned to web.  
-3. Money / Income — wire web `/income` when product-ready.  
-4. Expenses — mirror web estimates/monthly routes.  
-5. Universal Links — `applinks:www.getzoro.com` + token routing in iOS.  
-6. Subscriptions — entitlements + StoreKit 2; map 403/402 to paywall.
-
-## Native push notifications
-
-### Shipped
-
-- Local-only (`flutter_local_notifications` + `workmanager`); no APNs/FCM.
-- One master "Allow notifications" toggle (`AppModel.notificationsEnabled`) covers briefings + reminder pushes; defaults off. Per-scheduled-task `notify` flag. Per-domain silencing is done by setting that row's cadence to **Off** in the Reminders card.
-- `AppModel.isReminderNotifiable(domain)` checks eligibility (master on, cadence ≠ Off, user content, overdue anchor). Onboarding-spam regression test asserts a fresh `AppModel` with every cadence set produces zero notifications.
-- **v2 daily rotation gate (reminders).** At most one reminder push per local day, fired at or after `reminderNotifyHour:reminderNotifyMinute`. `AppModel.maybePostDailyReminder()` is the single entry point: it consults `canFireDailyReminderNow()` (gate) + `nextRotationDomain()` (rotation through eligible domains in `ReminderDomain.values` order, wrapping around `remindersLastFiredDomain`), posts `NotificationService.postReminderForDomain(d)`, stamps `remindersLastFiredOn/Domain`, and **awaits** `persistAppStateToDisk()` so the BG isolate can't lose the "fired today" flag. Both Workmanager (`background_dispatcher._runRefresh`) and the app's foreground/resume hooks (`MainScaffold`) call this method, so a missed BG slot is caught up on next app open.
-- **v2 agent-task push.** Pre-scheduled OS alarm and post-LLM background `postAgentBriefing` both render the same notification: title = task name (e.g. "Morning briefing"), body = "Is ready for you to review". `_runDueAgentTasks` in the background dispatcher persists state after each run so `lastRunAt` survives the isolate.
-- iOS: deployment target 14.0; `UIBackgroundModes` (`fetch`, `processing`) + `BGTaskSchedulerPermittedIdentifiers` (`com.getzoro.zoroFlutter.refresh`); `AppDelegate.swift` registers `WorkmanagerPlugin.registerPeriodicTask` before `super.application(...)`. `DarwinNotificationDetails` sets `presentBanner` + `presentList` for foreground banners on iOS 14+.
-- Android: `POST_NOTIFICATIONS`, `RECEIVE_BOOT_COMPLETED`, `SCHEDULE_EXACT_ALARM`, `USE_EXACT_ALARM`, `WAKE_LOCK`; `ScheduledNotificationBootReceiver` so absolute-time alarms survive reboot.
-- iOS verified end-to-end on device: permission flow + foreground/lock-screen test fire works.
-
-### TODO — v3 content + routing polish
-
-- **Smarter notification copy.** Per-domain reminder copy still says "Cash flow needs a refresh / Tap to update your … balances." Surface concrete staleness ("Cash flow hasn't been updated in 67 days") and the cadence anchor that's due, pulled from `*ReviewOverdueAt` siblings on `AppModel`. For agent briefings, decide between the static "Is ready for you to review" and a one-liner derived from `homeSummaryText` (currently the static copy wins; revisit once we have a stable BG run rate).
-- **Deep-link destinations (not Settings).** `_handleNotificationPayload` routes agent taps to Home and reminder taps to Ledger + section. Land on the precise editing surface:
-  - Reminders → open the domain's edit sheet (Assets sheet / Liabilities sheet / Income editor / Expense bucket / Cashflow import) instead of just scrolling the Ledger to that section.
-  - Agent briefings → land on the briefing detail (or scroll Home to the "Updates" card), and mark the briefing read in `AppModel` so the tap doesn't keep nagging.
-  - Add a tiny `NotificationRoute` enum on `notification_payload.dart` so the payload carries the intended landing surface rather than re-deriving it in `MainScaffold`.
-- **Stale-data dismiss UX.** Tapping a reminder should call `AppModel.recordDailyReminderFired(...)` immediately so we don't re-buzz today even if the user closes the destination without editing (Workmanager + foreground hook already enforce the daily gate, so this is belt-and-braces).
-- **Exact-time delivery.** Workmanager runs every ~15 min on iOS and may slip the user's notify slot by a non-trivial amount. If users complain about timing drift, schedule a per-day OS-level local notification with pre-computed rotation content at `syncNotifications()` time (and re-schedule the next day's push on each fire / resume).
-- **Android device smoke test.** Pixel still pending: verify briefing fires, rotation reminder fires only once per day on the chosen slot, tap deep-links land correctly, fresh install during onboarding never buzzes, reboot keeps schedules.
+- **Local-only** (`flutter_local_notifications` + `workmanager`); no APNs/FCM.
+- **Master toggle** — `AppModel.notificationsEnabled` defaults off. Per-scheduled-task `notify` flag. Per-domain silencing = set that row's cadence to **Off** in the Reminders card.
+- **Eligibility** — `AppModel.isReminderNotifiable(domain)` requires master on, cadence ≠ Off, real user content (`userTouched*` flags / imported cashflow months), and an overdue review anchor. Onboarding-spam regression test asserts a fresh `AppModel` with every cadence set produces zero notifications.
+- **Daily rotation** — at most one reminder push per local day, fired at the user's notify slot. Primary delivery is an **OS-scheduled one-shot** (iOS fires it on time even without Dart running). `AppModel._scheduleNextReminderSlot()` commits any past-scheduled fire into `remindersLastFiredOn/Domain`, picks the next eligible domain via `nextRotationDomain()` (wraps `ReminderDomain.values` after `remindersLastFiredDomain`), cancels the previous slot, and `NotificationService.scheduleReminderForDomainAt()` schedules the next one with per-domain content + payload. `remindersScheduledFireOn` + `remindersPendingDomain` track the pending push. Re-runs on first frame, app resume, and at the end of every Workmanager run. `maybePostDailyReminder()` is the Dart-side fallback; its gate `canFireDailyReminderNow()` defers to any pending OS schedule so the two paths never double-fire.
+- **Agent-task push** — pre-scheduled OS alarm and post-LLM background `postAgentBriefing` both render: title = task name (e.g. "Morning briefing"), body = "Is ready for you to review". `_runDueAgentTasks` persists state after each run so `lastRunAt` survives the BG isolate.
+- **iOS** — deployment target 14.0; `UIBackgroundModes` (`fetch`, `processing`) + `BGTaskSchedulerPermittedIdentifiers` (`com.getzoro.zoroFlutter.refresh`); `AppDelegate.swift` registers `WorkmanagerPlugin.registerPeriodicTask` before `super.application(...)`. `DarwinNotificationDetails` sets `presentBanner` + `presentList` for foreground banners.
+- **Android** — `POST_NOTIFICATIONS`, `RECEIVE_BOOT_COMPLETED`, `SCHEDULE_EXACT_ALARM`, `USE_EXACT_ALARM`, `WAKE_LOCK`; `ScheduledNotificationBootReceiver` so absolute-time alarms survive reboot.
 
 ---
 
 ## iOS quick reference
 
-1. Xcode from App Store; `sudo xcode-select -s /Applications/Xcode.app/Contents/Developer` and `sudo xcodebuild -runFirstLaunch` if needed.  
-2. `brew install cocoapods`  
-3. `cd zoro_flutter && ./scripts/setup_ios.sh`  
-4. `open ios/Runner.xcworkspace` → **Runner** → Signing → **Team** → run on device.  
-5. Device: Trust Mac; **Developer Mode** on.  
-6. CLI: `flutter devices` then  
-   `flutter run -d <id> --dart-define=API_BASE_URL=https://www.getzoro.com`  
+1. Xcode from App Store; `sudo xcode-select -s /Applications/Xcode.app/Contents/Developer` and `sudo xcodebuild -runFirstLaunch` if needed.
+2. `brew install cocoapods`
+3. `cd zoro_flutter && ./scripts/setup_ios.sh`
+4. `open ios/Runner.xcworkspace` → **Runner** → Signing → **Team** → run on device.
+5. Device: Trust Mac; **Developer Mode** on.
+6. CLI: `flutter devices` then `flutter run -d <id> --dart-define=API_BASE_URL=https://www.getzoro.com`.
    Optional local keys for dev: `./scripts/flutter_with_zoro_env.sh run -d <id> --dart-define=API_BASE_URL=...` (see script; never commit keys).
 
 **Wireless debugging:** Xcode → Devices and Simulators → Connect via network (after USB pairing).
 
 **LAN API from phone:** `--dart-define=API_BASE_URL=http://<Mac-LAN-IP>:3000` (not `127.0.0.1`).
+
+**Device install "invalid signature" / `objective_c.framework` / `0xe8008014`:** The Runner target runs **`ios/scripts/resign_embedded_frameworks.sh`** after `[CP] Embed Pods Frameworks` so every embedded `*.framework` is re-signed with your team. If install still fails: `flutter clean`, delete the app from the device, clear Xcode DerivedData for Runner, `cd ios && pod install`, rebuild.
+
+**Runtime `objective_c` / "incompatible platform (have 'iOS-simulator', need 'iOS')":** That framework was pulled in by **`path_provider_foundation` 2.6+**. `pubspec.yaml` pins **`path_provider_foundation: 2.5.1`** via `dependency_overrides` so the app does not ship `objective_c.framework`. Drop the override when a newer release clearly works on physical devices — watch [flutter/packages path_provider](https://github.com/flutter/packages/tree/main/packages/path_provider/path_provider_foundation) release notes before upgrading.
 
 ---
 
@@ -112,6 +75,6 @@ Prefer `Theme.of(context).colorScheme` / `textTheme` over `AppTheme.slate*` and 
 
 `flutter analyze` + `flutter test` must pass without Xcode.
 
-**Native iOS build:** run `cd zoro_flutter && ./scripts/ci_ios_prepare.sh` before `xcodebuild` on `ios/Runner.xcworkspace` so `Generated.xcconfig` and Pods exist (`flutter pub get` then `pod install`—order matters).
+**Native iOS build:** run `cd zoro_flutter && ./scripts/ci_ios_prepare.sh` before `xcodebuild` on `ios/Runner.xcworkspace` so `Generated.xcconfig` and Pods exist (`flutter pub get` then `pod install` — order matters).
 
 **Xcode Cloud:** repo-root `ci_scripts/ci_post_clone.sh` should `cd` into `zoro_flutter` and run that prepare script; image needs Flutter + CocoaPods on `PATH`.

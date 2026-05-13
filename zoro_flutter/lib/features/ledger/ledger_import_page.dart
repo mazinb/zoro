@@ -1,7 +1,9 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../../core/import/document_ingest.dart';
 import '../../core/llm/llm_error_helpers.dart';
@@ -16,6 +18,14 @@ import '../../core/state/monthly_cashflow_entry.dart';
 enum LedgerImportKind { asset, liability, cashflow }
 
 enum _LedgerImportPickerKind { photos, files }
+
+enum _LedgerImportStage {
+  needPick,
+  extractingLocal,
+  localReady,
+  runningLlm,
+  llmComplete,
+}
 
 class LedgerImportPage extends StatefulWidget {
   const LedgerImportPage({
@@ -46,13 +56,18 @@ class LedgerImportPage extends StatefulWidget {
 
 class _LedgerImportPageState extends State<LedgerImportPage> {
   bool _busy = false;
+  /// True while the PDF password [AlertDialog] is showing — hide the indeterminate bar behind it.
+  bool _pdfPasswordDialogOpen = false;
   String? _error;
 
   /// When null, use [AppModel.activeLlmProvider].
   LlmProvider? _importProviderOverride;
 
   List<PlatformFile> _pickedFiles = const [];
-  String? _pickedText;
+
+  /// Filled after local PDF/file ingest (before any LLM call).
+  IngestBundle? _ingestBundle;
+  String? _savedExtractFilePath;
 
   List<LedgerAssetRow>? _assetsPreview;
   List<LedgerLiabilityRow>? _liabilitiesPreview;
@@ -64,6 +79,8 @@ class _LedgerImportPageState extends State<LedgerImportPage> {
 
   /// Non-fatal notice when e.g. the model returned multiple rows in edit mode.
   String? _importWarning;
+
+  _LedgerImportStage _stage = _LedgerImportStage.needPick;
 
   bool get _editingAsset => widget.editAssetId != null;
 
@@ -267,8 +284,6 @@ Rules (cashflow):
   void initState() {
     super.initState();
     _snapshotBeforeRows();
-    // Kick off immediately so "+" feels like “import”.
-    WidgetsBinding.instance.addPostFrameCallback((_) => _pickAndExtract());
   }
 
   void _snapshotBeforeRows() {
@@ -328,6 +343,9 @@ Infer **monthKey** from the document or statement period; use this hint only if 
       _liabilitiesPreview = null;
       _cashflowPreview = null;
       _contextPreviewMarkdown = null;
+      _ingestBundle = null;
+      _savedExtractFilePath = null;
+      _stage = _LedgerImportStage.needPick;
     });
 
     final allowMultipleImages = widget.kind == LedgerImportKind.asset;
@@ -404,13 +422,59 @@ Infer **monthKey** from the document or statement period; use this hint only if 
 
     setState(() {
       _pickedFiles = picked;
-      _pickedText = null;
     });
 
-    await _extract();
+    await _runLocalExtractAfterPick();
   }
 
-  Future<void> _extract() async {
+  Future<void> _runLocalExtractAfterPick() async {
+    if (_pickedFiles.isEmpty) return;
+    setState(() {
+      _stage = _LedgerImportStage.extractingLocal;
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final bundle = await ingestPlatformFiles(
+        files: _pickedFiles,
+        requestPdfPassword: _requestPdfPassword,
+      );
+      String? path;
+      final extractText = bundle.promptText;
+      if (extractText.trim().isNotEmpty) {
+        final dir = await getTemporaryDirectory();
+        final f = File(
+          '${dir.path}/zoro_ledger_import_${DateTime.now().millisecondsSinceEpoch}.txt',
+        );
+        await f.writeAsString(extractText, flush: true);
+        path = f.path;
+      }
+      if (!mounted) return;
+      setState(() {
+        _ingestBundle = bundle;
+        _savedExtractFilePath = path;
+        _stage = _LedgerImportStage.localReady;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+        _ingestBundle = null;
+        _savedExtractFilePath = null;
+        _stage = _LedgerImportStage.needPick;
+      });
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _runLlmFromSavedBundle() async {
+    final bundle = _ingestBundle;
+    if (bundle == null) {
+      setState(() => _error = 'Nothing imported on-device yet. Pick a file first.');
+      return;
+    }
+
     final m = widget.model;
     final provider = _effectiveImportProvider;
     final key = m.apiKeyFor(provider);
@@ -419,30 +483,25 @@ Infer **monthKey** from the document or statement period; use this hint only if 
       return;
     }
 
+    if (provider == LlmProvider.appleFoundation && bundle.attachments.isNotEmpty) {
+      setState(() {
+        _error = _importErrorWithSuggestions(
+          m,
+          provider,
+          'Apple on-device cannot use images or raw PDF bytes for this import. '
+          'Pick OpenAI or Gemini (or turn off Apple and use Anthropic text-only after local PDF extract).',
+        );
+      });
+      return;
+    }
+
     setState(() {
       _busy = true;
       _error = null;
+      _stage = _LedgerImportStage.runningLlm;
     });
 
     try {
-      final bundle = await ingestPlatformFiles(
-        files: _pickedFiles,
-        requestPdfPassword: _requestPdfPassword,
-      );
-
-      if (provider == LlmProvider.appleFoundation && bundle.attachments.isNotEmpty) {
-        setState(() {
-          _busy = false;
-          _error = _importErrorWithSuggestions(
-            m,
-            provider,
-            'Apple on-device cannot use images or raw PDF bytes for this import. '
-            'Pick OpenAI or Gemini (or turn off Apple and use Anthropic text-only after local PDF extract).',
-          );
-        });
-        return;
-      }
-
       final userPrompt = [
         'Files: ${_pickedFiles.map((f) => f.name).join(', ')}',
         '',
@@ -639,16 +698,32 @@ Infer **monthKey** from the document or statement period; use this hint only if 
         });
       }
     } catch (e) {
-      setState(() => _error = _importErrorWithSuggestions(m, _effectiveImportProvider, e.toString()));
+      if (mounted) {
+        setState(() {
+          _error = _importErrorWithSuggestions(m, _effectiveImportProvider, e.toString());
+        });
+      }
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          if (_error == null) {
+            _stage = _LedgerImportStage.llmComplete;
+          } else if (_ingestBundle != null) {
+            _stage = _LedgerImportStage.localReady;
+          }
+        });
+      }
     }
   }
 
   Future<String?> _requestPdfPassword(String fileName) async {
     final ctrl = TextEditingController();
     try {
-      return showDialog<String>(
+      if (mounted) {
+        setState(() => _pdfPasswordDialogOpen = true);
+      }
+      return await showDialog<String>(
         context: context,
         barrierDismissible: false,
         builder: (ctx) {
@@ -658,6 +733,7 @@ Infer **monthKey** from the document or statement period; use this hint only if 
               controller: ctrl,
               autofocus: true,
               obscureText: true,
+              textInputAction: TextInputAction.done,
               decoration: InputDecoration(
                 labelText: 'Password for $fileName',
                 helperText: 'The PDF is decrypted locally on this device.',
@@ -678,6 +754,9 @@ Infer **monthKey** from the document or statement period; use this hint only if 
         },
       );
     } finally {
+      if (mounted) {
+        setState(() => _pdfPasswordDialogOpen = false);
+      }
       ctrl.dispose();
     }
   }
@@ -1128,10 +1207,18 @@ Infer **monthKey** from the document or statement period; use this hint only if 
     ];
   }
 
+  /// Short labels for the import model row (fits one line; differs from [shortLlmLabel] in settings).
+  String _importModelChipLabel(LlmProvider p) => switch (p) {
+        LlmProvider.appleFoundation => 'Apple',
+        LlmProvider.openai => 'OpenAI',
+        LlmProvider.anthropic => 'Claude',
+        LlmProvider.gemini => 'Gemini',
+      };
+
   String _importErrorWithSuggestions(AppModel m, LlmProvider current, String base) {
     final hint = otherLlmSuggestionLine(m, current: current);
     final ctx = messageLooksLikeContextOrTokenLimit(base)
-        ? 'Large PDFs / long extracts need a bigger on-device or cloud context — try Gemini or OpenAI if you have a key.'
+        ? 'Large PDFs / long extracts need a bigger on-device or cloud context. Try Gemini or OpenAI if you have a key.'
         : '';
     if (ctx.isEmpty && hint == null) return base;
     return '$base${ctx.isEmpty ? '' : '\n\n$ctx'}${hint == null ? '' : '\n\n$hint'}';
@@ -1149,7 +1236,7 @@ Infer **monthKey** from the document or statement period; use this hint only if 
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              'Model for this import',
+              'Model',
               style: TextStyle(
                 fontWeight: FontWeight.w800,
                 color: cs.onSurfaceVariant,
@@ -1157,31 +1244,179 @@ Infer **monthKey** from the document or statement period; use this hint only if 
               ),
             ),
             const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                ChoiceChip(
-                  label: Text('Settings default (${shortLlmLabel(m.activeLlmProvider)})'),
-                  selected: _importProviderOverride == null,
-                  onSelected: (v) {
-                    if (v) setState(() => _importProviderOverride = null);
-                  },
-                ),
-                for (final p in ready)
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
                   ChoiceChip(
-                    label: Text(shortLlmLabel(p)),
-                    selected: _importProviderOverride == p,
+                    label: const Text('Default'),
+                    visualDensity: VisualDensity.compact,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    selected: _importProviderOverride == null,
                     onSelected: (v) {
-                      if (v) setState(() => _importProviderOverride = p);
+                      if (v) setState(() => _importProviderOverride = null);
                     },
                   ),
-              ],
+                  const SizedBox(width: 6),
+                  for (final p in ready) ...[
+                    ChoiceChip(
+                      label: Text(_importModelChipLabel(p)),
+                      visualDensity: VisualDensity.compact,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      selected: _importProviderOverride == p,
+                      onSelected: (v) {
+                        if (v) setState(() => _importProviderOverride = p);
+                      },
+                    ),
+                    const SizedBox(width: 6),
+                  ],
+                ],
+              ),
             ),
             const SizedBox(height: 12),
           ],
         );
       },
+    );
+  }
+
+  Future<void> _openExtractedTextViewer() async {
+    var full = _ingestBundle?.promptText ?? '';
+    final path = _savedExtractFilePath;
+    if (full.isEmpty && path != null) {
+      try {
+        full = await File(path).readAsString();
+      } catch (_) {}
+    }
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('On-device extract'),
+          content: SizedBox(
+            width: double.maxFinite,
+            height: MediaQuery.sizeOf(ctx).height * 0.55,
+            child: SingleChildScrollView(
+              child: SelectableText(
+                full.trim().isEmpty
+                    ? 'No text was extracted (e.g. images only). The AI step still receives image attachments when you run it.'
+                    : full,
+                style: TextStyle(
+                  fontSize: 13,
+                  height: 1.35,
+                  color: Theme.of(ctx).colorScheme.onSurface,
+                ),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  String _basename(String p) {
+    final norm = p.replaceAll('\\', '/');
+    final i = norm.lastIndexOf('/');
+    return i < 0 ? p : norm.substring(i + 1);
+  }
+
+  Widget _buildImportStepsCard(BuildContext context) {
+    final muted = Theme.of(context).colorScheme.onSurfaceVariant;
+    final stageLabel = switch (_stage) {
+      _LedgerImportStage.needPick => '1 Choose a file',
+      _LedgerImportStage.extractingLocal => '2 Reading file…',
+      _LedgerImportStage.localReady => '2 Ready for AI',
+      _LedgerImportStage.runningLlm => '3 Running AI…',
+      _LedgerImportStage.llmComplete => '3 Done. Review below.',
+    };
+    final hasBundle = _ingestBundle != null;
+    final canRunAi = hasBundle && !_busy;
+
+    return _previewCard(
+      title: 'Progress',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            stageLabel,
+            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+          ),
+          if (_stage == _LedgerImportStage.needPick && _pickedFiles.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                'Choose a file to start. Large PDFs read in the background.',
+                style: TextStyle(fontSize: 12, color: muted, height: 1.35),
+              ),
+            ),
+          if (hasBundle) ...[
+            const SizedBox(height: 10),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: _busy ? null : _openExtractedTextViewer,
+                    icon: const Icon(Icons.article_outlined, size: 16),
+                    label: const Text('Extract'),
+                    style: OutlinedButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  FilledButton.tonalIcon(
+                    onPressed: canRunAi ? _runLlmFromSavedBundle : null,
+                    icon: const Icon(Icons.auto_awesome, size: 16),
+                    label: const Text('Run AI'),
+                    style: FilledButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  OutlinedButton.icon(
+                    onPressed: _busy ? null : _pickAndExtract,
+                    icon: const Icon(Icons.edit_document, size: 16),
+                    label: const Text('Replace'),
+                    style: OutlinedButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
+                  if (_stage == _LedgerImportStage.llmComplete ||
+                      (_error != null && _ingestBundle != null)) ...[
+                    const SizedBox(width: 8),
+                    OutlinedButton.icon(
+                      onPressed: canRunAi ? _runLlmFromSavedBundle : null,
+                      icon: const Icon(Icons.refresh, size: 16),
+                      label: const Text('Retry'),
+                      style: OutlinedButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+          if (_savedExtractFilePath != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Extract saved: ${_basename(_savedExtractFilePath!)}',
+              style: TextStyle(fontSize: 11, color: muted),
+            ),
+          ],
+        ],
+      ),
     );
   }
 
@@ -1223,10 +1458,12 @@ Infer **monthKey** from the document or statement period; use this hint only if 
                 const SizedBox(width: 10),
                 OutlinedButton(
                   onPressed: _busy ? null : _pickAndExtract,
+                  style: OutlinedButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
                   child: Text(
-                    widget.kind == LedgerImportKind.asset
-                        ? 'Pick files/images'
-                        : 'Pick file/image',
+                    widget.kind == LedgerImportKind.asset ? 'Files' : 'Browse',
                   ),
                 ),
               ],
@@ -1234,7 +1471,9 @@ Infer **monthKey** from the document or statement period; use this hint only if 
             const SizedBox(height: 12),
             _buildImportModelSwitcher(context),
             const SizedBox(height: 12),
-            if (_busy)
+            _buildImportStepsCard(context),
+            const SizedBox(height: 12),
+            if (_busy && !_pdfPasswordDialogOpen)
               const LinearProgressIndicator(minHeight: 3)
             else if (_error != null)
               Text(
@@ -1254,20 +1493,6 @@ Infer **monthKey** from the document or statement period; use this hint only if 
                 ),
               ),
             const SizedBox(height: 12),
-            if ((_pickedText ?? '').trim().isNotEmpty)
-              _previewCard(
-                title: 'Input preview (truncated)',
-                child: Text(
-                  _pickedText!,
-                  maxLines: 12,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: muted,
-                    height: 1.3,
-                  ),
-                ),
-              ),
             if (_contextPreviewMarkdown != null &&
                 _contextPreviewMarkdown!.trim().isNotEmpty)
               _previewCard(
