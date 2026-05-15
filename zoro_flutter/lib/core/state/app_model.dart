@@ -1189,14 +1189,28 @@ class AppModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Clears today's rotation dispatch cursor so a new notify slot can fire.
+  /// Called when the user changes reminder time — the once-per-day cap applies
+  /// per configured slot, not across time edits on the same calendar day.
+  void resetDailyReminderDispatchState() {
+    remindersLastFiredOn = null;
+    remindersLastFiredDomain = null;
+    remindersScheduledFireOn = null;
+    remindersPendingDomain = null;
+  }
+
   void setReminderNotifyTime({required int hour, required int minute}) {
     final h = hour.clamp(0, 23);
     final m = minute.clamp(0, 59);
     if (reminderNotifyHour == h && reminderNotifyMinute == m) return;
     reminderNotifyHour = h;
     reminderNotifyMinute = m;
+    resetDailyReminderDispatchState();
     _scheduleAppStatePersist();
-    unawaited(syncNotifications());
+    unawaited(() async {
+      await syncNotifications();
+      await maybePostDailyReminder();
+    }());
     notifyListeners();
   }
 
@@ -1209,9 +1223,18 @@ class AppModel extends ChangeNotifier {
         ReminderDomain.liabilities => remindersLiabilitiesCadence,
       };
 
-  /// True iff the user has actually populated [d] with their own data (not just
-  /// the seeded dummies). Cashflow uses the presence of imported months rather
-  /// than a `userTouched` flag because the seed clears [monthlyCashflowByMonth].
+  /// True once the user has moved past the seeded first-run state (any ledger
+  /// edit or imported cash-flow month). Matches when Home "blue" overdue rows
+  /// reflect real usage rather than demo dates alone.
+  bool get remindersOnboardingComplete =>
+      userTouchedExpenses ||
+      userTouchedIncome ||
+      userTouchedAssets ||
+      userTouchedLiabilities ||
+      monthlyCashflowByMonth.isNotEmpty;
+
+  /// Per-domain content check (used in tests). Notifications gate on
+  /// [remindersOnboardingComplete] plus the same overdue anchors as Home.
   bool userHasContentFor(ReminderDomain d) => switch (d) {
         ReminderDomain.expenses => userTouchedExpenses,
         ReminderDomain.cashflow => monthlyCashflowByMonth.isNotEmpty,
@@ -1236,7 +1259,7 @@ class AppModel extends ChangeNotifier {
   bool isReminderNotifiable(ReminderDomain d, {DateTime? now}) {
     if (!notificationsEnabled) return false;
     if (reminderCadenceFor(d) == ReminderCadence.off) return false;
-    if (!userHasContentFor(d)) return false;
+    if (!remindersOnboardingComplete) return false;
     final n = now ?? DateTime.now();
     if (!_reviewOverdueFor(d, n)) return false;
     return true;
@@ -1260,17 +1283,26 @@ class AppModel extends ChangeNotifier {
   }
 
   /// True when the Dart fallback may fire a rotation push *right now*:
-  /// notifications on, today's notify slot has been reached, no reminder
-  /// fired yet today, and no OS-scheduled push already pending (the OS
-  /// path is the primary delivery channel).
+  /// notifications on, today's notify slot has been reached, and no reminder
+  /// fired yet today. Defers only while an OS schedule for *today* is still
+  /// in the future — once that slot passes (or was cleared for catch-up),
+  /// fallback is allowed in case iOS never delivered the scheduled push.
   bool canFireDailyReminderNow({DateTime? now}) {
     if (!notificationsEnabled) return false;
-    if (remindersScheduledFireOn != null) return false;
     final n = (now ?? DateTime.now()).toLocal();
     final last = remindersLastFiredOn;
     if (last != null && _isSameLocalDay(last, n)) return false;
     final slot = DateTime(n.year, n.month, n.day, reminderNotifyHour, reminderNotifyMinute);
     if (n.isBefore(slot)) return false;
+
+    final pending = remindersScheduledFireOn;
+    if (pending != null) {
+      final pendingLocal = pending.toLocal();
+      final pendingDay = DateTime(pendingLocal.year, pendingLocal.month, pendingLocal.day);
+      final today = DateTime(n.year, n.month, n.day);
+      if (pendingDay.isAfter(today)) return false;
+      if (pendingDay == today && n.isBefore(slot)) return false;
+    }
     return true;
   }
 
@@ -1297,6 +1329,7 @@ class AppModel extends ChangeNotifier {
   void recordDailyReminderFired(ReminderDomain domain, {DateTime? at}) {
     remindersLastFiredOn = at ?? DateTime.now();
     remindersLastFiredDomain = domain;
+    remindersPendingDomain = null;
     _scheduleAppStatePersist();
   }
 
@@ -1310,7 +1343,10 @@ class AppModel extends ChangeNotifier {
   Future<ReminderDomain?> maybePostDailyReminder({DateTime? now}) async {
     final n = now ?? DateTime.now();
     if (!canFireDailyReminderNow(now: n)) return null;
-    final domain = nextRotationDomain(now: n);
+    final pending = remindersPendingDomain;
+    final domain = (pending != null && isReminderNotifiable(pending, now: n))
+        ? pending
+        : nextRotationDomain(now: n);
     if (domain == null) return null;
     try {
       await NotificationService.instance.postReminderForDomain(domain);
@@ -1319,6 +1355,9 @@ class AppModel extends ChangeNotifier {
     }
     recordDailyReminderFired(domain, at: n);
     await persistAppStateToDisk();
+    try {
+      await _scheduleNextReminderSlot();
+    } catch (_) {}
     notifyListeners();
     return domain;
   }
@@ -1361,10 +1400,9 @@ class AppModel extends ChangeNotifier {
     final svc = NotificationService.instance;
     final now = DateTime.now();
 
-    // Commit any previously-scheduled fire whose slot has already passed.
-    // We treat the OS push as "fired" once its scheduled moment is in the
-    // past; this is best-effort (we can't actually inspect iOS delivery),
-    // but it keeps rotation moving forward.
+    // A past OS slot with no "fired today" record means delivery may have failed.
+    // Clear the schedule marker so Dart fallback can post, but keep
+    // [remindersPendingDomain] so catch-up targets the right domain.
     final pending = remindersScheduledFireOn;
     if (pending != null) {
       final fireMoment = DateTime(
@@ -1375,12 +1413,15 @@ class AppModel extends ChangeNotifier {
         reminderNotifyMinute,
       );
       if (!now.isBefore(fireMoment)) {
-        remindersLastFiredOn = fireMoment;
-        if (remindersPendingDomain != null) {
-          remindersLastFiredDomain = remindersPendingDomain;
-        }
+        final alreadyFiredToday =
+            remindersLastFiredOn != null && _isSameLocalDay(remindersLastFiredOn!, now);
         remindersScheduledFireOn = null;
-        remindersPendingDomain = null;
+        if (alreadyFiredToday) {
+          remindersPendingDomain = null;
+        } else {
+          await persistAppStateToDisk();
+          return;
+        }
       }
     }
 

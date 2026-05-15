@@ -101,7 +101,10 @@ class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver
     }
     if (state == AppLifecycleState.resumed) {
       widget.model.runDueScheduledAgentTasks();
-      unawaited(widget.model.maybePostDailyReminder());
+      unawaited(() async {
+        await widget.model.syncNotifications();
+        await widget.model.maybePostDailyReminder();
+      }());
     }
   }
 

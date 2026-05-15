@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest_all.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 
@@ -49,9 +50,18 @@ class NotificationService {
   /// separately and exposed via [consumeLaunchPayload].
   Stream<NotificationPayload> get onTap => _taps.stream;
 
-  void _ensureTimezone() {
+  Future<void> _ensureTimezone() async {
     if (_tzReady) return;
     tzdata.initializeTimeZones();
+    try {
+      final tzName = await FlutterTimezone.getLocalTimezone();
+      tz.setLocalLocation(tz.getLocation(tzName));
+      _log('timezone set to $tzName');
+    } catch (e) {
+      // Tests / rare platform failures — UTC keeps scheduling from throwing.
+      tz.setLocalLocation(tz.UTC);
+      _log('timezone fallback to UTC: $e');
+    }
     _tzReady = true;
   }
 
@@ -61,7 +71,7 @@ class NotificationService {
   /// can render widgets that touch this service without crashing.
   Future<void> init() async {
     if (_initialized) return;
-    _ensureTimezone();
+    await _ensureTimezone();
     try {
       const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
       const iosInit = DarwinInitializationSettings(

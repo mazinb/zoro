@@ -141,6 +141,14 @@ void main() {
       m.notificationsEnabled = true;
       m.reminderNotifyHour = 9;
       m.reminderNotifyMinute = 0;
+      // Silence domains outside the test set — seeded dates can otherwise make
+      // every row eligible once onboarding is complete.
+      final enabled = domains.toSet();
+      if (!enabled.contains(ReminderDomain.expenses)) m.remindersExpensesCadence = ReminderCadence.off;
+      if (!enabled.contains(ReminderDomain.cashflow)) m.remindersCashflowCadence = ReminderCadence.off;
+      if (!enabled.contains(ReminderDomain.income)) m.remindersIncomeCadence = ReminderCadence.off;
+      if (!enabled.contains(ReminderDomain.assets)) m.remindersAssetsCadence = ReminderCadence.off;
+      if (!enabled.contains(ReminderDomain.liabilities)) m.remindersLiabilitiesCadence = ReminderCadence.off;
       for (final d in domains) {
         switch (d) {
           case ReminderDomain.expenses:
@@ -222,14 +230,31 @@ void main() {
       expect(m.nextRotationDomain(now: DateTime(2030, 6, 15, 9, 5)), isNull);
     });
 
-    test('gate is closed while an OS-scheduled push is pending', () {
+    test('changing notify time resets the once-per-day gate for the new slot', () {
       final m = modelWithEligible(domains: {ReminderDomain.expenses});
-      final at = DateTime(2030, 6, 15, 9, 5);
-      expect(m.canFireDailyReminderNow(now: at), isTrue);
-      // Simulate sync having scheduled the next OS push.
+      m.recordDailyReminderFired(ReminderDomain.expenses, at: DateTime(2030, 6, 15, 9, 5));
+      expect(m.canFireDailyReminderNow(now: DateTime(2030, 6, 15, 12, 0)), isFalse);
+
+      m.setReminderNotifyTime(hour: 14, minute: 30);
+      expect(m.remindersLastFiredOn, isNull);
+      expect(m.remindersScheduledFireOn, isNull);
+      // New slot still in the future — wait.
+      expect(m.canFireDailyReminderNow(now: DateTime(2030, 6, 15, 14, 0)), isFalse);
+      // New slot reached — allowed again on the same calendar day.
+      expect(m.canFireDailyReminderNow(now: DateTime(2030, 6, 15, 14, 35)), isTrue);
+    });
+
+    test('gate defers until today OS slot, then reopens for catch-up', () {
+      final m = modelWithEligible(domains: {ReminderDomain.expenses});
       m.remindersScheduledFireOn = DateTime(2030, 6, 15);
       m.remindersPendingDomain = ReminderDomain.expenses;
-      expect(m.canFireDailyReminderNow(now: at), isFalse);
+      // Before today's notify hour — wait for the OS schedule.
+      expect(m.canFireDailyReminderNow(now: DateTime(2030, 6, 15, 8, 59)), isFalse);
+      // After the slot — allow Dart fallback if iOS never delivered.
+      expect(m.canFireDailyReminderNow(now: DateTime(2030, 6, 15, 9, 5)), isTrue);
+      // Future pending day — still wait.
+      m.remindersScheduledFireOn = DateTime(2030, 6, 16);
+      expect(m.canFireDailyReminderNow(now: DateTime(2030, 6, 15, 10, 0)), isFalse);
     });
   });
 }
