@@ -129,6 +129,7 @@ class AppModel extends ChangeNotifier {
   String homeSummaryText = '';
 
   void setHomeSummaryText(String value) {
+    if (homeSummaryText == value) return;
     homeSummaryText = value;
     _scheduleAppStatePersist();
     notifyListeners();
@@ -2079,6 +2080,27 @@ class AppModel extends ChangeNotifier {
             break;
           }
         }
+      }
+      // Home's SegmentedButton is USD + two quick picks; every segment value must
+      // be unique — corrupted prefs (e.g. duplicate slots or USD in a slot) assert in debug.
+      var fixedHomeCurrencyQuickPicks = false;
+      if (homeCurrencyQuickPick1 == CurrencyCode.usd) {
+        homeCurrencyQuickPick1 = CurrencyCode.thb;
+        fixedHomeCurrencyQuickPicks = true;
+      }
+      if (homeCurrencyQuickPick2 == CurrencyCode.usd) {
+        homeCurrencyQuickPick2 = CurrencyCode.inr;
+        fixedHomeCurrencyQuickPicks = true;
+      }
+      if (homeCurrencyQuickPick1 == homeCurrencyQuickPick2) {
+        homeCurrencyQuickPick2 = kDisplayCurrencyPickerOptions.firstWhere(
+          (c) => c != CurrencyCode.usd && c != homeCurrencyQuickPick1,
+          orElse: () => CurrencyCode.inr,
+        );
+        fixedHomeCurrencyQuickPicks = true;
+      }
+      if (fixedHomeCurrencyQuickPicks) {
+        _scheduleAppStatePersist();
       }
       final tm = s['themeMode']?.toString();
       if (tm != null) {

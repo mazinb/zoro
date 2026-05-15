@@ -301,17 +301,31 @@ class _CommandCenterTabState extends State<CommandCenterTab> with TickerProvider
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Card(
-              child: Padding(
-                padding: const EdgeInsets.all(14),
-                child: Text(
-                  widget.model.homeSummaryText.trim(),
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.onSurface,
-                    fontWeight: FontWeight.w400,
-                    fontSize: 15,
-                    height: 1.55,
+              child: Stack(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 14, 44, 14),
+                    child: Text(
+                      widget.model.homeSummaryText.trim(),
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurface,
+                        fontWeight: FontWeight.w400,
+                        fontSize: 15,
+                        height: 1.55,
+                      ),
+                    ),
                   ),
-                ),
+                  Positioned(
+                    top: 2,
+                    right: 2,
+                    child: IconButton(
+                      tooltip: 'Dismiss',
+                      visualDensity: VisualDensity.compact,
+                      onPressed: () => widget.model.setHomeSummaryText(''),
+                      icon: const Icon(Icons.close, size: 22),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),

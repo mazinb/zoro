@@ -654,18 +654,36 @@ class _AgentsPaneState extends State<_AgentsPane> {
   String _query = '';
   _AgentSettingsSection _section = _AgentSettingsSection.context;
   late final TextEditingController _homeSummaryCtrl;
+  final FocusNode _homeSummaryFocus = FocusNode();
+  bool _suppressHomeSummaryOnChanged = false;
 
   @override
   void initState() {
     super.initState();
     _homeSummaryCtrl = TextEditingController(text: widget.model.homeSummaryText);
+    widget.model.addListener(_syncHomeSummaryCtrlFromModel);
   }
 
   @override
   void dispose() {
+    widget.model.removeListener(_syncHomeSummaryCtrlFromModel);
     _searchCtrl.dispose();
     _homeSummaryCtrl.dispose();
+    _homeSummaryFocus.dispose();
     super.dispose();
+  }
+
+  void _syncHomeSummaryCtrlFromModel() {
+    if (!mounted) return;
+    if (_homeSummaryFocus.hasFocus) return;
+    final m = widget.model.homeSummaryText;
+    if (_homeSummaryCtrl.text == m) return;
+    _suppressHomeSummaryOnChanged = true;
+    _homeSummaryCtrl.value = TextEditingValue(
+      text: m,
+      selection: TextSelection.collapsed(offset: m.length),
+    );
+    _suppressHomeSummaryOnChanged = false;
   }
 
   bool _matchesQuery(AppAgent a, String q) {
@@ -774,9 +792,10 @@ class _AgentsPaneState extends State<_AgentsPane> {
               onPressed: model.homeSummaryText.trim().isEmpty
                   ? null
                   : () {
-                      _homeSummaryCtrl.clear();
+                      _suppressHomeSummaryOnChanged = true;
+                      _homeSummaryCtrl.value = const TextEditingValue();
+                      _suppressHomeSummaryOnChanged = false;
                       model.setHomeSummaryText('');
-                      setState(() {});
                     },
               child: const Text('Clear'),
             ),
@@ -786,6 +805,7 @@ class _AgentsPaneState extends State<_AgentsPane> {
         Expanded(
           child: TextField(
             controller: _homeSummaryCtrl,
+            focusNode: _homeSummaryFocus,
             expands: true,
             maxLines: null,
             minLines: null,
@@ -796,7 +816,10 @@ class _AgentsPaneState extends State<_AgentsPane> {
               hintText: 'Add a short note that shows on Home…',
               contentPadding: EdgeInsets.all(12),
             ),
-            onChanged: (v) => model.setHomeSummaryText(v),
+            onChanged: (v) {
+              if (_suppressHomeSummaryOnChanged) return;
+              model.setHomeSummaryText(v);
+            },
           ),
         ),
       ],

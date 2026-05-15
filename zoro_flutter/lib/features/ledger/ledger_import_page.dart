@@ -1053,51 +1053,8 @@ Infer **monthKey** from the document or statement period; use this hint only if 
     }
   }
 
-  String _saveTargetLabel() => switch (widget.kind) {
-        LedgerImportKind.asset => 'asset',
-        LedgerImportKind.liability => 'liability',
-        LedgerImportKind.cashflow => 'row',
-      };
-
-  Future<void> _save() async {
+  void _save() {
     if (!_canApplySave()) return;
-    if (_isRowEditMode) {
-      final ok = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Apply imported changes?'),
-          content: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'Review changes to your saved ${_saveTargetLabel()} before applying.',
-                  style: TextStyle(
-                    color: Theme.of(ctx).colorScheme.onSurfaceVariant,
-                    height: 1.35,
-                  ),
-                ),
-                const SizedBox(height: 14),
-                ..._confirmDiffWidgets(ctx),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(false),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(ctx).pop(true),
-              child: const Text('Apply'),
-            ),
-          ],
-        ),
-      );
-      if (ok != true) return;
-      if (!mounted) return;
-    }
     _applyImportedSave();
   }
 
