@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/finance/currency.dart';
@@ -131,13 +130,6 @@ class _GeneralPaneState extends State<_GeneralPane> {
   bool _fxSilentControllerSync = false;
 
   AppModel get model => widget.model;
-
-  static int _daysInMonth(int year, int month) => DateTime(year, month + 1, 0).day;
-
-  static String _monthName(int m) {
-    const names = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return names[m];
-  }
 
   void _syncFxFieldsFromModel() {
     final u1 = model.usdPerUnitResolved(model.homeCurrencyQuickPick1);
@@ -436,10 +428,6 @@ class _GeneralPaneState extends State<_GeneralPane> {
 
   @override
   Widget build(BuildContext context) {
-    final now = DateTime.now();
-    final yearlyDayMax = _daysInMonth(now.year, model.remindersYearlyMonth);
-    final safeYearlyDay = model.remindersYearlyDay.clamp(1, yearlyDayMax);
-
     return ListenableBuilder(
       listenable: model,
       builder: (context, _) {
@@ -529,104 +517,6 @@ class _GeneralPaneState extends State<_GeneralPane> {
                   label: 'Liabilities',
                   value: model.remindersLiabilitiesCadence,
                   onChanged: model.setReminderCadenceLiabilities,
-                ),
-              ],
-            ),
-        ),
-        const SizedBox(height: 12),
-        _settingsCard(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-                Row(
-                  children: [
-                    const Expanded(
-                      child: Text(
-                        'Monthly',
-                        style: TextStyle(fontWeight: FontWeight.w800),
-                      ),
-                    ),
-                    DropdownButton<int>(
-                      value: model.remindersMonthlyDayOfMonth.clamp(1, 28),
-                      items: [for (var d = 1; d <= 28; d++) DropdownMenuItem(value: d, child: Text('Day $d'))],
-                      onChanged: (v) {
-                        if (v == null) return;
-                        model.setRemindersMonthlyDayOfMonth(v);
-                      },
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    const Expanded(
-                      child: Text('Quarterly', style: TextStyle(fontWeight: FontWeight.w800)),
-                    ),
-                    DropdownButton<int>(
-                      value: model.remindersQuarterMonthInQuarter.clamp(1, 3),
-                      items: const [
-                        DropdownMenuItem(value: 1, child: Text('First')),
-                        DropdownMenuItem(value: 2, child: Text('Second')),
-                        DropdownMenuItem(value: 3, child: Text('Third')),
-                      ],
-                      onChanged: (m) {
-                        if (m == null) return;
-                        model.setRemindersQuarterlySchedule(monthInQuarter: m, day: 1);
-                      },
-                    ),
-                    const SizedBox(width: 10),
-                    DropdownButton<int>(
-                      value: 1,
-                      items: [for (var d = 1; d <= 28; d++) DropdownMenuItem(value: d, child: Text(d.toString()))],
-                      onChanged: (d) {
-                        if (d == null) return;
-                        model.setRemindersQuarterlySchedule(monthInQuarter: model.remindersQuarterMonthInQuarter, day: d);
-                      },
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    const Expanded(
-                      child: Text(
-                        'Yearly',
-                        style: TextStyle(fontWeight: FontWeight.w800),
-                      ),
-                    ),
-                    DropdownButton<int>(
-                      value: model.remindersYearlyMonth.clamp(1, 12),
-                      items: [
-                        for (var m = 1; m <= 12; m++)
-                          DropdownMenuItem(
-                            value: m,
-                            child: Text(_monthName(m)),
-                          ),
-                      ],
-                      onChanged: (m) {
-                        if (m == null) return;
-                        final maxDay = _daysInMonth(now.year, m);
-                        final nextDay = safeYearlyDay.clamp(1, maxDay);
-                        model.setRemindersYearlyDate(month: m, day: nextDay);
-                      },
-                    ),
-                    const SizedBox(width: 10),
-                    DropdownButton<int>(
-                      value: safeYearlyDay,
-                      items: [
-                        for (var d = 1; d <= yearlyDayMax; d++)
-                          DropdownMenuItem(
-                            value: d,
-                            child: Text(d.toString()),
-                          ),
-                      ],
-                      onChanged: (d) {
-                        if (d == null) return;
-                        model.setRemindersYearlyDate(month: model.remindersYearlyMonth, day: d);
-                      },
-                    ),
-                  ],
                 ),
               ],
             ),
@@ -1942,19 +1832,6 @@ class _NotificationsCard extends StatefulWidget {
 
 class _NotificationsCardState extends State<_NotificationsCard> {
   bool _busy = false;
-  NotificationAuthStatus _authStatus = NotificationAuthStatus.unknown;
-
-  @override
-  void initState() {
-    super.initState();
-    _refreshAuthStatus();
-  }
-
-  Future<void> _refreshAuthStatus() async {
-    final s = await NotificationService.instance.currentAuthStatus();
-    if (!mounted) return;
-    setState(() => _authStatus = s);
-  }
 
   Future<void> _onMasterChanged(bool v) async {
     if (_busy) return;
@@ -1962,24 +1839,12 @@ class _NotificationsCardState extends State<_NotificationsCard> {
     try {
       if (v) {
         final granted = await NotificationService.instance.requestPermission();
-        await _refreshAuthStatus();
         if (!granted) {
           if (!mounted) return;
-          final denied = _authStatus == NotificationAuthStatus.denied;
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                denied
-                    ? 'Notifications are blocked at the OS level. Open System Settings to enable.'
-                    : 'Notifications were not granted.',
-              ),
+            const SnackBar(
+              content: Text('Notifications were not granted. Try toggling again to re-prompt.'),
               behavior: SnackBarBehavior.floating,
-              action: denied
-                  ? SnackBarAction(
-                      label: 'Settings',
-                      onPressed: _openSystemSettings,
-                    )
-                  : null,
             ),
           );
           return;
@@ -2001,40 +1866,12 @@ class _NotificationsCardState extends State<_NotificationsCard> {
     model.setReminderNotifyTime(hour: picked.hour, minute: picked.minute);
   }
 
-  Future<void> _openSystemSettings() async {
-    try {
-      await openAppSettings();
-    } catch (_) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Could not open system settings. Open iOS Settings → Zoro → Notifications.'),
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-    }
-  }
-
-  String _permissionRowText() => switch (_authStatus) {
-        NotificationAuthStatus.denied => 'Disabled in system settings',
-        NotificationAuthStatus.unknown => 'Checking system settings',
-        NotificationAuthStatus.unsupported => 'Not supported',
-        NotificationAuthStatus.authorized => '',
-      };
-
-  Color _authColor(ColorScheme scheme) => switch (_authStatus) {
-        NotificationAuthStatus.authorized => scheme.primary,
-        NotificationAuthStatus.denied => scheme.error,
-        _ => scheme.onSurfaceVariant,
-      };
-
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final model = widget.model;
     final timeLabel =
         '${model.reminderNotifyHour.toString().padLeft(2, '0')}:${model.reminderNotifyMinute.toString().padLeft(2, '0')}';
-    final showPermissionRow = _authStatus != NotificationAuthStatus.authorized;
     return Material(
       color: scheme.surfaceContainerHighest,
       borderRadius: BorderRadius.circular(18),
@@ -2050,26 +1887,6 @@ class _NotificationsCardState extends State<_NotificationsCard> {
               value: model.notificationsEnabled,
               onChanged: _busy ? null : _onMasterChanged,
             ),
-            if (showPermissionRow) ...[
-              const SizedBox(height: 4),
-              Row(
-                children: [
-                  Icon(Icons.info_outline, size: 18, color: _authColor(scheme)),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      _permissionRowText(),
-                      style: TextStyle(color: _authColor(scheme), fontSize: 12, fontWeight: FontWeight.w700),
-                    ),
-                  ),
-                  if (_authStatus == NotificationAuthStatus.denied)
-                    TextButton(
-                      onPressed: _openSystemSettings,
-                      child: const Text('Open Settings'),
-                    ),
-                ],
-              ),
-            ],
             if (model.notificationsEnabled) ...[
               const Divider(height: 20),
               InkWell(

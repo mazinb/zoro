@@ -1,5 +1,6 @@
 import Flutter
 import UIKit
+import UserNotifications
 import workmanager_apple
 
 @main
@@ -30,5 +31,10 @@ import workmanager_apple
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
     AppleFoundationModelsPlugin.register(with: engineBridge.applicationRegistrar.messenger())
+    // Plugins (including flutter_local_notifications) register here — after main().
+    // Ensure the notification center delegate is wired once the engine exists.
+    if #available(iOS 10.0, *) {
+      UNUserNotificationCenter.current().delegate = self
+    }
   }
 }

@@ -3,7 +3,6 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:timezone/data/latest_all.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 
@@ -12,9 +11,13 @@ import '../state/scheduled_agent_task.dart';
 import 'notification_payload.dart';
 
 void _log(String message) {
-  if (kDebugMode) {
-    debugPrint('[ZoroNotif] $message');
-  }
+  // print (not debugPrint) so Xcode device console shows [ZoroNotif] in Release.
+  print('[ZoroNotif] $message');
+}
+
+void _logError(String message, [Object? error, StackTrace? stack]) {
+  print('[ZoroNotif] $message${error != null ? ': $error' : ''}');
+  if (stack != null) print(stack);
 }
 
 /// Single channel id reused for both agent-task pings and reminder summaries.
@@ -36,8 +39,11 @@ class NotificationService {
 
   final FlutterLocalNotificationsPlugin _plugin = FlutterLocalNotificationsPlugin();
 
-  bool _initialized = false;
+  bool _initSucceeded = false;
   bool _tzReady = false;
+  Future<void>? _initFuture;
+
+  bool get isReady => _initSucceeded;
 
   /// Last payload from a notification tap that arrived while the app wasn't
   /// listening yet (e.g. cold launch). Consumed by [consumeLaunchPayload].
@@ -50,73 +56,83 @@ class NotificationService {
   /// separately and exposed via [consumeLaunchPayload].
   Stream<NotificationPayload> get onTap => _taps.stream;
 
-  Future<void> _ensureTimezone() async {
+  /// Maps the device wall clock to a tz database [Location] without a platform
+  /// channel — `zonedSchedule` needs [tz.local] aligned with [DateTime.now].
+  void _ensureTimezone() {
     if (_tzReady) return;
     tzdata.initializeTimeZones();
-    try {
-      final tzName = await FlutterTimezone.getLocalTimezone();
-      tz.setLocalLocation(tz.getLocation(tzName));
-      _log('timezone set to $tzName');
-    } catch (e) {
-      // Tests / rare platform failures — UTC keeps scheduling from throwing.
-      tz.setLocalLocation(tz.UTC);
-      _log('timezone fallback to UTC: $e');
+    final offsetMs = DateTime.now().timeZoneOffset.inMilliseconds;
+    tz.Location? match;
+    for (final loc in tz.timeZoneDatabase.locations.values) {
+      if (loc.currentTimeZone.offset == offsetMs) {
+        match = loc;
+        break;
+      }
     }
+    tz.setLocalLocation(match ?? tz.UTC);
     _tzReady = true;
   }
 
-  /// Idempotent. Call from `main()` and again from the background isolate
-  /// before scheduling anything. Catches plugin-platform errors so unit tests
-  /// (where `flutter_local_notifications` has no registered implementation)
-  /// can render widgets that touch this service without crashing.
+  /// Idempotent. Retries until the platform channel exists (UIScene engines
+  /// register plugins after [main]). Unit tests get a single attempt.
   Future<void> init() async {
-    if (_initialized) return;
-    await _ensureTimezone();
-    try {
-      const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
-      const iosInit = DarwinInitializationSettings(
-        requestAlertPermission: false,
-        requestBadgePermission: false,
-        requestSoundPermission: false,
-      );
-      const init = InitializationSettings(android: androidInit, iOS: iosInit);
-      await _plugin.initialize(
-        init,
-        onDidReceiveNotificationResponse: _onResponse,
-        onDidReceiveBackgroundNotificationResponse: _onBackgroundResponse,
-      );
-
-      // Capture taps that launched the app from a terminated state.
-      final launch = await _plugin.getNotificationAppLaunchDetails();
-      if (launch != null && launch.didNotificationLaunchApp) {
-        final response = launch.notificationResponse;
-        final payload = NotificationPayload.tryDecode(response?.payload);
-        if (payload != null) {
-          _pendingLaunchPayload = payload;
+    if (_initSucceeded) return;
+    final maxAttempts = Platform.environment.containsKey('FLUTTER_TEST') ? 1 : 12;
+    for (var attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        await (_initFuture ??= _initImpl());
+        if (_initSucceeded) return;
+      } catch (e, st) {
+        _initFuture = null;
+        if (attempt == maxAttempts - 1) {
+          _logError('init failed after $maxAttempts attempts', e, st);
+          rethrow;
         }
+        await Future<void>.delayed(Duration(milliseconds: 80 * (attempt + 1)));
       }
-
-      // Create the Android channel up front (no-op on iOS).
-      if (!kIsWeb && Platform.isAndroid) {
-        final androidPlugin = _plugin.resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>();
-        await androidPlugin?.createNotificationChannel(
-          const AndroidNotificationChannel(
-            _channelId,
-            _channelName,
-            description: _channelDescription,
-            importance: Importance.defaultImportance,
-          ),
-        );
-      }
-      _log('init done');
-    } catch (e) {
-      // Plugin missing / platform channel unwired — most commonly a unit-test
-      // environment. Subsequent calls will short-circuit harmlessly.
-      _log('init skipped: $e');
-    } finally {
-      _initialized = true;
     }
+  }
+
+  Future<void> _initImpl() async {
+    _ensureTimezone();
+    const androidInit = AndroidInitializationSettings('@mipmap/ic_launcher');
+    const iosInit = DarwinInitializationSettings(
+      requestAlertPermission: false,
+      requestBadgePermission: false,
+      requestSoundPermission: false,
+    );
+    const init = InitializationSettings(android: androidInit, iOS: iosInit);
+    await _plugin.initialize(
+      init,
+      onDidReceiveNotificationResponse: _onResponse,
+      onDidReceiveBackgroundNotificationResponse: _onBackgroundResponse,
+    );
+
+    // Capture taps that launched the app from a terminated state.
+    final launch = await _plugin.getNotificationAppLaunchDetails();
+    if (launch != null && launch.didNotificationLaunchApp) {
+      final response = launch.notificationResponse;
+      final payload = NotificationPayload.tryDecode(response?.payload);
+      if (payload != null) {
+        _pendingLaunchPayload = payload;
+      }
+    }
+
+    // Create the Android channel up front (no-op on iOS).
+    if (!kIsWeb && Platform.isAndroid) {
+      final androidPlugin = _plugin.resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>();
+      await androidPlugin?.createNotificationChannel(
+        const AndroidNotificationChannel(
+          _channelId,
+          _channelName,
+          description: _channelDescription,
+          importance: Importance.defaultImportance,
+        ),
+      );
+    }
+    _initSucceeded = true;
+    _log('init done');
   }
 
   /// Asks the OS for permission. Returns true when the user grants it (or it
@@ -127,24 +143,18 @@ class NotificationService {
     if (Platform.isIOS) {
       final ios = _plugin.resolvePlatformSpecificImplementation<
           IOSFlutterLocalNotificationsPlugin>();
-      if (ios == null) {
-        _log('iOS plugin implementation null - registration missing');
-        return false;
-      }
+      if (ios == null) return false;
       final granted = await ios.requestPermissions(
         alert: true,
         badge: true,
         sound: true,
       );
-      _log('iOS requestPermissions returned $granted');
       return granted ?? false;
     }
     if (Platform.isAndroid) {
       final android = _plugin.resolvePlatformSpecificImplementation<
           AndroidFlutterLocalNotificationsPlugin>();
-      final granted = await android?.requestNotificationsPermission();
-      _log('Android permission granted=$granted');
-      return granted ?? false;
+      return await android?.requestNotificationsPermission() ?? false;
     }
     return false;
   }
@@ -246,13 +256,12 @@ class NotificationService {
       payload: payload,
       matchDateTimeComponents: matchComponents,
     );
-    _log('scheduled agent task id=${task.id} at $when (match=$matchComponents)');
+    _log('agent task ${task.id} @ $when');
   }
 
   Future<void> cancelAgentTask(String taskId) async {
     await init();
     await _plugin.cancel(_idForAgentTask(taskId));
-    _log('canceled agent task id=$taskId');
   }
 
   /// Cancels the rotation reminder slot, if any. Safe to call when nothing
@@ -260,6 +269,24 @@ class NotificationService {
   Future<void> cancelReminderSlot() async {
     await init();
     await _plugin.cancel(_reminderSummaryId);
+  }
+
+  /// Daily check-in when reminders are on but nothing is overdue yet.
+  Future<void> scheduleDailyCheckInAt({required DateTime when}) async {
+    await init();
+    await _plugin.cancel(_reminderSummaryId);
+    final tzWhen = tz.TZDateTime.from(when, tz.local);
+    const payload = '{"kind":"reminder","domain":"expenses"}';
+    await _plugin.zonedSchedule(
+      _reminderSummaryId,
+      'Zoro',
+      'Time for your regular check-in.',
+      tzWhen,
+      _defaultDetails(),
+      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+      payload: payload,
+    );
+    _log('check-in @ $when');
   }
 
   /// Schedules a one-shot OS local notification at [when] (local time) with
@@ -277,16 +304,21 @@ class NotificationService {
     await _plugin.cancel(_reminderSummaryId);
     final tzWhen = tz.TZDateTime.from(when, tz.local);
     final payload = NotificationPayload.reminder(domain: domain).encode();
-    await _plugin.zonedSchedule(
-      _reminderSummaryId,
-      _reminderTitleFor(domain),
-      _reminderBodyFor(domain),
-      tzWhen,
-      _defaultDetails(),
-      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-      payload: payload,
-    );
-    _log('scheduled rotation reminder for $domain at $when');
+    try {
+      await _plugin.zonedSchedule(
+        _reminderSummaryId,
+        _reminderTitleFor(domain),
+        _reminderBodyFor(domain),
+        tzWhen,
+        _defaultDetails(),
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        payload: payload,
+      );
+      _log('reminder $domain @ $when');
+    } catch (e, st) {
+      _logError('zonedSchedule failed ($domain)', e, st);
+      rethrow;
+    }
   }
 
   /// Immediate-fire fallback used by `AppModel.maybePostDailyReminder` when
@@ -302,7 +334,6 @@ class NotificationService {
       _defaultDetails(),
       payload: payload,
     );
-    _log('posted rotation reminder for $domain');
   }
 
   /// Replaces the pre-scheduled agent-task notification once the background
@@ -322,7 +353,6 @@ class NotificationService {
       _defaultDetails(),
       payload: NotificationPayload.agentTask(taskId: taskId).encode(),
     );
-    _log('posted briefing notification for task=$taskId');
   }
 
   /// Cancels every notification we've scheduled. Useful when the master
@@ -330,7 +360,6 @@ class NotificationService {
   Future<void> cancelAll() async {
     await init();
     await _plugin.cancelAll();
-    _log('canceled all');
   }
 
   NotificationDetails _defaultDetails() {
@@ -358,15 +387,12 @@ class NotificationService {
   void _onResponse(NotificationResponse response) {
     final payload = NotificationPayload.tryDecode(response.payload);
     if (payload == null) return;
-    _log('tap response payload=${response.payload}');
     _taps.add(payload);
   }
 
   // Must be a top-level/static handler for background dispatch.
   static void _onBackgroundResponse(NotificationResponse response) {
-    if (kDebugMode) {
-      debugPrint('[ZoroNotif] background tap payload=${response.payload}');
-    }
+    _log('background tap payload=${response.payload}');
   }
 
   int _idForAgentTask(String taskId) =>
@@ -394,9 +420,7 @@ class NotificationService {
 void zoroBackgroundNotificationResponse(NotificationResponse response) {
   // Background taps for action buttons; the foreground stream re-emits when
   // the app comes back. Body intentionally minimal.
-  if (kDebugMode) {
-    debugPrint('[ZoroNotif] bg response payload=${response.payload}');
-  }
+  print('[ZoroNotif] bg response payload=${response.payload}');
 }
 
 /// Coarse status surfaced to the Settings UI.

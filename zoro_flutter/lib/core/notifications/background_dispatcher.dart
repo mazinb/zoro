@@ -55,14 +55,7 @@ Future<void> _runRefresh() async {
   }
 
   await _runDueAgentTasks(model, service);
-  // Commits any past-scheduled reminder fire and schedules the next OS
-  // one-shot for the upcoming notify slot. Idempotent.
-  await model.syncNotifications();
-  // Safety net: if scheduling failed for some reason and the gate is
-  // currently open (no pending OS push, today's slot reached, eligible
-  // domain), post directly via show().
-  final firedDomain = await model.maybePostDailyReminder();
-  _log('rotation fallback fired=${firedDomain?.name ?? "none"}');
+  await model.reconcileNotifications();
   await model.persistAppStateToDisk();
 }
 

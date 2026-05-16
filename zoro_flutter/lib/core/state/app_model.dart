@@ -102,6 +102,7 @@ class AppModel extends ChangeNotifier {
       await refreshAppleFoundationCapabilities();
       _syncActiveProviderIfKeyRemoved();
       await runDueScheduledAgentTasks();
+      await reconcileNotifications();
     } finally {
       _bootstrapped = true;
       notifyListeners();
@@ -1118,34 +1119,37 @@ class AppModel extends ChangeNotifier {
   bool get canUseAnyLlm =>
       hasAnyApiKey || (appleFoundationEnabled && appleFoundationRuntimeAvailable);
 
+  void _onReminderCadenceChanged() {
+    _scheduleAppStatePersist();
+    if (notificationsEnabled) {
+      unawaited(reconcileNotifications());
+    }
+    notifyListeners();
+  }
+
   void setReminderCadenceExpenses(ReminderCadence v) {
     remindersExpensesCadence = v;
-    _scheduleAppStatePersist();
-    notifyListeners();
+    _onReminderCadenceChanged();
   }
 
   void setReminderCadenceCashflow(ReminderCadence v) {
     remindersCashflowCadence = v;
-    _scheduleAppStatePersist();
-    notifyListeners();
+    _onReminderCadenceChanged();
   }
 
   void setReminderCadenceIncome(ReminderCadence v) {
     remindersIncomeCadence = v;
-    _scheduleAppStatePersist();
-    notifyListeners();
+    _onReminderCadenceChanged();
   }
 
   void setReminderCadenceAssets(ReminderCadence v) {
     remindersAssetsCadence = v;
-    _scheduleAppStatePersist();
-    notifyListeners();
+    _onReminderCadenceChanged();
   }
 
   void setReminderCadenceLiabilities(ReminderCadence v) {
     remindersLiabilitiesCadence = v;
-    _scheduleAppStatePersist();
-    notifyListeners();
+    _onReminderCadenceChanged();
   }
 
   void setRemindersMonthlyDayOfMonth(int d) {
@@ -1185,7 +1189,7 @@ class AppModel extends ChangeNotifier {
     if (notificationsEnabled == v) return;
     notificationsEnabled = v;
     _scheduleAppStatePersist();
-    unawaited(syncNotifications());
+    unawaited(reconcileNotifications());
     notifyListeners();
   }
 
@@ -1207,10 +1211,7 @@ class AppModel extends ChangeNotifier {
     reminderNotifyMinute = m;
     resetDailyReminderDispatchState();
     _scheduleAppStatePersist();
-    unawaited(() async {
-      await syncNotifications();
-      await maybePostDailyReminder();
-    }());
+    unawaited(reconcileNotifications());
     notifyListeners();
   }
 
@@ -1232,6 +1233,35 @@ class AppModel extends ChangeNotifier {
       userTouchedAssets ||
       userTouchedLiabilities ||
       monthlyCashflowByMonth.isNotEmpty;
+
+  /// Domains that can appear on the daily OS alarm (cadence on, user has real
+  /// data). Does not require an overdue review — unlike [isReminderNotifiable].
+  bool isReminderSchedulable(ReminderDomain d) {
+    if (!notificationsEnabled) return false;
+    if (reminderCadenceFor(d) == ReminderCadence.off) return false;
+    if (!remindersOnboardingComplete) return false;
+    return userHasContentFor(d);
+  }
+
+  List<ReminderDomain> schedulableReminderDomains() => [
+        for (final d in ReminderDomain.values)
+          if (isReminderSchedulable(d)) d,
+      ];
+
+  /// Rotation pick for OS scheduling when nothing is overdue yet.
+  ReminderDomain? nextSchedulableRotationDomain() {
+    final eligible = schedulableReminderDomains();
+    if (eligible.isEmpty) return null;
+    final last = remindersLastFiredDomain;
+    if (last == null) return eligible.first;
+    final all = ReminderDomain.values;
+    final startIdx = all.indexOf(last);
+    for (var i = 1; i <= all.length; i++) {
+      final candidate = all[(startIdx + i) % all.length];
+      if (eligible.contains(candidate)) return candidate;
+    }
+    return eligible.first;
+  }
 
   /// Per-domain content check (used in tests). Notifications gate on
   /// [remindersOnboardingComplete] plus the same overdue anchors as Home.
@@ -1386,9 +1416,25 @@ class AppModel extends ChangeNotifier {
         await svc.scheduleAgentTask(task: t, masterEnabled: true);
       }
       await _scheduleNextReminderSlot();
-    } catch (_) {
-      // Notification sync is non-fatal.
+    } catch (e, st) {
+      // ignore: avoid_print
+      print('[ZoroNotif] sync failed: $e\n$st');
     }
+  }
+
+  /// Re-syncs OS alarms from persisted prefs, then runs the Dart fallback when
+  /// today's slot has passed. Call after bootstrap and on resume — never before
+  /// disk state is loaded (doing so cancels all alarms with defaults).
+  Future<void> reconcileNotifications() async {
+    try {
+      await NotificationService.instance.init();
+    } catch (e, st) {
+      // ignore: avoid_print
+      print('[ZoroNotif] reconcile init failed: $e\n$st');
+      return;
+    }
+    await syncNotifications();
+    await maybePostDailyReminder();
   }
 
   /// Cancels any current reminder schedule, commits past pending fires into
@@ -1418,10 +1464,9 @@ class AppModel extends ChangeNotifier {
         remindersScheduledFireOn = null;
         if (alreadyFiredToday) {
           remindersPendingDomain = null;
-        } else {
-          await persistAppStateToDisk();
-          return;
         }
+        // else: keep [remindersPendingDomain] for [maybePostDailyReminder] catch-up
+        // and fall through to schedule the next OS slot (do not return early).
       }
     }
 
@@ -1435,11 +1480,19 @@ class AppModel extends ChangeNotifier {
     final nextSlot =
         now.isBefore(todaySlot) ? todaySlot : todaySlot.add(const Duration(days: 1));
 
-    final domain = nextRotationDomain(now: nextSlot);
+    // Prefer overdue domains for copy + rotation; fall back to any schedulable
+    // domain so the user's notify time always registers an OS alarm (like the
+    // Settings test button). Immediate [maybePostDailyReminder] stays overdue-only.
+    final overdueDomain = nextRotationDomain(now: nextSlot);
+    final schedulableDomain = nextSchedulableRotationDomain();
+    final domain = overdueDomain ?? schedulableDomain;
 
     await svc.cancelReminderSlot();
+
     if (domain == null) {
-      remindersScheduledFireOn = null;
+      // New users (onboarding false) and caught-up users still get an OS alarm.
+      await svc.scheduleDailyCheckInAt(when: nextSlot);
+      remindersScheduledFireOn = DateTime(nextSlot.year, nextSlot.month, nextSlot.day);
       remindersPendingDomain = null;
       await persistAppStateToDisk();
       return;

@@ -78,11 +78,11 @@ class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver
       if (pending != null) {
         _handleNotificationPayload(pending);
       }
-      // Sync OS schedules with persisted preferences once the model is ready.
-      widget.model.syncNotifications();
-      // Foreground catch-up: if Workmanager missed the user's notify slot
-      // we still want exactly one rotation push to land today.
-      unawaited(widget.model.maybePostDailyReminder());
+      // OS schedules are synced in [AppModel.bootstrap] after disk load.
+      // If bootstrap already finished (hot reload), reconcile once here.
+      if (widget.model.bootstrapped) {
+        unawaited(widget.model.reconcileNotifications());
+      }
     });
   }
 
@@ -101,10 +101,7 @@ class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver
     }
     if (state == AppLifecycleState.resumed) {
       widget.model.runDueScheduledAgentTasks();
-      unawaited(() async {
-        await widget.model.syncNotifications();
-        await widget.model.maybePostDailyReminder();
-      }());
+      unawaited(widget.model.reconcileNotifications());
     }
   }
 

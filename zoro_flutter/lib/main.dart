@@ -7,14 +7,12 @@ import 'package:workmanager/workmanager.dart';
 
 import 'app.dart';
 import 'core/notifications/background_dispatcher.dart';
-import 'core/notifications/notification_service.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // Initialize the notification plugin so foreground reschedules + tap routing
-  // work the moment the app launches. Permission is requested lazily when the
-  // user enables the master switch in Settings.
-  unawaited(NotificationService.instance.init());
+  // Do NOT init notifications here — with UIScene / FlutterImplicitEngineDelegate,
+  // plugins register in didInitializeImplicitFlutterEngine *after* main() returns.
+  // Early init marks the service "ready" while the platform channel is still nil.
   unawaited(_initBackgroundTasks());
   runApp(const ZoroApp());
 }
