@@ -135,10 +135,29 @@ class NotificationService {
     _log('init done');
   }
 
+  /// True when alerts are allowed. Does not prompt.
+  Future<bool> isAuthorized() async {
+    await init();
+    if (kIsWeb) return false;
+    if (Platform.isIOS) {
+      final ios = _plugin.resolvePlatformSpecificImplementation<
+          IOSFlutterLocalNotificationsPlugin>();
+      final r = await ios?.checkPermissions();
+      return r?.isEnabled ?? false;
+    }
+    if (Platform.isAndroid) {
+      final android = _plugin.resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>();
+      return await android?.areNotificationsEnabled() ?? false;
+    }
+    return false;
+  }
+
   /// Asks the OS for permission. Returns true when the user grants it (or it
   /// was already granted). Safe to call multiple times.
   Future<bool> requestPermission() async {
     await init();
+    if (await isAuthorized()) return true;
     if (kIsWeb) return false;
     if (Platform.isIOS) {
       final ios = _plugin.resolvePlatformSpecificImplementation<
@@ -159,28 +178,8 @@ class NotificationService {
     return false;
   }
 
-  /// Returns the current OS-level permission status, without prompting.
-  Future<bool> isAuthorized() async {
-    await init();
-    if (kIsWeb) return false;
-    if (Platform.isIOS) {
-      final ios = _plugin.resolvePlatformSpecificImplementation<
-          IOSFlutterLocalNotificationsPlugin>();
-      final r = await ios?.checkPermissions();
-      return r?.isEnabled ?? false;
-    }
-    if (Platform.isAndroid) {
-      final android = _plugin.resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin>();
-      final r = await android?.areNotificationsEnabled();
-      return r ?? false;
-    }
-    return false;
-  }
-
-  /// Detailed status useful for diagnostics. `notDetermined` is the only state
-  /// where iOS will actually show a prompt; `denied` / `provisional` mean iOS
-  /// already remembers a choice and won't re-prompt.
+  /// Coarse OS status from [checkPermissions]. On iOS, `isEnabled` is false for
+  /// both notDetermined and denied — do not use this to skip [requestPermission].
   Future<NotificationAuthStatus> currentAuthStatus() async {
     await init();
     if (kIsWeb) return NotificationAuthStatus.unsupported;
@@ -191,8 +190,11 @@ class NotificationService {
         if (ios == null) return NotificationAuthStatus.unsupported;
         final r = await ios.checkPermissions();
         if (r == null) return NotificationAuthStatus.unknown;
-        if (r.isEnabled) return NotificationAuthStatus.authorized;
-        return NotificationAuthStatus.denied;
+        if (r.isEnabled || r.isProvisionalEnabled) {
+          return NotificationAuthStatus.authorized;
+        }
+        // Cannot distinguish notDetermined vs denied from this API alone.
+        return NotificationAuthStatus.unknown;
       }
       if (Platform.isAndroid) {
         final android = _plugin.resolvePlatformSpecificImplementation<

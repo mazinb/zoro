@@ -1835,22 +1835,41 @@ class _NotificationsCardState extends State<_NotificationsCard> {
 
   Future<void> _onMasterChanged(bool v) async {
     if (_busy) return;
+    if (!v) {
+      widget.model.setNotificationsEnabled(false);
+      return;
+    }
     setState(() => _busy = true);
     try {
-      if (v) {
-        final granted = await NotificationService.instance.requestPermission();
-        if (!granted) {
-          if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Notifications were not granted. Try toggling again to re-prompt.'),
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-          return;
-        }
+      final svc = NotificationService.instance;
+      if (await svc.isAuthorized()) {
+        widget.model.setNotificationsEnabled(true);
+        return;
       }
-      widget.model.setNotificationsEnabled(v);
+      // Always call requestPermission first. iOS only shows the system prompt here
+      // (not on checkPermissions). Skipping straight to "Settings" when status looks
+      // "denied" also breaks first launch — notDetermined reads as not enabled too,
+      // and the Notifications row won't exist in Settings until we've asked once.
+      final granted = await svc.requestPermission();
+      if (!granted) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text(
+              'Notifications are not enabled. Allow them in the prompt, or turn on Zoro in Settings.',
+            ),
+            behavior: SnackBarBehavior.floating,
+            action: SnackBarAction(
+              label: 'Settings',
+              onPressed: () {
+                unawaited(launchUrl(Uri.parse('app-settings:')));
+              },
+            ),
+          ),
+        );
+        return;
+      }
+      widget.model.setNotificationsEnabled(true);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
