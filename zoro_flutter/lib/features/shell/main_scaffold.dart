@@ -9,7 +9,8 @@ import '../../shared/widgets/liquid_glass.dart';
 import '../command_center/command_center_tab.dart';
 import '../context/context_tab.dart';
 import '../ledger/ledger_tab.dart';
-import '../chat/chat_tab.dart';
+import '../goals/goals_guide_flow.dart';
+import '../goals/goals_tab.dart';
 import '../settings/settings_tab.dart';
 
 class MainScaffold extends StatefulWidget {
@@ -25,6 +26,8 @@ class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver
   int _index = 0;
   String? _ledgerFocus;
   final ValueNotifier<int> _settingsTabIndex = ValueNotifier<int>(0);
+  final ValueNotifier<AgentSettingsSection> _settingsAgentSection =
+      ValueNotifier<AgentSettingsSection>(AgentSettingsSection.context);
 
   static const int _homeIndex = 0;
   static const int _ledgerIndex = 1;
@@ -43,9 +46,12 @@ class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver
     );
   }
 
-  void _goToSettingsTab(int tabIndex) {
+  void _goToSettingsTab(int tabIndex, {AgentSettingsSection? agentSection}) {
     setState(() => _index = _settingsIndex);
     _settingsTabIndex.value = tabIndex;
+    if (agentSection != null) {
+      _settingsAgentSection.value = agentSection;
+    }
   }
 
   void toastGoToSettings({
@@ -91,6 +97,7 @@ class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver
     _notifTapSub?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _settingsTabIndex.dispose();
+    _settingsAgentSection.dispose();
     super.dispose();
   }
 
@@ -140,15 +147,27 @@ class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver
         onPrivacyInteractionDenied: _onPrivacyInteractionDenied,
       ),
       ContextTab(model: widget.model),
-      ChatTab(
+      GoalsTab(
         model: widget.model,
+        onGoToSettingsAgents: () => _goToSettingsTab(
+          SettingsTabIndex.agents,
+          agentSection: AgentSettingsSection.goals,
+        ),
         onGoToSettingsPermissions: () => _goToSettingsTab(SettingsTabIndex.permissions),
-        toastGoToSettingsPermissions: () => toastGoToSettings(
-          message: 'Add an API key in Settings → Permissions to enable chat.',
-          settingsTabIndex: SettingsTabIndex.permissions,
+        onOpenGuide: () => openGoalsGuideLauncher(
+          context: context,
+          model: widget.model,
+          onGoToSettingsGoals: () => _goToSettingsTab(
+            SettingsTabIndex.agents,
+            agentSection: AgentSettingsSection.goals,
+          ),
         ),
       ),
-      SettingsTab(model: widget.model, tabIndexListenable: _settingsTabIndex),
+      SettingsTab(
+        model: widget.model,
+        tabIndexListenable: _settingsTabIndex,
+        agentSectionListenable: _settingsAgentSection,
+      ),
     ];
 
     final bottomOverlayPad = MediaQuery.paddingOf(context).bottom +
@@ -196,9 +215,9 @@ class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver
                   label: 'Context',
                 ),
                 NavigationDestination(
-                  icon: Icon(Icons.chat_bubble_outline),
-                  selectedIcon: Icon(Icons.chat_bubble),
-                  label: 'Chat',
+                  icon: Icon(Icons.flag_outlined),
+                  selectedIcon: Icon(Icons.flag),
+                  label: 'Goals',
                 ),
                 NavigationDestination(
                   icon: Icon(Icons.settings_outlined),

@@ -3,6 +3,7 @@ import 'dart:convert';
 import '../finance/currency.dart';
 import '../state/app_model.dart';
 import '../state/cashflow_income_line.dart';
+import '../state/financial_goals.dart';
 import '../state/ledger_rows.dart';
 import '../state/monthly_cashflow_entry.dart';
 /// Version of the on-disk JSON envelope (bump when making breaking layout changes).
@@ -262,6 +263,59 @@ AgentChatThread? decodeChatThread(Object? raw) {
     modelOverride: m['modelOverride']?.toString(),
     systemPromptSuffix: m['systemPromptSuffix']?.toString(),
     enabledToolIds: toolIds,
+  );
+}
+
+Map<String, dynamic> encodeFinancialGoal(FinancialGoal g) => {
+      'id': g.id,
+      'kind': g.kind.apiValue,
+      'name': g.name,
+      'targetAmount': g.targetAmount,
+      if (g.targetDate != null) 'targetDate': g.targetDate!.toUtc().toIso8601String(),
+      'linkedAssetIds': g.linkedAssetIds,
+      'savingsWeight': g.savingsWeight,
+      'corpusAdjustment': g.corpusAdjustment,
+      'fundsProjects': g.fundsProjects,
+      if (g.contextMarkdown.trim().isNotEmpty) 'contextMarkdown': g.contextMarkdown,
+    };
+
+FinancialGoal? decodeFinancialGoal(Object? raw) {
+  if (raw is! Map) return null;
+  final m = Map<String, dynamic>.from(raw);
+  final id = m['id']?.toString();
+  if (id == null || id.isEmpty) return null;
+  final kind = FinancialGoalKind.fromApi(m['kind']?.toString());
+  final name = (m['name']?.toString() ?? '').trim();
+  final target = m['targetAmount'];
+  final targetAmount = target is num ? target.toDouble() : double.tryParse(target?.toString() ?? '') ?? 0;
+  DateTime? targetDate;
+  final td = m['targetDate']?.toString();
+  if (td != null && td.isNotEmpty) {
+    targetDate = DateTime.tryParse(td);
+  }
+  final linked = <String>[];
+  final la = m['linkedAssetIds'];
+  if (la is List) {
+    for (final e in la) {
+      final s = e.toString().trim();
+      if (s.isNotEmpty) linked.add(s);
+    }
+  }
+  final sw = m['savingsWeight'];
+  final savingsWeight = sw is num ? sw.toDouble() : double.tryParse(sw?.toString() ?? '') ?? 1;
+  final ca = m['corpusAdjustment'];
+  final corpusAdjustment = ca is num ? ca.toDouble() : double.tryParse(ca?.toString() ?? '') ?? 0;
+  return FinancialGoal(
+    id: id,
+    kind: kind,
+    name: name.isEmpty ? (kind == FinancialGoalKind.retirement ? 'Retirement' : 'Goal') : name,
+    targetAmount: targetAmount,
+    targetDate: targetDate,
+    linkedAssetIds: linked,
+    savingsWeight: savingsWeight > 0 ? savingsWeight : 1,
+    corpusAdjustment: corpusAdjustment,
+    fundsProjects: m['fundsProjects'] == true,
+    contextMarkdown: m['contextMarkdown']?.toString() ?? '',
   );
 }
 

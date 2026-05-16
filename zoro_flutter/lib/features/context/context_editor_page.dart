@@ -266,14 +266,10 @@ class _ContextEditorPageState extends State<ContextEditorPage> {
   }
 
   Future<void> _openPlanner() async {
-    final res = await Navigator.of(context).push<ContextPlannerResult>(
-      MaterialPageRoute(
-        fullscreenDialog: true,
-        builder: (ctx) => ContextPlannerPage(
-          model: widget.model,
-          config: widget._plannerConfig(_ctrl.text),
-        ),
-      ),
+    final res = await pushContextPlanner(
+      context,
+      model: widget.model,
+      config: widget._plannerConfig(_ctrl.text),
     );
     if (!mounted || res == null) return;
     setState(() => _ctrl.text = res.contextMarkdown);

@@ -24,10 +24,18 @@ abstract class SettingsTabIndex {
 }
 
 class SettingsTab extends StatefulWidget {
-  const SettingsTab({super.key, required this.model, required this.tabIndexListenable});
+  const SettingsTab({
+    super.key,
+    required this.model,
+    required this.tabIndexListenable,
+    this.agentSectionListenable,
+  });
 
   final AppModel model;
   final ValueListenable<int> tabIndexListenable;
+
+  /// When set, switches the Agents sub-section (home / ledger / context / goals / schedule).
+  final ValueListenable<AgentSettingsSection>? agentSectionListenable;
 
   @override
   State<SettingsTab> createState() => _SettingsTabState();
@@ -41,6 +49,7 @@ class _SettingsTabState extends State<SettingsTab> with SingleTickerProviderStat
     super.initState();
     _tabs = TabController(length: 3, vsync: this, initialIndex: widget.tabIndexListenable.value.clamp(0, 2));
     widget.tabIndexListenable.addListener(_onTabIndexRequested);
+    widget.agentSectionListenable?.addListener(_onAgentSectionRequested);
   }
 
   @override
@@ -48,16 +57,25 @@ class _SettingsTabState extends State<SettingsTab> with SingleTickerProviderStat
     super.didUpdateWidget(oldWidget);
     if (oldWidget.tabIndexListenable != widget.tabIndexListenable) {
       oldWidget.tabIndexListenable.removeListener(_onTabIndexRequested);
+      widget.tabIndexListenable.removeListener(_onTabIndexRequested);
       widget.tabIndexListenable.addListener(_onTabIndexRequested);
+      widget.agentSectionListenable?.removeListener(_onAgentSectionRequested);
+      widget.agentSectionListenable?.addListener(_onAgentSectionRequested);
       _onTabIndexRequested();
+      _onAgentSectionRequested();
     }
   }
 
   @override
   void dispose() {
     widget.tabIndexListenable.removeListener(_onTabIndexRequested);
+    widget.agentSectionListenable?.removeListener(_onAgentSectionRequested);
     _tabs.dispose();
     super.dispose();
+  }
+
+  void _onAgentSectionRequested() {
+    // Handled by [_AgentsPane] via its own listener.
   }
 
   void _onTabIndexRequested() {
@@ -102,7 +120,10 @@ class _SettingsTabState extends State<SettingsTab> with SingleTickerProviderStat
             controller: _tabs,
             children: [
               _GeneralPane(model: widget.model),
-              _AgentsPane(model: widget.model),
+              _AgentsPane(
+                model: widget.model,
+                sectionListenable: widget.agentSectionListenable,
+              ),
               _ApiKeysPane(model: widget.model),
             ],
           ),
@@ -531,9 +552,10 @@ class _GeneralPaneState extends State<_GeneralPane> {
 }
 
 class _AgentsPane extends StatefulWidget {
-  const _AgentsPane({required this.model});
+  const _AgentsPane({required this.model, this.sectionListenable});
 
   final AppModel model;
+  final ValueListenable<AgentSettingsSection>? sectionListenable;
 
   @override
   State<_AgentsPane> createState() => _AgentsPaneState();
@@ -542,7 +564,7 @@ class _AgentsPane extends StatefulWidget {
 class _AgentsPaneState extends State<_AgentsPane> {
   final _searchCtrl = TextEditingController();
   String _query = '';
-  _AgentSettingsSection _section = _AgentSettingsSection.context;
+  AgentSettingsSection _section = AgentSettingsSection.context;
   late final TextEditingController _homeSummaryCtrl;
   final FocusNode _homeSummaryFocus = FocusNode();
   bool _suppressHomeSummaryOnChanged = false;
@@ -552,10 +574,20 @@ class _AgentsPaneState extends State<_AgentsPane> {
     super.initState();
     _homeSummaryCtrl = TextEditingController(text: widget.model.homeSummaryText);
     widget.model.addListener(_syncHomeSummaryCtrlFromModel);
+    widget.sectionListenable?.addListener(_onSectionListenable);
+    _onSectionListenable();
+  }
+
+  void _onSectionListenable() {
+    final l = widget.sectionListenable;
+    if (l == null) return;
+    final next = l.value;
+    if (_section != next) setState(() => _section = next);
   }
 
   @override
   void dispose() {
+    widget.sectionListenable?.removeListener(_onSectionListenable);
     widget.model.removeListener(_syncHomeSummaryCtrlFromModel);
     _searchCtrl.dispose();
     _homeSummaryCtrl.dispose();
@@ -593,7 +625,7 @@ class _AgentsPaneState extends State<_AgentsPane> {
     final cs = Theme.of(context).colorScheme;
 
     Widget iconTab({
-      required _AgentSettingsSection s,
+      required AgentSettingsSection s,
       required IconData icon,
     }) {
       final on = _section == s;
@@ -617,15 +649,15 @@ class _AgentsPaneState extends State<_AgentsPane> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          iconTab(s: _AgentSettingsSection.home, icon: Icons.dashboard_outlined),
+          iconTab(s: AgentSettingsSection.home, icon: Icons.dashboard_outlined),
           const SizedBox(width: 16),
-          iconTab(s: _AgentSettingsSection.ledger, icon: Icons.view_agenda_outlined),
+          iconTab(s: AgentSettingsSection.ledger, icon: Icons.view_agenda_outlined),
           const SizedBox(width: 16),
-          iconTab(s: _AgentSettingsSection.context, icon: Icons.library_books_outlined),
+          iconTab(s: AgentSettingsSection.context, icon: Icons.library_books_outlined),
           const SizedBox(width: 16),
-          iconTab(s: _AgentSettingsSection.chat, icon: Icons.chat_bubble_outline),
+          iconTab(s: AgentSettingsSection.goals, icon: Icons.flag_outlined),
           const SizedBox(width: 16),
-          iconTab(s: _AgentSettingsSection.schedule, icon: Icons.repeat),
+          iconTab(s: AgentSettingsSection.schedule, icon: Icons.repeat),
         ],
       ),
     );
@@ -761,6 +793,101 @@ class _AgentsPaneState extends State<_AgentsPane> {
                     ),
                   ),
                 ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _goalsPane() {
+    final model = widget.model;
+    final cs = Theme.of(context).colorScheme;
+    final defs = kInternalAppAgentDefinitions.where((d) => d.id == InternalAppAgentIds.goalsGuide).toList();
+    final customAgents = widget.model.agents
+        .where((a) {
+          final n = '${a.name} ${a.description}'.toLowerCase();
+          return n.contains('retire') ||
+              n.contains('fire') ||
+              n.contains('goal') ||
+              a.id.contains('retire') ||
+              a.id.contains('fire');
+        })
+        .toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Expanded(
+          child: ListView(
+            padding: EdgeInsets.zero,
+            children: [
+              Text(
+                'Guide prompts',
+                style: TextStyle(fontWeight: FontWeight.w900, color: cs.onSurface, fontSize: 15),
+              ),
+              const SizedBox(height: 8),
+              for (final def in defs)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Card(
+                    child: ListTile(
+                      leading: CircleAvatar(
+                        backgroundColor: model.accentSoft,
+                        child: Icon(def.icon, color: model.accent, size: 22),
+                      ),
+                      title: Text(def.title, style: const TextStyle(fontWeight: FontWeight.w900)),
+                      subtitle: Text(def.listSubtitle, style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12)),
+                      trailing: Icon(Icons.chevron_right, color: cs.outline),
+                      onTap: () {
+                        Navigator.of(context).push<void>(
+                          MaterialPageRoute(
+                            builder: (ctx) => InternalAgentPromptEditorPage(definition: def, model: model),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 16),
+              Text(
+                'Custom agents',
+                style: TextStyle(fontWeight: FontWeight.w900, color: cs.onSurface, fontSize: 15),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Retirement / FIRE / goal agents for chat & schedules',
+                style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12),
+              ),
+              const SizedBox(height: 8),
+              if (customAgents.isEmpty)
+                Text('No matching agents yet.', style: TextStyle(color: cs.onSurfaceVariant))
+              else
+                for (var i = 0; i < customAgents.length; i++)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Card(
+                      child: ListTile(
+                        title: Text(customAgents[i].name, style: const TextStyle(fontWeight: FontWeight.w900)),
+                        subtitle: Text(
+                          customAgents[i].description,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12),
+                        ),
+                        trailing: const Icon(Icons.chevron_right),
+                        onTap: () {
+                          final ix = widget.model.agents.indexWhere((a) => a.id == customAgents[i].id);
+                          if (ix >= 0) _openAgentEditor(context, index: ix);
+                        },
+                      ),
+                    ),
+                  ),
+              TextButton.icon(
+                onPressed: () => _openAgentEditor(context),
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('New agent', style: TextStyle(fontWeight: FontWeight.w800)),
+              ),
             ],
           ),
         ),
@@ -1005,18 +1132,12 @@ class _AgentsPaneState extends State<_AgentsPane> {
 
   @override
   Widget build(BuildContext context) {
-    final chatAgents = _filteredAgents(where: (_) => true);
-
     Widget body = switch (_section) {
-      _AgentSettingsSection.home => _homePane(),
-      _AgentSettingsSection.ledger => _ledgerPane(),
-      _AgentSettingsSection.context => _contextPane(),
-      _AgentSettingsSection.chat => _agentLibraryPane(
-          agents: chatAgents,
-          onCreate: () => _openAgentEditor(context),
-          emptyText: 'No agents yet.',
-        ),
-      _AgentSettingsSection.schedule => _schedulePane(context),
+      AgentSettingsSection.home => _homePane(),
+      AgentSettingsSection.ledger => _ledgerPane(),
+      AgentSettingsSection.context => _contextPane(),
+      AgentSettingsSection.goals => _goalsPane(),
+      AgentSettingsSection.schedule => _schedulePane(context),
     };
 
     return Padding(
@@ -1070,7 +1191,7 @@ class _AgentsPaneState extends State<_AgentsPane> {
   }
 }
 
-enum _AgentSettingsSection { home, ledger, context, chat, schedule }
+enum AgentSettingsSection { home, ledger, context, goals, schedule }
 
 class _ApiKeysPane extends StatefulWidget {
   const _ApiKeysPane({required this.model});

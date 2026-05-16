@@ -12,6 +12,8 @@ abstract final class InternalAppAgentIds {
   static const ledgerAddLiabilities = 'ledger_add_liabilities';
   static const ledgerAddActualExpenses = 'ledger_add_actual_expenses';
   static const ledgerOrchestrator = 'ledger_orchestrator';
+
+  static const goalsGuide = 'goals_guide';
 }
 
 /// Registry entry for Settings → App agents. Add rows here to surface new internal agents.
@@ -252,6 +254,50 @@ Keep it simple and pick ONE target.
     infoWhatItDoes: 'Looks at all context notes and points you to the one best next update.',
     infoContextSent: 'All context notes (assets, liabilities, buckets, months) + last updated times.',
     modelDomainHints: 'Return one target and a short reason.',
+  ),
+  InternalAppAgentDefinition(
+    id: InternalAppAgentIds.goalsGuide,
+    title: 'Goals guide',
+    listSubtitle: 'Goals → guide',
+    icon: Icons.flag_outlined,
+    defaultSystemPrompt: '''
+You help set up financial goals: one retirement goal (corpus + target date) and optional target-amount goals.
+
+Questions (planner):
+- Ask only what is missing: target amount, target date, which assets fund the goal, whether a target should fund near-term projects.
+- Retirement: confirm target corpus, retire-by date, which brokerage/savings assets count toward corpus.
+- Use payload assets[] ids when suggesting links. Prefer primary cash / brokerage accounts when relevant.
+- Stop early if data is already clear.
+
+Synthesis (structured block required):
+{
+  "summary": "one short sentence",
+  "contextGoalId": "<goal id for contextMarkdown>",
+  "contextMarkdown": "brief assumptions (markdown)",
+  "goalUpdates": [
+    {
+      "goalId": "<id>",
+      "name": "optional",
+      "targetAmount": 0,
+      "targetDate": "YYYY-MM-DD or null",
+      "linkedAssetIds": ["asset ids"],
+      "fundsProjects": false,
+      "corpusAdjustment": 0
+    }
+  ]
+}
+
+mode=single: one focusGoal in payload — return one goalUpdates entry for that id.
+mode=all: update retirement first, then targets; omit fields you should not change.
+Only set fundsProjects true on at most one target goal.
+''',
+    infoWhatItDoes: 'Short MCQ to fill retirement and target goals, then a review step before saving.',
+    infoContextSent:
+        'Goals (amounts, dates, links), ledger assets (ids + values), monthly savings split, and any existing context notes.',
+    modelDomainHints: '''
+Planner: max 6 questions, short prompts, 2–6 choices.
+Synth: always include goalUpdates array; contextMarkdown is the human-readable assumptions for contextGoalId.
+''',
   ),
 ];
 

@@ -16,6 +16,7 @@ import '../persistence/app_state_codec.dart' as app_state;
 import '../persistence/app_state_store.dart';
 import '../schedule/scheduled_agent_runner.dart';
 import 'cashflow_income_line.dart';
+import 'financial_goals.dart';
 import 'internal_app_agent_definition.dart';
 import 'ledger_rows.dart';
 import 'monthly_cashflow_entry.dart';
@@ -55,6 +56,7 @@ class NetWorthProjectionYearBreakdown {
 class AppModel extends ChangeNotifier {
   AppModel() {
     agents.addAll(_seedDefaultAgents());
+    ensureRetirementGoal();
     syncAllocationsFromFraction(notify: false);
     _seedDummyCashflowData();
   }
@@ -890,6 +892,166 @@ class AppModel extends ChangeNotifier {
   double allocInvestmentsMonthly = 0;
   double allocSavingsMonthly = 0;
 
+  /// One retirement goal plus any number of target-amount goals.
+  final List<FinancialGoal> financialGoals = [];
+
+  FinancialGoal? get retirementGoal {
+    for (final g in financialGoals) {
+      if (g.isRetirement) return g;
+    }
+    return null;
+  }
+
+  List<FinancialGoal> get targetGoals =>
+      financialGoals.where((g) => !g.isRetirement).toList(growable: false);
+
+  FinancialGoal? financialGoalById(String id) {
+    for (final g in financialGoals) {
+      if (g.id == id) return g;
+    }
+    return null;
+  }
+
+  LedgerAssetRow? assetById(String id) {
+    for (final a in assets) {
+      if (a.id == id) return a;
+    }
+    return null;
+  }
+
+  void ensureRetirementGoal() {
+    if (retirementGoal != null) return;
+    financialGoals.insert(
+      0,
+      FinancialGoal(
+        id: newLedgerRowId('g'),
+        kind: FinancialGoalKind.retirement,
+        name: 'Retirement',
+      ),
+    );
+  }
+
+  void _pruneGoalAssetLinks(String removedAssetId) {
+    var touched = false;
+    for (var i = 0; i < financialGoals.length; i++) {
+      final g = financialGoals[i];
+      if (!g.linkedAssetIds.contains(removedAssetId)) continue;
+      financialGoals[i] = g.copyWith(
+        linkedAssetIds: g.linkedAssetIds.where((id) => id != removedAssetId).toList(),
+      );
+      touched = true;
+    }
+    if (touched) _scheduleAppStatePersist();
+  }
+
+  double goalLinkedAssetsTotal(FinancialGoal goal) {
+    var sum = 0.0;
+    for (final id in goal.linkedAssetIds) {
+      final a = assetById(id);
+      if (a != null) sum += assetDisplayValue(a);
+    }
+    return sum;
+  }
+
+  double goalCurrentAmount(FinancialGoal goal) =>
+      goalLinkedAssetsTotal(goal) + (goal.isRetirement ? goal.corpusAdjustment : 0);
+
+  double? goalProgressFraction(FinancialGoal goal) {
+    if (goal.targetAmount <= 0) return null;
+    return (goalCurrentAmount(goal) / goal.targetAmount).clamp(0.0, 1.0);
+  }
+
+  /// Normalized shares of [allocSavingsMonthly] across goals (weights ≥ 0).
+  Map<String, double> normalizedGoalSavingsShares() {
+    if (financialGoals.isEmpty) return {};
+    final weights = <String, double>{};
+    var sum = 0.0;
+    for (final g in financialGoals) {
+      final w = g.savingsWeight.clamp(0.0, 1e6);
+      weights[g.id] = w;
+      sum += w;
+    }
+    if (sum <= 0) {
+      final even = 1.0 / financialGoals.length;
+      return {for (final g in financialGoals) g.id: even};
+    }
+    return {for (final e in weights.entries) e.key: e.value / sum};
+  }
+
+  double savingsMonthlyForGoal(FinancialGoal goal) {
+    final share = normalizedGoalSavingsShares()[goal.id] ?? 0;
+    return allocSavingsMonthly * share;
+  }
+
+  FinancialGoal? projectsFundingGoal() {
+    for (final g in targetGoals) {
+      if (g.fundsProjects) return g;
+    }
+    return targetGoals.isEmpty ? null : targetGoals.first;
+  }
+
+  void _rebalanceGoalSavingsWeights() {
+    if (financialGoals.isEmpty) return;
+    final projects = projectsFundingGoal();
+    if (projects != null && !projects.fundsProjects) {
+      final ix = financialGoals.indexWhere((g) => g.id == projects.id);
+      if (ix >= 0) financialGoals[ix] = projects.copyWith(fundsProjects: true);
+    }
+    for (var i = 0; i < financialGoals.length; i++) {
+      final g = financialGoals[i];
+      if (g.savingsWeight > 0) continue;
+      financialGoals[i] = g.copyWith(savingsWeight: 1);
+    }
+  }
+
+  void upsertFinancialGoal(FinancialGoal goal) {
+    final ix = financialGoals.indexWhere((g) => g.id == goal.id);
+    if (goal.isRetirement) {
+      for (var j = 0; j < financialGoals.length; j++) {
+        if (financialGoals[j].isRetirement && financialGoals[j].id != goal.id) {
+          financialGoals.removeAt(j);
+          break;
+        }
+      }
+    }
+    if (ix >= 0) {
+      financialGoals[ix] = goal;
+    } else {
+      financialGoals.add(goal);
+    }
+    _rebalanceGoalSavingsWeights();
+    _scheduleAppStatePersist();
+    notifyListeners();
+  }
+
+  void addTargetGoal({String name = 'New goal'}) {
+    final g = FinancialGoal(
+      id: newLedgerRowId('g'),
+      kind: FinancialGoalKind.target,
+      name: name,
+      fundsProjects: targetGoals.isEmpty,
+    );
+    financialGoals.add(g);
+    _rebalanceGoalSavingsWeights();
+    _scheduleAppStatePersist();
+    notifyListeners();
+  }
+
+  void removeFinancialGoal(String id) {
+    final g = financialGoalById(id);
+    if (g == null || g.isRetirement) return;
+    financialGoals.removeWhere((x) => x.id == id);
+    _rebalanceGoalSavingsWeights();
+    _scheduleAppStatePersist();
+    notifyListeners();
+  }
+
+  void adjustRetirementCorpus(double delta) {
+    final r = retirementGoal;
+    if (r == null) return;
+    upsertFinancialGoal(r.copyWith(corpusAdjustment: r.corpusAdjustment + delta));
+  }
+
   String get displayCurrencySymbol => displayCurrency.symbol;
 
   static String monthKeyFor(DateTime d) =>
@@ -1584,6 +1746,7 @@ class AppModel extends ChangeNotifier {
     if (assets.length <= 1 || index < 0 || index >= assets.length) return;
     final removedId = assets[index].id;
     assets.removeAt(index);
+    _pruneGoalAssetLinks(removedId);
     if (primaryIncomeAssetId == removedId) {
       primaryIncomeAssetId = null;
     }
@@ -1767,13 +1930,6 @@ class AppModel extends ChangeNotifier {
     monthlyCashflowByMonth.remove(monthKey);
     _scheduleAppStatePersist();
     notifyListeners();
-  }
-
-  LedgerAssetRow? assetById(String id) {
-    for (final a in assets) {
-      if (a.id == id) return a;
-    }
-    return null;
   }
 
   LedgerLiabilityRow? liabilityById(String id) {
@@ -2110,6 +2266,7 @@ class AppModel extends ChangeNotifier {
         },
       },
       'scheduledTasks': scheduledAgentTasks.map((t) => t.toJson()).toList(),
+      'goals': financialGoals.map(app_state.encodeFinancialGoal).toList(),
     };
   }
 
@@ -2416,6 +2573,17 @@ class AppModel extends ChangeNotifier {
             if (ScheduledAgentTask.fromJson(e) != null) ScheduledAgentTask.fromJson(e)!,
         ]);
     }
+
+    final goalsRaw = root['goals'];
+    financialGoals.clear();
+    if (goalsRaw is List) {
+      for (final e in goalsRaw) {
+        final g = app_state.decodeFinancialGoal(e);
+        if (g != null) financialGoals.add(g);
+      }
+    }
+    ensureRetirementGoal();
+    _rebalanceGoalSavingsWeights();
 
     syncAllocationsFromFraction(notify: false);
   }
