@@ -1,8 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zoro_flutter/core/notifications/notification_payload.dart';
 import 'package:zoro_flutter/core/state/app_model.dart';
-import 'package:zoro_flutter/core/state/scheduled_agent_task.dart';
-
 void main() {
   group('NotificationPayload', () {
     test('encodes/decodes agent task payloads', () {
@@ -32,41 +30,6 @@ void main() {
       expect(NotificationPayload.tryDecode('{"kind":"unknown"}'), isNull);
       expect(NotificationPayload.tryDecode('{"kind":"agentTask"}'), isNull); // missing taskId
       expect(NotificationPayload.tryDecode('{"kind":"reminder","domain":"nope"}'), isNull);
-    });
-  });
-
-  group('ScheduledAgentTask.notify JSON round-trip', () {
-    test('preserves notify across encode/decode', () {
-      final t = ScheduledAgentTask(
-        id: 'sched-1',
-        name: 'Morning brief',
-        enabled: true,
-        agentId: 'agent-morning-briefing',
-        runUserMessage: 'run',
-        recurrence: ScheduleRecurrenceKind.daily,
-        hour: 7,
-        minute: 30,
-        weeklyWeekdays: const [1, 2, 3, 4, 5],
-        monthlyDay: 1,
-        yearlyMonth: 1,
-        yearlyDay: 1,
-        notify: true,
-      );
-      final json = encodeScheduledAgentTasksJson([t]);
-      final decoded = decodeScheduledAgentTasksJson(json);
-      expect(decoded, hasLength(1));
-      expect(decoded.first.notify, isTrue);
-    });
-
-    test('defaults notify to false when the field is missing (legacy JSON)', () {
-      const legacy = '''
-{"version":1,"tasks":[{"id":"sched-old","name":"Legacy","enabled":true,
-"agentId":"agent-morning-briefing","runUserMessage":"","recurrence":"daily",
-"hour":9,"minute":0,"weeklyWeekdays":[1,2,3,4,5,6,7],"monthlyDay":1,
-"yearlyMonth":1,"yearlyDay":1}]}''';
-      final decoded = decodeScheduledAgentTasksJson(legacy);
-      expect(decoded, hasLength(1));
-      expect(decoded.first.notify, isFalse);
     });
   });
 

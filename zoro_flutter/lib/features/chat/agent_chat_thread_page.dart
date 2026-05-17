@@ -14,7 +14,7 @@ extension _FirstOrNullExt<T> on Iterable<T> {
   T? get firstOrNull => isEmpty ? null : first;
 }
 
-/// Single chat thread for a user [AppAgent] (used from Chat tab and Schedule preview).
+/// Single chat thread for a user [AppAgent].
 class AgentChatThreadPage extends StatefulWidget {
   const AgentChatThreadPage({
     super.key,
@@ -22,14 +22,12 @@ class AgentChatThreadPage extends StatefulWidget {
     required this.threadId,
     required this.onNoKey,
     this.initialUserMessage,
-    this.onScheduleBriefing,
   });
 
   final AppModel model;
   final String threadId;
   final VoidCallback onNoKey;
   final String? initialUserMessage;
-  final void Function(String agentId, String? suggestedRunMessage)? onScheduleBriefing;
 
   @override
   State<AgentChatThreadPage> createState() => _AgentChatThreadPageState();
@@ -92,13 +90,6 @@ class _AgentChatThreadPageState extends State<AgentChatThreadPage> {
     _playgroundSuffixCtrl.dispose();
     _playgroundToolsCtrl.dispose();
     super.dispose();
-  }
-
-  String? _lastAssistantMessage() {
-    for (final m in _messages.reversed) {
-      if (!m.fromUser && m.text != 'Thinking…') return m.text;
-    }
-    return null;
   }
 
   int _threadIndex() => widget.model.chats.indexWhere((x) => x.id == widget.threadId);
@@ -512,8 +503,6 @@ class _AgentChatThreadPageState extends State<AgentChatThreadPage> {
       const PopupMenuItem(value: 'playground', child: Text('Playground')),
       const PopupMenuDivider(),
       const PopupMenuItem(value: 'clear', child: Text('Clear chat')),
-      if (widget.onScheduleBriefing != null)
-        const PopupMenuItem(value: 'schedule', child: Text('Schedule briefing…')),
       const PopupMenuItem(value: 'delete', child: Text('Delete chat')),
     ];
 
@@ -529,9 +518,6 @@ class _AgentChatThreadPageState extends State<AgentChatThreadPage> {
               if (v == 'clear') {
                 setState(() => _messages.clear());
                 widget.model.clearChatById(widget.threadId);
-              }
-              if (v == 'schedule') {
-                widget.onScheduleBriefing?.call(agent.id, _lastAssistantMessage());
               }
               if (v == 'delete') {
                 Navigator.of(context).pop();

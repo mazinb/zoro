@@ -2,7 +2,7 @@ import '../state/app_model.dart';
 import '../state/monthly_cashflow_entry.dart';
 import 'agent_action_executor.dart';
 
-/// Provider used for chat / scheduled runs for this agent (before thread overrides).
+/// Provider used for chat for this agent (before thread overrides).
 LlmProvider llmProviderForUserAgent(AppAgent agent, AppModel model) {
   if (agent.llmProviderOverride != null) {
     return agent.llmProviderOverride!;
@@ -32,7 +32,7 @@ You use the Gemini model. Summarize public-market themes cautiously: do not inve
   };
 }
 
-/// Same shape as chat context toggles; scheduled runs default to full context.
+/// Same shape as chat context toggles; defaults to full context.
 String buildPortfolioContextBundle(
   AppModel model, {
   bool includeAssets = true,

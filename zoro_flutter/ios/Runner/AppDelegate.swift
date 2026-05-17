@@ -1,7 +1,6 @@
 import Flutter
 import UIKit
 import UserNotifications
-import workmanager_apple
 
 @main
 @objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
@@ -9,30 +8,12 @@ import workmanager_apple
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
-    // CRITICAL: workmanager_apple requires BGTaskScheduler launch handlers to be
-    // registered BEFORE the app finishes launching. Without this, iOS raises
-    // NSInternalInconsistencyException ("All launch handlers must be registered
-    // before application finishes launching") and the process is killed.
-    //
-    // Identifier must match BGTaskSchedulerPermittedIdentifiers in Info.plist
-    // and the `zoroBackgroundTaskName` constant in lib/core/notifications/background_dispatcher.dart.
-    WorkmanagerPlugin.setPluginRegistrantCallback { registry in
-      GeneratedPluginRegistrant.register(with: registry)
-    }
-    if #available(iOS 13.0, *) {
-      WorkmanagerPlugin.registerPeriodicTask(
-        withIdentifier: "com.getzoro.zoroFlutter.refresh",
-        frequency: NSNumber(value: 15 * 60) // seconds; 15 min is the iOS floor.
-      )
-    }
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
     AppleFoundationModelsPlugin.register(with: engineBridge.applicationRegistrar.messenger())
-    // Plugins (including flutter_local_notifications) register here — after main().
-    // Ensure the notification center delegate is wired once the engine exists.
     if #available(iOS 10.0, *) {
       UNUserNotificationCenter.current().delegate = self
     }

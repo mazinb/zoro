@@ -9,11 +9,10 @@ import '../../core/finance/currency.dart';
 import '../../core/notifications/notification_service.dart';
 import '../../core/state/app_model.dart';
 import '../../core/state/internal_app_agent_definition.dart';
-import '../../core/state/scheduled_agent_task.dart';
 import '../../dev/compile_time_api_keys.dart';
 import '../../shared/widgets/liquid_glass.dart';
+import 'data_transfer_pane.dart';
 import 'internal_agent_prompt_editor_page.dart';
-import 'scheduled_task_editor_page.dart';
 
 abstract class SettingsTabIndex {
   static const int reminders = 0;
@@ -34,7 +33,7 @@ class SettingsTab extends StatefulWidget {
   final AppModel model;
   final ValueListenable<int> tabIndexListenable;
 
-  /// When set, switches the Agents sub-section (home / ledger / context / goals / schedule).
+  /// When set, switches the Agents sub-section (home / ledger / context / goals / data).
   final ValueListenable<AgentSettingsSection>? agentSectionListenable;
 
   @override
@@ -657,7 +656,7 @@ class _AgentsPaneState extends State<_AgentsPane> {
           const SizedBox(width: 16),
           iconTab(s: AgentSettingsSection.goals, icon: Icons.flag_outlined),
           const SizedBox(width: 16),
-          iconTab(s: AgentSettingsSection.schedule, icon: Icons.repeat),
+          iconTab(s: AgentSettingsSection.data, icon: Icons.import_export),
         ],
       ),
     );
@@ -856,7 +855,7 @@ class _AgentsPaneState extends State<_AgentsPane> {
               ),
               const SizedBox(height: 4),
               Text(
-                'Retirement / FIRE / goal agents for chat & schedules',
+                'Retirement / FIRE / goal agents for chat',
                 style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12),
               ),
               const SizedBox(height: 8),
@@ -1004,132 +1003,6 @@ class _AgentsPaneState extends State<_AgentsPane> {
         AppAgentKind.researcher => 'Researcher',
       };
 
-  Widget _schedulePane(BuildContext context) {
-    return AnimatedBuilder(
-      animation: widget.model,
-      builder: (context, _) {
-        final tasks = widget.model.scheduledAgentTasks;
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Recurring agents',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
-                  ),
-                ),
-                FilledButton.icon(
-                  onPressed: () {
-                    Navigator.of(context).push<void>(
-                      MaterialPageRoute<void>(
-                        builder: (ctx) => ScheduledTaskEditorPage(model: widget.model),
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.add),
-                  label: const Text('Add'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Local time. Open the app to run anything that was due while you were away.',
-              style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 12, height: 1.35),
-            ),
-            const SizedBox(height: 12),
-            if (tasks.isEmpty)
-              Expanded(
-                child: Center(
-                  child: Text(
-                    'No schedules yet. Tap Add, or enable “Morning briefing” in the editor.',
-                    style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
-                    textAlign: TextAlign.center,
-                  ),
-                ),
-              )
-            else
-              Expanded(
-                child: ListView(
-                  padding: EdgeInsets.zero,
-                  children: [
-                    for (var i = 0; i < tasks.length; i++)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: Card(
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(12),
-                            onTap: () {
-                              Navigator.of(context).push<void>(
-                                MaterialPageRoute<void>(
-                                  builder: (ctx) => ScheduledTaskEditorPage(
-                                    model: widget.model,
-                                    taskIndex: i,
-                                  ),
-                                ),
-                              );
-                            },
-                            child: Padding(
-                              padding: const EdgeInsets.all(14),
-                              child: Row(
-                                children: [
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          tasks[i].name,
-                                          style: const TextStyle(fontWeight: FontWeight.w900),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          scheduleTaskSummaryLine(tasks[i]),
-                                          style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 13),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          'Next: ${computeNextRunLocal(tasks[i], notBefore: DateTime.now()).toLocal().toString().split(".").first}',
-                                          style: TextStyle(
-                                            color: Theme.of(context).colorScheme.outline,
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                        if (tasks[i].lastError != null && tasks[i].lastError!.trim().isNotEmpty)
-                                          Padding(
-                                            padding: const EdgeInsets.only(top: 6),
-                                            child: Text(
-                                              'Last error: ${tasks[i].lastError}',
-                                              style: TextStyle(color: Theme.of(context).colorScheme.error, fontSize: 12),
-                                            ),
-                                          ),
-                                      ],
-                                    ),
-                                  ),
-                                  Switch(
-                                    value: tasks[i].enabled,
-                                    onChanged: (v) {
-                                      final t = tasks[i].clone();
-                                      t.enabled = v;
-                                      widget.model.updateScheduledTaskAt(i, t);
-                                    },
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-          ],
-        );
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     Widget body = switch (_section) {
@@ -1137,7 +1010,7 @@ class _AgentsPaneState extends State<_AgentsPane> {
       AgentSettingsSection.ledger => _ledgerPane(),
       AgentSettingsSection.context => _contextPane(),
       AgentSettingsSection.goals => _goalsPane(),
-      AgentSettingsSection.schedule => _schedulePane(context),
+      AgentSettingsSection.data => DataTransferPane(model: widget.model),
     };
 
     return Padding(
@@ -1191,7 +1064,7 @@ class _AgentsPaneState extends State<_AgentsPane> {
   }
 }
 
-enum AgentSettingsSection { home, ledger, context, goals, schedule }
+enum AgentSettingsSection { home, ledger, context, goals, data }
 
 class _ApiKeysPane extends StatefulWidget {
   const _ApiKeysPane({required this.model});

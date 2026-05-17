@@ -7,7 +7,6 @@ import 'package:timezone/data/latest_all.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 
 import '../state/app_model.dart';
-import '../state/scheduled_agent_task.dart';
 import 'notification_payload.dart';
 
 void _log(String message) {
@@ -23,15 +22,12 @@ void _logError(String message, [Object? error, StackTrace? stack]) {
 /// Single channel id reused for both agent-task pings and reminder summaries.
 const String _channelId = 'zoro_default_channel';
 const String _channelName = 'Zoro';
-const String _channelDescription = 'Briefings and stale-data reminders';
+const String _channelDescription = 'Stale-data reminders and check-ins';
 
-/// Reserved notification id ranges so per-task / per-domain rescheduling
-/// doesn't collide.
-const int _agentTaskIdBase = 1000; // hash(taskId) mod 10000 + base
+/// Reserved notification id for rotation / check-in reminders.
 const int _reminderSummaryId = 900;
 
 /// Wraps `flutter_local_notifications` with Zoro-specific schedule helpers.
-/// Safe to call from both the main isolate and background workmanager isolate.
 class NotificationService {
   NotificationService._();
 
@@ -218,54 +214,6 @@ class NotificationService {
     return p;
   }
 
-  /// (Re)schedules a single agent task notification. Cancels the previous one
-  /// for this task first. No-op when the task isn't eligible (disabled,
-  /// notify off, or no agent target).
-  Future<void> scheduleAgentTask({
-    required ScheduledAgentTask task,
-    required bool masterEnabled,
-  }) async {
-    await init();
-    await cancelAgentTask(task.id);
-    if (!masterEnabled || !task.enabled || !task.notify) return;
-    var when = computeNextRunLocal(task, notBefore: DateTime.now());
-    final now = DateTime.now();
-    // If the computed slot is in the past (clock skew / same-millisecond race),
-    // still schedule a near-future fire; skipping leaves users with no alarm at all.
-    if (!when.isAfter(now)) {
-      when = now.add(const Duration(seconds: 5));
-    }
-    final tzWhen = tz.TZDateTime.from(when, tz.local);
-
-    final id = _idForAgentTask(task.id);
-    final title = task.name.trim().isEmpty ? 'Zoro' : task.name.trim();
-    final payload = NotificationPayload.agentTask(taskId: task.id).encode();
-
-    final matchComponents = switch (task.recurrence) {
-      ScheduleRecurrenceKind.daily => DateTimeComponents.time,
-      ScheduleRecurrenceKind.weekly => DateTimeComponents.dayOfWeekAndTime,
-      ScheduleRecurrenceKind.monthly => DateTimeComponents.dayOfMonthAndTime,
-      ScheduleRecurrenceKind.yearly => DateTimeComponents.dateAndTime,
-    };
-
-    await _plugin.zonedSchedule(
-      id,
-      title,
-      'Is ready for you to review',
-      tzWhen,
-      _defaultDetails(),
-      androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-      payload: payload,
-      matchDateTimeComponents: matchComponents,
-    );
-    _log('agent task ${task.id} @ $when');
-  }
-
-  Future<void> cancelAgentTask(String taskId) async {
-    await init();
-    await _plugin.cancel(_idForAgentTask(taskId));
-  }
-
   /// Cancels the rotation reminder slot, if any. Safe to call when nothing
   /// is scheduled.
   Future<void> cancelReminderSlot() async {
@@ -338,25 +286,6 @@ class NotificationService {
     );
   }
 
-  /// Replaces the pre-scheduled agent-task notification once the background
-  /// LLM run completes. We keep the body identical to the scheduled push so
-  /// foreground/background outcomes look the same to the user; the freshly
-  /// generated briefing text is what they will see when they tap and land on
-  /// Home / the briefing surface.
-  Future<void> postAgentBriefing({
-    required String taskId,
-    required String title,
-  }) async {
-    await init();
-    await _plugin.show(
-      _idForAgentTask(taskId),
-      title.trim().isEmpty ? 'Zoro briefing' : title.trim(),
-      'Is ready for you to review',
-      _defaultDetails(),
-      payload: NotificationPayload.agentTask(taskId: taskId).encode(),
-    );
-  }
-
   /// Cancels every notification we've scheduled. Useful when the master
   /// switch is turned off.
   Future<void> cancelAll() async {
@@ -396,9 +325,6 @@ class NotificationService {
   static void _onBackgroundResponse(NotificationResponse response) {
     _log('background tap payload=${response.payload}');
   }
-
-  int _idForAgentTask(String taskId) =>
-      _agentTaskIdBase + (taskId.hashCode.abs() % 10000);
 
   static String _reminderTitleFor(ReminderDomain d) => switch (d) {
         ReminderDomain.expenses => 'Expenses need a refresh',

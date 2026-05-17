@@ -41,6 +41,9 @@ Do **not** commit `.env` or service-role keys.
 | `NEXT_PUBLIC_BASE_URL` | Public site URL (default prod: `https://www.getzoro.com`) |
 | `GEMINI_API_KEY` | Server: expenses PDF / savings flows that call Gemini |
 | `NEXT_PUBLIC_APP_URL` or `VERCEL_URL` | Magic-link and absolute URL resolution |
+| `NEXT_PUBLIC_IOS_APP_URL` | App Store link on the download landing page |
+| `NEXT_PUBLIC_ANDROID_APP_URL` | Google Play link on the download landing page |
+| `NEXT_PUBLIC_APP_DEMO_VIDEO` | Optional demo video URL (default `/videos/demo.mp4`) |
 
 Schema and migrations live in **Supabase / repo migrations** — treat the database as source of truth, not this README.
 

@@ -1,5 +1,5 @@
-import ZoroLanding from '@/components/ZoroLanding';
+import AppHome from '@/components/AppHome';
 
 export default function Home() {
-  return <ZoroLanding />;
+  return <AppHome />;
 }

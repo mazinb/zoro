@@ -19,8 +19,8 @@ export const metadata: Metadata = {
     default: "Zoro | Your AI Financial Advisor",
     template: "%s | Zoro"
   },
-  description: "Zoro analyzes your finances, plans your estate, and gives you instant AI-powered insights. Always transparent. Always your decision.",
-  keywords: ["AI financial advisor", "financial planning", "estate planning", "personal finance", "AI insights", "financial analysis"],
+  description: "Download Zoro for iOS and Android. Privacy-first personal finance—no bank sync, data on your phone, and AI assistants with your own API keys.",
+  keywords: ["personal finance app", "privacy finance", "net worth tracker", "no bank sync", "AI financial planner", "Zoro app"],
   authors: [{ name: "Zoro" }],
   creator: "Zoro",
   publisher: "Zoro",
@@ -38,13 +38,13 @@ export const metadata: Metadata = {
     locale: "en_US",
     url: "/",
     title: "Zoro - Your AI Financial Advisor",
-    description: "Zoro analyzes your finances, plans your estate, and gives you instant AI-powered insights. Always transparent. Always your decision.",
+    description: "Privacy-first finance on your phone. No bank sync. Download for iOS and Android.",
     siteName: "Zoro",
   },
   twitter: {
     card: "summary_large_image",
     title: "Zoro - Your AI Financial Advisor",
-    description: "Zoro analyzes your finances, plans your estate, and gives you instant AI-powered insights. Always transparent. Always your decision.",
+    description: "Privacy-first finance on your phone. No bank sync. Download for iOS and Android.",
   },
   icons: {
     icon: [

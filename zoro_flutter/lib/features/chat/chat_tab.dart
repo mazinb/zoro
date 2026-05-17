@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../core/state/app_model.dart';
 import '../../shared/widgets/liquid_glass.dart';
-import '../settings/scheduled_task_editor_page.dart';
 import 'agent_chat_thread_page.dart';
 
 class ChatTab extends StatefulWidget {
@@ -189,17 +188,6 @@ class _ChatTabState extends State<ChatTab> {
                             model: m,
                             threadId: thread.id,
                             onNoKey: widget.toastGoToSettingsPermissions,
-                            onScheduleBriefing: (agentId, suggested) {
-                              Navigator.of(ctx).push<void>(
-                                MaterialPageRoute<void>(
-                                  builder: (ctx2) => ScheduledTaskEditorPage(
-                                    model: m,
-                                    initialAgentId: agentId,
-                                    initialRunMessage: suggested,
-                                  ),
-                                ),
-                              );
-                            },
                           ),
                         ),
                       );
@@ -249,17 +237,6 @@ class _ChatTabState extends State<ChatTab> {
                                     model: widget.model,
                                     threadId: t.id,
                                     onNoKey: widget.toastGoToSettingsPermissions,
-                                    onScheduleBriefing: (agentId, suggested) {
-                                      Navigator.of(ctx).push<void>(
-                                        MaterialPageRoute<void>(
-                                          builder: (ctx2) => ScheduledTaskEditorPage(
-                                            model: widget.model,
-                                            initialAgentId: agentId,
-                                            initialRunMessage: suggested,
-                                          ),
-                                        ),
-                                      );
-                                    },
                                   ),
                                 ),
                               );

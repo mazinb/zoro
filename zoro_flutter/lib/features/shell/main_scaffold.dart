@@ -107,7 +107,6 @@ class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver
       unawaited(widget.model.persistAppStateToDisk());
     }
     if (state == AppLifecycleState.resumed) {
-      widget.model.runDueScheduledAgentTasks();
       unawaited(widget.model.reconcileNotifications());
     }
   }
@@ -116,7 +115,6 @@ class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver
     if (!mounted) return;
     switch (payload.kind) {
       case NotificationKind.agentTask:
-        // Briefings land on Home; on-resume runner will refresh if still due.
         setState(() {
           _index = _homeIndex;
           _ledgerFocus = null;

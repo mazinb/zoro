@@ -26,29 +26,35 @@ Five tabs live in `MainScaffold` and are the entire UI surface:
 2. **Ledger** (`features/ledger/ledger_tab.dart`) — assets, liabilities, income, expenses, cashflow rows + import / orchestrator pages
 3. **Context** (`features/context/context_tab.dart`) — context editor, orchestrator, planner
 4. **Chat** (`features/chat/chat_tab.dart`) — per-agent threads
-5. **Settings** (`features/settings/settings_tab.dart`) — API keys, scheduled tasks, internal agent prompts, notifications, reminders
+5. **Settings** (`features/settings/settings_tab.dart`) — API keys, export/import, internal agent prompts, notifications, reminders
 
 ---
 
 ## Notifications — architecture (shipped)
 
-- **Local-only** (`flutter_local_notifications` + `workmanager`); no APNs/FCM.
-- **Master toggle** — Settings → Allow notifications. Turning on calls `requestPermission()` (iOS prompt in-app). `AppModel.notificationsEnabled` defaults off. Per-scheduled-task `notify` flag. Per-domain silencing = set that row's cadence to **Off** in the Reminders card.
+- **Local-only** (`flutter_local_notifications`); no APNs/FCM. No background Dart runner — reminders fire via OS schedules; in-app catch-up only when the app is open.
+- **Master toggle** — Settings → Allow notifications. Turning on calls `requestPermission()` (iOS prompt in-app). `AppModel.notificationsEnabled` defaults off. Per-domain silencing = set that row's cadence to **Off** in the Reminders card.
 - **Init timing (iOS UIScene)** — Do **not** init the notification plugin in `main()`. Plugins register in `AppDelegate.didInitializeImplicitFlutterEngine` after `main` returns. `NotificationService.init()` retries until the channel exists; `AppModel.reconcileNotifications()` runs after `bootstrap()` loads disk (never before — early sync used to call `cancelAll()` with defaults).
-- **OS schedule id** — rotation / check-in uses notification id `900` (`_reminderSummaryId`). Agent tasks use `1000 + hash(taskId)`.
+- **OS schedule id** — rotation / check-in uses notification id `900` (`_reminderSummaryId`).
 - **Daily reminder slot** — user picks **Reminder check time** in Settings. `_scheduleNextReminderSlot()` always registers a **one-shot OS alarm** at the next occurrence of that time (today if still in the future, else tomorrow). Pick order:
   1. **Overdue domain** — `nextRotationDomain()` + per-domain title/body (`isReminderNotifiable`: cadence on, onboarding done, review overdue).
   2. **Schedulable domain** — same rotation but only requires cadence on + onboarding + `userHasContentFor` (not yet overdue).
   3. **Generic check-in** — title "Zoro", body **"Time for your regular check-in."** Used for new users (`remindersOnboardingComplete == false`) and caught-up users. Spam guard for *immediate* in-app posts stays overdue-only (`maybePostDailyReminder`).
 - **Onboarding** — `remindersOnboardingComplete` when any of: `userTouchedExpenses`, `userTouchedIncome`, `userTouchedAssets`, `userTouchedLiabilities`, or a cashflow month imported. Fastest unlock: edit one expense or add one asset in Ledger. Until then, user still gets the generic check-in at their chosen time if notifications are on.
-- **In-app fallback** — `maybePostDailyReminder()` after resume / bootstrap / Workmanager: posts at most one overdue reminder per day after the notify slot (does not double-fire with a pending OS schedule). `canFireDailyReminderNow` gates this.
-- **Reconcile entry points** — `bootstrap()` end, app resume (`MainScaffold`), `setNotificationsEnabled`, `setReminderNotifyTime`, reminder cadence changes, Workmanager background run.
+- **In-app fallback** — `maybePostDailyReminder()` after resume / bootstrap: posts at most one overdue reminder per day after the notify slot (does not double-fire with a pending OS schedule). `canFireDailyReminderNow` gates this.
+- **Reconcile entry points** — `bootstrap()` end, app resume (`MainScaffold`), `setNotificationsEnabled`, `setReminderNotifyTime`, reminder cadence changes.
 - **Timezone** — device offset matched to a `timezone` DB location (no `flutter_timezone` platform channel).
-- **Agent-task push** — pre-scheduled OS alarm when `task.notify`; post-LLM `postAgentBriefing` in background only. Foreground `runDueScheduledAgentTasks` does not post.
-- **iOS** — deployment target 14.0; `UIBackgroundModes` (`fetch`, `processing`) + `BGTaskSchedulerPermittedIdentifiers` (`com.getzoro.zoroFlutter.refresh`); `WorkmanagerPlugin.registerPeriodicTask` before `super.application(...)`; `UNUserNotificationCenter.current().delegate = self` in `didInitializeImplicitFlutterEngine`. `DarwinNotificationDetails`: `presentBanner` + `presentList`.
+- **iOS** — deployment target 14.0; `UNUserNotificationCenter.current().delegate = self` in `didInitializeImplicitFlutterEngine`. `DarwinNotificationDetails`: `presentBanner` + `presentList`.
 - **Android** — `POST_NOTIFICATIONS`, boot receivers for rescheduled alarms.
 - **Logs** — `[ZoroNotif]` via `print` (visible in Xcode device console for Debug and Release); init/schedule failures included.
 - **Regression tests** — `test/notifications_test.dart` (payload, gates, rotation). Fresh install + cadences set → zero *immediate* overdue fires; OS check-in still schedules when master switch on.
+
+## Data export / import
+
+- **Settings → Agents → Data** (import/export icon).
+- **Export** — ledger-only JSON via `AppStateTransfer.encodeLedgerExportJson` (`exportKind: ledger`, inline `contextMarkdown`). API keys are **not** included.
+- **Import** — ledger export replaces ledger fields only; full `app_state` backups still replace everything.
+- **Tests** — `test/app_state_transfer_test.dart`.
 
 ---
 

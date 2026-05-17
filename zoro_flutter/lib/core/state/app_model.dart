@@ -14,13 +14,11 @@ import '../notifications/notification_service.dart';
 import '../persistence/agent_json.dart';
 import '../persistence/app_state_codec.dart' as app_state;
 import '../persistence/app_state_store.dart';
-import '../schedule/scheduled_agent_runner.dart';
 import 'cashflow_income_line.dart';
 import 'financial_goals.dart';
 import 'internal_app_agent_definition.dart';
 import 'ledger_rows.dart';
 import 'monthly_cashflow_entry.dart';
-import 'scheduled_agent_task.dart';
 
 /// Parts of projected net worth for one year (matches [AppModel.netWorthProjection11Y] totals).
 ///
@@ -67,7 +65,7 @@ class AppModel extends ChangeNotifier {
   static const Color spendInBandColor = AppTheme.slate600; // grey
   static const Color spendNoDataColor = AppTheme.slate500;
 
-  /// Seeded “Morning briefing” agent id (scheduled task template references this).
+  /// Seeded “Morning briefing” agent id (chat / Home summary).
   static const String morningBriefingAgentId = 'agent-morning-briefing';
 
   final LlmKeyStore _llmKeyStore = LlmKeyStore();
@@ -103,7 +101,6 @@ class AppModel extends ChangeNotifier {
       }
       await refreshAppleFoundationCapabilities();
       _syncActiveProviderIfKeyRemoved();
-      await runDueScheduledAgentTasks();
       await reconcileNotifications();
     } finally {
       _bootstrapped = true;
@@ -165,55 +162,22 @@ class AppModel extends ChangeNotifier {
   /// Restores state from [AppStateStore] JSON (e.g. after load or in tests).
   void applyPersistedSnapshot(Map<String, dynamic> root) => _applyAppStateMap(root);
 
+  /// Import path: replace in-memory state and flush to disk.
+  Future<void> applyImportedSnapshot(Map<String, dynamic> root) async {
+    applyPersistedSnapshot(root);
+    await persistAppStateToDisk();
+    notifyListeners();
+  }
+
+  /// Import path: replace ledger data only (assets, liabilities, cashflow, etc.).
+  Future<void> applyImportedLedger(Map<String, dynamic> ledger) async {
+    _applyAppStateMap({'formatVersion': app_state.kAppStateFormatVersion, 'ledger': ledger});
+    await persistAppStateToDisk();
+    notifyListeners();
+  }
+
   /// Full on-disk snapshot (API keys excluded).
   Map<String, dynamic> buildPersistedSnapshot() => _buildAppStateMap();
-
-  final List<ScheduledAgentTask> scheduledAgentTasks = [
-    ScheduledAgentTask.defaultMorningBriefing(agentId: morningBriefingAgentId),
-  ];
-
-  void addScheduledTask(ScheduledAgentTask task) {
-    scheduledAgentTasks.add(task);
-    _scheduleAppStatePersist();
-    unawaited(_syncTaskNotification(task));
-    notifyListeners();
-  }
-
-  void updateScheduledTaskAt(int index, ScheduledAgentTask task) {
-    if (index < 0 || index >= scheduledAgentTasks.length) return;
-    scheduledAgentTasks[index] = task;
-    _scheduleAppStatePersist();
-    unawaited(_syncTaskNotification(task));
-    notifyListeners();
-  }
-
-  void removeScheduledTaskAt(int index) {
-    if (index < 0 || index >= scheduledAgentTasks.length) return;
-    final removed = scheduledAgentTasks.removeAt(index);
-    _scheduleAppStatePersist();
-    unawaited(NotificationService.instance.cancelAgentTask(removed.id));
-    notifyListeners();
-  }
-
-  Future<void> _syncTaskNotification(ScheduledAgentTask t) async {
-    try {
-      await NotificationService.instance.scheduleAgentTask(
-        task: t,
-        masterEnabled: notificationsEnabled,
-      );
-    } catch (_) {}
-  }
-
-  /// Runs enabled schedules that are due (e.g. after app resume). Persists [lastRunAt] updates.
-  Future<int> runDueScheduledAgentTasks() async {
-    final runner = ScheduledAgentRunner();
-    final n = await runner.runDueTasks(this, scheduledAgentTasks);
-    if (n > 0) {
-      _scheduleAppStatePersist();
-      notifyListeners();
-    }
-    return n;
-  }
 
   /// Per–internal-agent system prompt overrides (empty key → use [InternalAppAgentDefinition.defaultSystemPrompt]).
   final Map<String, String> _internalAgentSystemPromptById = {};
@@ -1525,8 +1489,7 @@ class AppModel extends ChangeNotifier {
     _scheduleAppStatePersist();
   }
 
-  /// Single entry point used by both the Workmanager background dispatcher and
-  /// the foreground app lifecycle hooks. When the gate is open and there's an
+  /// When the gate is open and there's an
   /// eligible domain, posts one rotation push and persists state synchronously
   /// (await — important: the background isolate dies right after this returns
   /// and a microtask-only persist can lose the "fired today" flag).
@@ -1556,12 +1519,11 @@ class AppModel extends ChangeNotifier {
 
   /// Pushes the current notification configuration to the OS:
   /// - cancels everything when [notificationsEnabled] is false,
-  /// - (re)schedules each `notify == true` agent task at its next local time,
   /// - commits any past-scheduled reminder push and (re)schedules the next
   ///   one-shot reminder for the upcoming notify slot with the next rotation
   ///   domain's content. iOS local notifications fire on time without Dart
-  ///   running, so this is the primary delivery path; the Workmanager-driven
-  ///   [maybePostDailyReminder] is only a fallback for when scheduling fails.
+  ///   running, so this is the primary delivery path; [maybePostDailyReminder]
+  ///   is only a fallback for when scheduling fails.
   ///
   /// Best-effort; failures (plugin unsupported on web, missing permission) are
   /// swallowed so UI flows stay responsive.
@@ -1573,9 +1535,6 @@ class AppModel extends ChangeNotifier {
         remindersScheduledFireOn = null;
         remindersPendingDomain = null;
         return;
-      }
-      for (final t in scheduledAgentTasks) {
-        await svc.scheduleAgentTask(task: t, masterEnabled: true);
       }
       await _scheduleNextReminderSlot();
     } catch (e, st) {
@@ -2265,7 +2224,6 @@ class AppModel extends ChangeNotifier {
             e.key: e.value.map((m) => m.toJson()).toList(),
         },
       },
-      'scheduledTasks': scheduledAgentTasks.map((t) => t.toJson()).toList(),
       'goals': financialGoals.map(app_state.encodeFinancialGoal).toList(),
     };
   }
@@ -2562,16 +2520,6 @@ class AppModel extends ChangeNotifier {
           _chatMessagesByThreadId[id] = out;
         }
       }
-    }
-
-    final sched = root['scheduledTasks'];
-    if (sched is List) {
-      scheduledAgentTasks
-        ..clear()
-        ..addAll([
-          for (final e in sched)
-            if (ScheduledAgentTask.fromJson(e) != null) ScheduledAgentTask.fromJson(e)!,
-        ]);
     }
 
     final goalsRaw = root['goals'];
