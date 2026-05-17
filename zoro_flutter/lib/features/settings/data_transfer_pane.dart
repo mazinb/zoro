@@ -146,9 +146,9 @@ class _DataTransferPaneState extends State<DataTransferPane> {
         ),
         const SizedBox(height: 8),
         Text(
-          'Export is ledger only: assets, liabilities, income, expenses, cashflow, '
-          'FX overrides, and projection sliders. Context notes are inline in the JSON '
-          '(not separate .md files). Import accepts ledger exports or a full app backup.',
+          'Ledger export: one portable JSON with assets, liabilities, cashflow, and '
+          'inline context notes. On device, data is split into smaller files '
+          '(ledger.json, goals.json, settings.json, agents/, etc.) linked from app_state.json.',
           style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12, height: 1.35),
         ),
         const SizedBox(height: 16),

@@ -1,8 +1,35 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 import 'package:zoro_flutter/core/persistence/app_state_transfer.dart';
 import 'package:zoro_flutter/core/state/app_model.dart';
 
+class _FakePathProvider extends PathProviderPlatform {
+  _FakePathProvider(this.root);
+
+  final Directory root;
+
+  @override
+  Future<String?> getApplicationSupportPath() async => root.path;
+}
+
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  late Directory tmp;
+
+  setUp(() async {
+    tmp = await Directory.systemTemp.createTemp('zoro_transfer_test_');
+    PathProviderPlatform.instance = _FakePathProvider(tmp);
+  });
+
+  tearDown(() async {
+    if (await tmp.exists()) {
+      await tmp.delete(recursive: true);
+    }
+  });
+
   group('AppStateTransfer', () {
     test('ledger export contains ledger only', () {
       final model = AppModel();

@@ -6,7 +6,8 @@ import '../state/cashflow_income_line.dart';
 import '../state/financial_goals.dart';
 import '../state/ledger_rows.dart';
 import '../state/monthly_cashflow_entry.dart';
-/// Version of the on-disk JSON envelope (bump when making breaking layout changes).
+/// JSON schema version inside each split file and portable exports. Documented in `zoro-app/README.md`.
+/// Bump when field semantics change (not when only adding optional keys).
 const int kAppStateFormatVersion = 1;
 
 Object? tryJsonSafeEncode(Object? v) {

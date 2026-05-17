@@ -1,6 +1,8 @@
-# Zoro Flutter — reference
+# Zoro Flutter — developer reference
 
-Privacy-first: sensitive finance data stays on device; the app talks to the existing **Zoro web** API (`getzoro.com`) like the Next.js site.
+Privacy-first: sensitive finance data stays on device; production API: **getzoro.com** (same as `zoro-app`).
+
+**On-device data layout (layout version 2, schema version 1):** documented in **[`../zoro-app/README.md` → On-device data layout](../zoro-app/README.md#on-device-data-layout)**. Bump `kAppStateSplitLayoutVersion` / `kAppStateFormatVersion` in code when you change storage; update that README table in the same PR.
 
 No open tasks.
 
@@ -20,13 +22,15 @@ No open tasks.
 
 ## App surface
 
-Five tabs live in `MainScaffold` and are the entire UI surface:
+Five tabs in `MainScaffold` (`features/shell/main_scaffold.dart`):
 
-1. **Command center** (`features/command_center/command_center_tab.dart`) — Sankey, net-worth projection
-2. **Ledger** (`features/ledger/ledger_tab.dart`) — assets, liabilities, income, expenses, cashflow rows + import / orchestrator pages
-3. **Context** (`features/context/context_tab.dart`) — context editor, orchestrator, planner
-4. **Chat** (`features/chat/chat_tab.dart`) — per-agent threads
-5. **Settings** (`features/settings/settings_tab.dart`) — API keys, export/import, internal agent prompts, notifications, reminders
+1. **Home** — `command_center_tab.dart` — Sankey, net-worth projection
+2. **Ledger** — `ledger_tab.dart` — assets, liabilities, income, expenses, cashflow + import/orchestrator
+3. **Context** — `context_tab.dart` — editor, orchestrator, planner
+4. **Goals** — `goals_tab.dart` — retirement / target goals
+5. **Settings** — `settings_tab.dart` — API keys, reminders, agents, ledger export/import, notifications
+
+Chat threads are persisted in `data/chats.json` (see repo README data layout).
 
 ---
 
@@ -51,10 +55,7 @@ Five tabs live in `MainScaffold` and are the entire UI surface:
 
 ## Data export / import
 
-- **Settings → Agents → Data** (import/export icon).
-- **Export** — ledger-only JSON via `AppStateTransfer.encodeLedgerExportJson` (`exportKind: ledger`, inline `contextMarkdown`). API keys are **not** included.
-- **Import** — ledger export replaces ledger fields only; full `app_state` backups still replace everything.
-- **Tests** — `test/app_state_transfer_test.dart`.
+See **[`../zoro-app/README.md` → On-device data layout](../zoro-app/README.md#on-device-data-layout)**. UI: Settings → Agents → Data. Tests: `test/app_state_transfer_test.dart`, `test/app_state_split_store_test.dart`.
 
 ---
 

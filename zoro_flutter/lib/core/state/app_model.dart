@@ -172,12 +172,16 @@ class AppModel extends ChangeNotifier {
   /// Import path: replace ledger data only (assets, liabilities, cashflow, etc.).
   Future<void> applyImportedLedger(Map<String, dynamic> ledger) async {
     _applyAppStateMap({'formatVersion': app_state.kAppStateFormatVersion, 'ledger': ledger});
-    await persistAppStateToDisk();
+    await AppStateStore.saveLedger(ledger);
     notifyListeners();
   }
 
-  /// Full on-disk snapshot (API keys excluded).
+  /// Full on-disk snapshot (API keys excluded) — in-memory monolithic shape.
   Map<String, dynamic> buildPersistedSnapshot() => _buildAppStateMap();
+
+  /// Ledger section only (inline markdown). Used for ledger export.
+  Map<String, dynamic> buildLedgerPersistedMap() =>
+      Map<String, dynamic>.from(_buildAppStateMap()['ledger'] as Map);
 
   /// Per–internal-agent system prompt overrides (empty key → use [InternalAppAgentDefinition.defaultSystemPrompt]).
   final Map<String, String> _internalAgentSystemPromptById = {};

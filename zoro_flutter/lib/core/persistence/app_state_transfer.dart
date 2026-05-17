@@ -2,15 +2,13 @@ import 'dart:convert';
 
 import '../state/app_model.dart';
 import 'app_state_codec.dart';
-import 'app_state_store.dart';
-
 /// Ledger-only portable export/import (inline JSON — no context sidecar `.md` refs).
 class AppStateTransfer {
   static const String ledgerExportKind = 'ledger';
 
   /// Ledger envelope: assets, liabilities, income, expenses, cashflow, FX, projections.
   static Map<String, dynamic> buildLedgerExportMap(AppModel model) {
-    final ledger = model.buildPersistedSnapshot()['ledger'];
+    final ledger = model.buildLedgerPersistedMap();
     return {
       'formatVersion': kAppStateFormatVersion,
       'exportKind': ledgerExportKind,
