@@ -10,6 +10,18 @@ String goalMoney(AppModel model, double v, {bool hide = false}) {
   return hide ? maskSensitiveNumberString(s) : s;
 }
 
+/// Grouped integer string for goal amount fields (matches Ledger editors).
+String goalFormatGrouped(AppModel model, double v, {bool hide = false}) {
+  final s = formatGroupedInteger(v.round(), currency: model.displayCurrency);
+  return hide ? maskSensitiveNumberString(s) : s;
+}
+
+double goalParseGroupedAmount(String raw) {
+  final digits = raw.replaceAll(RegExp(r'[^0-9]'), '');
+  if (digits.isEmpty) return 0;
+  return double.tryParse(digits) ?? 0;
+}
+
 String goalDateLabel(DateTime? d) {
   if (d == null) return 'No date';
   const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];

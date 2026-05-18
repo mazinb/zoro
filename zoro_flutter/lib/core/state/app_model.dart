@@ -7,6 +7,9 @@ import '../../shared/theme/app_theme.dart';
 import '../chat/chat_message.dart';
 import '../constants/web_expenses_income.dart';
 import '../finance/currency.dart';
+import '../finance/goal_allocation.dart';
+import '../finance/goal_asset_buckets.dart';
+import '../finance/goals_calculator.dart';
 import '../../dev/compile_time_api_keys.dart';
 import '../llm/apple_foundation_channel.dart';
 import '../llm/llm_key_store.dart';
@@ -54,6 +57,7 @@ class NetWorthProjectionYearBreakdown {
 class AppModel extends ChangeNotifier {
   AppModel() {
     agents.addAll(_seedDefaultAgents());
+    repairDuplicateLiabilityIds(notify: false);
     ensureRetirementGoal();
     syncAllocationsFromFraction(notify: false);
     _seedDummyCashflowData();
@@ -312,6 +316,18 @@ class AppModel extends ChangeNotifier {
   ReminderCadence remindersIncomeCadence = ReminderCadence.yearly;
   ReminderCadence remindersAssetsCadence = ReminderCadence.quarterly;
   ReminderCadence remindersLiabilitiesCadence = ReminderCadence.quarterly;
+  ReminderCadence remindersGoalsCadence = ReminderCadence.quarterly;
+
+  /// After adding a target goal, offer to auto-allocate savings weights.
+  bool promptAutoAllocateOnNewGoal = true;
+
+  /// Notify at 50% and 75% of goal timeline elapsed (by time).
+  bool goalsTimeProgressNotifications = true;
+
+  /// Per-goal milestone flags: `goalId` → `{half, threeQuarter}`.
+  final Map<String, Map<String, bool>> goalsTimeMilestonesFired = {};
+
+  DateTime? goalsLastUpdated;
 
   /// Monthly reminders are considered due after this day-of-month.
   /// Default: 1st of the month.
@@ -563,7 +579,7 @@ class AppModel extends ChangeNotifier {
     ),
     LedgerAssetRow(
       id: newLedgerRowId('a'),
-      type: LedgerAssetType.brokerage,
+      type: LedgerAssetType.investments,
       currencyCountry: 'US',
       name: 'US Brokerage',
       total: 350000,
@@ -590,7 +606,7 @@ class AppModel extends ChangeNotifier {
     ),
     LedgerAssetRow(
       id: newLedgerRowId('a'),
-      type: LedgerAssetType.brokerage,
+      type: LedgerAssetType.investments,
       currencyCountry: 'India',
       name: 'India Index Fund',
       total: 2000000,
@@ -636,11 +652,12 @@ class AppModel extends ChangeNotifier {
 
   final List<LedgerLiabilityRow> liabilities = [
     LedgerLiabilityRow(
-      id: newLedgerRowId('l'),
+      id: 'l-seed-condo',
       type: LedgerLiabilityType.mortgage,
       name: 'Condo mortgage',
       currencyCountry: 'Thailand',
       total: 4200000,
+      interestRatePct: 6.25,
       comment: '',
       contextMarkdown: '''## Condo mortgage
 
@@ -656,11 +673,12 @@ class AppModel extends ChangeNotifier {
 ''',
     ),
     LedgerLiabilityRow(
-      id: newLedgerRowId('l'),
+      id: 'l-seed-car',
       type: LedgerLiabilityType.carLoan,
       name: 'Car loan',
       currencyCountry: 'Thailand',
       total: 750000,
+      interestRatePct: 3.1,
       comment: '',
       contextMarkdown: '''## Car loan
 
@@ -733,6 +751,31 @@ class AppModel extends ChangeNotifier {
     if (keys.isEmpty) return null;
     return monthlyEntryFor(keys.first)?.closingBalance;
   }
+
+  MonthlyCashflowEntry? get latestCashflowEntry {
+    final keys = monthKeysWithCashflowData(limit: 1);
+    if (keys.isEmpty) return null;
+    return monthlyEntryFor(keys.first);
+  }
+
+  /// Primary cash row (Ledger → Cash); balance tracks latest month closing.
+  LedgerAssetRow? get primaryCashAsset {
+    final id = primaryIncomeAssetId;
+    if (id == null) return null;
+    final a = assetById(id);
+    if (a == null || !primaryCashBalanceIsMirrored(a)) return null;
+    return a;
+  }
+
+  /// Latest month closing − opening for the primary cash account.
+  double? get primaryCashBalanceChangeMonthly {
+    final e = latestCashflowEntry;
+    if (e == null) return null;
+    return e.closingBalance - e.openingBalance;
+  }
+
+  /// Latest month “Saved” outflow from cashflow (maps to Goals savings slice).
+  double get latestCashSavedMonthly => latestCashflowEntry?.outflowToCashFd ?? 0;
 
   bool isPrimaryCashAsset(LedgerAssetRow r) =>
       primaryIncomeAssetId != null && r.id == primaryIncomeAssetId;
@@ -860,6 +903,47 @@ class AppModel extends ChangeNotifier {
   double allocInvestmentsMonthly = 0;
   double allocSavingsMonthly = 0;
 
+  /// Property/other asset ids included in retirement corpus (unlisted → savings pool).
+  final Set<String> retirementExtraAssetIds = {};
+
+  AssetsGoalsPolicy get assetsGoalsPolicy => AssetsGoalsPolicy(
+        retirementExtraAssetIds: retirementExtraAssetIds,
+      );
+
+  void setRetirementExtraAssetIds(Set<String> ids) {
+    retirementExtraAssetIds
+      ..clear()
+      ..addAll(ids);
+    _scheduleAppStatePersist();
+    notifyListeners();
+  }
+
+  void setRetirementAssetIncluded(String assetId, bool included) {
+    final a = assetById(assetId);
+    if (a == null) return;
+    if (a.type != LedgerAssetType.property && a.type != LedgerAssetType.other) return;
+    final changed = included
+        ? retirementExtraAssetIds.add(assetId)
+        : retirementExtraAssetIds.remove(assetId);
+    if (!changed) return;
+    _scheduleAppStatePersist();
+    notifyListeners();
+  }
+
+  bool isRetirementExtraAsset(String assetId) => retirementExtraAssetIds.contains(assetId);
+
+  void setTargetSavingsWeight(String goalId, double weight) {
+    final ix = financialGoals.indexWhere((g) => g.id == goalId);
+    if (ix < 0) return;
+    final g = financialGoals[ix];
+    if (g.isRetirement) return;
+    final w = weight.clamp(0.0, 1e6);
+    if (g.savingsWeight == w) return;
+    financialGoals[ix] = g.copyWith(savingsWeight: w);
+    _scheduleAppStatePersist();
+    notifyListeners();
+  }
+
   /// One retirement goal plus any number of target-amount goals.
   final List<FinancialGoal> financialGoals = [];
 
@@ -872,6 +956,276 @@ class AppModel extends ChangeNotifier {
 
   List<FinancialGoal> get targetGoals =>
       financialGoals.where((g) => !g.isRetirement).toList(growable: false);
+
+  /// Targets sorted by [FinancialGoal.sortOrder] (top of list = filled first from savings).
+  List<FinancialGoal> get targetGoalsOrdered {
+    final list = targetGoals.toList();
+    list.sort((a, b) {
+      final c = a.sortOrder.compareTo(b.sortOrder);
+      if (c != 0) return c;
+      final ia = financialGoals.indexWhere((g) => g.id == a.id);
+      final ib = financialGoals.indexWhere((g) => g.id == b.id);
+      return ia.compareTo(ib);
+    });
+    return list;
+  }
+
+  void moveTargetGoal(String id, {required bool up}) {
+    final ordered = targetGoalsOrdered;
+    final ix = ordered.indexWhere((g) => g.id == id);
+    if (ix < 0) return;
+    final swapIx = up ? ix - 1 : ix + 1;
+    if (swapIx < 0 || swapIx >= ordered.length) return;
+    final a = ordered[ix];
+    final b = ordered[swapIx];
+    final aIx = financialGoals.indexWhere((g) => g.id == a.id);
+    final bIx = financialGoals.indexWhere((g) => g.id == b.id);
+    if (aIx < 0 || bIx < 0) return;
+    final aOrder = a.sortOrder;
+    financialGoals[aIx] = a.copyWith(sortOrder: b.sortOrder);
+    financialGoals[bIx] = b.copyWith(sortOrder: aOrder);
+    goalsLastUpdated = DateTime.now();
+    _scheduleAppStatePersist();
+    notifyListeners();
+  }
+
+  double liabilityDisplayValue(LedgerLiabilityRow l) =>
+      moneyInDisplayCurrency(l.total, currencyCodeForPresetCountry(l.currencyCountry));
+
+  List<LiabilityAllocationInput> get _liabilityAllocationInputs => [
+        for (final l in liabilities)
+          LiabilityAllocationInput(
+            id: l.id,
+            interestRatePct: l.interestRatePct,
+            balance: liabilityDisplayValue(l),
+          ),
+      ];
+
+  double get totalLiabilityPaydownMonthly {
+    var sum = 0.0;
+    for (final l in liabilities) {
+      sum += l.paydownMonthly.clamp(0, double.infinity);
+    }
+    return sum;
+  }
+
+  /// Alias for UI copy that still says "debt pool".
+  double get liabilityPaydownPoolMonthly => totalLiabilityPaydownMonthly;
+
+  double get savingsCashBufferMonthly =>
+      (allocSavingsMonthly - totalLiabilityPaydownMonthly).clamp(0, allocSavingsMonthly);
+
+  double get savingsMonthlyForTargetsPool =>
+      (allocSavingsMonthly - totalLiabilityPaydownMonthly).clamp(0, allocSavingsMonthly);
+
+  Map<String, double> normalizedLiabilityPaydownShares() {
+    if (liabilities.isEmpty) return {};
+    var sum = 0.0;
+    for (final l in liabilities) {
+      sum += l.paydownWeight.clamp(0.0, 1e6);
+    }
+    if (sum <= 0) {
+      final even = 1.0 / liabilities.length;
+      return {for (final l in liabilities) l.id: even};
+    }
+    return {for (final l in liabilities) l.id: l.paydownWeight.clamp(0.0, 1e6) / sum};
+  }
+
+  double liabilityPaydownMonthly(LedgerLiabilityRow l) => l.paydownMonthly.clamp(0, double.infinity);
+
+  /// Fixes persisted or seeded rows that share the same id (breaks paydown / editors).
+  void repairDuplicateLiabilityIds({bool notify = true}) {
+    final seen = <String>{};
+    var changed = false;
+    for (var i = 0; i < liabilities.length; i++) {
+      final old = liabilities[i];
+      if (seen.add(old.id)) continue;
+      changed = true;
+      liabilities[i] = LedgerLiabilityRow(
+        id: newLedgerRowId('l'),
+        type: old.type,
+        name: old.name,
+        currencyCountry: old.currencyCountry,
+        total: old.total,
+        comment: old.comment,
+        contextMarkdown: old.contextMarkdown,
+        interestRatePct: old.interestRatePct,
+        paydownWeight: old.paydownWeight,
+        paydownMonthly: old.paydownMonthly,
+      );
+    }
+    if (changed) {
+      goalsLastUpdated = DateTime.now();
+      _scheduleAppStatePersist();
+      if (notify) notifyListeners();
+    }
+  }
+
+  /// One-time: derive explicit $/mo from legacy weights + 50% savings cap.
+  void migrateLiabilityPaydownMonthlyIfNeeded() {
+    if (liabilities.isEmpty) return;
+    if (liabilities.any((l) => l.paydownMonthly > 0.005)) return;
+    if (allocSavingsMonthly <= 0) return;
+    final pool = allocSavingsMonthly * 0.5;
+    final shares = normalizedLiabilityPaydownShares();
+    for (var i = 0; i < liabilities.length; i++) {
+      final id = liabilities[i].id;
+      liabilities[i].paydownMonthly = pool * (shares[id] ?? 0);
+    }
+  }
+
+  /// Raises or lowers this loan's monthly paydown; shortfall is taken evenly from
+  /// unallocated savings, other loans, then the invest slice.
+  void setLiabilityPaydownMonthly(String liabilityId, double requested) {
+    final ix = liabilities.indexWhere((l) => l.id == liabilityId);
+    if (ix < 0) return;
+
+    final avail = availableAfterExpensesMonthly;
+    requested = requested.clamp(0, avail);
+
+    final old = liabilities[ix].paydownMonthly;
+    if ((requested - old).abs() < 0.005) return;
+
+    if (requested < old) {
+      liabilities[ix].paydownMonthly = requested;
+      _touchAllocationAndGoals();
+      return;
+    }
+
+    var othersPay = 0.0;
+    for (final l in liabilities) {
+      if (l.id == liabilityId) continue;
+      othersPay += l.paydownMonthly.clamp(0, double.infinity);
+    }
+    var totalAfter = othersPay + requested;
+
+    if (totalAfter <= allocSavingsMonthly + 1e-6) {
+      liabilities[ix].paydownMonthly = requested;
+      _touchAllocationAndGoals();
+      return;
+    }
+
+    var over = totalAfter - allocSavingsMonthly;
+
+    if (othersPay > 0 && over > 0) {
+      final cut = over.clamp(0, othersPay);
+      final factor = (othersPay - cut) / othersPay;
+      for (var i = 0; i < liabilities.length; i++) {
+        if (liabilities[i].id == liabilityId) continue;
+        liabilities[i].paydownMonthly = (liabilities[i].paydownMonthly * factor).clamp(0, double.infinity);
+      }
+      over -= cut;
+      othersPay *= factor;
+      totalAfter = othersPay + requested;
+    }
+
+    if (over > 0) {
+      final investCut = over.clamp(0, allocInvestmentsMonthly);
+      allocInvestmentsMonthly -= investCut;
+      allocSavingsMonthly += investCut;
+      if (avail > 0) {
+        allocInvestFraction = _quantizeAllocInvestFraction(allocInvestmentsMonthly / avail);
+      }
+      over -= investCut;
+    }
+
+    if (totalAfter > allocSavingsMonthly + 1e-6) {
+      requested = (allocSavingsMonthly - othersPay).clamp(0, avail);
+    }
+
+    liabilities[ix].paydownMonthly = requested;
+    _touchAllocationAndGoals();
+  }
+
+  void _touchAllocationAndGoals() {
+    allocationTargetLastUpdated = DateTime.now();
+    goalsLastUpdated = DateTime.now();
+    _scheduleAppStatePersist();
+    notifyListeners();
+  }
+
+  void autoAllocateLiabilityPaydownWeights() {
+    if (liabilities.isEmpty) return;
+    final shares = computeLiabilityPaydownShares(liabilities: _liabilityAllocationInputs);
+    final budget = (allocSavingsMonthly * 0.5).clamp(0, allocSavingsMonthly);
+    for (var i = 0; i < liabilities.length; i++) {
+      final l = liabilities[i];
+      final w = shares[l.id];
+      if (w == null) continue;
+      liabilities[i].paydownWeight = w * liabilities.length;
+      liabilities[i].paydownMonthly = budget * w;
+    }
+    goalsLastUpdated = DateTime.now();
+    _scheduleAppStatePersist();
+    notifyListeners();
+  }
+
+  void autoAllocateSavingsPlan() {
+    autoAllocateLiabilityPaydownWeights();
+    autoAllocateGoalSavingsWeights();
+  }
+
+  int? liabilityPayoffMonths(LedgerLiabilityRow l) {
+    final pay = liabilityPaydownMonthly(l);
+    if (pay <= 0) return null;
+    final balance = liabilityDisplayValue(l);
+    if (balance <= 0) return null;
+    return (balance / pay).ceil();
+  }
+
+  /// e.g. "Paid off ~Mar 2028 at current rate"
+  String? liabilityPayoffLabel(LedgerLiabilityRow l) {
+    final months = liabilityPayoffMonths(l);
+    if (months == null) return null;
+    final now = DateTime.now();
+    final paid = DateTime(now.year, now.month + months, now.day);
+    const names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return 'Paid off ~${names[paid.month - 1]} ${paid.year}';
+  }
+
+  void reorderTargetGoals(int oldIndex, int newIndex) {
+    final ordered = targetGoalsOrdered;
+    if (oldIndex < 0 || oldIndex >= ordered.length) return;
+    var dest = newIndex;
+    if (dest > oldIndex) dest--;
+    if (dest < 0 || dest >= ordered.length) return;
+    final moved = ordered.removeAt(oldIndex);
+    ordered.insert(dest, moved);
+    for (var i = 0; i < ordered.length; i++) {
+      final ix = financialGoals.indexWhere((g) => g.id == ordered[i].id);
+      if (ix >= 0) financialGoals[ix] = ordered[i].copyWith(sortOrder: i);
+    }
+    goalsLastUpdated = DateTime.now();
+    _scheduleAppStatePersist();
+    notifyListeners();
+  }
+
+  Map<String, double> _targetPoolAssignments() {
+    final policy = assetsGoalsPolicy;
+    return assignSavingsPoolToTargets(
+      targetsOrdered: targetGoalsOrdered,
+      savingsAssets: savingsPoolAssets(assets, policy),
+      displayValue: assetDisplayValue,
+      effectiveTarget: goalEffectiveTargetAmount,
+      policy: policy,
+    );
+  }
+
+  double get totalTargetRequiredMonthly {
+    var sum = 0.0;
+    for (final g in targetGoalsOrdered) {
+      sum += goalRequiredMonthlySavingsFor(g);
+    }
+    return sum;
+  }
+
+  double get savingsOverflowToRetirementMonthly => savingsOverflowToRetirement(
+        allocSavingsMonthly: savingsMonthlyForTargetsPool,
+        totalTargetRequiredMonthly: totalTargetRequiredMonthly,
+      );
+
+  double investMonthlyForRetirement() =>
+      allocInvestmentsMonthly + savingsOverflowToRetirementMonthly;
 
   FinancialGoal? financialGoalById(String id) {
     for (final g in financialGoals) {
@@ -912,59 +1266,55 @@ class AppModel extends ChangeNotifier {
     if (touched) _scheduleAppStatePersist();
   }
 
-  double goalLinkedAssetsTotal(FinancialGoal goal) {
-    var sum = 0.0;
-    for (final id in goal.linkedAssetIds) {
-      final a = assetById(id);
-      if (a != null) sum += assetDisplayValue(a);
-    }
-    return sum;
+  double retirementCurrentAmount(FinancialGoal goal) {
+    final policy = assetsGoalsPolicy;
+    return assets
+        .where((a) => assetCountsTowardRetirement(a, policy))
+        .fold<double>(
+          0,
+          (s, a) => s + retirementBalanceFromAsset(a, assetDisplayValue, policy),
+        );
   }
 
-  double goalCurrentAmount(FinancialGoal goal) =>
-      goalLinkedAssetsTotal(goal) + (goal.isRetirement ? goal.corpusAdjustment : 0);
+  double goalCurrentAmount(FinancialGoal goal) {
+    if (goal.isRetirement) return retirementCurrentAmount(goal);
+    return _targetPoolAssignments()[goal.id] ?? 0;
+  }
 
   double? goalProgressFraction(FinancialGoal goal) {
     if (goal.targetAmount <= 0) return null;
     return (goalCurrentAmount(goal) / goal.targetAmount).clamp(0.0, 1.0);
   }
 
-  /// Normalized shares of [allocSavingsMonthly] across goals (weights ≥ 0).
-  Map<String, double> normalizedGoalSavingsShares() {
-    if (financialGoals.isEmpty) return {};
+  /// Normalized shares of target savings flow (retirement uses invest flow).
+  Map<String, double> normalizedTargetSavingsShares() {
+    final targets = targetGoals;
+    if (targets.isEmpty) return {};
     final weights = <String, double>{};
     var sum = 0.0;
-    for (final g in financialGoals) {
+    for (final g in targets) {
       final w = g.savingsWeight.clamp(0.0, 1e6);
       weights[g.id] = w;
       sum += w;
     }
     if (sum <= 0) {
-      final even = 1.0 / financialGoals.length;
-      return {for (final g in financialGoals) g.id: even};
+      final even = 1.0 / targets.length;
+      return {for (final g in targets) g.id: even};
     }
     return {for (final e in weights.entries) e.key: e.value / sum};
   }
 
-  double savingsMonthlyForGoal(FinancialGoal goal) {
-    final share = normalizedGoalSavingsShares()[goal.id] ?? 0;
-    return allocSavingsMonthly * share;
-  }
+  Map<String, double> normalizedGoalSavingsShares() => normalizedTargetSavingsShares();
 
-  FinancialGoal? projectsFundingGoal() {
-    for (final g in targetGoals) {
-      if (g.fundsProjects) return g;
-    }
-    return targetGoals.isEmpty ? null : targetGoals.first;
+  double savingsMonthlyForGoal(FinancialGoal goal) {
+    if (goal.isRetirement) return investMonthlyForRetirement();
+    final pool = savingsMonthlyForTargetsPool;
+    final share = normalizedTargetSavingsShares()[goal.id] ?? 0;
+    return pool * share;
   }
 
   void _rebalanceGoalSavingsWeights() {
     if (financialGoals.isEmpty) return;
-    final projects = projectsFundingGoal();
-    if (projects != null && !projects.fundsProjects) {
-      final ix = financialGoals.indexWhere((g) => g.id == projects.id);
-      if (ix >= 0) financialGoals[ix] = projects.copyWith(fundsProjects: true);
-    }
     for (var i = 0; i < financialGoals.length; i++) {
       final g = financialGoals[i];
       if (g.savingsWeight > 0) continue;
@@ -972,8 +1322,17 @@ class AppModel extends ChangeNotifier {
     }
   }
 
-  void upsertFinancialGoal(FinancialGoal goal) {
+  void upsertFinancialGoal(FinancialGoal goal, {bool touchGoalsUpdated = true}) {
     final ix = financialGoals.indexWhere((g) => g.id == goal.id);
+    var next = goal;
+    if (ix >= 0) {
+      final prev = financialGoals[ix];
+      if (next.targetDate != null && prev.targetDate == null && next.timelineStart == null) {
+        next = next.copyWith(timelineStart: DateTime.now());
+      }
+    } else if (next.targetDate != null && next.timelineStart == null) {
+      next = next.copyWith(timelineStart: DateTime.now());
+    }
     if (goal.isRetirement) {
       for (var j = 0; j < financialGoals.length; j++) {
         if (financialGoals[j].isRetirement && financialGoals[j].id != goal.id) {
@@ -983,24 +1342,33 @@ class AppModel extends ChangeNotifier {
       }
     }
     if (ix >= 0) {
-      financialGoals[ix] = goal;
+      financialGoals[ix] = next;
     } else {
-      financialGoals.add(goal);
+      financialGoals.add(next);
     }
     _rebalanceGoalSavingsWeights();
+    if (next.isRetirement && next.corpusAutoFromExpenses) {
+      syncRetirementCorpusTarget(notify: false);
+    }
+    if (touchGoalsUpdated) goalsLastUpdated = DateTime.now();
     _scheduleAppStatePersist();
     notifyListeners();
   }
 
-  void addTargetGoal({String name = 'New goal'}) {
+  void addTargetGoal({String name = 'New goal', bool runAutoAllocate = false}) {
+    final nextOrder = targetGoals.isEmpty
+        ? 0
+        : targetGoals.map((g) => g.sortOrder).reduce(math.max) + 1;
     final g = FinancialGoal(
       id: newLedgerRowId('g'),
       kind: FinancialGoalKind.target,
       name: name,
-      fundsProjects: targetGoals.isEmpty,
+      sortOrder: nextOrder,
     );
     financialGoals.add(g);
     _rebalanceGoalSavingsWeights();
+    goalsLastUpdated = DateTime.now();
+    if (runAutoAllocate) autoAllocateGoalSavingsWeights();
     _scheduleAppStatePersist();
     notifyListeners();
   }
@@ -1014,10 +1382,254 @@ class AppModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  void adjustRetirementCorpus(double delta) {
+  double computedRetirementCorpus([FinancialGoal? retirement]) {
+    final r = retirement ?? retirementGoal;
+    if (r == null) return 0;
+    return computeRetirementCorpus(
+      recurringExpensesMonthly: recurringExpensesMonthly,
+      safeWithdrawalRatePct: r.safeWithdrawalRatePct,
+      corpusBufferPct: r.corpusBufferPct,
+    );
+  }
+
+  double goalEffectiveTargetAmount(FinancialGoal goal) => goalEffectiveTarget(
+        goal: goal,
+        recurringExpensesMonthly: recurringExpensesMonthly,
+      );
+
+  double goalRequiredMonthlySavingsFor(FinancialGoal goal, {DateTime? now}) =>
+      goalRequiredMonthlySavings(
+        goal: goal,
+        currentAmount: goalCurrentAmount(goal),
+        effectiveTarget: goalEffectiveTargetAmount(goal),
+        now: now,
+      );
+
+  double get totalRequiredMonthlyForTargets {
+    var sum = 0.0;
+    for (final g in targetGoalsOrdered) {
+      sum += goalRequiredMonthlySavingsFor(g);
+    }
+    return sum;
+  }
+
+  double get totalRequiredMonthlyForRetirement {
+    final r = retirementGoal;
+    if (r == null) return 0;
+    return goalRequiredMonthlySavingsFor(r);
+  }
+
+  double get totalRequiredMonthlyForGoals =>
+      totalRequiredMonthlyForTargets + totalRequiredMonthlyForRetirement;
+
+  GoalFeasibility goalFeasibility(FinancialGoal goal, {DateTime? now}) {
+    final label = goal.isRetirement
+        ? 'Retirement'
+        : (goal.name.trim().isEmpty ? 'Target' : goal.name.trim());
+    final fmt = (double v) => formatCurrencyDisplay(v, currency: displayCurrency);
+    if (goal.isRetirement) {
+      return assessGoalFeasibility(
+        requiredMonthly: goalRequiredMonthlySavingsFor(goal, now: now),
+        allocatedMonthly: investMonthlyForRetirement(),
+        monthsRemaining: goalMonthsRemaining(goal.targetDate, now: now),
+        totalSavingsMonthly: allocInvestmentsMonthly + savingsOverflowToRetirementMonthly,
+        goalLabel: label,
+        formatAmount: fmt,
+      );
+    }
+    return assessGoalFeasibility(
+      requiredMonthly: goalRequiredMonthlySavingsFor(goal, now: now),
+      allocatedMonthly: savingsMonthlyForGoal(goal),
+      monthsRemaining: goalMonthsRemaining(goal.targetDate, now: now),
+      totalSavingsMonthly: savingsMonthlyForTargetsPool,
+      goalLabel: label,
+      formatAmount: fmt,
+    );
+  }
+
+  /// Monthly split strip: retirement invest flow only (not legacy target goals).
+  GoalFeasibility planFeasibility({DateTime? now}) {
+    final r = retirementGoal;
+    if (r == null) {
+      return const GoalFeasibility(
+        level: GoalFeasibilityLevel.ok,
+        title: 'On track',
+        detail: '',
+      );
+    }
+    final fmt = (double v) => formatCurrencyDisplay(v, currency: displayCurrency);
+    final required = goalRequiredMonthlySavingsFor(r, now: now);
+    final allocated = allocInvestmentsMonthly;
+    final monthsLeft = goalMonthsRemaining(r.targetDate, now: now);
+
+    if (monthsLeft != null && monthsLeft <= 0 && required > 0.5) {
+      return const GoalFeasibility(
+        level: GoalFeasibilityLevel.broken,
+        title: 'Past due',
+        detail: 'Update your retirement date.',
+      );
+    }
+
+    if (availableAfterExpensesMonthly <= 0 && required > 0.5) {
+      return const GoalFeasibility(
+        level: GoalFeasibilityLevel.broken,
+        title: 'No monthly flow',
+        detail: 'Add income or lower expenses in Ledger.',
+      );
+    }
+
+    if (required <= 0.5) {
+      return const GoalFeasibility(
+        level: GoalFeasibilityLevel.ok,
+        title: 'On track',
+        detail: '',
+      );
+    }
+
+    final ratio = allocated / required;
+    if (ratio >= 0.95) {
+      return const GoalFeasibility(
+        level: GoalFeasibilityLevel.ok,
+        title: 'On track',
+        detail: '',
+      );
+    }
+    if (ratio >= 0.70) {
+      return GoalFeasibility(
+        level: GoalFeasibilityLevel.caution,
+        title: 'Tight',
+        detail: 'Invest ${fmt(allocated)}/mo · need ${fmt(required)}/mo for retirement',
+      );
+    }
+    return GoalFeasibility(
+      level: GoalFeasibilityLevel.broken,
+      title: 'Short on invest',
+      detail: 'Invest ${fmt(allocated)}/mo · need ${fmt(required)}/mo for retirement',
+    );
+  }
+
+  void syncRetirementCorpusTarget({bool notify = true}) {
+    final r = retirementGoal;
+    if (r == null || !r.corpusAutoFromExpenses) return;
+    final corpus = computedRetirementCorpus(r);
+    if ((r.targetAmount - corpus).abs() < 0.5) return;
+    final ix = financialGoals.indexWhere((g) => g.id == r.id);
+    if (ix < 0) return;
+    financialGoals[ix] = r.copyWith(targetAmount: corpus);
+    goalsLastUpdated = DateTime.now();
+    _scheduleAppStatePersist();
+    if (notify) notifyListeners();
+  }
+
+  void applyComputedRetirementTarget() => syncRetirementCorpusTarget();
+
+  void setRetirementCorpusParams({
+    double? safeWithdrawalRatePct,
+    double? corpusBufferPct,
+    bool? corpusAutoFromExpenses,
+  }) {
     final r = retirementGoal;
     if (r == null) return;
-    upsertFinancialGoal(r.copyWith(corpusAdjustment: r.corpusAdjustment + delta));
+    var next = r;
+    if (safeWithdrawalRatePct != null) {
+      next = next.copyWith(safeWithdrawalRatePct: clampWithdrawalRatePct(safeWithdrawalRatePct));
+    }
+    if (corpusBufferPct != null) {
+      next = next.copyWith(corpusBufferPct: clampCorpusBufferPct(corpusBufferPct));
+    }
+    if (corpusAutoFromExpenses != null) {
+      next = next.copyWith(corpusAutoFromExpenses: corpusAutoFromExpenses);
+    }
+    upsertFinancialGoal(next, touchGoalsUpdated: false);
+    syncRetirementCorpusTarget(notify: false);
+    goalsLastUpdated = DateTime.now();
+    _scheduleAppStatePersist();
+    notifyListeners();
+  }
+
+  /// Deficit-weighted savings weights for target goals (retirement uses invest flow).
+  void autoAllocateGoalSavingsWeights({DateTime? now}) {
+    final targets = targetGoals;
+    if (targets.isEmpty) return;
+    final inputs = buildTargetAllocationInputs(
+      targets: targets,
+      currentFor: goalCurrentAmount,
+      effectiveTargetFor: goalEffectiveTargetAmount,
+      now: now,
+    );
+    final weights = computeDeficitSavingsWeights(goals: inputs);
+    for (var i = 0; i < financialGoals.length; i++) {
+      final g = financialGoals[i];
+      if (g.isRetirement) continue;
+      final w = weights[g.id];
+      if (w == null) continue;
+      financialGoals[i] = g.copyWith(savingsWeight: w);
+    }
+    goalsLastUpdated = DateTime.now();
+    _scheduleAppStatePersist();
+    notifyListeners();
+  }
+
+  void setPromptAutoAllocateOnNewGoal(bool v) {
+    if (promptAutoAllocateOnNewGoal == v) return;
+    promptAutoAllocateOnNewGoal = v;
+    _scheduleAppStatePersist();
+    notifyListeners();
+  }
+
+  void setGoalsTimeProgressNotifications(bool v) {
+    if (goalsTimeProgressNotifications == v) return;
+    goalsTimeProgressNotifications = v;
+    _scheduleAppStatePersist();
+    notifyListeners();
+  }
+
+  void setReminderCadenceGoals(ReminderCadence v) {
+    remindersGoalsCadence = v;
+    _onReminderCadenceChanged();
+  }
+
+  void markGoalsUpdated() {
+    goalsLastUpdated = DateTime.now();
+    _scheduleAppStatePersist();
+    notifyListeners();
+  }
+
+  void _maybeFireGoalTimeMilestones({DateTime? now}) {
+    if (!notificationsEnabled || !goalsTimeProgressNotifications) return;
+    final n = now ?? DateTime.now();
+    for (final g in financialGoals) {
+      if (g.targetDate == null || g.timelineStart == null) continue;
+      final frac = goalTimeProgressFraction(
+        timelineStart: g.timelineStart,
+        targetDate: g.targetDate,
+        now: n,
+      );
+      if (frac == null) continue;
+      final flags = goalsTimeMilestonesFired.putIfAbsent(g.id, () => {});
+      final label = g.isRetirement ? 'Retirement' : g.name.trim();
+      final title = label.isEmpty ? 'Goal' : label;
+      if (frac >= 0.5 && flags['half'] != true) {
+        flags['half'] = true;
+        unawaited(
+          NotificationService.instance.showGoalProgressMilestone(
+            title: title,
+            body: 'Halfway through your timeline for $title.',
+          ),
+        );
+        _scheduleAppStatePersist();
+      }
+      if (frac >= 0.75 && flags['threeQuarter'] != true) {
+        flags['threeQuarter'] = true;
+        unawaited(
+          NotificationService.instance.showGoalProgressMilestone(
+            title: title,
+            body: 'Three-quarters of the way to your target date for $title.',
+          ),
+        );
+        _scheduleAppStatePersist();
+      }
+    }
   }
 
   String get displayCurrencySymbol => displayCurrency.symbol;
@@ -1200,12 +1812,51 @@ class AppModel extends ChangeNotifier {
   /// If the active provider no longer has a key, pick the first provider that does.
   void _syncActiveProviderIfKeyRemoved() {
     if (apiKeyFor(activeLlmProvider) != null) return;
-    for (final p in LlmProvider.values) {
+    const order = [
+      LlmProvider.openai,
+      LlmProvider.anthropic,
+      LlmProvider.gemini,
+      LlmProvider.appleFoundation,
+    ];
+    for (final p in order) {
       if (apiKeyFor(p) != null) {
-        activeLlmProvider = p;
+        if (activeLlmProvider != p) {
+          activeLlmProvider = p;
+          _scheduleAppStatePersist();
+          notifyListeners();
+        }
         return;
       }
     }
+  }
+
+  /// Ensures [activeLlmProvider] can run assistants (cloud key or Apple on-device).
+  Future<bool> prepareLlmForAssistant() async {
+    await refreshAppleFoundationCapabilities();
+    if (apiKeyFor(activeLlmProvider) == null) {
+      _syncActiveProviderIfKeyRemoved();
+    }
+    if (apiKeyFor(activeLlmProvider) == null && appleFoundationRuntimeAvailable) {
+      setAppleFoundationEnabled(true);
+      activeLlmProvider = LlmProvider.appleFoundation;
+      _scheduleAppStatePersist();
+      notifyListeners();
+    }
+    return apiKeyFor(activeLlmProvider) != null;
+  }
+
+  String get llmAssistantUnavailableMessage {
+    if (appleFoundationRuntimeAvailable && !appleFoundationEnabled) {
+      return 'Turn on Apple on-device model in Settings → API keys.';
+    }
+    final reason = appleFoundationDisabledReason?.trim();
+    if (!hasAnyApiKey && reason != null && reason.isNotEmpty) {
+      return reason;
+    }
+    if (!hasAnyApiKey && !appleFoundationRuntimeAvailable) {
+      return 'Add an API key in Settings, or use a device with Apple on-device models (iOS 26+).';
+    }
+    return 'No language model available. Check Settings → API keys.';
   }
 
   String? apiKeyFor(LlmProvider provider) => switch (provider) {
@@ -1352,6 +2003,7 @@ class AppModel extends ChangeNotifier {
         ReminderDomain.income => remindersIncomeCadence,
         ReminderDomain.assets => remindersAssetsCadence,
         ReminderDomain.liabilities => remindersLiabilitiesCadence,
+        ReminderDomain.goals => remindersGoalsCadence,
       };
 
   /// True once the user has moved past the seeded first-run state (any ledger
@@ -1401,6 +2053,7 @@ class AppModel extends ChangeNotifier {
         ReminderDomain.income => userTouchedIncome,
         ReminderDomain.assets => userTouchedAssets,
         ReminderDomain.liabilities => userTouchedLiabilities,
+        ReminderDomain.goals => financialGoals.isNotEmpty,
       };
 
   bool _reviewOverdueFor(ReminderDomain d, DateTime now) => switch (d) {
@@ -1409,6 +2062,7 @@ class AppModel extends ChangeNotifier {
         ReminderDomain.income => incomeReviewOverdueAt(now),
         ReminderDomain.assets => assetsReviewOverdueAt(now),
         ReminderDomain.liabilities => liabilitiesReviewOverdueAt(now),
+        ReminderDomain.goals => goalsReviewOverdueAt(now),
       };
 
   /// Eligibility predicate for the daily rotation. Domain-only checks: master
@@ -1560,6 +2214,7 @@ class AppModel extends ChangeNotifier {
     }
     await syncNotifications();
     await maybePostDailyReminder();
+    _maybeFireGoalTimeMilestones();
   }
 
   /// Cancels any current reminder schedule, commits past pending fires into
@@ -1820,6 +2475,7 @@ class AppModel extends ChangeNotifier {
     expenseBuckets = {...expenseBuckets, key: value};
     userTouchedExpenses = true;
     syncAllocationsFromFraction();
+    syncRetirementCorpusTarget(notify: false);
     _scheduleAppStatePersist();
     notifyListeners();
   }
@@ -1989,6 +2645,9 @@ class AppModel extends ChangeNotifier {
   bool liabilitiesReviewOverdueAt(DateTime now) =>
       _isOverdue(now: now, last: liabilitiesLastReviewed, cadence: remindersLiabilitiesCadence);
 
+  bool goalsReviewOverdueAt(DateTime now) =>
+      _isOverdue(now: now, last: goalsLastUpdated, cadence: remindersGoalsCadence);
+
   bool get cashflowReviewOverdue => cashflowReviewOverdueAt(DateTime.now());
 
   /// Whether cash flow needs attention for [now] (used by Home reminders + tests).
@@ -2112,7 +2771,17 @@ class AppModel extends ChangeNotifier {
       allocInvestmentsMonthly = avail * allocInvestFraction;
       allocSavingsMonthly = avail - allocInvestmentsMonthly;
     }
+    _clampLiabilityPaydownToSavings();
     if (notify) notifyListeners();
+  }
+
+  void _clampLiabilityPaydownToSavings() {
+    final total = totalLiabilityPaydownMonthly;
+    if (total <= allocSavingsMonthly + 1e-6 || total <= 0) return;
+    final factor = allocSavingsMonthly / total;
+    for (var i = 0; i < liabilities.length; i++) {
+      liabilities[i].paydownMonthly = (liabilities[i].paydownMonthly * factor).clamp(0, double.infinity);
+    }
   }
 
   void setAllocationInvestments(double v) {
@@ -2174,6 +2843,11 @@ class AppModel extends ChangeNotifier {
         'remindersIncomeCadence': remindersIncomeCadence.name,
         'remindersAssetsCadence': remindersAssetsCadence.name,
         'remindersLiabilitiesCadence': remindersLiabilitiesCadence.name,
+        'remindersGoalsCadence': remindersGoalsCadence.name,
+        'promptAutoAllocateOnNewGoal': promptAutoAllocateOnNewGoal,
+        'goalsTimeProgressNotifications': goalsTimeProgressNotifications,
+        'goalsTimeMilestonesFired': goalsTimeMilestonesFired,
+        'goalsLastUpdated': goalsLastUpdated?.toUtc().toIso8601String(),
         'remindersMonthlyDayOfMonth': remindersMonthlyDayOfMonth,
         'remindersQuarterMonthInQuarter': remindersQuarterMonthInQuarter,
         'remindersQuarterDay': remindersQuarterDay,
@@ -2199,6 +2873,7 @@ class AppModel extends ChangeNotifier {
         'allocInvestFraction': allocInvestFraction,
         'allocInvestmentsMonthly': allocInvestmentsMonthly,
         'allocSavingsMonthly': allocSavingsMonthly,
+        'retirementExtraAssetIds': retirementExtraAssetIds.toList(),
         'fxUsdPerUnitOverride': {
           for (final e in _fxUsdPerUnitOverride.entries) e.key.name: e.value,
         },
@@ -2330,6 +3005,26 @@ class AppModel extends ChangeNotifier {
       remindersIncomeCadence = app_state.reminderCadenceFromJson(s['remindersIncomeCadence']);
       remindersAssetsCadence = app_state.reminderCadenceFromJson(s['remindersAssetsCadence']);
       remindersLiabilitiesCadence = app_state.reminderCadenceFromJson(s['remindersLiabilitiesCadence']);
+      remindersGoalsCadence = app_state.reminderCadenceFromJson(s['remindersGoalsCadence']);
+      if (s.containsKey('promptAutoAllocateOnNewGoal')) {
+        promptAutoAllocateOnNewGoal = s['promptAutoAllocateOnNewGoal'] != false;
+      }
+      if (s.containsKey('goalsTimeProgressNotifications')) {
+        goalsTimeProgressNotifications = s['goalsTimeProgressNotifications'] != false;
+      }
+      final gmf = s['goalsTimeMilestonesFired'];
+      if (gmf is Map) {
+        goalsTimeMilestonesFired.clear();
+        for (final e in gmf.entries) {
+          if (e.value is Map) {
+            final inner = Map<String, dynamic>.from(e.value as Map);
+            goalsTimeMilestonesFired[e.key.toString()] = {
+              for (final f in inner.entries) f.key.toString(): f.value == true,
+            };
+          }
+        }
+      }
+      goalsLastUpdated = app_state.dateTimeFromJsonField(s['goalsLastUpdated']);
       final md = s['remindersMonthlyDayOfMonth'];
       if (md is int) remindersMonthlyDayOfMonth = md.clamp(1, 28);
       if (md is num) remindersMonthlyDayOfMonth = md.round().clamp(1, 28);
@@ -2367,6 +3062,7 @@ class AppModel extends ChangeNotifier {
             for (final e in liabRaw)
               if (app_state.decodeLedgerLiabilityRow(e) != null) app_state.decodeLedgerLiabilityRow(e)!,
           ]);
+        repairDuplicateLiabilityIds(notify: false);
       }
       final incRaw = L['incomeLines'];
       if (incRaw is List) {
@@ -2419,6 +3115,37 @@ class AppModel extends ChangeNotifier {
       if (aim is num) allocInvestmentsMonthly = aim.toDouble();
       final asm = L['allocSavingsMonthly'];
       if (asm is num) allocSavingsMonthly = asm.toDouble();
+      retirementExtraAssetIds.clear();
+      final rea = L['retirementExtraAssetIds'];
+      if (rea is List) {
+        for (final e in rea) {
+          final id = e.toString().trim();
+          if (id.isNotEmpty) retirementExtraAssetIds.add(id);
+        }
+      } else if (!L.containsKey('retirementExtraAssetIds') && assetsRaw is List) {
+        for (final e in assetsRaw) {
+          if (e is! Map) continue;
+          final m = Map<String, dynamic>.from(e);
+          if (m['includeInRetirement'] != true) continue;
+          final id = m['id']?.toString();
+          if (id == null || id.isEmpty) continue;
+          final type = LedgerAssetTypeUi.fromApi(m['type']?.toString());
+          if (type == LedgerAssetType.property || type == LedgerAssetType.other) {
+            retirementExtraAssetIds.add(id);
+          }
+        }
+        if (L['propertyInRetirement'] == true) {
+          for (final a in assets) {
+            if (a.type == LedgerAssetType.property) retirementExtraAssetIds.add(a.id);
+          }
+        }
+        final oam = L['otherAssetsMode']?.toString();
+        if (oam == 'retirement' || oam == 'split') {
+          for (final a in assets) {
+            if (a.type == LedgerAssetType.other) retirementExtraAssetIds.add(a.id);
+          }
+        }
+      }
       _fxUsdPerUnitOverride.clear();
       final fx = L['fxUsdPerUnitOverride'];
       if (fx is Map) {
@@ -2536,8 +3263,10 @@ class AppModel extends ChangeNotifier {
     }
     ensureRetirementGoal();
     _rebalanceGoalSavingsWeights();
+    syncRetirementCorpusTarget(notify: false);
 
     syncAllocationsFromFraction(notify: false);
+    migrateLiabilityPaydownMonthlyIfNeeded();
   }
 
   ThemeData themedLight() {
@@ -2569,7 +3298,7 @@ enum ReminderCadence { off, monthly, quarterly, yearly }
 
 /// Reminder targets surfaced to the user (Command Center + Notifications).
 /// Order matches the Settings reminder block.
-enum ReminderDomain { expenses, cashflow, income, assets, liabilities }
+enum ReminderDomain { expenses, cashflow, income, assets, liabilities, goals }
 
 String reminderDomainLabel(ReminderDomain d) => switch (d) {
       ReminderDomain.expenses => 'Expenses',
@@ -2577,6 +3306,7 @@ String reminderDomainLabel(ReminderDomain d) => switch (d) {
       ReminderDomain.income => 'Income',
       ReminderDomain.assets => 'Assets',
       ReminderDomain.liabilities => 'Liabilities',
+      ReminderDomain.goals => 'Goals',
     };
 
 enum LlmProvider { appleFoundation, openai, anthropic, gemini }

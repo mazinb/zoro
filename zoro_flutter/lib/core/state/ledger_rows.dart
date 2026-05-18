@@ -1,59 +1,72 @@
 import 'package:flutter/material.dart';
 
-/// Mirrors `zoro-app/src/app/assets/page.tsx` account + liability row shapes (UI-only).
+/// Mirrors `zoro-app` account + liability row shapes (UI-only).
 
 String newLedgerRowId(String prefix) => '$prefix-${DateTime.now().microsecondsSinceEpoch}';
 
 enum LedgerAssetType {
   savings,
-  brokerage,
+  investments,
   property,
-  crypto,
   other,
 }
 
-enum LedgerLiabilityType {
-  personalLoan,
-  carLoan,
-  creditCard,
-  mortgage,
-  other,
+/// How an asset balance counts toward goals (no double counting across buckets).
+enum AssetGoalsBucket {
+  /// Investment accounts — retirement corpus only.
+  retirement,
+  /// Cash / savings — target goals and debt paydown.
+  savings,
+  /// Real estate — retirement only when id is in [AssetsGoalsPolicy.retirementExtraAssetIds].
+  property,
+  /// Other — retirement only when id is in [AssetsGoalsPolicy.retirementExtraAssetIds].
+  both,
+}
+
+/// Which property/other ledger assets count toward retirement (rest → savings).
+class AssetsGoalsPolicy {
+  const AssetsGoalsPolicy({this.retirementExtraAssetIds = const {}});
+
+  final Set<String> retirementExtraAssetIds;
 }
 
 extension LedgerAssetTypeUi on LedgerAssetType {
   String get label => switch (this) {
         LedgerAssetType.savings => 'Savings',
-        LedgerAssetType.brokerage => 'Brokerage',
+        LedgerAssetType.investments => 'Investments',
         LedgerAssetType.property => 'Property',
-        LedgerAssetType.crypto => 'Crypto',
         LedgerAssetType.other => 'Other',
       };
 
-  /// Web/API `type` string (`formType: assets`).
   String get apiValue => switch (this) {
         LedgerAssetType.savings => 'savings',
-        LedgerAssetType.brokerage => 'brokerage',
+        LedgerAssetType.investments => 'investments',
         LedgerAssetType.property => 'property',
-        LedgerAssetType.crypto => 'crypto',
         LedgerAssetType.other => 'other',
+      };
+
+  AssetGoalsBucket get defaultGoalsBucket => switch (this) {
+        LedgerAssetType.savings => AssetGoalsBucket.savings,
+        LedgerAssetType.investments => AssetGoalsBucket.retirement,
+        LedgerAssetType.property => AssetGoalsBucket.property,
+        LedgerAssetType.other => AssetGoalsBucket.both,
       };
 
   IconData get icon => switch (this) {
         LedgerAssetType.savings => Icons.savings_outlined,
-        LedgerAssetType.brokerage => Icons.trending_up,
+        LedgerAssetType.investments => Icons.trending_up,
         LedgerAssetType.property => Icons.apartment,
-        LedgerAssetType.crypto => Icons.currency_bitcoin,
         LedgerAssetType.other => Icons.category_outlined,
       };
 
   static LedgerAssetType fromApi(String? raw) {
     switch (raw) {
+      case 'investments':
       case 'brokerage':
-        return LedgerAssetType.brokerage;
+      case 'crypto':
+        return LedgerAssetType.investments;
       case 'property':
         return LedgerAssetType.property;
-      case 'crypto':
-        return LedgerAssetType.crypto;
       case 'other':
         return LedgerAssetType.other;
       case 'savings':
@@ -105,6 +118,14 @@ extension LedgerLiabilityTypeUi on LedgerLiabilityType {
   }
 }
 
+enum LedgerLiabilityType {
+  personalLoan,
+  carLoan,
+  creditCard,
+  mortgage,
+  other,
+}
+
 class LedgerAssetRow {
   LedgerAssetRow({
     required this.id,
@@ -115,18 +136,21 @@ class LedgerAssetRow {
     required this.label,
     required this.comment,
     this.contextMarkdown,
+    this.returnRatePct = 0,
   });
 
   final String id;
   LedgerAssetType type;
 
-  /// Web field `currency`: country key (`India`, `Thailand`, `US`, …).
   String currencyCountry;
   String name;
   double total;
   String label;
   String comment;
   String? contextMarkdown;
+
+  /// Annual return % (optional) — same role as [LedgerLiabilityRow.interestRatePct].
+  double returnRatePct;
 
   LedgerAssetRow clone() => LedgerAssetRow(
         id: id,
@@ -137,6 +161,7 @@ class LedgerAssetRow {
         label: label,
         comment: comment,
         contextMarkdown: contextMarkdown,
+        returnRatePct: returnRatePct,
       );
 
   factory LedgerAssetRow.blank({required String defaultCurrencyCountry}) {
@@ -162,17 +187,27 @@ class LedgerLiabilityRow {
     required this.total,
     required this.comment,
     this.contextMarkdown,
+    this.interestRatePct = 0,
+    this.paydownWeight = 1,
+    this.paydownMonthly = 0,
   });
 
   final String id;
   LedgerLiabilityType type;
   String name;
-
-  /// Web field `currency`: country key.
   String currencyCountry;
   double total;
   String comment;
   String? contextMarkdown;
+
+  /// Annual interest % — edit in Ledger; used when auto-allocating paydown.
+  double interestRatePct;
+
+  /// Legacy weight for migration / auto-allocate; user edits use [paydownMonthly].
+  double paydownWeight;
+
+  /// Monthly savings allocated to this debt (display currency).
+  double paydownMonthly;
 
   LedgerLiabilityRow clone() => LedgerLiabilityRow(
         id: id,
@@ -182,6 +217,9 @@ class LedgerLiabilityRow {
         total: total,
         comment: comment,
         contextMarkdown: contextMarkdown,
+        interestRatePct: interestRatePct,
+        paydownWeight: paydownWeight,
+        paydownMonthly: paydownMonthly,
       );
 
   factory LedgerLiabilityRow.blank({required String defaultCurrencyCountry}) {

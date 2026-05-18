@@ -332,6 +332,7 @@ class NotificationService {
         ReminderDomain.income => 'Income needs a refresh',
         ReminderDomain.assets => 'Assets need a refresh',
         ReminderDomain.liabilities => 'Liabilities need a refresh',
+        ReminderDomain.goals => 'Goals need a check-in',
       };
 
   static String _reminderBodyFor(ReminderDomain d) => switch (d) {
@@ -340,7 +341,25 @@ class NotificationService {
         ReminderDomain.income => 'Confirm your income lines are still accurate.',
         ReminderDomain.assets => 'Take a moment to refresh your asset balances.',
         ReminderDomain.liabilities => 'Update your liability balances.',
+        ReminderDomain.goals => 'Review targets, savings split, and retirement corpus.',
       };
+
+  static const int _goalMilestoneNotificationId = 901;
+
+  /// One-shot milestone (50% / 75% timeline) — separate id from rotation reminders.
+  Future<void> showGoalProgressMilestone({
+    required String title,
+    required String body,
+  }) async {
+    await init();
+    await _plugin.show(
+      _goalMilestoneNotificationId,
+      'Goal progress — $title',
+      body,
+      _defaultDetails(),
+    );
+    _log('goal milestone: $title');
+  }
 }
 
 /// Top-level background response handler annotation for the plugin.

@@ -119,6 +119,7 @@ Return ONE JSON object only. No prose. Schema:
       "currencyCountry":"US"|"Thailand"|"India"|...,
       "name":"Broker short name + account label (e.g. Fidelity Brokerage, Schwab IRA)",
       "total": 12345.67,
+      "returnRatePct": 7.5,
       "comment":"Ledger card: import source, statement or screenshot date if known, one line",
       "contextMarkdown":"What is in the account: holdings breakdown, major positions, notes (markdown ok)"
     }
@@ -127,6 +128,7 @@ Return ONE JSON object only. No prose. Schema:
 }
 Rules:
 - **One row per brokerage/bank account** (account total in `total`; positions go in `contextMarkdown`).
+- `returnRatePct` (optional): expected annual return % when known (e.g. fund yield, FD rate); omit or 0 if unknown.
 - Include institution/broker short name in `name` when visible.
 - `comment` ≠ `contextMarkdown`: comment = import meta + dates; context = what the account contains.
 - Valid complete JSON only; escape quotes in strings.
@@ -212,6 +214,7 @@ Rules (cashflow):
               'type': a.type.apiValue,
               'currencyCountry': a.currencyCountry,
               'total': m.assetDisplayValue(a),
+              'returnRatePct': a.returnRatePct,
               'comment': a.comment,
               'contextMarkdown': a.contextMarkdown ?? '',
             };
@@ -227,6 +230,7 @@ Rules (cashflow):
               'type': a.type.apiValue,
               'currencyCountry': a.currencyCountry,
               'total': m.assetDisplayValue(a),
+              'returnRatePct': a.returnRatePct,
             },
         ],
       },
@@ -557,6 +561,10 @@ Infer **monthKey** from the document or statement period; use this hint only if 
           final currencyCountry = _cleanCountry(mm['currencyCountry']);
           final comment = (mm['comment']?.toString() ?? '').trim();
           final ctx = mm['contextMarkdown']?.toString();
+          final rateRaw = mm['returnRatePct'] ?? mm['interestRatePct'] ?? mm['ratePct'];
+          final returnRatePct = rateRaw is num
+              ? rateRaw.toDouble()
+              : double.tryParse(rateRaw?.toString() ?? '') ?? 0;
           assets.add(
             LedgerAssetRow(
               id: newLedgerRowId('a'),
@@ -567,6 +575,7 @@ Infer **monthKey** from the document or statement period; use this hint only if 
               label: '',
               comment: comment,
               contextMarkdown: ctx,
+              returnRatePct: returnRatePct,
             ),
           );
         }
@@ -877,6 +886,7 @@ Infer **monthKey** from the document or statement period; use this hint only if 
       label: before?.label ?? parsed.label,
       comment: parsed.comment,
       contextMarkdown: parsed.contextMarkdown,
+      returnRatePct: parsed.returnRatePct > 0 ? parsed.returnRatePct : (before?.returnRatePct ?? 0),
     );
   }
 

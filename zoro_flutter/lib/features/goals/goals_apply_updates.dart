@@ -1,7 +1,13 @@
+import '../../core/finance/goals_calculator.dart';
 import '../../core/state/app_model.dart';
 
 /// Applies structured `goalUpdates` from the goals guide synthesizer.
 void applyGoalsGuideStructured(AppModel model, Map<String, Object?> structured, {String? focusGoalId}) {
+  final frac = structured['allocInvestFraction'];
+  if (frac is num) {
+    model.setAllocInvestFraction(frac.toDouble().clamp(0.0, 1.0));
+  }
+
   final updatesRaw = structured['goalUpdates'];
   if (updatesRaw == null) return;
 
@@ -16,7 +22,15 @@ void applyGoalsGuideStructured(AppModel model, Map<String, Object?> structured, 
 
   if (updates.isEmpty && focusGoalId != null) {
     final single = <String, Object?>{'goalId': focusGoalId};
-    for (final k in ['name', 'targetAmount', 'targetDate', 'linkedAssetIds', 'fundsProjects', 'corpusAdjustment']) {
+    for (final k in [
+      'name',
+      'targetAmount',
+      'targetDate',
+      'corpusAdjustment',
+      'safeWithdrawalRatePct',
+      'corpusBufferPct',
+      'corpusAutoFromExpenses',
+    ]) {
       if (structured.containsKey(k)) single[k] = structured[k];
     }
     if (single.length > 1) updates.add(single);
@@ -49,26 +63,66 @@ void applyGoalsGuideStructured(AppModel model, Map<String, Object?> structured, 
       if (parsed != null) next = next.copyWith(targetDate: parsed);
     }
 
-    final linked = u['linkedAssetIds'];
-    if (linked is List) {
-      final ids = <String>[];
-      for (final e in linked) {
-        final s = e.toString().trim();
-        if (s.isNotEmpty && model.assetById(s) != null) ids.add(s);
-      }
-      next = next.copyWith(linkedAssetIds: ids);
-    }
-
-    if (u['fundsProjects'] is bool) {
-      next = next.copyWith(fundsProjects: u['fundsProjects'] as bool);
-    }
-
     if (existing.isRetirement) {
       final ca = u['corpusAdjustment'];
       if (ca is num) next = next.copyWith(corpusAdjustment: ca.toDouble());
+      final swr = u['safeWithdrawalRatePct'];
+      if (swr is num) next = next.copyWith(safeWithdrawalRatePct: clampWithdrawalRatePct(swr.toDouble()));
+      final buf = u['corpusBufferPct'];
+      if (buf is num) next = next.copyWith(corpusBufferPct: clampCorpusBufferPct(buf.toDouble()));
+      if (u['corpusAutoFromExpenses'] is bool) {
+        next = next.copyWith(corpusAutoFromExpenses: u['corpusAutoFromExpenses'] as bool);
+      }
     }
 
     model.upsertFinancialGoal(next);
+  }
+  model.syncRetirementCorpusTarget(notify: false);
+}
+
+void applyRetirementCorpusStructured(
+  AppModel model,
+  Map<String, Object?> structured, {
+  String contextMarkdown = '',
+}) {
+  final r = model.retirementGoal;
+  if (r == null) return;
+  var next = r;
+  final swr = structured['safeWithdrawalRatePct'];
+  if (swr is num) next = next.copyWith(safeWithdrawalRatePct: clampWithdrawalRatePct(swr.toDouble()));
+  final buf = structured['corpusBufferPct'];
+  if (buf is num) next = next.copyWith(corpusBufferPct: clampCorpusBufferPct(buf.toDouble()));
+  if (structured['corpusAutoFromExpenses'] is bool) {
+    next = next.copyWith(corpusAutoFromExpenses: structured['corpusAutoFromExpenses'] as bool);
+  }
+  final target = structured['targetAmount'];
+  if (target is num) next = next.copyWith(targetAmount: target.toDouble());
+  final md = contextMarkdown.trim();
+  if (md.isNotEmpty) next = next.copyWith(contextMarkdown: md);
+  model.upsertFinancialGoal(next);
+  model.syncRetirementCorpusTarget();
+}
+
+void applyGoalExpenseEstimatorStructured(
+  AppModel model, {
+  required Map<String, Object?> structured,
+  required String goalId,
+  String contextMarkdown = '',
+}) {
+  final bucketsRaw = structured['expenseBuckets'];
+  if (bucketsRaw is Map) {
+    for (final e in bucketsRaw.entries) {
+      final key = e.key.toString();
+      final v = e.value;
+      if (v is num) model.setExpenseBucket(key, v.toDouble());
+    }
+    model.markExpenseEstimatesUpdated();
+  }
+  model.syncRetirementCorpusTarget(notify: false);
+  final md = contextMarkdown.trim();
+  if (md.isNotEmpty) {
+    final g = model.financialGoalById(goalId);
+    if (g != null) model.upsertFinancialGoal(g.copyWith(contextMarkdown: md));
   }
 }
 

@@ -9,7 +9,6 @@ import '../../shared/widgets/liquid_glass.dart';
 import '../command_center/command_center_tab.dart';
 import '../context/context_tab.dart';
 import '../ledger/ledger_tab.dart';
-import '../goals/goals_guide_flow.dart';
 import '../goals/goals_tab.dart';
 import '../settings/settings_tab.dart';
 
@@ -138,6 +137,10 @@ class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver
           _index = _ledgerIndex;
           _ledgerFocus = section;
         }),
+        onGoToGoals: () => setState(() {
+          _index = 3;
+          _ledgerFocus = null;
+        }),
       ),
       LedgerTab(
         model: widget.model,
@@ -147,19 +150,11 @@ class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver
       ContextTab(model: widget.model),
       GoalsTab(
         model: widget.model,
-        onGoToSettingsAgents: () => _goToSettingsTab(
-          SettingsTabIndex.agents,
-          agentSection: AgentSettingsSection.goals,
-        ),
+        onGoToLedger: (section) => setState(() {
+          _index = _ledgerIndex;
+          _ledgerFocus = section;
+        }),
         onGoToSettingsPermissions: () => _goToSettingsTab(SettingsTabIndex.permissions),
-        onOpenGuide: () => openGoalsGuideLauncher(
-          context: context,
-          model: widget.model,
-          onGoToSettingsGoals: () => _goToSettingsTab(
-            SettingsTabIndex.agents,
-            agentSection: AgentSettingsSection.goals,
-          ),
-        ),
       ),
       SettingsTab(
         model: widget.model,

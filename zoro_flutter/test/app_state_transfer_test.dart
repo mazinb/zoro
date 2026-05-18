@@ -61,7 +61,7 @@ void main() {
     });
 
     test('rejects missing ledger key', () {
-      final err = AppStateTransfer.validateImportRoot({'formatVersion': 1});
+      final err = AppStateTransfer.validateImportRoot({'formatVersion': 3});
       expect(err, isNotNull);
       expect(err, contains('ledger'));
     });

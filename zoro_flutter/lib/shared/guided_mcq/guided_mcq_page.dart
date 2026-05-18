@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 
 import '../../core/llm/active_llm_completion.dart';
+import '../../core/llm/prompt_context_budget.dart';
 import '../../core/state/app_model.dart';
 import '../../core/state/internal_app_agent_definition.dart';
 import '../../shared/widgets/liquid_glass.dart';
@@ -42,6 +43,8 @@ class _GuidedMcqPageState extends State<GuidedMcqPage> with SingleTickerProvider
 
   bool _loading = true;
   String? _error;
+  bool _contextTrimmed = false;
+  final _budgetService = PromptContextBudgetService();
 
   final _selected = <String>{};
   late final TextEditingController _optionalNoteCtrl;
@@ -129,6 +132,21 @@ Merge subject data, existingContextMarkdown, and qaHistory. The structured block
     ].join('\n');
   }
 
+  Future<String> _userPayloadJson(
+    AppModel m, {
+    required String system,
+    required Map<String, Object?> payload,
+  }) async {
+    if (m.activeLlmProvider != LlmProvider.appleFoundation) {
+      return jsonEncode(payload);
+    }
+    final prepared = await _budgetService.prepareUserPayload(system: system, payload: payload);
+    if (prepared.trimmed) {
+      _setStateIfMounted(() => _contextTrimmed = true);
+    }
+    return prepared.userJson;
+  }
+
   String _synthSystem() {
     final def = internalAppAgentDefinitionById(widget.config.internalAgentId);
     final user = widget.model.internalAgentSystemPrompt(widget.config.internalAgentId).trim();
@@ -142,10 +160,15 @@ Merge subject data, existingContextMarkdown, and qaHistory. The structured block
     ].join('\n');
   }
 
+  void _setStateIfMounted(VoidCallback fn) {
+    if (!mounted) return;
+    setState(fn);
+  }
+
   Future<void> _runPlanner() async {
     final missing = widget.config.isTargetMissing;
     if (missing != null && missing(widget.model)) {
-      setState(() {
+      _setStateIfMounted(() {
         _loading = false;
         _error = widget.config.missingTargetMessage;
       });
@@ -153,29 +176,39 @@ Merge subject data, existingContextMarkdown, and qaHistory. The structured block
     }
 
     final m = widget.model;
-    if (m.apiKeyFor(m.activeLlmProvider) == null) {
-      setState(() {
-        _loading = false;
-        _error = 'Add an API key in Settings → API keys';
-      });
-      return;
-    }
-
-    setState(() {
+    _setStateIfMounted(() {
       _loading = true;
       _error = null;
     });
 
+    final ready = await m.prepareLlmForAssistant();
+    if (!mounted) return;
+    if (!ready) {
+      _setStateIfMounted(() {
+        _loading = false;
+        _error = m.llmAssistantUnavailableMessage;
+      });
+      return;
+    }
+
     try {
+      final system = _plannerSystem();
+      final payload = widget.config.buildPayload(m, _qaHistory());
+      final user = await _userPayloadJson(m, system: system, payload: payload);
+      if (!mounted) return;
+
       final raw = await completeForActiveProvider(
         m,
-        system: _plannerSystem(),
-        user: jsonEncode(widget.config.buildPayload(m, _qaHistory())),
+        system: system,
+        user: user,
         maxOutputTokens: 2048,
         preferJsonObjectOutput: m.activeLlmProvider == LlmProvider.openai,
       );
+      if (!mounted) return;
 
       final obj = await decodeActiveProviderJsonWithRepair(m, raw);
+      if (!mounted) return;
+
       final kind = obj['kind']?.toString();
       if (kind == 'done') {
         await _runSynthesize();
@@ -200,26 +233,27 @@ Merge subject data, existingContextMarkdown, and qaHistory. The structured block
           }
         }
         if (choices.isEmpty) {
-          setState(() {
+          _setStateIfMounted(() {
             _loading = false;
             _error = 'No options returned. Try again.';
           });
           return;
         }
         _optionalNoteCtrl.clear();
-        setState(() {
+        _setStateIfMounted(() {
           _loading = false;
           _current = _Q(questionId: qid, prompt: prompt, choices: choices, allowMultiple: allowMulti);
           _selected.clear();
         });
         return;
       }
-      setState(() {
+      _setStateIfMounted(() {
         _loading = false;
         _error = 'Unexpected reply. Try again.';
       });
     } catch (e) {
-      setState(() {
+      if (!mounted) return;
+      _setStateIfMounted(() {
         _loading = false;
         _error = e.toString();
       });
@@ -228,29 +262,39 @@ Merge subject data, existingContextMarkdown, and qaHistory. The structured block
 
   Future<void> _runSynthesize() async {
     final m = widget.model;
-    if (m.apiKeyFor(m.activeLlmProvider) == null) {
-      setState(() {
-        _loading = false;
-        _error = 'Add an API key in Settings → API keys';
-      });
-      return;
-    }
-
-    setState(() {
+    _setStateIfMounted(() {
       _loading = true;
       _error = null;
     });
 
+    final ready = await m.prepareLlmForAssistant();
+    if (!mounted) return;
+    if (!ready) {
+      _setStateIfMounted(() {
+        _loading = false;
+        _error = m.llmAssistantUnavailableMessage;
+      });
+      return;
+    }
+
     try {
+      final system = _synthSystem();
+      final payload = widget.config.buildPayload(m, _qaHistory());
+      final user = await _userPayloadJson(m, system: system, payload: payload);
+      if (!mounted) return;
+
       final raw = await completeForActiveProvider(
         m,
-        system: _synthSystem(),
-        user: jsonEncode(widget.config.buildPayload(m, _qaHistory())),
+        system: system,
+        user: user,
         maxOutputTokens: 8192,
         preferJsonObjectOutput: m.activeLlmProvider == LlmProvider.openai,
       );
+      if (!mounted) return;
 
       final obj = await decodeActiveProviderJsonWithRepair(m, raw);
+      if (!mounted) return;
+
       final md = obj['contextMarkdown']?.toString().trim() ?? '';
       Map<String, Object?> structured = {};
       final s = obj['structured'];
@@ -258,17 +302,19 @@ Merge subject data, existingContextMarkdown, and qaHistory. The structured block
         structured = Map<String, Object?>.from(s.map((k, v) => MapEntry(k.toString(), v)));
       }
       if (md.isEmpty) {
-        setState(() {
+        _setStateIfMounted(() {
           _loading = false;
           _error = 'Empty result. Try again.';
         });
         return;
       }
 
-      setState(() => _loading = false);
+      _setStateIfMounted(() => _loading = false);
+      if (!mounted) return;
       await _playSuccessAndPop(md, structured);
     } catch (e) {
-      setState(() {
+      if (!mounted) return;
+      _setStateIfMounted(() {
         _loading = false;
         _error = e.toString();
       });
@@ -276,7 +322,7 @@ Merge subject data, existingContextMarkdown, and qaHistory. The structured block
   }
 
   Future<void> _playSuccessAndPop(String md, Map<String, Object?> structured) async {
-    setState(() {
+    _setStateIfMounted(() {
       _success = true;
       _current = null;
     });
@@ -385,6 +431,17 @@ Merge subject data, existingContextMarkdown, and qaHistory. The structured block
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (_contextTrimmed) ...[
+            Text(
+              'Context trimmed for on-device model',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: cs.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
           LiquidGlassPanel(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             child: Row(

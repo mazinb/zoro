@@ -112,6 +112,7 @@ void main() {
       if (!enabled.contains(ReminderDomain.income)) m.remindersIncomeCadence = ReminderCadence.off;
       if (!enabled.contains(ReminderDomain.assets)) m.remindersAssetsCadence = ReminderCadence.off;
       if (!enabled.contains(ReminderDomain.liabilities)) m.remindersLiabilitiesCadence = ReminderCadence.off;
+      if (!enabled.contains(ReminderDomain.goals)) m.remindersGoalsCadence = ReminderCadence.off;
       for (final d in domains) {
         switch (d) {
           case ReminderDomain.expenses:
@@ -134,6 +135,10 @@ void main() {
             m.remindersLiabilitiesCadence = ReminderCadence.monthly;
             m.userTouchedLiabilities = true;
             m.liabilitiesLastReviewed = DateTime(2030, 1, 1);
+          case ReminderDomain.goals:
+            m.remindersGoalsCadence = ReminderCadence.monthly;
+            m.ensureRetirementGoal();
+            m.goalsLastUpdated = DateTime(2030, 1, 1);
         }
       }
       return m;

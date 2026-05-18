@@ -2,7 +2,7 @@
 
 Privacy-first: sensitive finance data stays on device; production API: **getzoro.com** (same as `zoro-app`).
 
-**On-device data layout (layout version 2, schema version 1):** documented in **[`../zoro-app/README.md` → On-device data layout](../zoro-app/README.md#on-device-data-layout)**. Bump `kAppStateSplitLayoutVersion` / `kAppStateFormatVersion` in code when you change storage; update that README table in the same PR.
+**On-device data layout (layout version 2, schema version 3):** documented in **[`../zoro-app/README.md` → On-device data layout](../zoro-app/README.md#on-device-data-layout)**. Bump `kAppStateSplitLayoutVersion` / `kAppStateFormatVersion` in code when you change storage; update that README table in the same PR.
 
 No open tasks.
 

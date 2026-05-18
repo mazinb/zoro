@@ -14,6 +14,8 @@ abstract final class InternalAppAgentIds {
   static const ledgerOrchestrator = 'ledger_orchestrator';
 
   static const goalsGuide = 'goals_guide';
+  static const goalsRetirementCorpus = 'goals_retirement_corpus';
+  static const goalsExpenseEstimator = 'goals_expense_estimator';
 }
 
 /// Registry entry for Settings → App agents. Add rows here to surface new internal agents.
@@ -90,7 +92,7 @@ ONE ROW PER ACCOUNT (critical):
 - **comment**: Short ledger-card note — how this was imported, **statement or screenshot date** if visible, source type (e.g. "PDF statement May 2026"). High-level only.
 - **contextMarkdown**: Richer note — what is **in** that account: asset mix, major holdings, breakdown text, currency notes. Use markdown lists where helpful.
 
-Pick the closest type: savings, brokerage, property, crypto, other.
+Pick the closest type: savings, investments, property, other (brokerage/crypto → investments).
 Guess currencyCountry from the document; fall back to "US" only if nothing hints otherwise.
 
 If the user is adding new rows and a row duplicates an existing asset (same institution account), skip or merge into one row as appropriate.
@@ -100,7 +102,7 @@ If the user is adding new rows and a row duplicates an existing asset (same inst
     infoContextSent:
         'The file the user picked (image bytes or PDF) plus the existing asset list (name, type, total) so duplicates can be skipped.',
     modelDomainHints:
-        'Asset types: savings, brokerage, property, crypto, other.',
+        'Asset types: savings, investments, property, other.',
   ),
   InternalAppAgentDefinition(
     id: InternalAppAgentIds.ledgerAddLiabilities,
@@ -256,6 +258,36 @@ Keep it simple and pick ONE target.
     modelDomainHints: 'Return one target and a short reason.',
   ),
   InternalAppAgentDefinition(
+    id: InternalAppAgentIds.goalsRetirementCorpus,
+    title: 'Retirement corpus',
+    listSubtitle: 'Goals → retirement corpus',
+    icon: Icons.beach_access_outlined,
+    defaultSystemPrompt: '''
+You help set retirement corpus assumptions using recurring monthly expenses from the ledger.
+
+Questions (planner):
+- Confirm safe withdrawal rate (1–10%, default 4%).
+- Confirm buffer percent (0–100% on top of base corpus).
+- Confirm using auto corpus from all recurring expense buckets.
+- Stop when SWR, buffer, and intent are clear.
+
+Synthesis (structured block required):
+{
+  "summary": "one short sentence",
+  "safeWithdrawalRatePct": 4,
+  "corpusBufferPct": 0,
+  "corpusAutoFromExpenses": true,
+  "targetAmount": 0,
+  "contextMarkdown": "assumptions (markdown)"
+}
+
+targetAmount = annual recurring expenses × 12 ÷ (SWR/100) × (1 + buffer/100). Use payload recurringExpensesMonthly.
+''',
+    infoWhatItDoes: 'MCQ for safe withdrawal rate and corpus buffer; computes corpus from ledger expenses.',
+    infoContextSent: 'Recurring monthly expenses, current SWR/buffer, computed corpus preview.',
+    modelDomainHints: 'Planner: max 5 questions. Synth: include all structured fields.',
+  ),
+  InternalAppAgentDefinition(
     id: InternalAppAgentIds.goalsGuide,
     title: 'Goals guide',
     listSubtitle: 'Goals → guide',
@@ -265,13 +297,14 @@ You help set up financial goals: one retirement goal (corpus + target date) and 
 
 Questions (planner):
 - Ask only what is missing: target amount, target date, which assets fund the goal, whether a target should fund near-term projects.
-- Retirement: confirm target corpus, retire-by date, which brokerage/savings assets count toward corpus.
+- Retirement: confirm target corpus, retire-by date, SWR (1–10%), buffer (0–100%), auto corpus from expenses, which assets count.
 - Use payload assets[] ids when suggesting links. Prefer primary cash / brokerage accounts when relevant.
 - Stop early if data is already clear.
 
 Synthesis (structured block required):
 {
   "summary": "one short sentence",
+  "allocInvestFraction": 0.6,
   "contextGoalId": "<goal id for contextMarkdown>",
   "contextMarkdown": "brief assumptions (markdown)",
   "goalUpdates": [
@@ -280,16 +313,18 @@ Synthesis (structured block required):
       "name": "optional",
       "targetAmount": 0,
       "targetDate": "YYYY-MM-DD or null",
-      "linkedAssetIds": ["asset ids"],
-      "fundsProjects": false,
-      "corpusAdjustment": 0
+      "corpusAdjustment": 0,
+      "safeWithdrawalRatePct": 4,
+      "corpusBufferPct": 0,
+      "corpusAutoFromExpenses": true
     }
   ]
 }
 
 mode=single: one focusGoal in payload — return one goalUpdates entry for that id.
 mode=all: update retirement first, then targets; omit fields you should not change.
-Only set fundsProjects true on at most one target goal.
+mode=retirement_plan: focus on invest vs savings split and retirement targetDate only. Include top-level allocInvestFraction (0–1) when changing split. Return one goalUpdates entry for focusGoalId with targetDate (and targetAmount only if fixing feasibility). Do not change expense buckets.
+Asset buckets (investments→retirement, savings accounts→buffer) are set on the Goals tab, not per goal.
 ''',
     infoWhatItDoes: 'Short MCQ to fill retirement and target goals, then a review step before saving.',
     infoContextSent:
@@ -298,6 +333,32 @@ Only set fundsProjects true on at most one target goal.
 Planner: max 6 questions, short prompts, 2–6 choices.
 Synth: always include goalUpdates array; contextMarkdown is the human-readable assumptions for contextGoalId.
 ''',
+  ),
+  InternalAppAgentDefinition(
+    id: InternalAppAgentIds.goalsExpenseEstimator,
+    title: 'Goal expense estimator',
+    listSubtitle: 'Goals → estimate expenses',
+    icon: Icons.receipt_long_outlined,
+    defaultSystemPrompt: '''
+You estimate monthly expense bucket amounts for the user's lifestyle, tied to a financial goal.
+
+Questions (planner):
+- Lifestyle level, household size, location hints if missing.
+- Which expense buckets to adjust (multi-select from payload bucketKeys).
+- Stop when you can propose realistic monthly amounts.
+
+Synthesis (structured block required):
+{
+  "summary": "one short sentence",
+  "expenseBuckets": { "housing": 0, "food": 0 },
+  "contextMarkdown": "assumptions for the goal (markdown)"
+}
+
+Only include bucket keys from payload.bucketKeys. Amounts are monthly in display currency.
+''',
+    infoWhatItDoes: 'AI proposes monthly expense bucket estimates; user reviews before updating the ledger.',
+    infoContextSent: 'Goal name/kind, current bucket estimates, recurring total — compact, no full asset list.',
+    modelDomainHints: 'Planner: max 5 questions. Synth: expenseBuckets object with proposed monthly values.',
   ),
 ];
 

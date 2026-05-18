@@ -89,7 +89,7 @@ Details: `zoro_flutter/TASKS.md` → Notifications.
 | Constant | Current value | Meaning |
 |----------|---------------|---------|
 | **Data layout version** | **`2`** | `app_state.json` is a manifest of file paths (`formatVersion` in manifest). Bump when files/paths/split rules change. Code: `kAppStateSplitLayoutVersion`. |
-| **Snapshot schema version** | **`1`** | JSON shape inside each linked file (ledger fields, settings keys, etc.). Bump when field semantics change. Code: `kAppStateFormatVersion` in `app_state_codec.dart`. |
+| **Snapshot schema version** | **`2`** | JSON shape inside each linked file (ledger fields, settings keys, etc.). Bump when field semantics change. Code: `kAppStateFormatVersion` in `app_state_codec.dart`. |
 | **Agents index version** | **`1`** | `agents/_index.json` → `{ "version": 1, "ids": [...] }`. |
 | **Chats file version** | **`2`** | Inside `data/chats.json`. |
 

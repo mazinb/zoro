@@ -51,6 +51,12 @@ class AppleFoundationChannel {
 
   final MethodChannel _channel;
 
+  static int? _parseInt(Object? v) {
+    if (v is int) return v;
+    if (v is num) return v.round();
+    return int.tryParse(v?.toString() ?? '');
+  }
+
   Future<AppleFoundationCapabilities> getCapabilities() async {
     if (!Platform.isIOS) {
       return AppleFoundationCapabilities.unsupported;
@@ -67,6 +73,53 @@ class AppleFoundationChannel {
         disabledReason: 'Could not check availability',
       );
     }
+  }
+
+  Future<({int contextSize, int reservedForOutput})> getContextBudget() async {
+    if (!Platform.isIOS) {
+      return (contextSize: 0, reservedForOutput: 2048);
+    }
+    try {
+      final raw = await _channel.invokeMethod<Object?>('getContextBudget');
+      if (raw is Map) {
+        final m = Map<Object?, Object?>.from(raw);
+        return (
+          contextSize: _parseInt(m['contextSize']) ?? 0,
+          reservedForOutput: _parseInt(m['reservedForOutput']) ?? 2048,
+        );
+      }
+    } on MissingPluginException {
+      return (contextSize: 0, reservedForOutput: 2048);
+    } catch (e) {
+      debugPrint('[AppleFoundation] getContextBudget: $e');
+    }
+    return (contextSize: 0, reservedForOutput: 2048);
+  }
+
+  Future<int> countTokens({required String system, required String user}) async {
+    if (!Platform.isIOS) {
+      return ((system.length + user.length) / 4).ceil();
+    }
+    try {
+      final raw = await _channel.invokeMethod<Object?>(
+        'countTokens',
+        <String, Object?>{'system': system, 'user': user},
+      );
+      if (raw is Map) {
+        final t = _parseInt(raw['tokens']);
+        if (t != null) return t;
+      }
+    } on MissingPluginException {
+      return ((system.length + user.length) / 4).ceil();
+    } on PlatformException catch (e) {
+      // Expected on iOS 26.0–26.3; Dart falls back to a character estimate.
+      if (e.code != 'unsupported_os') {
+        debugPrint('[AppleFoundation] countTokens: $e');
+      }
+    } catch (e) {
+      debugPrint('[AppleFoundation] countTokens: $e');
+    }
+    return ((system.length + user.length) / 4).ceil();
   }
 
   Future<String> complete({

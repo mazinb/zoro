@@ -17,12 +17,14 @@ class CommandCenterTab extends StatefulWidget {
     super.key,
     required this.model,
     required this.onGoToLedger,
+    this.onGoToGoals,
     /// When set (e.g. in tests), reminder copy and overdue highlighting use this instead of [DateTime.now].
     this.previewNowForReminders,
   });
 
   final AppModel model;
   final void Function(String section) onGoToLedger;
+  final VoidCallback? onGoToGoals;
   final DateTime? previewNowForReminders;
 
   @override
@@ -549,6 +551,7 @@ class _CommandCenterTabState extends State<CommandCenterTab> with TickerProvider
                       kind: _selectedKind!,
                       expanded: _expanded,
                       onGoToLedger: widget.onGoToLedger,
+                      onGoToGoals: widget.onGoToGoals,
                       onToggleDetails: () => setState(() => _expanded = !_expanded),
                     ),
                   ),
@@ -837,6 +840,7 @@ class _SelectionCard extends StatelessWidget {
     required this.kind,
     required this.expanded,
     required this.onGoToLedger,
+    this.onGoToGoals,
     required this.onToggleDetails,
   });
 
@@ -846,6 +850,7 @@ class _SelectionCard extends StatelessWidget {
   final _SelectedKind kind;
   final bool expanded;
   final void Function(String section) onGoToLedger;
+  final VoidCallback? onGoToGoals;
   final VoidCallback onToggleDetails;
 
   @override
@@ -873,15 +878,15 @@ class _SelectionCard extends StatelessWidget {
         break;
       case _SelectedKind.investments:
         title = 'Investments';
-        subtitle = 'Edit allocation';
-        primaryLabel = 'Go to Ledger';
-        primaryAction = () => onGoToLedger('allocations');
+        subtitle = 'Monthly invest vs savings split';
+        primaryLabel = 'Go to Goals';
+        primaryAction = onGoToGoals ?? () => onGoToLedger('income');
         break;
       case _SelectedKind.savings:
         title = 'Savings';
-        subtitle = 'Edit allocation';
-        primaryLabel = 'Go to Ledger';
-        primaryAction = () => onGoToLedger('allocations');
+        subtitle = 'Cashflow cash + monthly split';
+        primaryLabel = 'Go to Goals';
+        primaryAction = onGoToGoals ?? () => onGoToLedger('cashflow');
         break;
       case _SelectedKind.taxes:
         title = 'Taxes';

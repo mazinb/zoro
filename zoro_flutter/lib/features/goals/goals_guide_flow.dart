@@ -7,7 +7,9 @@ import '../../shared/guided_mcq/guided_mcq_page.dart';
 import '../../shared/widgets/liquid_glass.dart';
 import 'goal_context_page.dart';
 import 'goals_apply_updates.dart';
+import 'goals_expense_estimator_flow.dart';
 import 'goals_planner_config.dart';
+import 'goals_retirement_corpus_flow.dart';
 
 /// Entry: pick a goal (or all) → MCQ → review → apply.
 Future<void> openGoalsGuideLauncher({
@@ -75,28 +77,60 @@ class _GoalsGuideLauncherSheet extends StatelessWidget {
               subtitle: const Text('Retirement + targets'),
               onTap: () => _run(context, GoalsPlannerConfig.forAllGoals(model)),
             ),
-            if (retirement != null)
+            if (retirement != null) ...[
+              ListTile(
+                leading: Icon(Icons.calculate_outlined, color: model.accent),
+                title: const Text('Retirement corpus', style: TextStyle(fontWeight: FontWeight.w800)),
+                subtitle: const Text('SWR, buffer, expenses'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  openRetirementCorpusGuide(context: context, model: model);
+                },
+              ),
               ListTile(
                 leading: Icon(Icons.beach_access_outlined, color: model.accent),
-                title: const Text('Retirement', style: TextStyle(fontWeight: FontWeight.w800)),
+                title: const Text('Retirement guide', style: TextStyle(fontWeight: FontWeight.w800)),
                 onTap: () => _run(
                   context,
                   GoalsPlannerConfig.forGoal(model: model, goalId: retirement.id),
                   focusGoalId: retirement.id,
                 ),
               ),
-            for (final g in targets)
+            ],
+            for (final g in targets) ...[
               ListTile(
                 leading: Icon(Icons.flag_outlined, color: model.accent),
                 title: Text(
                   g.name.trim().isEmpty ? 'Target' : g.name.trim(),
                   style: const TextStyle(fontWeight: FontWeight.w800),
                 ),
+                subtitle: const Text('Goals guide'),
                 onTap: () => _run(
                   context,
                   GoalsPlannerConfig.forGoal(model: model, goalId: g.id),
                   focusGoalId: g.id,
                 ),
+              ),
+              ListTile(
+                leading: Icon(Icons.receipt_long_outlined, color: model.accent),
+                title: Text(
+                  'Estimate expenses — ${g.name.trim().isEmpty ? 'Target' : g.name.trim()}',
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  openGoalExpenseEstimator(context: context, model: model, goalId: g.id);
+                },
+              ),
+            ],
+            if (retirement != null)
+              ListTile(
+                leading: Icon(Icons.receipt_long_outlined, color: model.accent),
+                title: const Text('Estimate expenses — Retirement', style: TextStyle(fontWeight: FontWeight.w800)),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  openGoalExpenseEstimator(context: context, model: model, goalId: retirement.id);
+                },
               ),
             if (onGoToSettingsGoals != null)
               TextButton.icon(

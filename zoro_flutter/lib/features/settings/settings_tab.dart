@@ -802,17 +802,20 @@ class _AgentsPaneState extends State<_AgentsPane> {
   Widget _goalsPane() {
     final model = widget.model;
     final cs = Theme.of(context).colorScheme;
-    final defs = kInternalAppAgentDefinitions.where((d) => d.id == InternalAppAgentIds.goalsGuide).toList();
-    final customAgents = widget.model.agents
-        .where((a) {
-          final n = '${a.name} ${a.description}'.toLowerCase();
-          return n.contains('retire') ||
-              n.contains('fire') ||
-              n.contains('goal') ||
-              a.id.contains('retire') ||
-              a.id.contains('fire');
-        })
-        .toList();
+    const goalsIds = {
+      InternalAppAgentIds.goalsRetirementCorpus,
+      InternalAppAgentIds.goalsGuide,
+      InternalAppAgentIds.goalsExpenseEstimator,
+    };
+    final defs = kInternalAppAgentDefinitions.where((d) => goalsIds.contains(d.id)).toList()
+      ..sort((a, b) {
+        const order = [
+          InternalAppAgentIds.goalsRetirementCorpus,
+          InternalAppAgentIds.goalsGuide,
+          InternalAppAgentIds.goalsExpenseEstimator,
+        ];
+        return order.indexOf(a.id).compareTo(order.indexOf(b.id));
+      });
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -850,42 +853,46 @@ class _AgentsPaneState extends State<_AgentsPane> {
                 ),
               const SizedBox(height: 16),
               Text(
-                'Custom agents',
+                'Reminders',
                 style: TextStyle(fontWeight: FontWeight.w900, color: cs.onSurface, fontSize: 15),
               ),
-              const SizedBox(height: 4),
-              Text(
-                'Retirement / FIRE / goal agents for chat',
-                style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12),
-              ),
               const SizedBox(height: 8),
-              if (customAgents.isEmpty)
-                Text('No matching agents yet.', style: TextStyle(color: cs.onSurfaceVariant))
-              else
-                for (var i = 0; i < customAgents.length; i++)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: Card(
-                      child: ListTile(
-                        title: Text(customAgents[i].name, style: const TextStyle(fontWeight: FontWeight.w900)),
-                        subtitle: Text(
-                          customAgents[i].description,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12),
-                        ),
-                        trailing: const Icon(Icons.chevron_right),
-                        onTap: () {
-                          final ix = widget.model.agents.indexWhere((a) => a.id == customAgents[i].id);
-                          if (ix >= 0) _openAgentEditor(context, index: ix);
-                        },
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _CadenceRow(
+                        label: 'Goals review',
+                        value: model.remindersGoalsCadence,
+                        onChanged: model.setReminderCadenceGoals,
                       ),
-                    ),
+                      const SizedBox(height: 10),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Timeline progress', style: TextStyle(fontWeight: FontWeight.w800)),
+                        subtitle: Text(
+                          'Notify at halfway and three-quarters through each goal\'s timeline (by date).',
+                          style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+                        ),
+                        value: model.goalsTimeProgressNotifications,
+                        onChanged: model.setGoalsTimeProgressNotifications,
+                      ),
+                      const SizedBox(height: 10),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Prompt auto-allocate', style: TextStyle(fontWeight: FontWeight.w800)),
+                        subtitle: Text(
+                          'When adding a target, offer to split savings by monthly gap.',
+                          style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+                        ),
+                        value: model.promptAutoAllocateOnNewGoal,
+                        onChanged: model.setPromptAutoAllocateOnNewGoal,
+                      ),
+                    ],
                   ),
-              TextButton.icon(
-                onPressed: () => _openAgentEditor(context),
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('New agent', style: TextStyle(fontWeight: FontWeight.w800)),
+                ),
               ),
             ],
           ),

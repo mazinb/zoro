@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../../core/llm/prompt_context_budget.dart';
 import '../../core/state/app_model.dart';
-import '../../shared/widgets/liquid_glass.dart';
 import '../../core/state/internal_app_agent_definition.dart';
+import '../../shared/widgets/liquid_glass.dart';
 /// Full-screen system prompt editor for one built-in agent; info in a bottom sheet.
 class InternalAgentPromptEditorPage extends StatefulWidget {
   const InternalAgentPromptEditorPage({
@@ -20,11 +21,40 @@ class InternalAgentPromptEditorPage extends StatefulWidget {
 
 class _InternalAgentPromptEditorPageState extends State<InternalAgentPromptEditorPage> {
   late final TextEditingController _ctrl;
+  final _budgetService = PromptContextBudgetService();
+  String? _tokenBudgetLine;
 
   @override
   void initState() {
     super.initState();
     _ctrl = TextEditingController(text: widget.model.internalAgentSystemPrompt(widget.definition.id));
+    _ctrl.addListener(_refreshTokenBudget);
+    _refreshTokenBudget();
+  }
+
+  Future<void> _refreshTokenBudget() async {
+    final m = widget.model;
+    if (!m.appleFoundationRuntimeAvailable || !m.appleFoundationEnabled) {
+      if (mounted) setState(() => _tokenBudgetLine = null);
+      return;
+    }
+    final def = widget.definition;
+    final system = [
+      'Planner context (estimate)',
+      m.internalAgentSystemPrompt(def.id),
+      def.modelDomainHints,
+    ].join('\n');
+    final budget = await _budgetService.measure(system: system, user: '{}');
+    if (!mounted) return;
+    if (budget.contextSize <= 0) {
+      setState(() => _tokenBudgetLine = null);
+      return;
+    }
+    final pct = (budget.usageFraction * 100).round();
+    setState(
+      () => _tokenBudgetLine =
+          'On-device context: ~${budget.tokenCount} / ${budget.usableInput} tokens ($pct%)',
+    );
   }
 
   @override
@@ -146,19 +176,37 @@ class _InternalAgentPromptEditorPageState extends State<InternalAgentPromptEdito
           body: SafeArea(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-              child: TextField(
-                controller: _ctrl,
-                expands: true,
-                maxLines: null,
-                minLines: null,
-                keyboardType: TextInputType.multiline,
-                textAlignVertical: TextAlignVertical.top,
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  hintText: 'System prompt…',
-                  alignLabelWithHint: true,
-                  contentPadding: EdgeInsets.all(12),
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (_tokenBudgetLine != null) ...[
+                    Text(
+                      _tokenBudgetLine!,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                  Expanded(
+                    child: TextField(
+                      controller: _ctrl,
+                      expands: true,
+                      maxLines: null,
+                      minLines: null,
+                      keyboardType: TextInputType.multiline,
+                      textAlignVertical: TextAlignVertical.top,
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                        hintText: 'System prompt…',
+                        alignLabelWithHint: true,
+                        contentPadding: EdgeInsets.all(12),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),

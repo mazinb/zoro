@@ -18,6 +18,10 @@ import FoundationModels
         result(Self.makeCapabilities())
       case "complete":
         Self.handleComplete(call: call, result: result)
+      case "getContextBudget":
+        result(Self.makeContextBudget())
+      case "countTokens":
+        Self.handleCountTokens(call: call, result: result)
       default:
         result(FlutterMethodNotImplemented)
       }
@@ -40,6 +44,62 @@ import FoundationModels
         "available": false,
         "disabledReason": "Not available in this app build",
       ]
+    #endif
+  }
+
+  private static func makeContextBudget() -> [String: Any] {
+    #if canImport(FoundationModels)
+      if #available(iOS 26.0, *) {
+        return contextBudgetMap26()
+      }
+    #endif
+    return ["contextSize": 0, "reservedForOutput": 2048]
+  }
+
+  private static func handleCountTokens(call: FlutterMethodCall, result: @escaping FlutterResult) {
+    #if canImport(FoundationModels)
+      guard let args = call.arguments as? [String: Any] else {
+        result(
+          FlutterError(code: "bad_args", message: "Expected argument map", details: nil))
+        return
+      }
+      let system = (args["system"] as? String) ?? ""
+      let user = (args["user"] as? String) ?? ""
+      let combined = system + "\n\n" + user
+
+      if #available(iOS 26.4, *) {
+        Task {
+          do {
+            let tokens = try await countTokens26_4(combined)
+            DispatchQueue.main.async {
+              result(["tokens": tokens])
+            }
+          } catch {
+            DispatchQueue.main.async {
+              result(
+                FlutterError(
+                  code: "token_count_failed",
+                  message: error.localizedDescription,
+                  details: nil))
+            }
+          }
+        }
+        return
+      }
+
+      if #available(iOS 26.0, *) {
+        result(
+          FlutterError(
+            code: "unsupported_os",
+            message: "Token counting requires iOS 26.4+",
+            details: nil))
+        return
+      }
+      result(
+        FlutterError(code: "unsupported_os", message: "Requires iOS 26+", details: nil))
+    #else
+      result(
+        FlutterError(code: "no_sdk", message: "Foundation Models not linked", details: nil))
     #endif
   }
 
@@ -104,6 +164,22 @@ import FoundationModels
       @unknown default:
         return "Apple on-device model unavailable"
       }
+    }
+
+    @available(iOS 26.0, *)
+    private static func contextBudgetMap26() -> [String: Any] {
+      let model = SystemLanguageModel.default
+      return [
+        "contextSize": model.contextSize,
+        "reservedForOutput": 2048,
+      ]
+    }
+
+    /// Exact token footprint; API added in iOS 26.4.
+    @available(iOS 26.4, *)
+    private static func countTokens26_4(_ text: String) async throws -> Int {
+      let model = SystemLanguageModel.default
+      return try await model.tokenCount(for: text)
     }
 
     @available(iOS 26.0, *)

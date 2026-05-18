@@ -8,7 +8,7 @@ import '../state/ledger_rows.dart';
 import '../state/monthly_cashflow_entry.dart';
 /// JSON schema version inside each split file and portable exports. Documented in `zoro-app/README.md`.
 /// Bump when field semantics change (not when only adding optional keys).
-const int kAppStateFormatVersion = 1;
+const int kAppStateFormatVersion = 3;
 
 Object? tryJsonSafeEncode(Object? v) {
   if (v == null) return null;
@@ -27,6 +27,7 @@ Map<String, dynamic> encodeLedgerAssetRow(LedgerAssetRow r) => {
       'total': r.total,
       'label': r.label,
       'comment': r.comment,
+      'returnRatePct': r.returnRatePct,
       if (r.contextMarkdown != null && r.contextMarkdown!.trim().isNotEmpty) 'contextMarkdown': r.contextMarkdown,
     };
 
@@ -35,6 +36,8 @@ LedgerAssetRow? decodeLedgerAssetRow(Object? raw) {
   final m = Map<String, dynamic>.from(raw);
   final id = m['id']?.toString();
   if (id == null) return null;
+  final rr = m['returnRatePct'] ?? m['interestRatePct'];
+  final returnRatePct = rr is num ? rr.toDouble() : double.tryParse(rr?.toString() ?? '') ?? 0;
   return LedgerAssetRow(
     id: id,
     type: LedgerAssetTypeUi.fromApi(m['type']?.toString()),
@@ -44,6 +47,7 @@ LedgerAssetRow? decodeLedgerAssetRow(Object? raw) {
     label: m['label']?.toString() ?? '',
     comment: m['comment']?.toString() ?? '',
     contextMarkdown: m['contextMarkdown']?.toString(),
+    returnRatePct: returnRatePct,
   );
 }
 
@@ -54,6 +58,9 @@ Map<String, dynamic> encodeLedgerLiabilityRow(LedgerLiabilityRow r) => {
       'currencyCountry': r.currencyCountry,
       'total': r.total,
       'comment': r.comment,
+      'interestRatePct': r.interestRatePct,
+      'paydownWeight': r.paydownWeight,
+      'paydownMonthly': r.paydownMonthly,
       if (r.contextMarkdown != null && r.contextMarkdown!.trim().isNotEmpty) 'contextMarkdown': r.contextMarkdown,
     };
 
@@ -62,6 +69,12 @@ LedgerLiabilityRow? decodeLedgerLiabilityRow(Object? raw) {
   final m = Map<String, dynamic>.from(raw);
   final id = m['id']?.toString();
   if (id == null) return null;
+  final ir = m['interestRatePct'];
+  final interestRatePct = ir is num ? ir.toDouble() : double.tryParse(ir?.toString() ?? '') ?? 0;
+  final pw = m['paydownWeight'];
+  final paydownWeight = pw is num ? pw.toDouble() : double.tryParse(pw?.toString() ?? '') ?? 1;
+  final pm = m['paydownMonthly'];
+  final paydownMonthly = pm is num ? pm.toDouble() : double.tryParse(pm?.toString() ?? '') ?? 0;
   return LedgerLiabilityRow(
     id: id,
     type: LedgerLiabilityTypeUi.fromApi(m['type']?.toString()),
@@ -70,6 +83,9 @@ LedgerLiabilityRow? decodeLedgerLiabilityRow(Object? raw) {
     total: (m['total'] is num) ? (m['total'] as num).toDouble() : double.tryParse(m['total']?.toString() ?? '') ?? 0,
     comment: m['comment']?.toString() ?? '',
     contextMarkdown: m['contextMarkdown']?.toString(),
+    interestRatePct: interestRatePct,
+    paydownWeight: paydownWeight > 0 ? paydownWeight : 1,
+    paydownMonthly: paydownMonthly.clamp(0, double.infinity),
   );
 }
 
@@ -275,9 +291,15 @@ Map<String, dynamic> encodeFinancialGoal(FinancialGoal g) => {
       if (g.targetDate != null) 'targetDate': g.targetDate!.toUtc().toIso8601String(),
       'linkedAssetIds': g.linkedAssetIds,
       'savingsWeight': g.savingsWeight,
+      'sortOrder': g.sortOrder,
       'corpusAdjustment': g.corpusAdjustment,
-      'fundsProjects': g.fundsProjects,
       if (g.contextMarkdown.trim().isNotEmpty) 'contextMarkdown': g.contextMarkdown,
+      if (g.isRetirement) ...{
+        'safeWithdrawalRatePct': g.safeWithdrawalRatePct,
+        'corpusBufferPct': g.corpusBufferPct,
+        'corpusAutoFromExpenses': g.corpusAutoFromExpenses,
+      },
+      if (g.timelineStart != null) 'timelineStart': g.timelineStart!.toUtc().toIso8601String(),
     };
 
 FinancialGoal? decodeFinancialGoal(Object? raw) {
@@ -304,8 +326,20 @@ FinancialGoal? decodeFinancialGoal(Object? raw) {
   }
   final sw = m['savingsWeight'];
   final savingsWeight = sw is num ? sw.toDouble() : double.tryParse(sw?.toString() ?? '') ?? 1;
+  final so = m['sortOrder'];
+  final sortOrder = so is num ? so.round() : int.tryParse(so?.toString() ?? '') ?? 0;
   final ca = m['corpusAdjustment'];
   final corpusAdjustment = ca is num ? ca.toDouble() : double.tryParse(ca?.toString() ?? '') ?? 0;
+  final swr = m['safeWithdrawalRatePct'];
+  final safeWithdrawalRatePct =
+      swr is num ? swr.toDouble() : double.tryParse(swr?.toString() ?? '') ?? 4;
+  final buf = m['corpusBufferPct'];
+  final corpusBufferPct = buf is num ? buf.toDouble() : double.tryParse(buf?.toString() ?? '') ?? 0;
+  DateTime? timelineStart;
+  final ts = m['timelineStart']?.toString();
+  if (ts != null && ts.isNotEmpty) {
+    timelineStart = DateTime.tryParse(ts);
+  }
   return FinancialGoal(
     id: id,
     kind: kind,
@@ -314,9 +348,13 @@ FinancialGoal? decodeFinancialGoal(Object? raw) {
     targetDate: targetDate,
     linkedAssetIds: linked,
     savingsWeight: savingsWeight > 0 ? savingsWeight : 1,
+    sortOrder: sortOrder,
     corpusAdjustment: corpusAdjustment,
-    fundsProjects: m['fundsProjects'] == true,
     contextMarkdown: m['contextMarkdown']?.toString() ?? '',
+    safeWithdrawalRatePct: safeWithdrawalRatePct,
+    corpusBufferPct: corpusBufferPct,
+    corpusAutoFromExpenses: m['corpusAutoFromExpenses'] != false,
+    timelineStart: timelineStart,
   );
 }
 

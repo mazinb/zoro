@@ -8,9 +8,13 @@ class FinancialGoal {
     this.targetDate,
     List<String>? linkedAssetIds,
     this.savingsWeight = 1,
+    this.sortOrder = 0,
     this.corpusAdjustment = 0,
-    this.fundsProjects = false,
     this.contextMarkdown = '',
+    this.safeWithdrawalRatePct = 4,
+    this.corpusBufferPct = 0,
+    this.corpusAutoFromExpenses = true,
+    this.timelineStart,
   }) : linkedAssetIds = linkedAssetIds ?? [];
 
   final String id;
@@ -18,14 +22,24 @@ class FinancialGoal {
   String name;
   double targetAmount;
   DateTime? targetDate;
+  /// Legacy — ignored in progress math; kept for import compatibility.
   final List<String> linkedAssetIds;
-  /// Share of [AppModel.allocSavingsMonthly] (auto-normalized across active goals).
+  /// Share of target savings flow (auto-normalized across active targets).
   double savingsWeight;
-  /// Retirement corpus offset on top of linked asset balances (contributions / withdrawals).
+  /// Display order for savings waterfall (lower = filled first).
+  int sortOrder;
+  /// Legacy — ignored in progress math; kept for import compatibility.
   double corpusAdjustment;
-  /// When true, this target goal is treated as funding near-term projects from savings.
-  bool fundsProjects;
   String contextMarkdown;
+
+  /// Safe withdrawal rate for retirement corpus (1–10%).
+  double safeWithdrawalRatePct;
+  /// Extra corpus buffer as percent of base (0–100%).
+  double corpusBufferPct;
+  /// When true, [targetAmount] is derived from ledger recurring expenses.
+  bool corpusAutoFromExpenses;
+  /// Start of timeline for time-based progress notifications.
+  DateTime? timelineStart;
 
   bool get isRetirement => kind == FinancialGoalKind.retirement;
 
@@ -37,9 +51,13 @@ class FinancialGoal {
         targetDate: targetDate,
         linkedAssetIds: List<String>.from(linkedAssetIds),
         savingsWeight: savingsWeight,
+        sortOrder: sortOrder,
         corpusAdjustment: corpusAdjustment,
-        fundsProjects: fundsProjects,
         contextMarkdown: contextMarkdown,
+        safeWithdrawalRatePct: safeWithdrawalRatePct,
+        corpusBufferPct: corpusBufferPct,
+        corpusAutoFromExpenses: corpusAutoFromExpenses,
+        timelineStart: timelineStart,
       );
 
   FinancialGoal copyWith({
@@ -49,9 +67,14 @@ class FinancialGoal {
     bool clearTargetDate = false,
     List<String>? linkedAssetIds,
     double? savingsWeight,
+    int? sortOrder,
     double? corpusAdjustment,
-    bool? fundsProjects,
     String? contextMarkdown,
+    double? safeWithdrawalRatePct,
+    double? corpusBufferPct,
+    bool? corpusAutoFromExpenses,
+    DateTime? timelineStart,
+    bool clearTimelineStart = false,
   }) =>
       FinancialGoal(
         id: id,
@@ -61,9 +84,13 @@ class FinancialGoal {
         targetDate: clearTargetDate ? null : (targetDate ?? this.targetDate),
         linkedAssetIds: linkedAssetIds ?? List<String>.from(this.linkedAssetIds),
         savingsWeight: savingsWeight ?? this.savingsWeight,
+        sortOrder: sortOrder ?? this.sortOrder,
         corpusAdjustment: corpusAdjustment ?? this.corpusAdjustment,
-        fundsProjects: fundsProjects ?? this.fundsProjects,
         contextMarkdown: contextMarkdown ?? this.contextMarkdown,
+        safeWithdrawalRatePct: safeWithdrawalRatePct ?? this.safeWithdrawalRatePct,
+        corpusBufferPct: corpusBufferPct ?? this.corpusBufferPct,
+        corpusAutoFromExpenses: corpusAutoFromExpenses ?? this.corpusAutoFromExpenses,
+        timelineStart: clearTimelineStart ? null : (timelineStart ?? this.timelineStart),
       );
 }
 

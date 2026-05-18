@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../../core/constants/web_expenses_income.dart';
+import '../../core/finance/asset_context_health.dart';
 import '../../core/finance/currency.dart';
 import '../../core/state/app_model.dart';
+import '../../shared/widgets/zoro_status_banner.dart';
 import '../../core/state/ledger_rows.dart';
 import 'context_orchestrator_page.dart';
 import 'context_editor_page.dart';
@@ -99,31 +101,45 @@ class _ContextTabState extends State<ContextTab> {
         ...model.assets.map((a) {
           final name = a.name.trim().isEmpty ? a.type.label : a.name.trim();
           final valueText = hide ? _moneyNativeAsset(a, hide: true) : _moneyNativeAsset(a, hide: false);
+          final health = assessAssetContextHealth(
+            asset: a,
+            displayValue: model.assetDisplayValue(a),
+          );
           return Padding(
             padding: const EdgeInsets.only(bottom: 10),
             child: Card(
-              child: ListTile(
-                leading: Icon(a.type.icon, color: model.accent),
-                title: Text(name, style: const TextStyle(fontWeight: FontWeight.w900)),
-                subtitle: Text(_hint(a.contextMarkdown ?? ''), maxLines: 1, overflow: TextOverflow.ellipsis),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      valueText,
-                      style: TextStyle(color: cs.onSurface, fontWeight: FontWeight.w900, fontSize: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (!health.isOk)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+                      child: ZoroStatusBanner.fromContextHealth(health, compact: true),
                     ),
-                    const SizedBox(width: 8),
-                    const Icon(Icons.chevron_right),
-                  ],
-                ),
-                onTap: () {
-                  Navigator.of(context).push<void>(
-                    MaterialPageRoute(
-                      builder: (ctx) => ContextEditorPage.asset(model: model, assetId: a.id),
+                  ListTile(
+                    leading: Icon(a.type.icon, color: model.accent),
+                    title: Text(name, style: const TextStyle(fontWeight: FontWeight.w900)),
+                    subtitle: Text(_hint(a.contextMarkdown ?? ''), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          valueText,
+                          style: TextStyle(color: cs.onSurface, fontWeight: FontWeight.w900, fontSize: 12),
+                        ),
+                        const SizedBox(width: 8),
+                        const Icon(Icons.chevron_right),
+                      ],
                     ),
-                  );
-                },
+                    onTap: () {
+                      Navigator.of(context).push<void>(
+                        MaterialPageRoute(
+                          builder: (ctx) => ContextEditorPage.asset(model: model, assetId: a.id),
+                        ),
+                      );
+                    },
+                  ),
+                ],
               ),
             ),
           );

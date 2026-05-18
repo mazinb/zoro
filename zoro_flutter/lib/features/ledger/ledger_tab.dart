@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:dirham_symbol/dirham_symbol.dart';
 
 import '../../core/state/app_model.dart';
@@ -49,6 +50,74 @@ double? _ledgerParseGroupedDoubleOrNull(String raw) {
 
 String _ledgerHomeAmount(AppModel m, double v) =>
     formatGroupedInteger(v.round(), currency: m.displayCurrency);
+
+double? _ledgerParsePercent(String raw) {
+  final t = raw.trim().replaceAll(',', '');
+  if (t.isEmpty) return null;
+  return double.tryParse(t);
+}
+
+/// Total balance + optional rate % on one row.
+Widget _ledgerTotalAndPercentRow({
+  required TextEditingController totalCtrl,
+  required TextEditingController pctCtrl,
+  required CurrencyCode currency,
+  bool showRate = true,
+  bool totalReadOnly = false,
+  Widget? totalReadOnlyChild,
+}) {
+  final aedPrefix = currency == CurrencyCode.aed
+      ? const Padding(
+          padding: EdgeInsetsDirectional.only(start: 12, end: 8),
+          child: DirhamIcon(size: 16),
+        )
+      : null;
+
+  return Row(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Expanded(
+        flex: 7,
+        child: totalReadOnly && totalReadOnlyChild != null
+            ? totalReadOnlyChild
+            : TextField(
+                controller: totalCtrl,
+                readOnly: totalReadOnly,
+                keyboardType: TextInputType.number,
+                inputFormatters: [GroupedIntegerTextInputFormatter(currency: currency)],
+                decoration: InputDecoration(
+                  labelText: 'Total',
+                  prefixText: currency == CurrencyCode.aed ? null : currency.symbol,
+                  prefixIcon: aedPrefix,
+                  prefixIconConstraints:
+                      currency == CurrencyCode.aed ? const BoxConstraints(minWidth: 38) : null,
+                  border: const OutlineInputBorder(),
+                  isDense: true,
+                ),
+              ),
+      ),
+      if (showRate) ...[
+        const SizedBox(width: 10),
+        Expanded(
+          flex: 3,
+          child: TextField(
+            controller: pctCtrl,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'[\d.]')),
+            ],
+            decoration: const InputDecoration(
+              labelText: 'Rate',
+              suffixText: '%',
+              border: OutlineInputBorder(),
+              isDense: true,
+            ),
+          ),
+        ),
+      ],
+    ],
+  );
+}
 
 /// Single bottom row: Import with AI, optional Delete, Save (asset / liability editors).
 Widget _ledgerRowEditorActions({
@@ -1309,6 +1378,7 @@ class _AssetEditorSheetState extends State<_AssetEditorSheet> {
   late final TextEditingController _nameCtrl;
   late final TextEditingController _labelCtrl;
   late final TextEditingController _totalCtrl;
+  late final TextEditingController _rateCtrl;
   late final TextEditingController _commentCtrl;
 
   @override
@@ -1317,13 +1387,18 @@ class _AssetEditorSheetState extends State<_AssetEditorSheet> {
     _row = widget.draft.clone();
     _nameCtrl = TextEditingController(text: _row.name);
     _labelCtrl = TextEditingController(text: _row.label);
+    final native = currencyCodeForPresetCountry(_row.currencyCountry);
     _totalCtrl = TextEditingController(
       text: _row.total == 0
           ? ''
-          : formatGroupedInteger(
-              _row.total.round(),
-              currency: currencyCodeForPresetCountry(_row.currencyCountry),
-            ),
+          : formatGroupedInteger(_row.total.round(), currency: native),
+    );
+    _rateCtrl = TextEditingController(
+      text: _row.returnRatePct > 0
+          ? _row.returnRatePct.toStringAsFixed(
+              _row.returnRatePct == _row.returnRatePct.roundToDouble() ? 0 : 1,
+            )
+          : '',
     );
     _commentCtrl = TextEditingController(text: _row.comment);
   }
@@ -1333,6 +1408,7 @@ class _AssetEditorSheetState extends State<_AssetEditorSheet> {
     _nameCtrl.dispose();
     _labelCtrl.dispose();
     _totalCtrl.dispose();
+    _rateCtrl.dispose();
     _commentCtrl.dispose();
     super.dispose();
   }
@@ -1340,11 +1416,10 @@ class _AssetEditorSheetState extends State<_AssetEditorSheet> {
   void _save() {
     _row.name = _nameCtrl.text;
     _row.label = _labelCtrl.text;
+    _row.returnRatePct = _ledgerParsePercent(_rateCtrl.text) ?? 0;
     if (!widget.model.primaryCashBalanceIsMirrored(_row)) {
       _row.comment = _commentCtrl.text;
-      final digits = _totalCtrl.text.replaceAll(RegExp(r'[^0-9]'), '');
-      final t = double.tryParse(digits);
-      _row.total = t ?? 0;
+      _row.total = _ledgerParseGroupedDouble(_totalCtrl.text);
     }
     Navigator.of(context).pop(_RowEditorOutcome(row: _row));
   }
@@ -1476,43 +1551,29 @@ class _AssetEditorSheetState extends State<_AssetEditorSheet> {
               ),
             ],
             const SizedBox(height: 12),
-            if (widget.model.primaryCashBalanceIsMirrored(_row))
-              InputDecorator(
-                decoration: const InputDecoration(
-                  labelText: 'Balance',
-                  border: OutlineInputBorder(),
-                  helperText: 'Latest month closing (Cash tab).',
-                ),
-                child: Text(
-                  formatGroupedInteger(
-                    (widget.model.latestCashClosingBalanceDisplay ?? 0).round(),
-                    currency: widget.model.displayCurrency,
-                  ),
-                  style: const TextStyle(fontWeight: FontWeight.w800),
-                ),
-              )
-            else
-              TextField(
-                controller: _totalCtrl,
-                keyboardType: TextInputType.number,
-                inputFormatters: [
-                  GroupedIntegerTextInputFormatter(currency: native),
-                ],
-                decoration: InputDecoration(
-                  labelText: 'Total',
-                  prefixText: native == CurrencyCode.aed ? null : native.symbol,
-                  prefixIcon: native == CurrencyCode.aed
-                      ? const Padding(
-                          padding: EdgeInsetsDirectional.only(start: 12, end: 8),
-                          child: DirhamIcon(size: 16),
-                        )
-                      : null,
-                  prefixIconConstraints: native == CurrencyCode.aed
-                      ? const BoxConstraints(minWidth: 38)
-                      : null,
-                  border: const OutlineInputBorder(),
-                ),
-              ),
+            _ledgerTotalAndPercentRow(
+              totalCtrl: _totalCtrl,
+              pctCtrl: _rateCtrl,
+              currency: native,
+              totalReadOnly: widget.model.primaryCashBalanceIsMirrored(_row),
+              totalReadOnlyChild: widget.model.primaryCashBalanceIsMirrored(_row)
+                  ? InputDecorator(
+                      decoration: const InputDecoration(
+                        labelText: 'Balance',
+                        border: OutlineInputBorder(),
+                        helperText: 'Latest month closing (Cash tab).',
+                        isDense: true,
+                      ),
+                      child: Text(
+                        formatGroupedInteger(
+                          (widget.model.latestCashClosingBalanceDisplay ?? 0).round(),
+                          currency: widget.model.displayCurrency,
+                        ),
+                        style: const TextStyle(fontWeight: FontWeight.w800),
+                      ),
+                    )
+                  : null,
+            ),
             const SizedBox(height: 12),
             if (widget.model.primaryCashBalanceIsMirrored(_row))
               Padding(
@@ -1593,6 +1654,7 @@ class _LiabilityEditorSheetState extends State<_LiabilityEditorSheet> {
   late LedgerLiabilityRow _row;
   late final TextEditingController _nameCtrl;
   late final TextEditingController _totalCtrl;
+  late final TextEditingController _interestCtrl;
   late final TextEditingController _commentCtrl;
 
   @override
@@ -1600,13 +1662,14 @@ class _LiabilityEditorSheetState extends State<_LiabilityEditorSheet> {
     super.initState();
     _row = widget.draft.clone();
     _nameCtrl = TextEditingController(text: _row.name);
+    final native = currencyCodeForPresetCountry(_row.currencyCountry);
     _totalCtrl = TextEditingController(
       text: _row.total == 0
           ? ''
-          : formatGroupedInteger(
-              _row.total.round(),
-              currency: currencyCodeForPresetCountry(_row.currencyCountry),
-            ),
+          : formatGroupedInteger(_row.total.round(), currency: native),
+    );
+    _interestCtrl = TextEditingController(
+      text: _row.interestRatePct > 0 ? _row.interestRatePct.toStringAsFixed(_row.interestRatePct == _row.interestRatePct.roundToDouble() ? 0 : 1) : '',
     );
     _commentCtrl = TextEditingController(text: _row.comment);
   }
@@ -1615,6 +1678,7 @@ class _LiabilityEditorSheetState extends State<_LiabilityEditorSheet> {
   void dispose() {
     _nameCtrl.dispose();
     _totalCtrl.dispose();
+    _interestCtrl.dispose();
     _commentCtrl.dispose();
     super.dispose();
   }
@@ -1622,9 +1686,8 @@ class _LiabilityEditorSheetState extends State<_LiabilityEditorSheet> {
   void _save() {
     _row.name = _nameCtrl.text;
     _row.comment = _commentCtrl.text;
-    final digits = _totalCtrl.text.replaceAll(RegExp(r'[^0-9]'), '');
-    final t = double.tryParse(digits);
-    _row.total = t ?? 0;
+    _row.total = _ledgerParseGroupedDouble(_totalCtrl.text);
+    _row.interestRatePct = _ledgerParsePercent(_interestCtrl.text) ?? 0;
     Navigator.of(context).pop(_RowEditorOutcome(row: _row));
   }
 
@@ -1734,26 +1797,10 @@ class _LiabilityEditorSheetState extends State<_LiabilityEditorSheet> {
                 ),
               ),
             const SizedBox(height: 12),
-            TextField(
-              controller: _totalCtrl,
-              keyboardType: TextInputType.number,
-              inputFormatters: [
-                GroupedIntegerTextInputFormatter(currency: native),
-              ],
-              decoration: InputDecoration(
-                labelText: 'Total',
-                prefixText: native == CurrencyCode.aed ? null : native.symbol,
-                prefixIcon: native == CurrencyCode.aed
-                    ? const Padding(
-                        padding: EdgeInsetsDirectional.only(start: 12, end: 8),
-                        child: DirhamIcon(size: 16),
-                      )
-                    : null,
-                prefixIconConstraints: native == CurrencyCode.aed
-                    ? const BoxConstraints(minWidth: 38)
-                    : null,
-                border: const OutlineInputBorder(),
-              ),
+            _ledgerTotalAndPercentRow(
+              totalCtrl: _totalCtrl,
+              pctCtrl: _interestCtrl,
+              currency: native,
             ),
             const SizedBox(height: 12),
             TextField(
@@ -2090,68 +2137,6 @@ class _IncomeSection extends StatelessWidget {
             border: OutlineInputBorder(),
             isDense: true,
           ),
-        ),
-        const SizedBox(height: 20),
-        Text(
-          'After-tax split target',
-          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: cs.onSurface),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          'Only used for Sankey. Last updated ${_ledgerFmtDate(model.allocationTargetLastUpdated)}',
-          style: TextStyle(
-            fontSize: 12,
-            color: cs.outline,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const SizedBox(height: 10),
-        ListenableBuilder(
-          listenable: model,
-          builder: (ctx, _) {
-            final avail = model.availableAfterExpensesMonthly;
-            final sliderPct = (model.allocInvestFraction * 100).round();
-            final savedPct = 100 - sliderPct;
-            final headline = (sliderPct > 50)
-                ? '$sliderPct% invested'
-                : ((sliderPct == 50) ? '50% saved' : '$savedPct% saved');
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Center(
-                  child: Text(
-                    headline,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w900,
-                      fontSize: 18,
-                      color: Theme.of(ctx).colorScheme.onSurface,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Slider(
-                  value: avail <= 0
-                      ? 0.0
-                      : model.allocInvestFraction.clamp(0.0, 1.0),
-                  divisions: 20,
-                  onChanged: avail <= 0 ? null : model.setAllocInvestFraction,
-                ),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'All cash',
-                      style: TextStyle(fontSize: 12, color: Theme.of(ctx).colorScheme.onSurfaceVariant),
-                    ),
-                    Text(
-                      'All invested',
-                      style: TextStyle(fontSize: 12, color: Theme.of(ctx).colorScheme.onSurfaceVariant),
-                    ),
-                  ],
-                ),
-              ],
-            );
-          },
         ),
       ],
     );
@@ -3104,11 +3089,121 @@ class _CashTabSection extends StatelessWidget {
             ),
           ),
         const SizedBox(height: 12),
+        _MonthSavingsSection(
+          model: model,
+          onMonthEntryTap: onMonthEntryTap,
+          onPrivacyInteractionDenied: onPrivacyInteractionDenied,
+        ),
         _MonthInvestmentsSection(
           model: model,
           onPrivacyInteractionDenied: onPrivacyInteractionDenied,
         ),
       ],
+    );
+  }
+}
+
+class _MonthSavingsSection extends StatelessWidget {
+  const _MonthSavingsSection({
+    required this.model,
+    required this.onMonthEntryTap,
+    required this.onPrivacyInteractionDenied,
+  });
+
+  final AppModel model;
+  final void Function(String monthKey) onMonthEntryTap;
+  final VoidCallback onPrivacyInteractionDenied;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final months = model.monthKeysWithCashflowData();
+    final savingsMonths = <String>[];
+    for (final mk in months) {
+      final e = model.monthlyEntryFor(mk);
+      if (e == null) continue;
+      final delta = e.closingBalance - e.openingBalance;
+      if (e.outflowToCashFd > 0.005 || delta.abs() > 0.5) {
+        savingsMonths.add(mk);
+      }
+    }
+    if (savingsMonths.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: ExpansionTile(
+        initiallyExpanded: true,
+        title: Text(
+          'Savings',
+          style: TextStyle(
+            fontWeight: FontWeight.w800,
+            fontSize: 14,
+            color: cs.onSurface,
+          ),
+        ),
+        subtitle: Text(
+          'Cashflow saved + balance change',
+          style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+        ),
+        children: [
+          for (final mk in savingsMonths)
+            _MonthSavingsMonthTile(
+              model: model,
+              monthKey: mk,
+              onPrivacyInteractionDenied: onPrivacyInteractionDenied,
+              onTap: () => onMonthEntryTap(mk),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MonthSavingsMonthTile extends StatelessWidget {
+  const _MonthSavingsMonthTile({
+    required this.model,
+    required this.monthKey,
+    required this.onPrivacyInteractionDenied,
+    required this.onTap,
+  });
+
+  final AppModel model;
+  final String monthKey;
+  final VoidCallback onPrivacyInteractionDenied;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final e = model.monthlyEntryFor(monthKey);
+    if (e == null) return const SizedBox.shrink();
+    final privacy = model.privacyHideAmounts;
+    final dc = model.displayCurrency;
+    final saved = e.outflowToCashFd;
+    final delta = e.closingBalance - e.openingBalance;
+
+    String fmt(double v) => privacy
+        ? maskSensitiveNumberString(formatGroupedInteger(v.round(), currency: dc))
+        : formatGroupedInteger(v.round(), currency: dc);
+
+    final parts = <String>[];
+    if (saved > 0.005) parts.add('${fmt(saved)} saved');
+    if (delta.abs() > 0.5) {
+      parts.add('${delta > 0 ? '+' : ''}${fmt(delta)} balance');
+    }
+
+    return ListTile(
+      dense: true,
+      leading: Icon(Icons.savings_outlined, color: cs.secondary, size: 22),
+      title: Text(
+        AppModel.formatMonthKeyLabel(monthKey),
+        style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: cs.onSurface),
+      ),
+      subtitle: Text(
+        parts.isEmpty ? '—' : parts.join(' · '),
+        style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant, height: 1.3),
+      ),
+      onTap: privacy ? onPrivacyInteractionDenied : onTap,
     );
   }
 }
@@ -3263,6 +3358,17 @@ class _MonthlyCashflowSplitTableHeader extends StatelessWidget {
           ),
           Expanded(
             child: Text(
+              'Saved',
+              textAlign: TextAlign.end,
+              style: TextStyle(
+                fontWeight: FontWeight.w900,
+                fontSize: 11,
+                color: cs.onSurfaceVariant,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
               'Invested',
               textAlign: TextAlign.end,
               style: TextStyle(
@@ -3311,6 +3417,14 @@ class _MonthlyCashflowSplitTableRow extends StatelessWidget {
               : formatGroupedInteger(e.monthlyEarned.round(), currency: dc))
         : '—';
 
+    final savedTxt = e == null || e.outflowToCashFd <= 0
+        ? '—'
+        : (privacyHideAmounts
+              ? maskSensitiveNumberString(
+                  formatGroupedInteger(e.outflowToCashFd.round(), currency: dc),
+                )
+              : formatGroupedInteger(e.outflowToCashFd.round(), currency: dc));
+
     final investedTxt = e == null || e.outflowToInvested <= 0
         ? '—'
         : (privacyHideAmounts
@@ -3324,6 +3438,15 @@ class _MonthlyCashflowSplitTableRow extends StatelessWidget {
                   e.outflowToInvested.round(),
                   currency: dc,
                 ));
+
+    final delta = e == null ? null : e.closingBalance - e.openingBalance;
+    final deltaTxt = delta == null || delta.abs() <= 0.5
+        ? null
+        : (privacyHideAmounts
+              ? maskSensitiveNumberString(
+                  formatGroupedInteger(delta.round(), currency: dc),
+                )
+              : formatGroupedInteger(delta.round(), currency: dc));
 
     final child = Container(
       decoration: BoxDecoration(
@@ -3348,6 +3471,32 @@ class _MonthlyCashflowSplitTableRow extends StatelessWidget {
               earnedTxt,
               textAlign: TextAlign.end,
               style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
+            ),
+          ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  savedTxt,
+                  textAlign: TextAlign.end,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: cs.onSurfaceVariant,
+                  ),
+                ),
+                if (deltaTxt != null && delta != null)
+                  Text(
+                    '${delta > 0 ? '+' : ''}$deltaTxt',
+                    textAlign: TextAlign.end,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: delta >= 0 ? const Color(0xFF10B981) : cs.error,
+                    ),
+                  ),
+              ],
             ),
           ),
           Expanded(
@@ -3466,4 +3615,34 @@ class _GroupedIntFieldState extends State<_GroupedIntField> {
       ),
     );
   }
+}
+
+/// Open Ledger liability editor (rate % is edited here, not on Goals).
+Future<void> openLedgerLiabilityEditor({
+  required BuildContext context,
+  required AppModel model,
+  required String liabilityId,
+}) async {
+  final index = model.liabilities.indexWhere((l) => l.id == liabilityId);
+  if (index < 0) return;
+  final outcome = await showLiquidGlassModalBottomSheet<_RowEditorOutcome<LedgerLiabilityRow>>(
+    context: context,
+    showDragHandle: true,
+    isScrollControlled: true,
+    sizesToContent: true,
+    builder: (ctx) => _LiabilityEditorSheet(
+      draft: model.liabilities[index].clone(),
+      allowCurrencyEdit: false,
+      canDelete: true,
+      model: model,
+      parentContext: context,
+    ),
+  );
+  if (!context.mounted || outcome == null) return;
+  if (outcome.delete) {
+    model.removeLiabilityAt(index);
+    return;
+  }
+  final row = outcome.row;
+  if (row != null) model.replaceLiability(index, row);
 }
