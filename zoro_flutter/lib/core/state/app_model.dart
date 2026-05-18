@@ -1180,7 +1180,7 @@ class AppModel extends ChangeNotifier {
     final now = DateTime.now();
     final paid = DateTime(now.year, now.month + months, now.day);
     const names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    return 'Paid off ~${names[paid.month - 1]} ${paid.year}';
+    return '${names[paid.month - 1]} ${paid.year}';
   }
 
   void reorderTargetGoals(int oldIndex, int newIndex) {
@@ -1498,13 +1498,13 @@ class AppModel extends ChangeNotifier {
       return GoalFeasibility(
         level: GoalFeasibilityLevel.caution,
         title: 'Tight',
-        detail: 'Invest ${fmt(allocated)}/mo · need ${fmt(required)}/mo for retirement',
+        detail: 'need ${fmt(required)}/mo to retire',
       );
     }
     return GoalFeasibility(
       level: GoalFeasibilityLevel.broken,
       title: 'Short on invest',
-      detail: 'Invest ${fmt(allocated)}/mo · need ${fmt(required)}/mo for retirement',
+      detail: 'need ${fmt(required)}/mo to retire',
     );
   }
 

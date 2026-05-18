@@ -14,6 +14,7 @@ Future<void> openGoalsPaydownSheet({
   return showLiquidGlassModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
+    sizesToContent: true,
     builder: (ctx) => _GoalsPaydownSheet(
       key: ValueKey<String>('paydown-$liabilityId'),
       model: model,
@@ -113,86 +114,69 @@ class _GoalsPaydownSheetState extends State<_GoalsPaydownSheet> {
     final m = widget.model;
     final l = _liability;
     if (l == null) {
-      return const Padding(padding: EdgeInsets.all(24), child: Text('Debt not found'));
+      return const Padding(padding: EdgeInsets.all(16), child: Text('Debt not found'));
     }
 
     final hide = m.privacyHideAmounts;
     final cs = Theme.of(context).colorScheme;
     final name = l.name.trim().isEmpty ? l.type.label : l.name.trim();
     final balance = m.liabilityDisplayValue(l);
-    final savingsMo = m.allocSavingsMonthly;
     final max = _maxMonthly;
-
-    String? previewPayoff() {
-      if (_monthly <= 0 || balance <= 0) return null;
-      final months = (balance / _monthly).ceil();
-      final now = DateTime.now();
-      final paid = DateTime(now.year, now.month + months, now.day);
-      const names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      return 'Paid off ~${names[paid.month - 1]} ${paid.year}';
-    }
+    final payoff = goalLiabilityPayoffDateLabel(m, l);
 
     return Padding(
-      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(20, 4, 20, 20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    name,
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
-                  ),
-                ),
-                IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.of(context).pop()),
-              ],
-            ),
-            Text(
-              '${goalMoney(m, balance, hide: hide)} owed',
-              style: TextStyle(fontSize: 14, color: cs.onSurfaceVariant, fontWeight: FontWeight.w600),
-            ),
-            if (previewPayoff() != null)
-              Text(
-                previewPayoff()!,
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: m.accent),
+      padding: EdgeInsets.only(
+        left: 16,
+        right: 16,
+        bottom: 12 + MediaQuery.viewInsetsOf(context).bottom,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(name, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
               ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _textCtrl,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[\d.,]'))],
-              decoration: InputDecoration(
-                labelText: 'Monthly paydown',
-                prefixText: '${m.displayCurrencySymbol} ',
-                suffixText: '/mo',
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                icon: const Icon(Icons.close),
+                onPressed: () => Navigator.of(context).pop(),
               ),
-              onChanged: _onTextChanged,
+            ],
+          ),
+          Text(
+            '${goalMoney(m, balance, hide: hide)} owed${payoff != null ? ' · $payoff' : ''}',
+            style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: _textCtrl,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[\d.,]'))],
+            decoration: InputDecoration(
+              labelText: 'Monthly paydown',
+              isDense: true,
+              prefixText: '${m.displayCurrencySymbol} ',
+              suffixText: '/mo',
             ),
-            const SizedBox(height: 4),
-            Slider(
-              value: max <= 0 ? 0 : _monthly.clamp(0, max),
-              min: 0,
-              max: max <= 0 ? 1 : max,
-              onChanged: max <= 0 ? null : _setMonthly,
+            onChanged: _onTextChanged,
+          ),
+          Slider(
+            value: max <= 0 ? 0 : _monthly.clamp(0, max),
+            min: 0,
+            max: max <= 0 ? 1 : max,
+            onChanged: max <= 0 ? null : _setMonthly,
+          ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: FilledButton(
+              onPressed: _save,
+              child: const Text('Save', style: TextStyle(fontWeight: FontWeight.w800)),
             ),
-            Text(
-              'Up to ${goalMoney(m, max, hide: hide)}/mo · ${goalMoney(m, savingsMo, hide: hide)} savings slice',
-              style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 12),
-            Align(
-              alignment: Alignment.centerRight,
-              child: FilledButton(
-                onPressed: _save,
-                child: const Text('Save', style: TextStyle(fontWeight: FontWeight.w800)),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/finance/goal_asset_buckets.dart';
+import '../../core/finance/goals_calculator.dart';
 import '../../core/state/app_model.dart';
 import '../../core/state/financial_goals.dart';
 import '../../core/state/ledger_rows.dart';
@@ -70,16 +71,14 @@ class _GoalsBody extends StatelessWidget {
     final planFeas = m.planFeasibility();
 
     return LiquidGlassPanel(
-      padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('Monthly split', style: _GoalsType.sectionTitle.copyWith(color: cs.onSurface)),
-          const SizedBox(height: 6),
           Center(
             child: Text(
               headline,
-              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17, color: cs.onSurface),
+              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: cs.onSurface),
             ),
           ),
           Slider(
@@ -125,12 +124,13 @@ class _GoalsBody extends StatelessWidget {
 
     final retirement = m.retirementGoal;
     final policy = m.assetsGoalsPolicy;
-    final cashAsset = m.primaryCashAsset;
-    final cashBalance = m.latestCashClosingBalanceDisplay ?? 0;
-    final savingsAssets = [
-      for (final a in savingsPoolAssets(m.assets, policy))
-        if (cashAsset == null || a.id != cashAsset.id) a,
-    ];
+    final savingsTotal = totalSavingsPoolBalance(
+      assets: m.assets,
+      displayValue: m.assetDisplayValue,
+      policy: policy,
+    );
+    final savingsRows = savingsPoolAssets(m.assets, policy).toList()
+      ..sort((a, b) => m.assetDisplayValue(b).compareTo(m.assetDisplayValue(a)));
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
@@ -159,9 +159,8 @@ class _GoalsBody extends StatelessWidget {
         const SizedBox(height: 12),
         _GoalsSection(
           title: 'Investments',
-          subtitle: retirement != null
-              ? '${goalMoney(m, m.allocInvestmentsMonthly, hide: hide)}/mo · ${goalMoney(m, m.retirementCurrentAmount(retirement), hide: hide)}'
-              : '—',
+          subtitle: '',
+          showSubtitle: false,
           children: [
             if (retirement == null)
               Text(
@@ -174,7 +173,6 @@ class _GoalsBody extends StatelessWidget {
                 goal: retirement,
                 accent: accent,
                 hide: hide,
-                monthlyFlow: m.allocInvestmentsMonthly,
                 onTap: () => openGoalEditorSheet(context: context, model: m, goalId: retirement.id),
               ),
           ],
@@ -182,33 +180,19 @@ class _GoalsBody extends StatelessWidget {
         const SizedBox(height: 10),
         _GoalsSection(
           title: 'Savings',
-          subtitle: cashAsset != null
-              ? '${goalMoney(m, m.allocSavingsMonthly, hide: hide)}/mo · ${goalMoney(m, cashBalance, hide: hide)}'
-              : (m.allocSavingsMonthly > 0
-                  ? '${goalMoney(m, m.allocSavingsMonthly, hide: hide)}/mo'
-                  : '—'),
+          subtitle: savingsTotal > 0 || m.allocSavingsMonthly > 0
+              ? '${goalMoney(m, savingsTotal, hide: hide)} · ${goalMoney(m, m.allocSavingsMonthly, hide: hide)}/mo'
+              : '—',
           children: [
-            if (cashAsset == null)
+            if (savingsRows.isEmpty)
               Text(
-                'Link a cash account in Ledger → Cash.',
+                'Add savings accounts in Ledger, or link cash in Ledger → Cash.',
                 style: _GoalsType.rowMeta.copyWith(color: cs.onSurfaceVariant),
               )
             else
-              _CashGoalTile(
-                model: m,
-                asset: cashAsset,
-                balance: cashBalance,
-                monthlyFlow: m.allocSavingsMonthly,
-                hide: hide,
-                accent: accent,
-                onTap: () => onGoToLedger?.call('cashflow'),
-              ),
-            if (savingsAssets.isNotEmpty) ...[
-              if (cashAsset != null) const SizedBox(height: 8),
-              ...savingsAssets.map(
+              ...savingsRows.map(
                 (a) => _SavingsAssetRow(model: m, asset: a, hide: hide),
               ),
-            ],
             if (m.liabilities.isNotEmpty) ...[
               const SizedBox(height: 12),
               Text('Loans', style: _GoalsType.sectionTitle.copyWith(color: cs.onSurface)),
@@ -231,65 +215,6 @@ class _GoalsBody extends StatelessWidget {
           ],
         ),
       ],
-    );
-  }
-}
-
-class _CashGoalTile extends StatelessWidget {
-  const _CashGoalTile({
-    required this.model,
-    required this.asset,
-    required this.balance,
-    required this.monthlyFlow,
-    required this.hide,
-    required this.accent,
-    this.onTap,
-  });
-
-  final AppModel model;
-  final LedgerAssetRow asset;
-  final double balance;
-  final double monthlyFlow;
-  final bool hide;
-  final Color accent;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final name = asset.name.trim().isEmpty ? 'Cash' : asset.name.trim();
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  Icon(Icons.account_balance_wallet_outlined, color: accent, size: 22),
-                  const SizedBox(width: 10),
-                  Expanded(child: Text(name, style: _GoalsType.tileTitle)),
-                  Icon(Icons.chevron_right, size: 22, color: cs.onSurfaceVariant),
-                ],
-              ),
-              const SizedBox(height: 6),
-              Text(
-                goalMoney(model, balance, hide: hide),
-                style: _GoalsType.tileBody,
-              ),
-              Text(
-                '${goalMoney(model, monthlyFlow, hide: hide)}/mo',
-                style: _GoalsType.tileMeta.copyWith(color: cs.onSurfaceVariant),
-              ),
-            ],
-          ),
-        ),
-      ),
     );
   }
 }
@@ -325,29 +250,34 @@ class _GoalsSection extends StatelessWidget {
     required this.title,
     required this.subtitle,
     required this.children,
+    this.showSubtitle = true,
   });
 
   final String title;
   final String subtitle;
   final List<Widget> children;
+  final bool showSubtitle;
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final hasSubtitle = showSubtitle && subtitle.trim().isNotEmpty && subtitle != '—';
     return LiquidGlassPanel(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(title, style: _GoalsType.sectionTitle),
-          const SizedBox(height: 2),
-          Text(
-            subtitle,
-            style: _GoalsType.sectionSubtitle.copyWith(color: cs.onSurfaceVariant),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 10),
+          if (hasSubtitle) ...[
+            const SizedBox(height: 2),
+            Text(
+              subtitle,
+              style: _GoalsType.sectionSubtitle.copyWith(color: cs.onSurfaceVariant),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+          SizedBox(height: hasSubtitle ? 10 : 8),
           ...children,
         ],
       ),
@@ -407,7 +337,7 @@ class _LiabilityRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final pay = model.liabilityPaydownMonthly(liability);
-    final payoff = model.liabilityPayoffLabel(liability);
+    final payoff = goalLiabilityPayoffDateLabel(model, liability);
     final name = liability.name.trim().isEmpty ? liability.type.label : liability.name.trim();
 
     return Material(
@@ -427,7 +357,9 @@ class _LiabilityRow extends StatelessWidget {
                   children: [
                     Text(name, style: _GoalsType.rowTitle),
                     Text(
-                      payoff ?? (pay > 0 ? '${goalMoney(model, pay, hide: hide)}/mo' : 'Set paydown'),
+                      pay > 0
+                          ? '${goalMoney(model, pay, hide: hide)}/mo${payoff != null ? ' · $payoff' : ''}'
+                          : (payoff ?? 'Set paydown'),
                       style: _GoalsType.rowMeta.copyWith(color: cs.onSurfaceVariant),
                     ),
                   ],
@@ -448,7 +380,6 @@ class _GoalTile extends StatelessWidget {
     required this.goal,
     required this.accent,
     required this.hide,
-    required this.monthlyFlow,
     required this.onTap,
   });
 
@@ -456,7 +387,6 @@ class _GoalTile extends StatelessWidget {
   final FinancialGoal goal;
   final Color accent;
   final bool hide;
-  final double monthlyFlow;
   final VoidCallback onTap;
 
   @override
@@ -468,7 +398,10 @@ class _GoalTile extends StatelessWidget {
         ? (current / effectiveTarget).clamp(0.0, 1.0)
         : model.goalProgressFraction(goal);
     final feas = model.goalFeasibility(goal);
-    final requiredMo = model.goalRequiredMonthlySavingsFor(goal);
+    final timeLabel = goalTimeToTargetLabel(goal.targetDate);
+    final amountsLine = effectiveTarget > 0
+        ? '${goalMoney(model, current, hide: hide)} → ${goalMoney(model, effectiveTarget, hide: hide)}'
+        : goalMoney(model, current, hide: hide);
 
     return Material(
       color: Colors.transparent,
@@ -481,40 +414,74 @@ class _GoalTile extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.trending_up, color: accent, size: 22),
+                  _RetirementLeadingIcon(feasibility: feas, accent: accent),
                   const SizedBox(width: 10),
-                  const Expanded(child: Text('Retirement', style: _GoalsType.tileTitle)),
-                  ZoroStatusIcon.fromGoalFeasibility(feas, size: 20),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            const Expanded(child: Text('Retirement', style: _GoalsType.tileTitle)),
+                            if (timeLabel.isNotEmpty)
+                              Text(
+                                timeLabel,
+                                style: _GoalsType.rowMeta.copyWith(color: cs.onSurfaceVariant),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          amountsLine,
+                          style: _GoalsType.tileMeta.copyWith(color: cs.onSurfaceVariant),
+                        ),
+                      ],
+                    ),
+                  ),
                   Icon(Icons.chevron_right, size: 22, color: cs.onSurfaceVariant),
                 ],
               ),
               const SizedBox(height: 8),
               GoalProgressBar(fraction: progress, accent: accent),
-              const SizedBox(height: 6),
-              Row(
-                children: [
-                  Text(
-                    goalMoney(model, current, hide: hide),
-                    style: _GoalsType.tileBody,
-                  ),
-                  if (effectiveTarget > 0) ...[
-                    const SizedBox(width: 8),
-                    Text(
-                      '→ ${goalMoney(model, effectiveTarget, hide: hide)}',
-                      style: _GoalsType.tileMeta.copyWith(color: cs.onSurfaceVariant),
-                    ),
-                  ],
-                ],
-              ),
-              if (requiredMo > 0.5)
-                Text(
-                  '${goalMoney(model, monthlyFlow, hide: hide)}/mo · need ${goalMoney(model, requiredMo, hide: hide)}/mo',
-                  style: _GoalsType.tileMeta.copyWith(color: cs.onSurfaceVariant),
-                ),
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _RetirementLeadingIcon extends StatelessWidget {
+  const _RetirementLeadingIcon({
+    required this.feasibility,
+    required this.accent,
+  });
+
+  final GoalFeasibility feasibility;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    final showIssue = !feasibility.isOk;
+    return SizedBox(
+      width: 28,
+      height: 28,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Align(
+            alignment: Alignment.center,
+            child: Icon(Icons.trending_up, color: accent, size: 22),
+          ),
+          if (showIssue)
+            Positioned(
+              left: -4,
+              top: -5,
+              child: ZoroStatusIcon.fromGoalFeasibility(feasibility, size: 16),
+            ),
+        ],
       ),
     );
   }

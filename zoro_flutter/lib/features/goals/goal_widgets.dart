@@ -34,6 +34,30 @@ int? goalMonthsRemaining(DateTime? target) {
   return (target.year - now.year) * 12 + (target.month - now.month);
 }
 
+/// e.g. `8 mo`, `3 yr`, `2 yr 4 mo`, `Past due`.
+String goalTimeToTargetLabel(DateTime? target) {
+  final months = goalMonthsRemaining(target);
+  if (months == null) return '';
+  if (months <= 0) return 'Past due';
+  if (months < 12) return '$months mo';
+  final years = months ~/ 12;
+  final rem = months % 12;
+  if (rem == 0) return '$years yr';
+  return '$years yr $rem mo';
+}
+
+String? goalLiabilityPayoffDateLabel(AppModel model, LedgerLiabilityRow liability) {
+  final pay = model.liabilityPaydownMonthly(liability);
+  if (pay <= 0) return null;
+  final balance = model.liabilityDisplayValue(liability);
+  if (balance <= 0) return null;
+  final months = (balance / pay).ceil();
+  final now = DateTime.now();
+  final paid = DateTime(now.year, now.month + months, now.day);
+  const names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return '${names[paid.month - 1]} ${paid.year}';
+}
+
 class GoalProgressBar extends StatelessWidget {
   const GoalProgressBar({
     super.key,
@@ -47,13 +71,17 @@ class GoalProgressBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final f = fraction ?? 0;
+    final track = isDark
+        ? cs.onSurface.withValues(alpha: 0.28)
+        : cs.outline.withValues(alpha: 0.55);
     return ClipRRect(
       borderRadius: BorderRadius.circular(6),
       child: LinearProgressIndicator(
         value: fraction == null ? null : f.clamp(0.0, 1.0),
-        minHeight: 7,
-        backgroundColor: cs.surfaceContainerHighest.withValues(alpha: 0.65),
+        minHeight: 8,
+        backgroundColor: track,
         color: accent,
       ),
     );

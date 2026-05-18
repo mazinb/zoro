@@ -110,20 +110,15 @@ class ZoroPlanStatusStrip extends StatelessWidget {
     final line = feasibility.detail.trim().isNotEmpty ? feasibility.detail : feasibility.title;
 
     return Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: Row(
-        children: [
-          Icon(icon, size: 16, color: fg),
-          const SizedBox(width: 6),
-          Expanded(
-            child: Text(
-              line,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: fg, height: 1.25),
-            ),
-          ),
-        ],
+      padding: const EdgeInsets.only(top: 6),
+      child: Center(
+        child: Text(
+          line,
+          textAlign: TextAlign.center,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: fg, height: 1.25),
+        ),
       ),
     );
   }
