@@ -180,6 +180,147 @@ class AppModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Merge ledger rows by stable [id] (names may differ after a sanitized export).
+  Future<void> mergeImportedLedger(Map<String, dynamic> ledger) async {
+    final L = Map<String, dynamic>.from(ledger);
+    final assetsRaw = L['assets'];
+    if (assetsRaw is List) {
+      for (final e in assetsRaw) {
+        final row = app_state.decodeLedgerAssetRow(e);
+        if (row == null) continue;
+        final ix = assets.indexWhere((a) => a.id == row.id);
+        if (ix >= 0) {
+          replaceAsset(ix, row);
+        } else {
+          addAsset(row);
+        }
+      }
+    }
+    final liabRaw = L['liabilities'];
+    if (liabRaw is List) {
+      for (final e in liabRaw) {
+        final row = app_state.decodeLedgerLiabilityRow(e);
+        if (row == null) continue;
+        final ix = liabilities.indexWhere((l) => l.id == row.id);
+        if (ix >= 0) {
+          replaceLiability(ix, row);
+        } else {
+          addLiability(row);
+        }
+      }
+    }
+    final incRaw = L['incomeLines'];
+    if (incRaw is List) {
+      for (final e in incRaw) {
+        final line = app_state.decodeIncomeLine(e);
+        if (line == null) continue;
+        final ix = incomeLines.indexWhere((l) => l.id == line.id);
+        if (ix >= 0) {
+          incomeLines[ix] = line;
+        } else {
+          incomeLines.add(line);
+        }
+      }
+      notifyIncomeChanged();
+    }
+    final eb = L['expenseBuckets'];
+    if (eb is Map) {
+      for (final e in eb.entries) {
+        final key = e.key.toString();
+        if (!expenseBucketKeys.contains(key)) continue;
+        final v = e.value;
+        final d = v is num ? v.toDouble() : double.tryParse(v?.toString() ?? '');
+        if (d != null) setExpenseBucket(key, d);
+      }
+    }
+    final ectx = L['expenseBucketContextMarkdown'];
+    if (ectx is Map) {
+      for (final e in ectx.entries) {
+        final key = e.key.toString();
+        if (!expenseBucketKeys.contains(key)) continue;
+        setExpenseBucketContextMarkdown(bucketKey: key, markdown: e.value?.toString() ?? '');
+      }
+    }
+    final mc = L['monthlyCashflowByMonth'];
+    if (mc is Map) {
+      for (final e in mc.entries) {
+        final entry = app_state.decodeMonthlyCashflowEntry(e.value);
+        if (entry != null) upsertMonthlyCashflow(entry);
+      }
+    }
+    if (L.containsKey('primaryIncomeAssetId')) {
+      final pid = L['primaryIncomeAssetId']?.toString();
+      primaryIncomeAssetId = (pid == null || pid.isEmpty) ? null : pid;
+    }
+    if (L.containsKey('effectiveTaxRatePct')) {
+      final tax = L['effectiveTaxRatePct'];
+      effectiveTaxRatePct = tax == null ? null : (tax is num ? tax.toDouble() : double.tryParse(tax.toString()));
+    }
+    final fx = L['fxUsdPerUnitOverride'];
+    if (fx is Map) {
+      for (final e in fx.entries) {
+        for (final c in CurrencyCode.values) {
+          if (c.name == e.key.toString()) {
+            final v = e.value;
+            final d = v is num ? v.toDouble() : double.tryParse(v?.toString() ?? '');
+            if (d != null) _fxUsdPerUnitOverride[c] = d;
+            break;
+          }
+        }
+      }
+    }
+    await AppStateStore.saveLedger(buildLedgerPersistedMap());
+    notifyListeners();
+  }
+
+  /// Replace chats from a portable export `chats` block.
+  Future<void> applyImportedChats(Map<String, dynamic> chats) async {
+    _applyAppStateMap({
+      'formatVersion': app_state.kAppStateFormatVersion,
+      'chats': chats,
+    });
+    await persistAppStateToDisk();
+    notifyListeners();
+  }
+
+  Future<void> replaceAllGoalsFromImport(List<FinancialGoal> incoming) async {
+    financialGoals
+      ..clear()
+      ..addAll(incoming);
+    goalsLastUpdated = DateTime.now();
+    await persistAppStateToDisk();
+    notifyListeners();
+  }
+
+  Future<void> applyImportedSettings(Map<String, dynamic> settings, {required bool replace}) async {
+    final snap = buildPersistedSnapshot();
+    if (replace) {
+      snap['settings'] = settings;
+    } else {
+      final current = Map<String, dynamic>.from(snap['settings'] as Map);
+      current.addAll(settings);
+      snap['settings'] = current;
+    }
+    applyPersistedSnapshot(snap);
+    await persistAppStateToDisk();
+    notifyListeners();
+  }
+
+  Future<void> applyImportedAgent(AppAgent agent, {required bool replace}) async {
+    if (replace) {
+      final idx = agents.indexWhere((a) => a.id == agent.id);
+      if (idx >= 0) {
+        agents[idx] = agent;
+      } else {
+        agents.add(agent);
+      }
+    } else {
+      upsertAgentFromTool(agent);
+    }
+    await persistAppStateToDisk();
+    notifyListeners();
+  }
+
   /// Full on-disk snapshot (API keys excluded) — in-memory monolithic shape.
   Map<String, dynamic> buildPersistedSnapshot() => _buildAppStateMap();
 
@@ -1428,14 +1569,7 @@ class AppModel extends ChangeNotifier {
         : (goal.name.trim().isEmpty ? 'Target' : goal.name.trim());
     final fmt = (double v) => formatCurrencyDisplay(v, currency: displayCurrency);
     if (goal.isRetirement) {
-      return assessGoalFeasibility(
-        requiredMonthly: goalRequiredMonthlySavingsFor(goal, now: now),
-        allocatedMonthly: investMonthlyForRetirement(),
-        monthsRemaining: goalMonthsRemaining(goal.targetDate, now: now),
-        totalSavingsMonthly: allocInvestmentsMonthly + savingsOverflowToRetirementMonthly,
-        goalLabel: label,
-        formatAmount: fmt,
-      );
+      return retirementInvestFeasibility(goal, now: now);
     }
     return assessGoalFeasibility(
       requiredMonthly: goalRequiredMonthlySavingsFor(goal, now: now),
@@ -1447,30 +1581,24 @@ class AppModel extends ChangeNotifier {
     );
   }
 
-  /// Monthly split strip: retirement invest flow only (not legacy target goals).
-  GoalFeasibility planFeasibility({DateTime? now}) {
-    final r = retirementGoal;
-    if (r == null) {
-      return const GoalFeasibility(
-        level: GoalFeasibilityLevel.ok,
-        title: 'On track',
-        detail: '',
-      );
-    }
+  /// Invest slice vs retirement need: caution if max slider fixes it; broken otherwise.
+  GoalFeasibility retirementInvestFeasibility(FinancialGoal goal, {DateTime? now}) {
     final fmt = (double v) => formatCurrencyDisplay(v, currency: displayCurrency);
-    final required = goalRequiredMonthlySavingsFor(r, now: now);
+    final required = goalRequiredMonthlySavingsFor(goal, now: now);
     final allocated = allocInvestmentsMonthly;
-    final monthsLeft = goalMonthsRemaining(r.targetDate, now: now);
+    final maxInvest = availableAfterExpensesMonthly;
+    final monthsLeft = goalMonthsRemaining(goal.targetDate, now: now);
 
     if (monthsLeft != null && monthsLeft <= 0 && required > 0.5) {
       return const GoalFeasibility(
         level: GoalFeasibilityLevel.broken,
         title: 'Past due',
-        detail: 'Update your retirement date.',
+        detail: 'Past retirement date',
+        needsDateAdjust: true,
       );
     }
 
-    if (availableAfterExpensesMonthly <= 0 && required > 0.5) {
+    if (maxInvest <= 0 && required > 0.5) {
       return const GoalFeasibility(
         level: GoalFeasibilityLevel.broken,
         title: 'No monthly flow',
@@ -1486,25 +1614,56 @@ class AppModel extends ChangeNotifier {
       );
     }
 
-    final ratio = allocated / required;
-    if (ratio >= 0.95) {
+    if (allocated >= required * 0.95) {
       return const GoalFeasibility(
         level: GoalFeasibilityLevel.ok,
         title: 'On track',
         detail: '',
       );
     }
-    if (ratio >= 0.70) {
+
+    if (maxInvest >= required * 0.95) {
       return GoalFeasibility(
         level: GoalFeasibilityLevel.caution,
         title: 'Tight',
         detail: 'need ${fmt(required)}/mo to retire',
       );
     }
+
     return GoalFeasibility(
       level: GoalFeasibilityLevel.broken,
       title: 'Short on invest',
       detail: 'need ${fmt(required)}/mo to retire',
+      needsDateAdjust: true,
+    );
+  }
+
+  /// Monthly split strip: retirement invest flow only (not legacy target goals).
+  GoalFeasibility planFeasibility({DateTime? now}) {
+    final r = retirementGoal;
+    if (r == null) {
+      return const GoalFeasibility(
+        level: GoalFeasibilityLevel.ok,
+        title: 'On track',
+        detail: '',
+      );
+    }
+    return retirementInvestFeasibility(r, now: now);
+  }
+
+  Future<void> pickRetirementTargetDate(BuildContext context) async {
+    final r = retirementGoal;
+    if (r == null) return;
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: r.targetDate ?? DateTime(now.year + 10, now.month, now.day),
+      firstDate: now,
+      lastDate: DateTime(now.year + 60),
+    );
+    if (picked == null) return;
+    upsertFinancialGoal(
+      r.copyWith(targetDate: picked, timelineStart: r.timelineStart ?? DateTime.now()),
     );
   }
 

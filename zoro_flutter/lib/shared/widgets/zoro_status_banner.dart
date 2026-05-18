@@ -90,14 +90,16 @@ class ZoroStatusIcon extends StatelessWidget {
   }
 }
 
-/// One-line plan warning under the split slider.
+/// Warning line under the split slider; omitted when on track.
 class ZoroPlanStatusStrip extends StatelessWidget {
   const ZoroPlanStatusStrip({
     super.key,
     required this.feasibility,
+    this.onAdjustRetirementDate,
   });
 
   final GoalFeasibility feasibility;
+  final VoidCallback? onAdjustRetirementDate;
 
   @override
   Widget build(BuildContext context) {
@@ -106,19 +108,43 @@ class ZoroPlanStatusStrip extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final isBroken = feasibility.level == GoalFeasibilityLevel.broken;
     final fg = isBroken ? cs.error : const Color(0xFFB45309);
-    final icon = isBroken ? Icons.error_outline : Icons.warning_amber_rounded;
     final line = feasibility.detail.trim().isNotEmpty ? feasibility.detail : feasibility.title;
+    final showAdjust =
+        isBroken && feasibility.needsDateAdjust && onAdjustRetirementDate != null;
 
     return Padding(
-      padding: const EdgeInsets.only(top: 6),
-      child: Center(
-        child: Text(
-          line,
-          textAlign: TextAlign.center,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: fg, height: 1.25),
-        ),
+      padding: const EdgeInsets.only(top: 10),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            line,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: fg,
+              height: 1.25,
+            ),
+          ),
+          if (showAdjust)
+            TextButton(
+              onPressed: onAdjustRetirementDate,
+              style: TextButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                minimumSize: const Size(0, 28),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                foregroundColor: cs.error,
+              ),
+              child: const Text(
+                'Adjust retirement date',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+              ),
+            ),
+        ],
       ),
     );
   }

@@ -16,6 +16,8 @@ abstract final class InternalAppAgentIds {
   static const goalsGuide = 'goals_guide';
   static const goalsRetirementCorpus = 'goals_retirement_corpus';
   static const goalsExpenseEstimator = 'goals_expense_estimator';
+
+  static const exportSanitizer = 'export_sanitizer';
 }
 
 /// Registry entry for Settings → App agents. Add rows here to surface new internal agents.
@@ -359,6 +361,20 @@ Only include bucket keys from payload.bucketKeys. Amounts are monthly in display
     infoWhatItDoes: 'AI proposes monthly expense bucket estimates; user reviews before updating the ledger.',
     infoContextSent: 'Goal name/kind, current bucket estimates, recurring total — compact, no full asset list.',
     modelDomainHints: 'Planner: max 5 questions. Synth: expenseBuckets object with proposed monthly values.',
+  ),
+  InternalAppAgentDefinition(
+    id: InternalAppAgentIds.exportSanitizer,
+    title: 'Export redaction',
+    listSubtitle: 'Settings → Data → redact before export',
+    icon: Icons.shield_outlined,
+    defaultSystemPrompt: '''
+Redact bank names, brokerage names, account numbers, and other identifying financial institution details from exported text fields (names, labels, comments, context notes).
+
+Keep numeric amounts, dates, stable row ids, and structure unchanged. Use neutral placeholders such as "Bank A" or "Investment account" where a label must remain readable.
+''',
+    infoWhatItDoes: 'Optional pass before saving an export — scrubs institution names from string fields.',
+    infoContextSent: 'The full export document as text (structure preserved).',
+    modelDomainHints: '',
   ),
 ];
 

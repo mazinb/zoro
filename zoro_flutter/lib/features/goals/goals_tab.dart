@@ -70,46 +70,59 @@ class _GoalsBody extends StatelessWidget {
         : (sliderPct == 50 ? '50% saved' : '$savedPct% saved');
     final planFeas = m.planFeasibility();
 
+    final hasWarning = !planFeas.isOk;
+
     return LiquidGlassPanel(
-      padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
+      padding: EdgeInsets.fromLTRB(14, 14, 14, hasWarning ? 12 : 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Center(
-            child: Text(
-              headline,
-              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: cs.onSurface),
-            ),
-          ),
-          Slider(
-            value: avail <= 0 ? 0.0 : m.allocInvestFraction.clamp(0.0, 1.0),
-            divisions: 20,
-            onChanged: avail <= 0 ? null : m.setAllocInvestFraction,
-          ),
-          if (avail > 0) ...[
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: _FlowAmount(
-                    label: 'Savings',
-                    amount: goalMoney(m, m.allocSavingsMonthly, hide: m.privacyHideAmounts),
-                    accent: cs.secondary,
-                    align: CrossAxisAlignment.start,
-                  ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Center(
+                child: Text(
+                  headline,
+                  style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: cs.onSurface),
                 ),
-                Expanded(
-                  child: _FlowAmount(
-                    label: 'Invest',
-                    amount: goalMoney(m, m.allocInvestmentsMonthly, hide: m.privacyHideAmounts),
-                    accent: m.accent,
-                    align: CrossAxisAlignment.end,
-                  ),
+              ),
+              Slider(
+                value: avail <= 0 ? 0.0 : m.allocInvestFraction.clamp(0.0, 1.0),
+                divisions: 20,
+                onChanged: avail <= 0 ? null : m.setAllocInvestFraction,
+              ),
+              if (avail > 0)
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: _FlowAmount(
+                        label: 'Savings',
+                        amount: goalMoney(m, m.allocSavingsMonthly, hide: m.privacyHideAmounts),
+                        accent: cs.secondary,
+                        align: CrossAxisAlignment.start,
+                      ),
+                    ),
+                    Expanded(
+                      child: _FlowAmount(
+                        label: 'Invest',
+                        amount: goalMoney(m, m.allocInvestmentsMonthly, hide: m.privacyHideAmounts),
+                        accent: m.accent,
+                        align: CrossAxisAlignment.end,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          ],
-          ZoroPlanStatusStrip(feasibility: planFeas),
+            ],
+          ),
+          ZoroPlanStatusStrip(
+            feasibility: planFeas,
+            onAdjustRetirementDate: planFeas.needsDateAdjust
+                ? () => m.pickRetirementTargetDate(context)
+                : null,
+          ),
         ],
       ),
     );
@@ -416,7 +429,13 @@ class _GoalTile extends StatelessWidget {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _RetirementLeadingIcon(feasibility: feas, accent: accent),
+                  _RetirementLeadingIcon(
+                    feasibility: feas,
+                    accent: accent,
+                    onAdjustRetirementDate: feas.needsDateAdjust
+                        ? () => model.pickRetirementTargetDate(context)
+                        : null,
+                  ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(
@@ -457,32 +476,36 @@ class _RetirementLeadingIcon extends StatelessWidget {
   const _RetirementLeadingIcon({
     required this.feasibility,
     required this.accent,
+    this.onAdjustRetirementDate,
   });
 
   final GoalFeasibility feasibility;
   final Color accent;
+  final VoidCallback? onAdjustRetirementDate;
 
   @override
   Widget build(BuildContext context) {
-    final showIssue = !feasibility.isOk;
-    return SizedBox(
-      width: 28,
-      height: 28,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          Align(
-            alignment: Alignment.center,
-            child: Icon(Icons.trending_up, color: accent, size: 22),
+    const box = 34.0;
+    const iconSize = 26.0;
+
+    if (!feasibility.isOk) {
+      return SizedBox(
+        width: box,
+        height: box,
+        child: Center(
+          child: ZoroStatusIcon.fromGoalFeasibility(
+            feasibility,
+            size: iconSize,
+            onAction: feasibility.needsDateAdjust ? onAdjustRetirementDate : null,
+            actionLabel: feasibility.needsDateAdjust ? 'Adjust retirement date' : null,
           ),
-          if (showIssue)
-            Positioned(
-              left: -4,
-              top: -5,
-              child: ZoroStatusIcon.fromGoalFeasibility(feasibility, size: 16),
-            ),
-        ],
-      ),
+        ),
+      );
+    }
+    return SizedBox(
+      width: box,
+      height: box,
+      child: Icon(Icons.trending_up, color: accent, size: iconSize),
     );
   }
 }

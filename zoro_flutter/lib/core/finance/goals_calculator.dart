@@ -7,11 +7,15 @@ class GoalFeasibility {
     required this.level,
     required this.title,
     required this.detail,
+    this.needsDateAdjust = false,
   });
 
   final GoalFeasibilityLevel level;
   final String title;
   final String detail;
+
+  /// True when raising the invest slider cannot close the gap (adjust date/corpus).
+  final bool needsDateAdjust;
 
   bool get isOk => level == GoalFeasibilityLevel.ok;
 }
