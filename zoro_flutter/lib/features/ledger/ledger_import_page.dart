@@ -690,6 +690,7 @@ Infer **monthKey** from the document or statement period; use this hint only if 
           comment: rawComment,
           contextMarkdown: rawCtx,
           preserveInvestmentLines: existingEntry?.investmentLines,
+          preserveSavingsLines: existingEntry?.savingsLines,
         );
 
         setState(() {
@@ -915,12 +916,16 @@ Infer **monthKey** from the document or statement period; use this hint only if 
     required String comment,
     String? contextMarkdown,
     List<MonthlyInvestmentLine>? preserveInvestmentLines,
+    List<MonthlySavingsLine>? preserveSavingsLines,
   }) {
     final c = comment.trim();
     final ctx = contextMarkdown?.trim();
     final preserved = preserveInvestmentLines != null
         ? preserveInvestmentLines.map((e) => e.clone()).toList()
         : <MonthlyInvestmentLine>[];
+    final preservedSav = preserveSavingsLines != null
+        ? preserveSavingsLines.map((e) => e.clone()).toList()
+        : <MonthlySavingsLine>[];
     return MonthlyCashflowEntry(
       monthKey: targetMonthKey,
       openingBalance: openingBalance,
@@ -932,6 +937,7 @@ Infer **monthKey** from the document or statement period; use this hint only if 
       comment: c,
       contextMarkdown: (ctx ?? '').isEmpty ? null : ctx,
       investmentLines: preserved,
+      savingsLines: preservedSav,
     );
   }
 

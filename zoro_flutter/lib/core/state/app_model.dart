@@ -1028,6 +1028,67 @@ class AppModel extends ChangeNotifier {
     return complete;
   }
 
+  void _applyDisplayDeltaToLiabilityTotal(String liabilityId, double deltaDisplay) {
+    final l = liabilityById(liabilityId);
+    if (l == null || deltaDisplay.abs() < 0.005) return;
+    final to = currencyCodeForPresetCountry(l.currencyCountry);
+    final converted = convertCurrency(
+      value: deltaDisplay,
+      from: displayCurrency,
+      to: to,
+      usdPerUnitOverrides: fxUsdPerUnitResolved,
+    );
+    l.total = (l.total + converted).clamp(0, double.infinity);
+  }
+
+  void reverseSavingsCreditsForMonth(String monthKey) {
+    final e = monthlyEntryFor(monthKey);
+    if (e == null) return;
+    for (final line in e.savingsLines) {
+      final applied = line.amountApplied;
+      if (applied < 0.005) {
+        line.amountApplied = 0;
+        continue;
+      }
+      if ((line.assetId ?? '').isNotEmpty) {
+        _applyDisplayDeltaToAssetTotal(line.assetId!, -applied);
+      } else if ((line.liabilityId ?? '').isNotEmpty) {
+        _applyDisplayDeltaToLiabilityTotal(line.liabilityId!, applied);
+      }
+      line.amountApplied = 0;
+    }
+  }
+
+  bool commitMonthSavingsLinking(
+    String monthKey,
+    List<MonthlySavingsLine> newLinesRaw,
+  ) {
+    reverseSavingsCreditsForMonth(monthKey);
+    final e = monthlyEntryFor(monthKey);
+    if (e == null) return false;
+    final next = newLinesRaw.map((x) => x.clone()..amountApplied = 0).toList();
+    e.savingsLines
+      ..clear()
+      ..addAll(next);
+    final complete = monthlySavingsLinkingComplete(e);
+    if (complete) {
+      for (final line in e.savingsLines) {
+        if (line.amount <= 0.005) continue;
+        if ((line.assetId ?? '').isNotEmpty) {
+          _applyDisplayDeltaToAssetTotal(line.assetId!, line.amount);
+          line.amountApplied = line.amount;
+        } else if ((line.liabilityId ?? '').isNotEmpty) {
+          _applyDisplayDeltaToLiabilityTotal(line.liabilityId!, -line.amount);
+          line.amountApplied = line.amount;
+        }
+      }
+    }
+    assetsLastReviewed = DateTime.now();
+    userTouchedAssets = true;
+    touchMonthlyCashflowChanged();
+    return complete;
+  }
+
   /// Portion of post-expense net income allocated to investments (rest is cash / FDs).
   /// Range 0–1, always a multiple of 5% (Sankey target split).
   double allocInvestFraction = 0.6;
@@ -1039,6 +1100,9 @@ class AppModel extends ChangeNotifier {
 
   /// When the target allocation slider was last changed.
   DateTime? allocationTargetLastUpdated;
+
+  /// Optional markdown notes for the invest / savings split (Goals sheet).
+  String allocationContextMarkdown = '';
 
   /// MONTHLY amounts in display-currency space; kept in sync with [allocInvestFraction].
   double allocInvestmentsMonthly = 0;
@@ -2468,6 +2532,15 @@ class AppModel extends ChangeNotifier {
           usdPerUnitOverrides: fx,
         );
       }
+      for (final sl in e.savingsLines) {
+        sl.amount = convertCurrency(value: sl.amount, from: from, to: next, usdPerUnitOverrides: fx);
+        sl.amountApplied = convertCurrency(
+          value: sl.amountApplied,
+          from: from,
+          to: next,
+          usdPerUnitOverrides: fx,
+        );
+      }
     }
     syncAllocationsFromFraction();
     _scheduleAppStatePersist();
@@ -2912,6 +2985,51 @@ class AppModel extends ChangeNotifier {
   double get availableAfterExpensesMonthly =>
       (netIncomeMonthly - totalExpensesMonthly).clamp(0, double.infinity);
 
+  /// Primary paycheck row (label “Salary”, or first line containing “salary”).
+  CashflowIncomeLine? get primarySalaryIncomeLine {
+    for (final line in incomeLines) {
+      if (line.label.trim().toLowerCase() == 'salary') return line;
+    }
+    for (final line in incomeLines) {
+      if (line.label.trim().toLowerCase().contains('salary')) return line;
+    }
+    return incomeLines.isEmpty ? null : incomeLines.first;
+  }
+
+  /// Post-tax monthly take-home for [primarySalaryIncomeLine] (display currency).
+  double get salaryNetMonthlyDisplay {
+    final line = primarySalaryIncomeLine;
+    if (line == null || line.annualAmount <= 0.005) return 0;
+    final grossMonthly = moneyInDisplayCurrency(
+      line.annualAmount / 12.0,
+      currencyCodeForIncomeLineCurrency(line.currencyCountry),
+    );
+    final rate = (effectiveTaxRatePct ?? 0).clamp(0, 100) / 100.0;
+    return (grossMonthly * (1 - rate)).clamp(0, double.infinity);
+  }
+
+  /// Savings commitment as % of paycheck (can exceed 100).
+  double get savingsPctOfSalary {
+    final paycheck = salaryNetMonthlyDisplay;
+    if (paycheck <= 0.005) return 0;
+    return allocSavingsMonthly / paycheck * 100;
+  }
+
+  void setAllocFromSavingsPctOfSalary(double pct) {
+    final paycheck = salaryNetMonthlyDisplay;
+    if (paycheck <= 0.005) {
+      setAllocationSavings(0);
+      return;
+    }
+    setAllocationSavings(paycheck * (pct / 100));
+  }
+
+  void setAllocationContextMarkdown(String markdown) {
+    allocationContextMarkdown = markdown.trim();
+    _scheduleAppStatePersist();
+    notifyListeners();
+  }
+
   double predictedMonthlyForExpenseBucket(String k) => expenseBuckets[k] ?? 0;
 
   void setAllocInvestFraction(double f) {
@@ -3032,6 +3150,8 @@ class AppModel extends ChangeNotifier {
         'allocInvestFraction': allocInvestFraction,
         'allocInvestmentsMonthly': allocInvestmentsMonthly,
         'allocSavingsMonthly': allocSavingsMonthly,
+        if (allocationContextMarkdown.trim().isNotEmpty)
+          'allocationContextMarkdown': allocationContextMarkdown,
         'retirementExtraAssetIds': retirementExtraAssetIds.toList(),
         'fxUsdPerUnitOverride': {
           for (final e in _fxUsdPerUnitOverride.entries) e.key.name: e.value,
@@ -3274,6 +3394,8 @@ class AppModel extends ChangeNotifier {
       if (aim is num) allocInvestmentsMonthly = aim.toDouble();
       final asm = L['allocSavingsMonthly'];
       if (asm is num) allocSavingsMonthly = asm.toDouble();
+      final acm = L['allocationContextMarkdown'];
+      if (acm is String) allocationContextMarkdown = acm;
       retirementExtraAssetIds.clear();
       final rea = L['retirementExtraAssetIds'];
       if (rea is List) {

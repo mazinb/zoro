@@ -34,6 +34,84 @@ class MonthlyInvestmentLine {
 double sumMonthlyInvestmentAmounts(Iterable<MonthlyInvestmentLine> lines) =>
     lines.fold<double>(0, (a, b) => a + b.amount);
 
+/// One transfer into a savings asset or loan paydown for a calendar month.
+class MonthlySavingsLine {
+  MonthlySavingsLine({
+    required this.id,
+    this.assetId,
+    this.liabilityId,
+    this.amount = 0,
+    this.contextMarkdown,
+    this.amountApplied = 0,
+  });
+
+  String id;
+  String? assetId;
+  String? liabilityId;
+  double amount;
+  String? contextMarkdown;
+
+  /// Display-currency amount already applied to [assetId] / [liabilityId].
+  double amountApplied;
+
+  MonthlySavingsLine clone() => MonthlySavingsLine(
+        id: id,
+        assetId: assetId,
+        liabilityId: liabilityId,
+        amount: amount,
+        contextMarkdown: contextMarkdown,
+        amountApplied: amountApplied,
+      );
+
+  factory MonthlySavingsLine.blank() => MonthlySavingsLine(
+        id: newLedgerRowId('ms'),
+      );
+}
+
+double sumMonthlySavingsAmounts(Iterable<MonthlySavingsLine> lines) =>
+    lines.fold<double>(0, (a, b) => a + b.amount);
+
+bool monthlySavingsLinkingComplete(
+  MonthlyCashflowEntry e, {
+  double tol = 0.51,
+}) {
+  if (e.outflowToCashFd <= 0.005) return true;
+  if (e.savingsLines.isEmpty) return false;
+  final sum = sumMonthlySavingsAmounts(e.savingsLines);
+  if ((sum - e.outflowToCashFd).abs() > tol) return false;
+  for (final l in e.savingsLines) {
+    if (l.amount <= 0.005) continue;
+    final hasAsset = (l.assetId ?? '').isNotEmpty;
+    final hasLiab = (l.liabilityId ?? '').isNotEmpty;
+    if (!hasAsset && !hasLiab) return false;
+    if (hasAsset && hasLiab) return false;
+  }
+  return true;
+}
+
+List<MonthlySavingsLine> reconcileSavingsLinesForMonthlySave({
+  required double newSaved,
+  required List<MonthlySavingsLine> previous,
+}) {
+  if (newSaved < 0.005) return [];
+  if (previous.isEmpty) {
+    return [MonthlySavingsLine.blank()..amount = newSaved];
+  }
+  final lines = previous.map((e) => e.clone()).toList();
+  final sum = sumMonthlySavingsAmounts(lines);
+  if (sum < 0.005) {
+    return [MonthlySavingsLine.blank()..amount = newSaved];
+  }
+  if ((sum - newSaved).abs() > 0.51) {
+    final f = newSaved / sum;
+    for (final l in lines) {
+      l.amount *= f;
+      l.amountApplied = 0;
+    }
+  }
+  return lines;
+}
+
 /// [tol] — display-currency; allow rounding drift.
 bool monthlyInvestmentLinkingComplete(
   MonthlyCashflowEntry e, {
@@ -87,8 +165,12 @@ class MonthlyCashflowEntry {
     this.comment = '',
     this.contextMarkdown,
     List<MonthlyInvestmentLine>? investmentLines,
-  }) : investmentLines = investmentLines != null
+    List<MonthlySavingsLine>? savingsLines,
+  })  : investmentLines = investmentLines != null
             ? investmentLines.map((e) => e.clone()).toList()
+            : [],
+        savingsLines = savingsLines != null
+            ? savingsLines.map((e) => e.clone()).toList()
             : [];
 
   final String monthKey;
@@ -118,4 +200,7 @@ class MonthlyCashflowEntry {
 
   /// Per-month investment transfers; each line links to an asset (sums to [outflowToInvested] when complete).
   final List<MonthlyInvestmentLine> investmentLines;
+
+  /// Per-month savings transfers; each line links to an asset or liability (sums to [outflowToCashFd] when complete).
+  final List<MonthlySavingsLine> savingsLines;
 }

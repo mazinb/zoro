@@ -313,6 +313,7 @@ bool _applyOne(String op, Map<String, dynamic> a, {required AppAgent agent, requ
           investmentLines: existing?.investmentLines
               .map((e) => e.clone())
               .toList(),
+          savingsLines: existing?.savingsLines.map((e) => e.clone()).toList(),
         ),
       );
       return true;

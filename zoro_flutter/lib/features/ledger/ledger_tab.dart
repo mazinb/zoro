@@ -8,6 +8,7 @@ import '../../core/state/monthly_cashflow_entry.dart';
 import '../../core/state/ledger_rows.dart';
 import '../../core/constants/web_expenses_income.dart';
 import '../../core/finance/currency.dart';
+import '../../core/finance/goal_asset_buckets.dart';
 import 'expense_donut_chart.dart';
 import 'expense_estimates_editor_page.dart';
 import 'ledger_import_page.dart';
@@ -775,9 +776,18 @@ class _MonthlyCashflowEditorPageState
             (iv < 0.005 && prev.outflowToInvested > 0.005))) {
       m.reverseInvestmentCreditsForMonth(_monthKey);
     }
+    if (prev != null &&
+        ((prev.outflowToCashFd - cf).abs() > 0.51 ||
+            (cf < 0.005 && prev.outflowToCashFd > 0.005))) {
+      m.reverseSavingsCreditsForMonth(_monthKey);
+    }
     final reconciled = reconcileInvestmentLinesForMonthlySave(
       newInvested: iv,
       previous: prev?.investmentLines ?? const [],
+    );
+    final reconciledSav = reconcileSavingsLinesForMonthlySave(
+      newSaved: cf,
+      previous: prev?.savingsLines ?? const [],
     );
     FocusManager.instance.primaryFocus?.unfocus();
     Navigator.of(context).pop(
@@ -792,6 +802,7 @@ class _MonthlyCashflowEditorPageState
         comment: _commentCtrl.text.trim(),
         contextMarkdown: m.monthlyEntryFor(_monthKey)?.contextMarkdown,
         investmentLines: reconciled,
+        savingsLines: reconciledSav,
       ),
     );
   }
@@ -2512,6 +2523,12 @@ bool _monthInvestmentNeedsAction(AppModel model, String monthKey) {
   return !monthlyInvestmentLinkingComplete(e);
 }
 
+bool _monthSavingsNeedsAction(AppModel model, String monthKey) {
+  final e = model.monthlyEntryFor(monthKey);
+  if (e == null || e.outflowToCashFd <= 0.005) return false;
+  return !monthlySavingsLinkingComplete(e);
+}
+
 Future<void> _showMonthInvestmentLinkSheet(
   BuildContext context,
   AppModel model,
@@ -2521,10 +2538,33 @@ Future<void> _showMonthInvestmentLinkSheet(
     context: context,
     showDragHandle: true,
     isScrollControlled: true,
+    sizesToContent: true,
     builder: (ctx) => Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(ctx).bottom),
       child: SafeArea(
         child: _MonthInvestmentLinkSheet(
+          model: model,
+          monthKey: monthKey,
+        ),
+      ),
+    ),
+  );
+}
+
+Future<void> _showMonthSavingsLinkSheet(
+  BuildContext context,
+  AppModel model,
+  String monthKey,
+) {
+  return showLiquidGlassModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    isScrollControlled: true,
+    sizesToContent: true,
+    builder: (ctx) => Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(ctx).bottom),
+      child: SafeArea(
+        child: _MonthSavingsLinkSheet(
           model: model,
           monthKey: monthKey,
         ),
@@ -2757,6 +2797,364 @@ class _MonthInvestmentLinkSheetState extends State<_MonthInvestmentLinkSheet> {
           ),
         );
       },
+    );
+  }
+}
+
+String? _savingsLineLinkKey(MonthlySavingsLine line) {
+  if ((line.assetId ?? '').isNotEmpty) return 'a:${line.assetId}';
+  if ((line.liabilityId ?? '').isNotEmpty) return 'l:${line.liabilityId}';
+  return null;
+}
+
+void _applySavingsLineLinkKey(MonthlySavingsLine line, String? key) {
+  line.assetId = null;
+  line.liabilityId = null;
+  if (key == null || key.isEmpty) return;
+  if (key.startsWith('a:')) {
+    line.assetId = key.substring(2);
+  } else if (key.startsWith('l:')) {
+    line.liabilityId = key.substring(2);
+  }
+}
+
+class _MonthSavingsLinkSheet extends StatefulWidget {
+  const _MonthSavingsLinkSheet({
+    required this.model,
+    required this.monthKey,
+  });
+
+  final AppModel model;
+  final String monthKey;
+
+  @override
+  State<_MonthSavingsLinkSheet> createState() => _MonthSavingsLinkSheetState();
+}
+
+class _MonthSavingsLinkSheetState extends State<_MonthSavingsLinkSheet> {
+  late List<MonthlySavingsLine> _lines;
+  final Map<String, TextEditingController> _amountCtrls = {};
+
+  double get _target =>
+      widget.model.monthlyEntryFor(widget.monthKey)?.outflowToCashFd ?? 0;
+
+  @override
+  void initState() {
+    super.initState();
+    final e = widget.model.monthlyEntryFor(widget.monthKey)!;
+    _lines = [for (final l in e.savingsLines) l.clone()];
+    if (_lines.isEmpty && e.outflowToCashFd > 0.005) {
+      _lines.add(MonthlySavingsLine.blank()..amount = e.outflowToCashFd);
+    }
+    for (final l in _lines) {
+      _amountCtrls[l.id] = TextEditingController(
+        text: l.amount <= 0.005
+            ? ''
+            : formatGroupedInteger(
+                l.amount.round(),
+                currency: widget.model.displayCurrency,
+              ),
+      );
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final c in _amountCtrls.values) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  TextEditingController _controllerFor(MonthlySavingsLine line) {
+    return _amountCtrls.putIfAbsent(
+      line.id,
+      () => TextEditingController(
+        text: line.amount <= 0.005
+            ? ''
+            : formatGroupedInteger(
+                line.amount.round(),
+                currency: widget.model.displayCurrency,
+              ),
+      ),
+    );
+  }
+
+  void _syncAmountsFromFields() {
+    for (final l in _lines) {
+      final c = _amountCtrls[l.id];
+      if (c != null) {
+        l.amount = _ledgerParseGroupedDouble(c.text);
+      }
+    }
+  }
+
+  void _addSplit() {
+    setState(() {
+      final n = MonthlySavingsLine.blank();
+      _lines.add(n);
+      _amountCtrls[n.id] = TextEditingController();
+    });
+  }
+
+  void _removeAt(int i) {
+    final line = _lines[i];
+    setState(() {
+      _lines.removeAt(i);
+      final c = _amountCtrls.remove(line.id);
+      c?.dispose();
+    });
+  }
+
+  void _save(BuildContext context) {
+    _syncAmountsFromFields();
+    final m = widget.model;
+    final target = _target;
+    if (target <= 0.005) {
+      Navigator.of(context).pop();
+      return;
+    }
+    final filtered = <MonthlySavingsLine>[];
+    for (final l in _lines) {
+      if (l.amount > 0.005) filtered.add(l);
+    }
+    if (filtered.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Add at least one amount.')),
+      );
+      return;
+    }
+    final sum = sumMonthlySavingsAmounts(filtered);
+    if ((sum - target).abs() > 0.51) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Allocated total must match saved (${formatGroupedInteger(target.round(), currency: m.displayCurrency)}).',
+          ),
+        ),
+      );
+      return;
+    }
+    for (final l in filtered) {
+      final hasAsset = (l.assetId ?? '').isNotEmpty;
+      final hasLiab = (l.liabilityId ?? '').isNotEmpty;
+      if (!hasAsset && !hasLiab) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Choose an asset or loan for each line.')),
+        );
+        return;
+      }
+      if (hasAsset && hasLiab) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Pick only one target per line.')),
+        );
+        return;
+      }
+    }
+    final complete = m.commitMonthSavingsLinking(widget.monthKey, filtered);
+    if (!context.mounted) return;
+    Navigator.of(context).pop();
+    if (complete) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Balances updated from savings link'),
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final m = widget.model;
+    final dc = m.displayCurrency;
+    final cs = Theme.of(context).colorScheme;
+    const edge = EdgeInsets.fromLTRB(20, 8, 20, 24);
+    final savAssets =
+        savingsPoolAssets(m.assets, m.assetsGoalsPolicy).toList();
+    return ListenableBuilder(
+      listenable: m,
+      builder: (ctx, _) {
+        _syncAmountsFromFields();
+        final target = _target;
+        final sum = sumMonthlySavingsAmounts(_lines);
+        final match = target > 0.005 && (sum - target).abs() <= 0.51;
+        final targetTxt = formatGroupedInteger(target.round(), currency: dc);
+        final sumTxt = formatGroupedInteger(sum.round(), currency: dc);
+        return SingleChildScrollView(
+          padding: edge,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                AppModel.formatMonthKeyLabel(widget.monthKey),
+                style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 16,
+                  color: cs.onSurface,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Saved this month: $targetTxt',
+                style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
+              ),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Allocated: $sumTxt',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 14,
+                        color: match ? Colors.green.shade700 : cs.onSurface,
+                      ),
+                    ),
+                  ),
+                  if (match)
+                    Icon(Icons.check_circle, color: Colors.green.shade600, size: 22),
+                ],
+              ),
+              const SizedBox(height: 14),
+              for (var i = 0; i < _lines.length; i++)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _MonthSavingsSplitRow(
+                    model: m,
+                    line: _lines[i],
+                    savingsAssets: savAssets,
+                    amountController: _controllerFor(_lines[i]),
+                    canRemove: _lines.length > 1,
+                    onRemove: () => _removeAt(i),
+                    onAmountChanged: () => setState(() {}),
+                    onLinkChanged: (key) => setState(() {
+                      _applySavingsLineLinkKey(_lines[i], key);
+                    }),
+                  ),
+                ),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: _addSplit,
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('Add split'),
+                ),
+              ),
+              const SizedBox(height: 8),
+              FilledButton(
+                onPressed: () => _save(context),
+                child: const Text('Save'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _MonthSavingsSplitRow extends StatelessWidget {
+  const _MonthSavingsSplitRow({
+    required this.model,
+    required this.line,
+    required this.savingsAssets,
+    required this.amountController,
+    required this.canRemove,
+    required this.onRemove,
+    required this.onAmountChanged,
+    required this.onLinkChanged,
+  });
+
+  final AppModel model;
+  final MonthlySavingsLine line;
+  final List<LedgerAssetRow> savingsAssets;
+  final TextEditingController amountController;
+  final bool canRemove;
+  final VoidCallback onRemove;
+  final VoidCallback onAmountChanged;
+  final ValueChanged<String?> onLinkChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final dc = model.displayCurrency;
+    final linkKey = _savingsLineLinkKey(line);
+    final linkItems = <DropdownMenuItem<String?>>[
+      const DropdownMenuItem<String?>(
+        value: null,
+        child: Text('Choose target'),
+      ),
+      for (final a in savingsAssets)
+        DropdownMenuItem<String?>(
+          value: 'a:${a.id}',
+          child: Text(
+            a.name.trim().isEmpty ? a.type.label : a.name.trim(),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      for (final l in model.liabilities)
+        DropdownMenuItem<String?>(
+          value: 'l:${l.id}',
+          child: Text(
+            l.name.trim().isEmpty ? l.type.label : l.name.trim(),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+    ];
+    final validKeys = linkItems.map((e) => e.value).whereType<String>().toSet();
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border.all(color: cs.outlineVariant),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: amountController,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [
+                      GroupedIntegerTextInputFormatter(currency: dc),
+                    ],
+                    decoration: InputDecoration(
+                      labelText: 'Amount',
+                      border: const OutlineInputBorder(),
+                      isDense: true,
+                      prefixText: dc == CurrencyCode.aed ? null : dc.symbol,
+                    ),
+                    onChanged: (_) => onAmountChanged(),
+                  ),
+                ),
+                if (canRemove)
+                  IconButton(
+                    onPressed: onRemove,
+                    icon: const Icon(Icons.remove_circle_outline),
+                    tooltip: 'Remove',
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<String?>(
+              key: ValueKey('sav-lnk-${line.id}-$linkKey'),
+              initialValue: linkKey != null && validKeys.contains(linkKey) ? linkKey : null,
+              decoration: const InputDecoration(
+                labelText: 'Link to asset or loan',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+              items: linkItems,
+              onChanged: onLinkChanged,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -3091,7 +3489,6 @@ class _CashTabSection extends StatelessWidget {
         const SizedBox(height: 12),
         _MonthSavingsSection(
           model: model,
-          onMonthEntryTap: onMonthEntryTap,
           onPrivacyInteractionDenied: onPrivacyInteractionDenied,
         ),
         _MonthInvestmentsSection(
@@ -3106,12 +3503,10 @@ class _CashTabSection extends StatelessWidget {
 class _MonthSavingsSection extends StatelessWidget {
   const _MonthSavingsSection({
     required this.model,
-    required this.onMonthEntryTap,
     required this.onPrivacyInteractionDenied,
   });
 
   final AppModel model;
-  final void Function(String monthKey) onMonthEntryTap;
   final VoidCallback onPrivacyInteractionDenied;
 
   @override
@@ -3121,18 +3516,19 @@ class _MonthSavingsSection extends StatelessWidget {
     final savingsMonths = <String>[];
     for (final mk in months) {
       final e = model.monthlyEntryFor(mk);
-      if (e == null) continue;
-      final delta = e.closingBalance - e.openingBalance;
-      if (e.outflowToCashFd > 0.005 || delta.abs() > 0.5) {
+      if (e != null && e.outflowToCashFd > 0.005) {
         savingsMonths.add(mk);
       }
     }
     if (savingsMonths.isEmpty) return const SizedBox.shrink();
 
+    final needsAttention =
+        savingsMonths.any((mk) => _monthSavingsNeedsAction(model, mk));
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: ExpansionTile(
-        initiallyExpanded: true,
+        initiallyExpanded: needsAttention,
         title: Text(
           'Savings',
           style: TextStyle(
@@ -3142,7 +3538,7 @@ class _MonthSavingsSection extends StatelessWidget {
           ),
         ),
         subtitle: Text(
-          'Cashflow saved + balance change',
+          needsAttention ? 'Link to assets or loans' : 'Linked by month',
           style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
         ),
         children: [
@@ -3151,7 +3547,6 @@ class _MonthSavingsSection extends StatelessWidget {
               model: model,
               monthKey: mk,
               onPrivacyInteractionDenied: onPrivacyInteractionDenied,
-              onTap: () => onMonthEntryTap(mk),
             ),
         ],
       ),
@@ -3164,13 +3559,11 @@ class _MonthSavingsMonthTile extends StatelessWidget {
     required this.model,
     required this.monthKey,
     required this.onPrivacyInteractionDenied,
-    required this.onTap,
   });
 
   final AppModel model;
   final String monthKey;
   final VoidCallback onPrivacyInteractionDenied;
-  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -3180,30 +3573,42 @@ class _MonthSavingsMonthTile extends StatelessWidget {
     final privacy = model.privacyHideAmounts;
     final dc = model.displayCurrency;
     final saved = e.outflowToCashFd;
-    final delta = e.closingBalance - e.openingBalance;
-
-    String fmt(double v) => privacy
-        ? maskSensitiveNumberString(formatGroupedInteger(v.round(), currency: dc))
-        : formatGroupedInteger(v.round(), currency: dc);
-
-    final parts = <String>[];
-    if (saved > 0.005) parts.add('${fmt(saved)} saved');
-    if (delta.abs() > 0.5) {
-      parts.add('${delta > 0 ? '+' : ''}${fmt(delta)} balance');
-    }
-
+    final complete = monthlySavingsLinkingComplete(e);
+    final needs = _monthSavingsNeedsAction(model, monthKey);
+    final savedTxt = privacy
+        ? maskSensitiveNumberString(
+            formatGroupedInteger(saved.round(), currency: dc),
+          )
+        : formatGroupedInteger(saved.round(), currency: dc);
+    final Widget leading = complete
+        ? Icon(Icons.check_circle, color: Colors.green.shade600, size: 22)
+        : Icon(
+            Icons.flag_outlined,
+            color: needs ? Colors.orange.shade800 : cs.onSurfaceVariant,
+            size: 22,
+          );
     return ListTile(
       dense: true,
-      leading: Icon(Icons.savings_outlined, color: cs.secondary, size: 22),
+      leading: leading,
       title: Text(
         AppModel.formatMonthKeyLabel(monthKey),
-        style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: cs.onSurface),
+        style: TextStyle(
+          fontWeight: FontWeight.w700,
+          fontSize: 13,
+          color: cs.onSurface,
+        ),
       ),
       subtitle: Text(
-        parts.isEmpty ? '—' : parts.join(' · '),
-        style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant, height: 1.3),
+        savedTxt,
+        style: TextStyle(
+          fontSize: 12,
+          color: cs.onSurfaceVariant,
+          height: 1.3,
+        ),
       ),
-      onTap: privacy ? onPrivacyInteractionDenied : onTap,
+      onTap: privacy
+          ? onPrivacyInteractionDenied
+          : () => _showMonthSavingsLinkSheet(context, model, monthKey),
     );
   }
 }

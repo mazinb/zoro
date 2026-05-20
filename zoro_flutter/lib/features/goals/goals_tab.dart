@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../core/finance/goal_asset_buckets.dart';
 import '../../core/finance/goals_calculator.dart';
@@ -10,6 +11,7 @@ import '../../shared/widgets/zoro_status_banner.dart';
 import 'goal_editor_sheet.dart';
 import 'goal_widgets.dart';
 import 'goals_ai_flow.dart';
+import 'goals_allocation_sheet.dart';
 import 'goals_paydown_sheet.dart';
 
 /// Goals tab type scale (aligned with Ledger cards).
@@ -63,14 +65,15 @@ class _GoalsBody extends StatelessWidget {
     final m = model;
     final cs = Theme.of(context).colorScheme;
     final avail = m.availableAfterExpensesMonthly;
+    final hide = m.privacyHideAmounts;
     final sliderPct = (m.allocInvestFraction * 100).round();
     final savedPct = 100 - sliderPct;
     final headline = sliderPct > 50
         ? '$sliderPct% invested'
         : (sliderPct == 50 ? '50% saved' : '$savedPct% saved');
     final planFeas = m.planFeasibility();
-
     final hasWarning = !planFeas.isOk;
+    final hasNotes = m.allocationContextMarkdown.trim().isNotEmpty;
 
     return LiquidGlassPanel(
       padding: EdgeInsets.fromLTRB(14, 14, 14, hasWarning ? 12 : 14),
@@ -78,45 +81,57 @@ class _GoalsBody extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            mainAxisSize: MainAxisSize.min,
+          Row(
             children: [
-              Center(
-                child: Text(
-                  headline,
-                  style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: cs.onSurface),
+              Expanded(
+                child: Center(
+                  child: Text(
+                    headline,
+                    style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: cs.onSurface),
+                  ),
                 ),
               ),
-              Slider(
-                value: avail <= 0 ? 0.0 : m.allocInvestFraction.clamp(0.0, 1.0),
-                divisions: 20,
-                onChanged: avail <= 0 ? null : m.setAllocInvestFraction,
-              ),
-              if (avail > 0)
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: _FlowAmount(
-                        label: 'Savings',
-                        amount: goalMoney(m, m.allocSavingsMonthly, hide: m.privacyHideAmounts),
-                        accent: cs.secondary,
-                        align: CrossAxisAlignment.start,
-                      ),
-                    ),
-                    Expanded(
-                      child: _FlowAmount(
-                        label: 'Invest',
-                        amount: goalMoney(m, m.allocInvestmentsMonthly, hide: m.privacyHideAmounts),
-                        accent: m.accent,
-                        align: CrossAxisAlignment.end,
-                      ),
-                    ),
-                  ],
+              IconButton(
+                icon: Icon(
+                  hasNotes ? Icons.notes : Icons.notes_outlined,
+                  size: 20,
+                  color: hasNotes ? m.accent : cs.onSurfaceVariant,
                 ),
+                tooltip: 'Allocation notes',
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                onPressed: () => openGoalsAllocationSheet(context: context, model: m),
+              ),
             ],
           ),
+          Slider(
+            value: avail <= 0 ? 0.0 : m.allocInvestFraction.clamp(0.0, 1.0),
+            divisions: 20,
+            onChanged: avail <= 0 ? null : m.setAllocInvestFraction,
+          ),
+          if (avail > 0)
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: _FlowAmount(
+                    label: 'Savings',
+                    amount: goalMoney(m, m.allocSavingsMonthly, hide: hide),
+                    accent: cs.secondary,
+                    align: CrossAxisAlignment.start,
+                  ),
+                ),
+                Expanded(
+                  child: _FlowAmount(
+                    label: 'Invest',
+                    amount: goalMoney(m, m.allocInvestmentsMonthly, hide: hide),
+                    accent: m.accent,
+                    align: CrossAxisAlignment.end,
+                  ),
+                ),
+              ],
+            ),
           ZoroPlanStatusStrip(
             feasibility: planFeas,
             onAdjustRetirementDate: planFeas.needsDateAdjust
@@ -193,6 +208,7 @@ class _GoalsBody extends StatelessWidget {
         const SizedBox(height: 10),
         _GoalsSection(
           title: 'Savings',
+          headerTrailing: _SavingsSalaryPctBox(model: m),
           subtitle: savingsTotal > 0 || m.allocSavingsMonthly > 0
               ? '${goalMoney(m, savingsTotal, hide: hide)} · ${goalMoney(m, m.allocSavingsMonthly, hide: hide)}/mo'
               : '—',
@@ -258,18 +274,166 @@ class _FlowAmount extends StatelessWidget {
   }
 }
 
+class _SavingsSalaryPctBox extends StatefulWidget {
+  const _SavingsSalaryPctBox({required this.model});
+
+  final AppModel model;
+
+  @override
+  State<_SavingsSalaryPctBox> createState() => _SavingsSalaryPctBoxState();
+}
+
+class _SavingsSalaryPctBoxState extends State<_SavingsSalaryPctBox> {
+  late final TextEditingController _pctCtrl;
+  final FocusNode _focus = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _pctCtrl = TextEditingController(text: _formatPct(widget.model.savingsPctOfSalary));
+    _focus.addListener(() => setState(() {}));
+  }
+
+  String _formatPct(double v) {
+    if (v <= 0.005) return '';
+    final r = v.round();
+    if ((v - r).abs() < 0.05) return r.toString();
+    return v.toStringAsFixed(1);
+  }
+
+  double? _parsePct(String raw) {
+    final t = raw.trim().replaceAll('%', '');
+    if (t.isEmpty) return 0;
+    return double.tryParse(t);
+  }
+
+  void _applyPct({bool dismissKeyboard = false}) {
+    final v = _parsePct(_pctCtrl.text);
+    if (v == null) return;
+    widget.model.setAllocFromSavingsPctOfSalary(v);
+    _pctCtrl.text = _formatPct(widget.model.savingsPctOfSalary);
+    if (dismissKeyboard) _focus.unfocus();
+  }
+
+  @override
+  void dispose() {
+    _focus.dispose();
+    _pctCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: widget.model,
+      builder: (context, _) {
+        final editing = _focus.hasFocus;
+        final pct = widget.model.savingsPctOfSalary;
+        if (!editing) {
+          final next = _formatPct(pct);
+          if (_pctCtrl.text != next) _pctCtrl.text = next;
+        }
+        final over = pct > 100.01;
+        final cs = Theme.of(context).colorScheme;
+        final fg = over ? cs.error : cs.onSurface;
+        const fieldW = 52.0;
+        const suffixW = 58.0;
+        const boxH = 34.0;
+
+        return SizedBox(
+          height: boxH,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            decoration: BoxDecoration(
+              border: Border.all(color: over ? cs.error.withValues(alpha: 0.6) : cs.outlineVariant),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(
+                  width: fieldW,
+                  child: TextField(
+                    controller: _pctCtrl,
+                    focusNode: _focus,
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: (_) => _applyPct(dismissKeyboard: true),
+                    onEditingComplete: () => _applyPct(dismissKeyboard: true),
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'[\d.]')),
+                    ],
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 15,
+                      color: fg,
+                      height: 1.2,
+                    ),
+                    textAlign: TextAlign.center,
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.zero,
+                      isCollapsed: true,
+                    ),
+                  ),
+                ),
+                SizedBox(
+                  width: suffixW,
+                  child: editing
+                      ? Align(
+                          alignment: Alignment.centerRight,
+                          child: IconButton(
+                            icon: Icon(Icons.check, size: 18, color: widget.model.accent),
+                            tooltip: 'Apply',
+                            visualDensity: VisualDensity.compact,
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                            onPressed: () => _applyPct(dismissKeyboard: true),
+                          ),
+                        )
+                      : Row(
+                          mainAxisAlignment: MainAxisAlignment.start,
+                          children: [
+                            Text(
+                              '%',
+                              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: fg),
+                            ),
+                            const SizedBox(width: 3),
+                            Text(
+                              'salary',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: over ? cs.error : cs.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
 class _GoalsSection extends StatelessWidget {
   const _GoalsSection({
     required this.title,
     required this.subtitle,
     required this.children,
     this.showSubtitle = true,
+    this.headerTrailing,
   });
 
   final String title;
   final String subtitle;
   final List<Widget> children;
   final bool showSubtitle;
+  final Widget? headerTrailing;
 
   @override
   Widget build(BuildContext context) {
@@ -280,7 +444,13 @@ class _GoalsSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(title, style: _GoalsType.sectionTitle),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(child: Text(title, style: _GoalsType.sectionTitle)),
+              if (headerTrailing != null) headerTrailing!,
+            ],
+          ),
           if (hasSubtitle) ...[
             const SizedBox(height: 2),
             Text(

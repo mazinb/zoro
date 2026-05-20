@@ -134,6 +134,32 @@ MonthlyInvestmentLine? decodeMonthlyInvestmentLine(Object? raw) {
   );
 }
 
+Map<String, dynamic> encodeMonthlySavingsLine(MonthlySavingsLine l) => {
+      'id': l.id,
+      if (l.assetId != null) 'assetId': l.assetId,
+      if (l.liabilityId != null) 'liabilityId': l.liabilityId,
+      'amount': l.amount,
+      if (l.contextMarkdown != null && l.contextMarkdown!.trim().isNotEmpty) 'contextMarkdown': l.contextMarkdown,
+      'amountApplied': l.amountApplied,
+    };
+
+MonthlySavingsLine? decodeMonthlySavingsLine(Object? raw) {
+  if (raw is! Map) return null;
+  final m = Map<String, dynamic>.from(raw);
+  final id = m['id']?.toString();
+  if (id == null) return null;
+  return MonthlySavingsLine(
+    id: id,
+    assetId: m['assetId']?.toString(),
+    liabilityId: m['liabilityId']?.toString(),
+    amount: (m['amount'] is num) ? (m['amount'] as num).toDouble() : double.tryParse(m['amount']?.toString() ?? '') ?? 0,
+    contextMarkdown: m['contextMarkdown']?.toString(),
+    amountApplied: (m['amountApplied'] is num)
+        ? (m['amountApplied'] as num).toDouble()
+        : double.tryParse(m['amountApplied']?.toString() ?? '') ?? 0,
+  );
+}
+
 Map<String, dynamic> encodeMonthlyCashflowEntry(MonthlyCashflowEntry e) => {
       'monthKey': e.monthKey,
       'openingBalance': e.openingBalance,
@@ -145,6 +171,7 @@ Map<String, dynamic> encodeMonthlyCashflowEntry(MonthlyCashflowEntry e) => {
       'comment': e.comment,
       if (e.contextMarkdown != null && e.contextMarkdown!.trim().isNotEmpty) 'contextMarkdown': e.contextMarkdown,
       'investmentLines': e.investmentLines.map(encodeMonthlyInvestmentLine).toList(),
+      'savingsLines': e.savingsLines.map(encodeMonthlySavingsLine).toList(),
     };
 
 MonthlyCashflowEntry? decodeMonthlyCashflowEntry(Object? raw) {
@@ -158,6 +185,14 @@ MonthlyCashflowEntry? decodeMonthlyCashflowEntry(Object? raw) {
     for (final e in linesRaw) {
       final l = decodeMonthlyInvestmentLine(e);
       if (l != null) lines.add(l);
+    }
+  }
+  final savRaw = m['savingsLines'];
+  final savLines = <MonthlySavingsLine>[];
+  if (savRaw is List) {
+    for (final e in savRaw) {
+      final l = decodeMonthlySavingsLine(e);
+      if (l != null) savLines.add(l);
     }
   }
   return MonthlyCashflowEntry(
@@ -180,6 +215,7 @@ MonthlyCashflowEntry? decodeMonthlyCashflowEntry(Object? raw) {
     comment: m['comment']?.toString() ?? '',
     contextMarkdown: m['contextMarkdown']?.toString(),
     investmentLines: lines,
+    savingsLines: savLines,
   );
 }
 
