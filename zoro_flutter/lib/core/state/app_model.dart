@@ -11,6 +11,7 @@ import '../finance/goal_allocation.dart';
 import '../finance/goal_asset_buckets.dart';
 import '../finance/goals_calculator.dart';
 import '../../dev/compile_time_api_keys.dart';
+import '../finance/row_review_result.dart';
 import '../llm/apple_foundation_channel.dart';
 import '../llm/llm_key_store.dart';
 import '../notifications/notification_service.dart';
@@ -358,6 +359,127 @@ class AppModel extends ChangeNotifier {
     unawaited(persistAppStateToDisk());
   }
 
+  /// Ephemeral UI state for ledger/context row reviews (not persisted).
+  final Map<String, RowReviewSlot> ledgerAssetReviewById = {};
+  final Map<String, RowReviewSlot> ledgerLiabilityReviewById = {};
+  final Map<String, RowReviewSlot> contextAssetReviewById = {};
+  final Map<String, RowReviewSlot> contextLiabilityReviewById = {};
+
+  void clearLedgerAssetReviews() {
+    ledgerAssetReviewById.clear();
+    notifyListeners();
+  }
+
+  void clearLedgerLiabilityReviews() {
+    ledgerLiabilityReviewById.clear();
+    notifyListeners();
+  }
+
+  void clearContextAssetReviews() {
+    contextAssetReviewById.clear();
+    notifyListeners();
+  }
+
+  void clearContextLiabilityReviews() {
+    contextLiabilityReviewById.clear();
+    notifyListeners();
+  }
+
+  void setLedgerAssetReview(
+    String assetId, {
+    bool? reviewing,
+    RowReviewResult? result,
+    bool? bannerDismissed,
+  }) {
+    final slot = ledgerAssetReviewById.putIfAbsent(assetId, RowReviewSlot.new);
+    if (reviewing != null) slot.reviewing = reviewing;
+    if (result != null) slot.result = result;
+    if (bannerDismissed != null) slot.bannerDismissed = bannerDismissed;
+    notifyListeners();
+  }
+
+  void setLedgerLiabilityReview(
+    String liabilityId, {
+    bool? reviewing,
+    RowReviewResult? result,
+    bool? bannerDismissed,
+  }) {
+    final slot = ledgerLiabilityReviewById.putIfAbsent(liabilityId, RowReviewSlot.new);
+    if (reviewing != null) slot.reviewing = reviewing;
+    if (result != null) slot.result = result;
+    if (bannerDismissed != null) slot.bannerDismissed = bannerDismissed;
+    notifyListeners();
+  }
+
+  void setContextAssetReview(
+    String assetId, {
+    bool? reviewing,
+    RowReviewResult? result,
+    bool? bannerDismissed,
+  }) {
+    final slot = contextAssetReviewById.putIfAbsent(assetId, RowReviewSlot.new);
+    if (reviewing != null) slot.reviewing = reviewing;
+    if (result != null) slot.result = result;
+    if (bannerDismissed != null) slot.bannerDismissed = bannerDismissed;
+    notifyListeners();
+  }
+
+  void setContextLiabilityReview(
+    String liabilityId, {
+    bool? reviewing,
+    RowReviewResult? result,
+    bool? bannerDismissed,
+  }) {
+    final slot = contextLiabilityReviewById.putIfAbsent(liabilityId, RowReviewSlot.new);
+    if (reviewing != null) slot.reviewing = reviewing;
+    if (result != null) slot.result = result;
+    if (bannerDismissed != null) slot.bannerDismissed = bannerDismissed;
+    notifyListeners();
+  }
+
+  void dismissLedgerAssetReviewBanner(String assetId) {
+    setLedgerAssetReview(assetId, bannerDismissed: true);
+  }
+
+  void dismissLedgerLiabilityReviewBanner(String liabilityId) {
+    setLedgerLiabilityReview(liabilityId, bannerDismissed: true);
+  }
+
+  void dismissContextAssetReviewBanner(String assetId) {
+    setContextAssetReview(assetId, bannerDismissed: true);
+  }
+
+  void dismissContextLiabilityReviewBanner(String liabilityId) {
+    setContextLiabilityReview(liabilityId, bannerDismissed: true);
+  }
+
+  /// Apply ledger review suggested comment when present.
+  void applyLedgerAssetReviewComment(String assetId) {
+    final r = ledgerAssetReviewById[assetId]?.result;
+    final note = r?.suggestedComment.trim() ?? '';
+    if (note.isEmpty) return;
+    final a = assetById(assetId);
+    if (a == null) return;
+    a.comment = note;
+    assetsLastReviewed = DateTime.now();
+    userTouchedAssets = true;
+    _scheduleAppStatePersist();
+    notifyListeners();
+  }
+
+  void applyContextAssetReview(String assetId) {
+    final md = contextAssetReviewById[assetId]?.result?.suggestedContextMarkdown.trim() ?? '';
+    if (md.isEmpty) return;
+    setAssetContextMarkdown(assetId: assetId, markdown: md);
+  }
+
+  void applyContextLiabilityReview(String liabilityId) {
+    final md =
+        contextLiabilityReviewById[liabilityId]?.result?.suggestedContextMarkdown.trim() ?? '';
+    if (md.isEmpty) return;
+    setLiabilityContextMarkdown(liabilityId: liabilityId, markdown: md);
+  }
+
   /// When this context note was last saved (for assistant + display). Keys: `asset:id`, `liability:id`, `bucket:key`, `month:yyyy-mm`.
   final Map<String, DateTime> contextNoteSavedAtUtc = {};
 
@@ -469,6 +591,15 @@ class AppModel extends ChangeNotifier {
   final Map<String, Map<String, bool>> goalsTimeMilestonesFired = {};
 
   DateTime? goalsLastUpdated;
+
+  /// When retirement corpus assumptions were last applied (Goals helper §1).
+  DateTime? retirementCorpusLastUpdated;
+
+  /// When retirement extras / savings weights were last applied (Goals helper §3).
+  DateTime? retirementBucketsLastUpdated;
+
+  /// Last time the user applied a Goals helper section (clears “plan changed” in Settings).
+  DateTime? goalsReviewAcknowledgedAt;
 
   /// Monthly reminders are considered due after this day-of-month.
   /// Default: 1st of the month.
@@ -2880,6 +3011,48 @@ class AppModel extends ChangeNotifier {
   bool goalsReviewOverdueAt(DateTime now) =>
       _isOverdue(now: now, last: goalsLastUpdated, cadence: remindersGoalsCadence);
 
+  /// Latest change across retirement helper sections and goal edits.
+  DateTime? retirementPlanLastUpdatedAt() {
+    DateTime? best = goalsLastUpdated;
+    void consider(DateTime? d) {
+      if (d == null) return;
+      final b = best;
+      if (b == null || d.isAfter(b)) best = d;
+    }
+    consider(retirementCorpusLastUpdated);
+    consider(allocationTargetLastUpdated);
+    consider(retirementBucketsLastUpdated);
+    return best;
+  }
+
+  bool goalsPlanHasUnacknowledgedUpdates({DateTime? now}) {
+    final planAt = retirementPlanLastUpdatedAt();
+    if (planAt == null) return false;
+    final ack = goalsReviewAcknowledgedAt;
+    if (ack == null) return true;
+    return planAt.isAfter(ack);
+  }
+
+  void markRetirementCorpusUpdated() {
+    retirementCorpusLastUpdated = DateTime.now();
+    goalsReviewAcknowledgedAt = DateTime.now();
+    _scheduleAppStatePersist();
+    notifyListeners();
+  }
+
+  void markRetirementSplitUpdated() {
+    goalsReviewAcknowledgedAt = DateTime.now();
+    _scheduleAppStatePersist();
+    notifyListeners();
+  }
+
+  void markRetirementBucketsUpdated() {
+    retirementBucketsLastUpdated = DateTime.now();
+    goalsReviewAcknowledgedAt = DateTime.now();
+    _scheduleAppStatePersist();
+    notifyListeners();
+  }
+
   bool get cashflowReviewOverdue => cashflowReviewOverdueAt(DateTime.now());
 
   /// Whether cash flow needs attention for [now] (used by Home reminders + tests).
@@ -3125,6 +3298,9 @@ class AppModel extends ChangeNotifier {
         'goalsTimeProgressNotifications': goalsTimeProgressNotifications,
         'goalsTimeMilestonesFired': goalsTimeMilestonesFired,
         'goalsLastUpdated': goalsLastUpdated?.toUtc().toIso8601String(),
+        'retirementCorpusLastUpdated': retirementCorpusLastUpdated?.toUtc().toIso8601String(),
+        'retirementBucketsLastUpdated': retirementBucketsLastUpdated?.toUtc().toIso8601String(),
+        'goalsReviewAcknowledgedAt': goalsReviewAcknowledgedAt?.toUtc().toIso8601String(),
         'remindersMonthlyDayOfMonth': remindersMonthlyDayOfMonth,
         'remindersQuarterMonthInQuarter': remindersQuarterMonthInQuarter,
         'remindersQuarterDay': remindersQuarterDay,
@@ -3304,6 +3480,9 @@ class AppModel extends ChangeNotifier {
         }
       }
       goalsLastUpdated = app_state.dateTimeFromJsonField(s['goalsLastUpdated']);
+      retirementCorpusLastUpdated = app_state.dateTimeFromJsonField(s['retirementCorpusLastUpdated']);
+      retirementBucketsLastUpdated = app_state.dateTimeFromJsonField(s['retirementBucketsLastUpdated']);
+      goalsReviewAcknowledgedAt = app_state.dateTimeFromJsonField(s['goalsReviewAcknowledgedAt']);
       final md = s['remindersMonthlyDayOfMonth'];
       if (md is int) remindersMonthlyDayOfMonth = md.clamp(1, 28);
       if (md is num) remindersMonthlyDayOfMonth = md.round().clamp(1, 28);

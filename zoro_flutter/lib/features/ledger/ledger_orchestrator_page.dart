@@ -33,19 +33,17 @@ You are the Ledger orchestrator in a personal finance app.
 
 You must reply with ONE JSON object only.
 
-Pick the best next INPUT area for the user to update:
+Pick the best completed month for the user to fill actual spending:
 {
-  "section": "assets" | "liabilities" | "expenses",
+  "section": "expenses",
   "message": "one short sentence explaining why"
 }
 
 Rules:
-- Only choose from the three input areas above.
+- Always return section "expenses".
 - If privacyHideAmounts is true, still choose a section; do not ask for numbers.
 - `recentMonths` is **six completed calendar months**, newest-first = **previous month** (e.g. in May, April is index 0). Month-to-date is not included.
-- Prefer expenses if recent monthly spending is missing or obviously stale (using those completed months).
-- Prefer liabilities if the user has debt and the row is missing basic info.
-- Prefer assets if a major balance looks stale or empty.
+- Prefer the most recent completed month that is missing or obviously stale spending data.
 ''';
 
   @override
@@ -119,23 +117,8 @@ Rules:
       );
 
       final obj = await decodeActiveProviderJsonWithRepair(m, raw);
-      final sectionRaw = obj['section']?.toString().trim().toLowerCase();
       final message = obj['message']?.toString().trim();
-
-      LedgerOrchestratorSection? s = switch (sectionRaw) {
-        'assets' => LedgerOrchestratorSection.assets,
-        'liabilities' => LedgerOrchestratorSection.liabilities,
-        'expenses' => LedgerOrchestratorSection.expenses,
-        _ => null,
-      };
-
-      if (s == null) {
-        setState(() {
-          _loading = false;
-          _error = 'Unexpected reply. Try again.';
-        });
-        return;
-      }
+      const s = LedgerOrchestratorSection.expenses;
 
       widget.model.recordInternalAgentRun(InternalAppAgentIds.ledgerOrchestrator, {
         'summary': message ?? '',
@@ -169,7 +152,7 @@ Rules:
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Ledger helper'),
+        title: const Text('Cashflow helper'),
         leading: IconButton(
           icon: const Icon(Icons.close),
           onPressed: () => Navigator.of(context).pop(),

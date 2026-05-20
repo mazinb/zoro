@@ -108,7 +108,7 @@ class _SettingsTabState extends State<SettingsTab> with SingleTickerProviderStat
             labelStyle: const TextStyle(fontWeight: FontWeight.w900),
             tabs: const [
               Tab(text: 'General'),
-              Tab(text: 'Agents'),
+              Tab(text: 'Helpers'),
               Tab(text: 'API keys'),
             ],
           ),
@@ -509,11 +509,7 @@ class _GeneralPaneState extends State<_GeneralPane> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-                _CadenceRow(
-                  label: 'Expenses',
-                  value: model.remindersExpensesCadence,
-                  onChanged: model.setReminderCadenceExpenses,
-                ),
+                _GoalsReminderCadenceRow(model: model),
                 const SizedBox(height: 10),
                 _CadenceRow(
                   label: 'Cash flow',
@@ -804,14 +800,16 @@ class _AgentsPaneState extends State<_AgentsPane> {
     final cs = Theme.of(context).colorScheme;
     const goalsIds = {
       InternalAppAgentIds.goalsRetirementCorpus,
-      InternalAppAgentIds.goalsGuide,
+      InternalAppAgentIds.goalsRetirementSplit,
+      InternalAppAgentIds.goalsRetirementBuckets,
       InternalAppAgentIds.goalsExpenseEstimator,
     };
     final defs = kInternalAppAgentDefinitions.where((d) => goalsIds.contains(d.id)).toList()
       ..sort((a, b) {
         const order = [
           InternalAppAgentIds.goalsRetirementCorpus,
-          InternalAppAgentIds.goalsGuide,
+          InternalAppAgentIds.goalsRetirementSplit,
+          InternalAppAgentIds.goalsRetirementBuckets,
           InternalAppAgentIds.goalsExpenseEstimator,
         ];
         return order.indexOf(a.id).compareTo(order.indexOf(b.id));
@@ -853,7 +851,7 @@ class _AgentsPaneState extends State<_AgentsPane> {
                 ),
               const SizedBox(height: 16),
               Text(
-                'Reminders',
+                'Goals options',
                 style: TextStyle(fontWeight: FontWeight.w900, color: cs.onSurface, fontSize: 15),
               ),
               const SizedBox(height: 8),
@@ -863,12 +861,6 @@ class _AgentsPaneState extends State<_AgentsPane> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      _CadenceRow(
-                        label: 'Goals review',
-                        value: model.remindersGoalsCadence,
-                        onChanged: model.setReminderCadenceGoals,
-                      ),
-                      const SizedBox(height: 10),
                       SwitchListTile(
                         contentPadding: EdgeInsets.zero,
                         title: const Text('Timeline progress', style: TextStyle(fontWeight: FontWeight.w800)),
@@ -905,7 +897,8 @@ class _AgentsPaneState extends State<_AgentsPane> {
     final model = widget.model;
     final cs = Theme.of(context).colorScheme;
     bool isLedger(InternalAppAgentDefinition d) =>
-        d.id == InternalAppAgentIds.ledgerOrchestrator || d.id.startsWith('ledger_');
+        d.id == InternalAppAgentIds.ledgerOrchestrator ||
+        d.id.startsWith('ledger_');
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1471,6 +1464,50 @@ class _ModelPicker extends StatelessWidget {
             onChanged(v);
           },
         ),
+      ],
+    );
+  }
+}
+
+class _GoalsReminderCadenceRow extends StatelessWidget {
+  const _GoalsReminderCadenceRow({required this.model});
+
+  final AppModel model;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final now = DateTime.now();
+    final planAt = model.retirementPlanLastUpdatedAt();
+    final overdue = model.goalsReviewOverdueAt(now);
+    final unacked = model.goalsPlanHasUnacknowledgedUpdates(now: now);
+
+    String? subtitle;
+    if (planAt != null) {
+      final rel = formatAgentLastRunRelative(planAt, now: now) ?? 'recently';
+      subtitle = unacked ? 'Plan changed $rel — open Goals helper' : 'Last plan change $rel';
+    }
+    if (overdue && subtitle != null) {
+      subtitle = '$subtitle · review overdue';
+    } else if (overdue) {
+      subtitle = 'Review overdue';
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _CadenceRow(
+          label: 'Goals',
+          value: model.remindersGoalsCadence,
+          onChanged: model.setReminderCadenceGoals,
+        ),
+        if (subtitle != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            subtitle,
+            style: TextStyle(fontSize: 12, color: unacked || overdue ? cs.primary : cs.onSurfaceVariant),
+          ),
+        ],
       ],
     );
   }

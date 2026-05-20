@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 
 import '../../core/constants/web_expenses_income.dart';
-import '../../core/finance/asset_context_health.dart';
 import '../../core/finance/currency.dart';
 import '../../core/state/app_model.dart';
-import '../../shared/widgets/zoro_status_banner.dart';
+import '../../shared/widgets/ledger_card_subtitle.dart';
+import '../../shared/widgets/row_review_leading.dart';
 import '../../core/state/ledger_rows.dart';
-import 'context_orchestrator_page.dart';
 import 'context_editor_page.dart';
+import 'context_row_review_service.dart';
 
 class ContextTab extends StatefulWidget {
   const ContextTab({super.key, required this.model});
@@ -21,6 +21,8 @@ class ContextTab extends StatefulWidget {
 class _ContextTabState extends State<ContextTab> {
   bool _estimatesExpanded = false;
   bool _actualsExpanded = false;
+  bool _contextReviewRunning = false;
+  final _contextReviewService = ContextRowReviewService();
 
   String _hint(String md) {
     final t = md.trim();
@@ -57,6 +59,44 @@ class _ContextTabState extends State<ContextTab> {
     return formatCurrencyDisplay(l.total, currency: currencyCodeForPresetCountry(l.currencyCountry));
   }
 
+  Future<void> _runContextHelper() async {
+    if (_contextReviewRunning) return;
+    final m = widget.model;
+    final ready = await m.prepareLlmForAssistant();
+    if (!mounted) return;
+    if (!ready) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(m.llmAssistantUnavailableMessage),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    setState(() => _contextReviewRunning = true);
+    try {
+      final out = await _contextReviewService.reviewAssetsAndLiabilities(m);
+      if (!mounted) return;
+      final msg = StringBuffer('Context review complete');
+      if (out.budgetLine != null) msg.write('\n${out.budgetLine}');
+      if (out.trimmed) msg.write('\nSome notes were trimmed for on-device limits.');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(msg.toString()),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString()), behavior: SnackBarBehavior.floating),
+      );
+    } finally {
+      if (mounted) setState(() => _contextReviewRunning = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final model = widget.model;
@@ -66,7 +106,9 @@ class _ContextTabState extends State<ContextTab> {
     final monthsWithData = model.monthKeysWithCashflowData();
     final months = monthsWithData.isEmpty ? AppModel.recentMonthKeys() : monthsWithData;
 
-    return ListView(
+    return ListenableBuilder(
+      listenable: model,
+      builder: (context, _) => ListView(
       padding: const EdgeInsets.all(20),
       children: [
         Row(
@@ -77,16 +119,18 @@ class _ContextTabState extends State<ContextTab> {
             ),
             const Spacer(),
             IconButton.filledTonal(
-              onPressed: () {
-                Navigator.of(context).push<void>(
-                  MaterialPageRoute(
-                    fullscreenDialog: true,
-                    builder: (ctx) => ContextOrchestratorPage(model: model),
-                  ),
-                );
-              },
-              icon: const Icon(Icons.auto_awesome),
-              tooltip: 'Context helper',
+              onPressed: _contextReviewRunning ? null : _runContextHelper,
+              icon: _contextReviewRunning
+                  ? SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: model.accent,
+                      ),
+                    )
+                  : const Icon(Icons.auto_awesome),
+              tooltip: 'Help',
               style: IconButton.styleFrom(
                 backgroundColor: model.accentSoft,
                 foregroundColor: model.accent,
@@ -101,45 +145,93 @@ class _ContextTabState extends State<ContextTab> {
         ...model.assets.map((a) {
           final name = a.name.trim().isEmpty ? a.type.label : a.name.trim();
           final valueText = hide ? _moneyNativeAsset(a, hide: true) : _moneyNativeAsset(a, hide: false);
-          final health = assessAssetContextHealth(
-            asset: a,
-            displayValue: model.assetDisplayValue(a),
-          );
+          final slot = model.contextAssetReviewById[a.id];
+          final r = slot?.result;
+          final reviewing = slot?.reviewing ?? false;
+          final reviewRes = r;
+          final reviewBanner = slot != null &&
+                  !slot.bannerDismissed &&
+                  reviewRes != null
+              ? (reviewRes.bannerNote.trim().isNotEmpty
+                  ? reviewRes.bannerNote.trim()
+                  : reviewRes.detail.trim())
+              : '';
+          final useReviewBanner = reviewBanner.isNotEmpty;
+          final subtitle = useReviewBanner
+              ? reviewBanner
+              : _hint(a.contextMarkdown ?? '');
+          final useLeading = slot != null && (reviewing || r != null);
           return Padding(
             padding: const EdgeInsets.only(bottom: 10),
             child: Card(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (!health.isOk)
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-                      child: ZoroStatusBanner.fromContextHealth(health, compact: true),
+              child: InkWell(
+                onTap: () {
+                  Navigator.of(context).push<void>(
+                    MaterialPageRoute(
+                      builder: (ctx) => ContextEditorPage.asset(model: model, assetId: a.id),
                     ),
-                  ListTile(
-                    leading: Icon(a.type.icon, color: model.accent),
-                    title: Text(name, style: const TextStyle(fontWeight: FontWeight.w900)),
-                    subtitle: Text(_hint(a.contextMarkdown ?? ''), maxLines: 1, overflow: TextOverflow.ellipsis),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          valueText,
-                          style: TextStyle(color: cs.onSurface, fontWeight: FontWeight.w900, fontSize: 12),
+                  );
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  child: Row(
+                    children: [
+                      useLeading
+                          ? RowReviewLeadingIcon(
+                              reviewing: reviewing,
+                              result: r,
+                              defaultIcon: a.type.icon,
+                              accent: model.accent,
+                              size: 40,
+                              iconSize: 24,
+                            )
+                          : Icon(a.type.icon, color: model.accent),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(name, style: const TextStyle(fontWeight: FontWeight.w900)),
+                            LedgerCardSubtitle(
+                              text: subtitle,
+                              level: useReviewBanner ? reviewRes!.level : null,
+                              onDismiss: useReviewBanner
+                                  ? () => model.dismissContextAssetReviewBanner(a.id)
+                                  : null,
+                              onApply: useReviewBanner &&
+                                      reviewRes!.suggestedContextMarkdown.trim().isNotEmpty
+                                  ? () {
+                                      model.applyContextAssetReview(a.id);
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                          content: Text('Context updated'),
+                                          behavior: SnackBarBehavior.floating,
+                                        ),
+                                      );
+                                    }
+                                  : null,
+                              applyLabel: useReviewBanner &&
+                                      (reviewRes?.suggestedContextMarkdown.trim().isNotEmpty ??
+                                          false)
+                                  ? 'Update'
+                                  : null,
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 8),
-                        const Icon(Icons.chevron_right),
-                      ],
-                    ),
-                    onTap: () {
-                      Navigator.of(context).push<void>(
-                        MaterialPageRoute(
-                          builder: (ctx) => ContextEditorPage.asset(model: model, assetId: a.id),
+                      ),
+                      Text(
+                        valueText,
+                        style: TextStyle(
+                          color: cs.onSurface,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 12,
                         ),
-                      );
-                    },
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(Icons.chevron_right, color: cs.onSurfaceVariant),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
           );
@@ -151,24 +243,26 @@ class _ContextTabState extends State<ContextTab> {
         ...model.liabilities.map((l) {
           final name = l.name.trim().isEmpty ? l.type.label : l.name.trim();
           final valueText = hide ? _moneyNativeLiability(l, hide: true) : _moneyNativeLiability(l, hide: false);
+          final slot = model.contextLiabilityReviewById[l.id];
+          final r = slot?.result;
+          final reviewing = slot?.reviewing ?? false;
+          final reviewRes = r;
+          final reviewBanner = slot != null &&
+                  !slot.bannerDismissed &&
+                  reviewRes != null
+              ? (reviewRes.bannerNote.trim().isNotEmpty
+                  ? reviewRes.bannerNote.trim()
+                  : reviewRes.detail.trim())
+              : '';
+          final useReviewBanner = reviewBanner.isNotEmpty;
+          final subtitle = useReviewBanner
+              ? reviewBanner
+              : _hint(l.contextMarkdown ?? '');
+          final useLeading = slot != null && (reviewing || r != null);
           return Padding(
             padding: const EdgeInsets.only(bottom: 10),
             child: Card(
-              child: ListTile(
-                leading: Icon(l.type.icon, color: model.accent),
-                title: Text(name, style: const TextStyle(fontWeight: FontWeight.w900)),
-                subtitle: Text(_hint(l.contextMarkdown ?? ''), maxLines: 1, overflow: TextOverflow.ellipsis),
-                trailing: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      valueText,
-                      style: TextStyle(color: cs.onSurface, fontWeight: FontWeight.w900, fontSize: 12),
-                    ),
-                    const SizedBox(width: 8),
-                    const Icon(Icons.chevron_right),
-                  ],
-                ),
+              child: InkWell(
                 onTap: () {
                   Navigator.of(context).push<void>(
                     MaterialPageRoute(
@@ -176,6 +270,66 @@ class _ContextTabState extends State<ContextTab> {
                     ),
                   );
                 },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  child: Row(
+                    children: [
+                      useLeading
+                          ? RowReviewLeadingIcon(
+                              reviewing: reviewing,
+                              result: r,
+                              defaultIcon: l.type.icon,
+                              accent: model.accent,
+                              size: 40,
+                              iconSize: 24,
+                            )
+                          : Icon(l.type.icon, color: model.accent),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(name, style: const TextStyle(fontWeight: FontWeight.w900)),
+                            LedgerCardSubtitle(
+                              text: subtitle,
+                              level: useReviewBanner ? reviewRes!.level : null,
+                              onDismiss: useReviewBanner
+                                  ? () => model.dismissContextLiabilityReviewBanner(l.id)
+                                  : null,
+                              onApply: useReviewBanner &&
+                                      reviewRes!.suggestedContextMarkdown.trim().isNotEmpty
+                                  ? () {
+                                      model.applyContextLiabilityReview(l.id);
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                          content: Text('Context updated'),
+                                          behavior: SnackBarBehavior.floating,
+                                        ),
+                                      );
+                                    }
+                                  : null,
+                              applyLabel: useReviewBanner &&
+                                      (reviewRes?.suggestedContextMarkdown.trim().isNotEmpty ??
+                                          false)
+                                  ? 'Update'
+                                  : null,
+                            ),
+                          ],
+                        ),
+                      ),
+                      Text(
+                        valueText,
+                        style: TextStyle(
+                          color: cs.onSurface,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 12,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(Icons.chevron_right, color: cs.onSurfaceVariant),
+                    ],
+                  ),
+                ),
               ),
             ),
           );
@@ -306,6 +460,7 @@ class _ContextTabState extends State<ContextTab> {
           ),
         ),
       ],
+    ),
     );
   }
 }

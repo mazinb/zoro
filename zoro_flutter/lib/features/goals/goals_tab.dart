@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../../core/finance/goal_asset_buckets.dart';
 import '../../core/finance/goals_calculator.dart';
 import '../../core/state/app_model.dart';
+import '../../core/state/internal_app_agent_definition.dart';
 import '../../core/state/financial_goals.dart';
 import '../../core/state/ledger_rows.dart';
 import '../../shared/widgets/liquid_glass.dart';
@@ -557,6 +558,14 @@ class _LiabilityRow extends StatelessWidget {
   }
 }
 
+String _retirementLastUpdatedLine(AppModel m) {
+  final at = m.retirementPlanLastUpdatedAt();
+  if (at == null) return 'Plan not updated';
+  final rel = formatAgentLastRunRelative(at) ?? 'recently';
+  if (m.goalsPlanHasUnacknowledgedUpdates()) return 'Updated $rel · review in helper';
+  return 'Updated $rel';
+}
+
 class _GoalTile extends StatelessWidget {
   const _GoalTile({
     required this.model,
@@ -626,6 +635,13 @@ class _GoalTile extends StatelessWidget {
                           amountsLine,
                           style: _GoalsType.tileMeta.copyWith(color: cs.onSurfaceVariant),
                         ),
+                        if (goal.isRetirement) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            _retirementLastUpdatedLine(model),
+                            style: _GoalsType.rowMeta.copyWith(color: cs.onSurfaceVariant, fontSize: 11),
+                          ),
+                        ],
                       ],
                     ),
                   ),

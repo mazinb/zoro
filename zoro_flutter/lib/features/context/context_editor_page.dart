@@ -10,15 +10,16 @@ import '../../core/llm/llm_client.dart';
 import '../../core/state/app_model.dart';
 import '../../core/state/internal_app_agent_definition.dart';
 import '../../core/state/ledger_rows.dart';
+import '../../core/finance/row_review_result.dart';
 import '../../core/state/monthly_cashflow_entry.dart';
+import 'context_planner_config.dart';
 import '../../shared/widgets/context_markdown_view.dart';
 import '../../shared/widgets/liquid_glass.dart';
-import 'context_planner_config.dart';
-import 'context_planner_page.dart';
+import 'context_row_review_service.dart';
 
 enum ContextKind { asset, liability, bucket, month }
 
-enum _ContextAssistantAction { questions, photos, file }
+enum _ContextAssistantAction { refresh, photos, file }
 
 class ContextEditorPage extends StatefulWidget {
   const ContextEditorPage._({
@@ -157,32 +158,6 @@ class ContextEditorPage extends StatefulWidget {
     ContextKind.month => InternalAppAgentIds.monthCashflowContext,
   };
 
-  ContextPlannerConfig _plannerConfig(String markdown) {
-    final m = model;
-    return switch (kind) {
-      ContextKind.asset => ContextPlannerConfig.forAsset(
-        model: m,
-        assetId: plannerAssetId!,
-        initialMarkdown: markdown,
-      ),
-      ContextKind.liability => ContextPlannerConfig.forLiability(
-        model: m,
-        liabilityId: plannerLiabilityId!,
-        initialMarkdown: markdown,
-      ),
-      ContextKind.bucket => ContextPlannerConfig.forExpenseBucket(
-        model: m,
-        bucketKey: plannerBucketKey!,
-        initialMarkdown: markdown,
-      ),
-      ContextKind.month => ContextPlannerConfig.forMonth(
-        model: m,
-        monthKey: plannerMonthKey!,
-        initialMarkdown: markdown,
-      ),
-    };
-  }
-
   @override
   State<ContextEditorPage> createState() => _ContextEditorPageState();
 }
@@ -202,6 +177,32 @@ class _ContextEditorPageState extends State<ContextEditorPage> {
   void dispose() {
     _ctrl.dispose();
     super.dispose();
+  }
+
+  Map<String, Object?> _uploadPayload(AppModel m) {
+    final md = _ctrl.text;
+    return switch (widget.kind) {
+      ContextKind.asset => ContextPlannerConfig.forAsset(
+        model: m,
+        assetId: widget.plannerAssetId!,
+        initialMarkdown: md,
+      ).buildPayload(m, const []),
+      ContextKind.liability => ContextPlannerConfig.forLiability(
+        model: m,
+        liabilityId: widget.plannerLiabilityId!,
+        initialMarkdown: md,
+      ).buildPayload(m, const []),
+      ContextKind.bucket => ContextPlannerConfig.forExpenseBucket(
+        model: m,
+        bucketKey: widget.plannerBucketKey!,
+        initialMarkdown: md,
+      ).buildPayload(m, const []),
+      ContextKind.month => ContextPlannerConfig.forMonth(
+        model: m,
+        monthKey: widget.plannerMonthKey!,
+        initialMarkdown: md,
+      ).buildPayload(m, const []),
+    };
   }
 
   String _markdownFromModel() {
@@ -265,28 +266,75 @@ class _ContextEditorPageState extends State<ContextEditorPage> {
     );
   }
 
-  Future<void> _openPlanner() async {
-    final res = await pushContextPlanner(
-      context,
-      model: widget.model,
-      config: widget._plannerConfig(_ctrl.text),
-    );
-    if (!mounted || res == null) return;
-    setState(() => _ctrl.text = res.contextMarkdown);
-    widget.onSave(res.contextMarkdown);
-    widget.model.recordInternalAgentRun(widget._plannerAgentId, res.structured);
+  bool _contextRefreshRunning = false;
+
+  Future<void> _runContextRefresh() async {
+    if (_contextRefreshRunning || !widget._hasPlanner) return;
+    final m = widget.model;
+    final ready = await m.prepareLlmForAssistant();
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          (res.structured['summary']?.toString().trim().isNotEmpty ?? false)
-              ? 'Saved: ${res.structured['summary']}'
-              : 'Context saved from planner',
+    if (!ready) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(m.llmAssistantUnavailableMessage),
+          behavior: SnackBarBehavior.floating,
         ),
-        behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 5),
-      ),
-    );
+      );
+      return;
+    }
+    setState(() => _contextRefreshRunning = true);
+    final svc = ContextRowReviewService();
+    try {
+      final RowReviewResult? result = switch (widget.kind) {
+        ContextKind.asset =>
+          await svc.reviewOneAsset(m, widget.plannerAssetId!),
+        ContextKind.liability =>
+          await svc.reviewOneLiability(m, widget.plannerLiabilityId!),
+        _ => null,
+      };
+      if (!mounted) return;
+      final md = result?.suggestedContextMarkdown.trim() ?? '';
+      if (md.isNotEmpty) {
+        setState(() => _ctrl.text = md);
+        widget.onSave(md);
+        m.recordInternalAgentRun(widget._plannerAgentId, {
+          'summary': result?.detail ?? 'Context updated',
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              result!.detail.trim().isNotEmpty
+                  ? result.detail
+                  : 'Context updated',
+            ),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      } else if (result != null && !result.isOk) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result.detail.isNotEmpty ? result.detail : result.title),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Context looks complete'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString()), behavior: SnackBarBehavior.floating),
+      );
+    } finally {
+      if (mounted) setState(() => _contextRefreshRunning = false);
+    }
   }
 
   Future<void> _openAssistantOptions() async {
@@ -303,7 +351,7 @@ class _ContextEditorPageState extends State<ContextEditorPage> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  'Update context with AI',
+                  'Update context',
                   style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w900,
                   ),
@@ -312,14 +360,14 @@ class _ContextEditorPageState extends State<ContextEditorPage> {
                 ListTile(
                   leading: const Icon(Icons.auto_awesome),
                   title: const Text(
-                    'Ask follow-up questions',
+                    'Refresh from ledger',
                     style: TextStyle(fontWeight: FontWeight.w800),
                   ),
                   subtitle: const Text(
-                    'Use the existing guided question flow.',
+                    'Suggest what to add or fix in this note.',
                   ),
                   onTap: () =>
-                      Navigator.of(ctx).pop(_ContextAssistantAction.questions),
+                      Navigator.of(ctx).pop(_ContextAssistantAction.refresh),
                 ),
                 ListTile(
                   leading: const Icon(Icons.image_outlined),
@@ -351,8 +399,8 @@ class _ContextEditorPageState extends State<ContextEditorPage> {
     );
     if (!mounted || action == null) return;
     switch (action) {
-      case _ContextAssistantAction.questions:
-        await _openPlanner();
+      case _ContextAssistantAction.refresh:
+        await _runContextRefresh();
       case _ContextAssistantAction.photos:
         await _pickAndUpdateContext(photosOnly: true);
       case _ContextAssistantAction.file:
@@ -414,9 +462,7 @@ class _ContextEditorPageState extends State<ContextEditorPage> {
         if (hints.isNotEmpty) ...['---', 'Extra hints:', hints],
       ].join('\n');
 
-      final payload = widget
-          ._plannerConfig(_ctrl.text)
-          .buildPayload(m, const []);
+      final payload = _uploadPayload(m);
       final user = [
         'Subject/context payload:',
         const JsonEncoder.withIndent('  ').convert(payload),
@@ -569,26 +615,25 @@ class _ContextEditorPageState extends State<ContextEditorPage> {
 
   Widget _previewAssistantBar() {
     if (!widget._hasPlanner) return const SizedBox.shrink();
+    final canRefresh = widget.kind == ContextKind.asset ||
+        widget.kind == ContextKind.liability;
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-      child: Row(
-        children: [
-          Expanded(
-            child: OutlinedButton.icon(
-              onPressed: _openAssistantOptions,
-              icon: const Icon(Icons.auto_awesome_outlined, size: 18),
-              label: const Text('Update with AI'),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: OutlinedButton.icon(
-              onPressed: _openEdit,
-              icon: const Icon(Icons.edit_outlined, size: 18),
-              label: const Text('Edit'),
-            ),
-          ),
-        ],
+      child: SizedBox(
+        width: double.infinity,
+        child: FilledButton.icon(
+          onPressed: _contextRefreshRunning
+              ? null
+              : (canRefresh ? _runContextRefresh : _openAssistantOptions),
+          icon: _contextRefreshRunning
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.auto_awesome_outlined, size: 18),
+          label: Text(canRefresh ? 'Update' : 'Update from file'),
+        ),
       ),
     );
   }

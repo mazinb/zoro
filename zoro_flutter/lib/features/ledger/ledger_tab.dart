@@ -11,8 +11,13 @@ import '../../core/finance/currency.dart';
 import '../../core/finance/goal_asset_buckets.dart';
 import 'expense_donut_chart.dart';
 import 'expense_estimates_editor_page.dart';
+import '../../core/finance/ledger_row_display_status.dart';
+import '../../core/finance/row_review_result.dart';
+import '../../shared/widgets/ledger_card_subtitle.dart';
+import '../../shared/widgets/row_review_leading.dart';
+import 'ledger_expense_helper_page.dart';
 import 'ledger_import_page.dart';
-import 'ledger_orchestrator_page.dart';
+import 'ledger_row_review_service.dart';
 
 enum LedgerMode { assets, liabilities, cashflow }
 
@@ -200,7 +205,68 @@ class _LedgerTabState extends State<LedgerTab> {
   /// 0 = income, 1 = Cash, 2 = expenses (default expenses when opening Cashflow).
   int _cashflowTabIndex = 2;
 
+  bool _ledgerReviewRunning = false;
+  final _ledgerReviewService = LedgerRowReviewService();
+
   void _privacyDenied() => widget.onPrivacyInteractionDenied?.call();
+
+  Future<void> _onLedgerHelperPressed() async {
+    if (_ledgerReviewRunning) return;
+    final m = widget.model;
+    if (m.privacyHideAmounts) {
+      _privacyDenied();
+      return;
+    }
+    if (_mode == LedgerMode.cashflow) {
+      Navigator.of(context).push<void>(
+        MaterialPageRoute(
+          fullscreenDialog: true,
+          builder: (ctx) => LedgerExpenseHelperPage(model: m),
+        ),
+      );
+      return;
+    }
+
+    final ready = await m.prepareLlmForAssistant();
+    if (!mounted) return;
+    if (!ready) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(m.llmAssistantUnavailableMessage),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _ledgerReviewRunning = true);
+    try {
+      final out = _mode == LedgerMode.assets
+          ? await _ledgerReviewService.reviewAllAssets(m)
+          : await _ledgerReviewService.reviewAllLiabilities(m);
+      if (!mounted) return;
+      final msg = StringBuffer('Review complete');
+      if (out.budgetLine != null) msg.write('\n${out.budgetLine}');
+      if (out.trimmed) msg.write('\nSome context was trimmed for on-device limits.');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(msg.toString()),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.toString()),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _ledgerReviewRunning = false);
+    }
+  }
 
   @override
   void initState() {
@@ -340,7 +406,9 @@ class _LedgerTabState extends State<LedgerTab> {
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
+    return ListenableBuilder(
+      listenable: widget.model,
+      builder: (context, _) => ListView(
       controller: _scroll,
       padding: const EdgeInsets.all(20),
       children: [
@@ -354,34 +422,20 @@ class _LedgerTabState extends State<LedgerTab> {
             ),
             const Spacer(),
             IconButton.filledTonal(
-              onPressed: () {
-                Navigator.of(context).push<void>(
-                  MaterialPageRoute(
-                    fullscreenDialog: true,
-                    builder: (ctx) => LedgerOrchestratorPage(
-                      model: widget.model,
-                      onPickSection: (s) {
-                        setState(() {
-                          switch (s) {
-                            case LedgerOrchestratorSection.assets:
-                              _mode = LedgerMode.assets;
-                              break;
-                            case LedgerOrchestratorSection.liabilities:
-                              _mode = LedgerMode.liabilities;
-                              break;
-                            case LedgerOrchestratorSection.expenses:
-                              _mode = LedgerMode.cashflow;
-                              _cashflowTabIndex = 2;
-                              break;
-                          }
-                        });
-                      },
-                    ),
-                  ),
-                );
-              },
-              icon: const Icon(Icons.auto_awesome),
-              tooltip: 'Ledger assistant',
+              onPressed: _ledgerReviewRunning ? null : _onLedgerHelperPressed,
+              icon: _ledgerReviewRunning
+                  ? SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: widget.model.accent,
+                      ),
+                    )
+                  : const Icon(Icons.auto_awesome),
+              tooltip: _mode == LedgerMode.cashflow
+                  ? 'Expense estimates'
+                  : (_mode == LedgerMode.assets ? 'Review assets' : 'Review liabilities'),
               style: IconButton.styleFrom(
                 backgroundColor: widget.model.accentSoft,
                 foregroundColor: widget.model.accent,
@@ -448,24 +502,39 @@ class _LedgerTabState extends State<LedgerTab> {
           ),
         ] else if (_mode == LedgerMode.assets) ...[
           ...widget.model.assets.asMap().entries.map(
-            (e) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _LedgerAssetCard(
-                model: widget.model,
-                row: e.value,
-                accent: widget.model.accent,
-                displayCurrency: widget.model.displayCurrency,
-                usdPerUnitOverrides: widget.model.fxUsdPerUnitResolved,
-                privacyHideAmounts: widget.model.privacyHideAmounts,
-                onTap: () {
-                  if (widget.model.privacyHideAmounts) {
-                    _privacyDenied();
-                    return;
-                  }
-                  _openAssetEditor(context, index: e.key);
-                },
-              ),
-            ),
+            (e) {
+              final slot = widget.model.ledgerAssetReviewById[e.value.id];
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _LedgerAssetCard(
+                  model: widget.model,
+                  row: e.value,
+                  accent: widget.model.accent,
+                  displayCurrency: widget.model.displayCurrency,
+                  usdPerUnitOverrides: widget.model.fxUsdPerUnitResolved,
+                  privacyHideAmounts: widget.model.privacyHideAmounts,
+                  reviewSlot: slot,
+                  onDismissBanner: () =>
+                      widget.model.dismissLedgerAssetReviewBanner(e.value.id),
+                  onApplyComment: () {
+                    widget.model.applyLedgerAssetReviewComment(e.value.id);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Comment updated'),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                  },
+                  onTap: () {
+                    if (widget.model.privacyHideAmounts) {
+                      _privacyDenied();
+                      return;
+                    }
+                    _openAssetEditor(context, index: e.key);
+                  },
+                ),
+              );
+            },
           ),
           _AddLedgerRowCard(
             label: 'Add asset',
@@ -480,23 +549,30 @@ class _LedgerTabState extends State<LedgerTab> {
           ),
         ] else ...[
           ...widget.model.liabilities.asMap().entries.map(
-            (e) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _LedgerLiabilityCard(
-                row: e.value,
-                accent: widget.model.accent,
-                displayCurrency: widget.model.displayCurrency,
-                usdPerUnitOverrides: widget.model.fxUsdPerUnitResolved,
-                privacyHideAmounts: widget.model.privacyHideAmounts,
-                onTap: () {
-                  if (widget.model.privacyHideAmounts) {
-                    _privacyDenied();
-                    return;
-                  }
-                  _openLiabilityEditor(context, index: e.key);
-                },
-              ),
-            ),
+            (e) {
+              final slot = widget.model.ledgerLiabilityReviewById[e.value.id];
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _LedgerLiabilityCard(
+                  model: widget.model,
+                  row: e.value,
+                  accent: widget.model.accent,
+                  displayCurrency: widget.model.displayCurrency,
+                  usdPerUnitOverrides: widget.model.fxUsdPerUnitResolved,
+                  privacyHideAmounts: widget.model.privacyHideAmounts,
+                  reviewSlot: slot,
+                  onDismissBanner: () =>
+                      widget.model.dismissLedgerLiabilityReviewBanner(e.value.id),
+                  onTap: () {
+                    if (widget.model.privacyHideAmounts) {
+                      _privacyDenied();
+                      return;
+                    }
+                    _openLiabilityEditor(context, index: e.key);
+                  },
+                ),
+              );
+            },
           ),
           _AddLedgerRowCard(
             label: 'Add liability',
@@ -511,6 +587,7 @@ class _LedgerTabState extends State<LedgerTab> {
           ),
         ],
       ],
+    ),
     );
   }
 
@@ -1150,6 +1227,9 @@ class _LedgerAssetCard extends StatelessWidget {
     required this.usdPerUnitOverrides,
     required this.privacyHideAmounts,
     required this.onTap,
+    this.reviewSlot,
+    this.onDismissBanner,
+    this.onApplyComment,
   });
 
   final AppModel model;
@@ -1159,6 +1239,9 @@ class _LedgerAssetCard extends StatelessWidget {
   final Map<CurrencyCode, double> usdPerUnitOverrides;
   final bool privacyHideAmounts;
   final VoidCallback onTap;
+  final RowReviewSlot? reviewSlot;
+  final VoidCallback? onDismissBanner;
+  final VoidCallback? onApplyComment;
 
   @override
   Widget build(BuildContext context) {
@@ -1172,6 +1255,33 @@ class _LedgerAssetCard extends StatelessWidget {
         ? maskSensitiveNumberString(grouped)
         : grouped;
     final title = row.name.trim().isEmpty ? row.type.label : row.name;
+    final reviewing = reviewSlot?.reviewing ?? false;
+    final effective = effectiveLedgerAssetStatus(model, row, reviewSlot);
+    final alwaysGreen = model.primaryCashBalanceIsMirrored(row);
+    final showStatus = reviewing || effective != null || alwaysGreen;
+
+    final reviewRes = reviewSlot?.result;
+    final reviewBanner = reviewSlot != null &&
+            !reviewSlot!.bannerDismissed &&
+            reviewRes != null
+        ? reviewRes.bannerNote.trim()
+        : '';
+    final useReviewBanner = reviewBanner.isNotEmpty;
+    final localNote =
+        !useReviewBanner && !reviewing && (effective?.bannerNote.trim().isNotEmpty ?? false)
+            ? effective!.bannerNote.trim()
+            : '';
+    final subtitle = useReviewBanner
+        ? reviewBanner
+        : localNote.isNotEmpty
+            ? localNote
+            : row.comment.trim();
+    final subtitleLevel = useReviewBanner
+        ? reviewRes!.level
+        : localNote.isNotEmpty
+            ? effective!.level
+            : null;
+
     return Card(
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
@@ -1181,36 +1291,44 @@ class _LedgerAssetCard extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: accent.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(row.type.icon, color: accent),
-              ),
+              showStatus
+                  ? RowReviewLeadingIcon(
+                      reviewing: reviewing,
+                      result: effective,
+                      defaultIcon: row.type.icon,
+                      accent: accent,
+                    )
+                  : Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: accent.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(row.type.icon, color: accent),
+                    ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(
                       title,
                       style: TextStyle(fontWeight: FontWeight.w800, color: cs.onSurface),
                     ),
-                    if (row.comment.trim().isNotEmpty) ...[
-                      const SizedBox(height: 6),
-                      Text(
-                        row.comment.trim(),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: cs.outline,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
+                    LedgerCardSubtitle(
+                      text: subtitle,
+                      level: subtitleLevel,
+                      onDismiss: useReviewBanner ? onDismissBanner : null,
+                      onApply: useReviewBanner &&
+                              (reviewRes?.suggestedComment.trim().isNotEmpty ?? false)
+                          ? onApplyComment
+                          : null,
+                      applyLabel: useReviewBanner &&
+                              (reviewRes?.suggestedComment.trim().isNotEmpty ?? false)
+                          ? 'Apply'
+                          : null,
+                    ),
                   ],
                 ),
               ),
@@ -1235,20 +1353,26 @@ class _LedgerAssetCard extends StatelessWidget {
 
 class _LedgerLiabilityCard extends StatelessWidget {
   const _LedgerLiabilityCard({
+    required this.model,
     required this.row,
     required this.accent,
     required this.displayCurrency,
     required this.usdPerUnitOverrides,
     required this.privacyHideAmounts,
     required this.onTap,
+    this.reviewSlot,
+    this.onDismissBanner,
   });
 
+  final AppModel model;
   final LedgerLiabilityRow row;
   final Color accent;
   final CurrencyCode displayCurrency;
   final Map<CurrencyCode, double> usdPerUnitOverrides;
   final bool privacyHideAmounts;
   final VoidCallback onTap;
+  final RowReviewSlot? reviewSlot;
+  final VoidCallback? onDismissBanner;
 
   @override
   Widget build(BuildContext context) {
@@ -1268,6 +1392,32 @@ class _LedgerLiabilityCard extends StatelessWidget {
         ? maskSensitiveNumberString(grouped)
         : grouped;
     final title = row.name.trim().isEmpty ? row.type.label : row.name;
+    final reviewing = reviewSlot?.reviewing ?? false;
+    final effective = effectiveLedgerLiabilityStatus(model, row, reviewSlot);
+    final showStatus = reviewing || effective != null;
+
+    final reviewRes = reviewSlot?.result;
+    final reviewBanner = reviewSlot != null &&
+            !reviewSlot!.bannerDismissed &&
+            reviewRes != null
+        ? reviewRes.bannerNote.trim()
+        : '';
+    final useReviewBanner = reviewBanner.isNotEmpty;
+    final localNote =
+        !useReviewBanner && !reviewing && (effective?.bannerNote.trim().isNotEmpty ?? false)
+            ? effective!.bannerNote.trim()
+            : '';
+    final subtitle = useReviewBanner
+        ? reviewBanner
+        : localNote.isNotEmpty
+            ? localNote
+            : row.comment.trim();
+    final subtitleLevel = useReviewBanner
+        ? reviewRes!.level
+        : localNote.isNotEmpty
+            ? effective!.level
+            : null;
+
     return Card(
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
@@ -1277,36 +1427,36 @@ class _LedgerLiabilityCard extends StatelessWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: accent.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(row.type.icon, color: accent),
-              ),
+              showStatus
+                  ? RowReviewLeadingIcon(
+                      reviewing: reviewing,
+                      result: effective,
+                      defaultIcon: row.type.icon,
+                      accent: accent,
+                    )
+                  : Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: accent.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(row.type.icon, color: accent),
+                    ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Text(
                       title,
                       style: TextStyle(fontWeight: FontWeight.w800, color: cs.onSurface),
                     ),
-                    if (row.comment.trim().isNotEmpty) ...[
-                      const SizedBox(height: 6),
-                      Text(
-                        row.comment.trim(),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: cs.outline,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ],
+                    LedgerCardSubtitle(
+                      text: subtitle,
+                      level: subtitleLevel,
+                      onDismiss: useReviewBanner ? onDismissBanner : null,
+                    ),
                   ],
                 ),
               ),

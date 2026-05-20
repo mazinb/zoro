@@ -12,15 +12,21 @@ abstract final class InternalAppAgentIds {
   static const ledgerAddLiabilities = 'ledger_add_liabilities';
   static const ledgerAddActualExpenses = 'ledger_add_actual_expenses';
   static const ledgerOrchestrator = 'ledger_orchestrator';
+  static const ledgerReviewAsset = 'ledger_review_asset';
+  static const ledgerReviewLiability = 'ledger_review_liability';
+  static const contextReviewAsset = 'context_review_asset';
+  static const contextReviewLiability = 'context_review_liability';
 
   static const goalsGuide = 'goals_guide';
   static const goalsRetirementCorpus = 'goals_retirement_corpus';
+  static const goalsRetirementSplit = 'goals_retirement_split';
+  static const goalsRetirementBuckets = 'goals_retirement_buckets';
   static const goalsExpenseEstimator = 'goals_expense_estimator';
 
   static const exportSanitizer = 'export_sanitizer';
 }
 
-/// Registry entry for Settings → App agents. Add rows here to surface new internal agents.
+/// Registry entry for Settings → App helpers. Add rows here to surface new built-in helpers.
 class InternalAppAgentDefinition {
   const InternalAppAgentDefinition({
     required this.id,
@@ -57,22 +63,57 @@ const kInternalAppAgentDefinitions = <InternalAppAgentDefinition>[
   InternalAppAgentDefinition(
     id: InternalAppAgentIds.ledgerOrchestrator,
     title: 'Ledger helper',
-    listSubtitle: 'Ledger → AI button',
+    listSubtitle: 'Ledger → Cash tab → help',
     icon: Icons.auto_awesome,
     defaultSystemPrompt: '''
-You are the main Ledger helper. Look at the user's ledger inputs and decide which input area needs the next update:
+You compare six completed months of actual spending to the user's recurring expense estimates.
 
-- Add or update assets
-- Add or update liabilities
-- Fill actual expenses for a recent **completed** month (see payload: six months ending at the previous calendar month)
-
-Pick the smallest, most useful next step. Be practical and short.
+Use the six-month average as the benchmark. Suggest higher or lower monthly bucket amounts when estimates look off. Keep advice practical and specific.
 ''',
-    infoWhatItDoes: 'Looks at your ledger inputs and picks the next area to update.',
+    infoWhatItDoes:
+        'Cash tab helper: compares 6 months of actuals to estimates and suggests updated monthly buckets with Apply.',
     infoContextSent:
-        'Display currency, assets, liabilities, and **six completed months** of spending (previous calendar month first — current month is not included).',
-    modelDomainHints:
-        'Only suggest assets, liabilities, or expenses — these are the input-focused areas.',
+        'Six completed months of spending, current expense bucket estimates, and totals in display currency.',
+    modelDomainHints: 'Return expenseBuckets with all keys from payload.bucketKeys.',
+  ),
+  InternalAppAgentDefinition(
+    id: InternalAppAgentIds.ledgerReviewAsset,
+    title: 'Review assets',
+    listSubtitle: 'Ledger → Assets → helper',
+    icon: Icons.fact_check_outlined,
+    defaultSystemPrompt: '''
+Review each asset against its context note when one exists.
+
+- Green when context explains the holdings and dollar amounts match the ledger total.
+- Yellow when amounts in context do not match the total or the breakdown is thin.
+- Red only when context amounts are impossible vs the balance.
+
+Cash-linked accounts and cashflow balance changes are handled in the app — do not use them here.
+''',
+    infoWhatItDoes:
+        'Checks each asset against its context note (amounts and breakdown). Skips cash-linked accounts.',
+    infoContextSent: 'Per asset: name, type, balance, comment, and context note when present.',
+    modelDomainHints: '',
+  ),
+  InternalAppAgentDefinition(
+    id: InternalAppAgentIds.ledgerReviewLiability,
+    title: 'Review liabilities',
+    listSubtitle: 'Ledger → Liabilities → helper',
+    icon: Icons.fact_check_outlined,
+    defaultSystemPrompt: '''
+Review each liability against its context note when one exists.
+
+- Green when the note explains the loan and amounts match the ledger balance.
+- Yellow when context amounts disagree with the balance or the note is too thin.
+- Do not flag issues just because the title and context use different words (e.g. Condo vs mortgage).
+- Red only when context amounts are impossible vs the balance.
+
+Interest rate on the ledger card and cashflow paydowns are handled separately.
+''',
+    infoWhatItDoes:
+        'Checks each liability context note for amount consistency — not naming or rate.',
+    infoContextSent: 'Per liability: name, type, balance, rate, comment, and context note.',
+    modelDomainHints: '',
   ),
   InternalAppAgentDefinition(
     id: InternalAppAgentIds.ledgerAddAssets,
@@ -168,7 +209,7 @@ Strip currency symbols. Use 0 for unknowns and note in "assumptions".
   InternalAppAgentDefinition(
     id: InternalAppAgentIds.assetContext,
     title: 'Asset context',
-    listSubtitle: 'Context → assets (AI)',
+    listSubtitle: 'Context → assets',
     icon: Icons.savings_outlined,
     defaultSystemPrompt: '''
 You help write clear notes for one asset so the app and chat understand it.
@@ -181,7 +222,7 @@ Be helpful: do the math when it helps. For brokerage accounts, YOU reconcile fir
 - Other: what it is, how you value it, how often you update it.
 ''',
     infoWhatItDoes:
-        'Asks a few quick questions (taps + optional typing), then updates your asset note. Skips questions if your note is already enough.',
+        'Updates your asset note from uploads or a direct refresh (no question flow).',
     infoContextSent:
         'The asset name, type, and balance from your ledger, plus any note you already wrote. Uses your API key from Settings.',
     modelDomainHints: '''
@@ -193,7 +234,7 @@ Asset types:
   InternalAppAgentDefinition(
     id: InternalAppAgentIds.liabilityContext,
     title: 'Liability context',
-    listSubtitle: 'Context → liabilities (AI)',
+    listSubtitle: 'Context → liabilities',
     icon: Icons.credit_card_outlined,
     defaultSystemPrompt: '''
 You help write clear notes for one debt (loan, card, mortgage) so the app understands terms and payments.
@@ -201,7 +242,7 @@ You help write clear notes for one debt (loan, card, mortgage) so the app unders
 Include when known: lender, balance source, interest rate (fixed or variable), payment amount and timing, length of loan or payoff plan. Keep numbers consistent with the balance on the ledger. Do the math when comparing payment to balance; ask only about gaps.
 ''',
     infoWhatItDoes:
-        'Short questions, then updates your liability note. Skips questions if the note is already complete enough.',
+        'Updates your liability note from uploads or a direct refresh (no question flow).',
     infoContextSent:
         'Debt type, name, and balance from your ledger, plus any note you wrote. Uses your API key from Settings.',
     modelDomainHints: '''
@@ -211,7 +252,7 @@ Debt types: personal loan, car, card, mortgage, other. Prioritize rate, minimum 
   InternalAppAgentDefinition(
     id: InternalAppAgentIds.expenseBucketContext,
     title: 'Expense bucket context',
-    listSubtitle: 'Context → estimates (AI)',
+    listSubtitle: 'Context → estimates',
     icon: Icons.pie_chart_outline,
     defaultSystemPrompt: '''
 You help explain what belongs in one expense bucket (e.g. housing, food) so future you and the app stay consistent.
@@ -229,7 +270,7 @@ Focus on boundaries (“counts / doesn’t count”), lumpiness, and typical one
   InternalAppAgentDefinition(
     id: InternalAppAgentIds.monthCashflowContext,
     title: 'Month context',
-    listSubtitle: 'Context → actuals (AI)',
+    listSubtitle: 'Context → actuals',
     icon: Icons.calendar_month_outlined,
     defaultSystemPrompt: '''
 You help explain what happened in one calendar month for cashflow: big one-offs, trips, income changes, or anything that should carry into next month.
@@ -247,17 +288,48 @@ Month notes: one-offs, income changes, “remember for next month”, irregular 
   InternalAppAgentDefinition(
     id: InternalAppAgentIds.contextOrchestrator,
     title: 'Context helper',
-    listSubtitle: 'Context → AI button',
+    listSubtitle: 'Context → help',
     icon: Icons.auto_awesome,
     defaultSystemPrompt: '''
-You are the main Context helper. Your job is to look at the user’s context notes and decide what to update next.
+You are the Context helper. Assume ledger balances and comments are already correct.
 
-Prefer the one note that would most improve planning: missing brokerage breakdown, missing loan rate/payment, unclear bucket boundaries, or a recent month with no note.
-Keep it simple and pick ONE target.
+For each asset and liability, say what is missing or wrong in the **context note** only — breakdowns, rates, payment rhythm, what the money is for.
+
+Be specific enough that the user knows what to add. Do not ask the user to change ledger totals.
 ''',
-    infoWhatItDoes: 'Looks at all context notes and points you to the one best next update.',
-    infoContextSent: 'All context notes (assets, liabilities, buckets, months) + last updated times.',
-    modelDomainHints: 'Return one target and a short reason.',
+    infoWhatItDoes:
+        'Reviews all asset and liability context notes in parallel and flags what to add or fix.',
+    infoContextSent:
+        'Per row: ledger snapshot (read-only), existing context markdown, last updated time.',
+    modelDomainHints: '',
+  ),
+  InternalAppAgentDefinition(
+    id: InternalAppAgentIds.contextReviewAsset,
+    title: 'Review asset context',
+    listSubtitle: 'Context → assets (helper)',
+    icon: Icons.fact_check_outlined,
+    defaultSystemPrompt: '''
+Improve the context note for one asset. Ledger balance is correct.
+
+Explain holdings, institution, and how dollar amounts in the note sum to the ledger total. Flag under/over amounts in context only.
+''',
+    infoWhatItDoes: 'Parallel review of asset context notes with suggested updates.',
+    infoContextSent: 'Asset ledger fields + existing context markdown.',
+    modelDomainHints: '',
+  ),
+  InternalAppAgentDefinition(
+    id: InternalAppAgentIds.contextReviewLiability,
+    title: 'Review liability context',
+    listSubtitle: 'Context → liabilities (helper)',
+    icon: Icons.fact_check_outlined,
+    defaultSystemPrompt: '''
+Improve the context note for one debt. Ledger balance and rate field are correct.
+
+Capture lender, rate terms, payment amount and timing, and anything special (intro rate, balloon).
+''',
+    infoWhatItDoes: 'Parallel review of liability context notes with suggested updates.',
+    infoContextSent: 'Liability ledger fields + existing context markdown.',
+    modelDomainHints: '',
   ),
   InternalAppAgentDefinition(
     id: InternalAppAgentIds.goalsRetirementCorpus,
@@ -290,51 +362,53 @@ targetAmount = annual recurring expenses × 12 ÷ (SWR/100) × (1 + buffer/100).
     modelDomainHints: 'Planner: max 5 questions. Synth: include all structured fields.',
   ),
   InternalAppAgentDefinition(
-    id: InternalAppAgentIds.goalsGuide,
-    title: 'Goals guide',
-    listSubtitle: 'Goals → guide',
-    icon: Icons.flag_outlined,
+    id: InternalAppAgentIds.goalsRetirementSplit,
+    title: 'Invest & retire date',
+    listSubtitle: 'Goals → invest split & date',
+    icon: Icons.pie_chart_outline,
     defaultSystemPrompt: '''
-You help set up financial goals: one retirement goal (corpus + target date) and optional target-amount goals.
+Refine invest vs savings split and retirement target date when the user added an optional note.
+Use payload answers (MCQ selections) and optionalNote. Do not change expense buckets or corpus SWR unless the note requires it.
 
-Questions (planner):
-- Ask only what is missing: target amount, target date, which assets fund the goal, whether a target should fund near-term projects.
-- Retirement: confirm target corpus, retire-by date, SWR (1–10%), buffer (0–100%), auto corpus from expenses, which assets count.
-- Use payload assets[] ids when suggesting links. Prefer primary cash / brokerage accounts when relevant.
-- Stop early if data is already clear.
-
-Synthesis (structured block required):
+Return JSON only:
 {
   "summary": "one short sentence",
   "allocInvestFraction": 0.6,
-  "contextGoalId": "<goal id for contextMarkdown>",
-  "contextMarkdown": "brief assumptions (markdown)",
   "goalUpdates": [
-    {
-      "goalId": "<id>",
-      "name": "optional",
-      "targetAmount": 0,
-      "targetDate": "YYYY-MM-DD or null",
-      "corpusAdjustment": 0,
-      "safeWithdrawalRatePct": 4,
-      "corpusBufferPct": 0,
-      "corpusAutoFromExpenses": true
-    }
-  ]
+    { "goalId": "<focusGoalId>", "targetDate": "YYYY-MM-DD" }
+  ],
+  "contextMarkdown": "optional assumptions"
 }
 
-mode=single: one focusGoal in payload — return one goalUpdates entry for that id.
-mode=all: update retirement first, then targets; omit fields you should not change.
-mode=retirement_plan: focus on invest vs savings split and retirement targetDate only. Include top-level allocInvestFraction (0–1) when changing split. Return one goalUpdates entry for focusGoalId with targetDate (and targetAmount only if fixing feasibility). Do not change expense buckets.
-Asset buckets (investments→retirement, savings accounts→buffer) are set on the Goals tab, not per goal.
+allocInvestFraction is 0–1 share of availableAfterExpensesMonthly to investments.
+Only include goalUpdates when changing targetDate for focusGoalId.
 ''',
-    infoWhatItDoes: 'Short MCQ to fill retirement and target goals, then a review step before saving.',
-    infoContextSent:
-        'Goals (amounts, dates, links), ledger assets (ids + values), monthly savings split, and any existing context notes.',
-    modelDomainHints: '''
-Planner: max 6 questions, short prompts, 2–6 choices.
-Synth: always include goalUpdates array; contextMarkdown is the human-readable assumptions for contextGoalId.
+    infoWhatItDoes: 'Optional LLM pass when the user adds a note on the invest/savings & date section.',
+    infoContextSent: 'Current split, required monthly savings, retire-by date, and MCQ answers.',
+    modelDomainHints: 'Synth only — user already answered fixed MCQs.',
+  ),
+  InternalAppAgentDefinition(
+    id: InternalAppAgentIds.goalsRetirementBuckets,
+    title: 'Assets & savings',
+    listSubtitle: 'Goals → retirement extras & savings weights',
+    icon: Icons.account_balance_wallet_outlined,
+    defaultSystemPrompt: '''
+Refine which property/other assets count toward retirement and savings goal weights when the user added an optional note.
+
+Return JSON only:
+{
+  "summary": "one short sentence",
+  "retirementExtraAssetIds": ["<asset id>", "..."],
+  "rebalanceSavings": true,
+  "evenSavings": false,
+  "contextMarkdown": "optional"
+}
+
+Use asset ids from payload.assets. Investment accounts already count toward retirement by default.
 ''',
+    infoWhatItDoes: 'Optional LLM pass for retirement asset inclusion and savings pool weighting.',
+    infoContextSent: 'Ledger assets, current retirementExtraAssetIds, target goal weights, MCQ answers.',
+    modelDomainHints: 'Synth only — deterministic apply when optional note is empty.',
   ),
   InternalAppAgentDefinition(
     id: InternalAppAgentIds.goalsExpenseEstimator,
