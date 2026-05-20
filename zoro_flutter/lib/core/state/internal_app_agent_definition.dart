@@ -17,6 +17,7 @@ abstract final class InternalAppAgentIds {
   static const contextReviewAsset = 'context_review_asset';
   static const contextReviewLiability = 'context_review_liability';
 
+  /// Legacy id — custom prompts may still exist in saved state; no built-in definition.
   static const goalsGuide = 'goals_guide';
   static const goalsRetirementCorpus = 'goals_retirement_corpus';
   static const goalsRetirementSplit = 'goals_retirement_split';

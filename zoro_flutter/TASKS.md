@@ -4,7 +4,41 @@ Privacy-first: sensitive finance data stays on device; production API: **getzoro
 
 **On-device data layout (layout version 2, schema version 3):** documented in **[`../zoro-app/README.md` → On-device data layout](../zoro-app/README.md#on-device-data-layout)**. Bump `kAppStateSplitLayoutVersion` / `kAppStateFormatVersion` in code when you change storage; update that README table in the same PR.
 
-No open tasks.
+---
+
+## Recently shipped (Goals + tab helpers)
+
+### Goals helper hub (`goals_helper_hub_page.dart`)
+
+- Goals tab ✨ opens a **three-section** liquid-glass hub (not free-form LLM MCQ):
+  1. **Retirement corpus** — fixed MCQs (SWR, buffer, auto-from-expenses); deterministic `computeRetirementCorpus`; optional note → LLM (`goals_retirement_corpus`).
+  2. **Invest vs savings & retire date** — invest % + date extension; deterministic `applyGoalsGuideStructured`; optional note → LLM (`goals_retirement_split`).
+  3. **Assets & savings** — property/other extras + savings weights; optional note → LLM (`goals_retirement_buckets`).
+- Shared UI: `lib/shared/guided_mcq/structured_guide_page.dart`.
+- Section apply logic: `lib/features/goals/goals_structured_sections.dart`.
+- Persisted timestamps: `retirementCorpusLastUpdated`, `allocationTargetLastUpdated` (split), `retirementBucketsLastUpdated`, `goalsReviewAcknowledgedAt` (clears “plan changed” in Settings).
+- **Removed (dead):** `goals_guide_flow.dart`, `goals_planner_config.dart`, `goals_retirement_corpus_config.dart`, `applyGoalsGuideContext`. Legacy agent id `goals_guide` may still exist in saved custom prompts.
+- **Note:** Chat `AppAgent` CRUD UI was removed from Settings (helpers pane is internal prompts only). Agents are still seeded / tool-updated via chat actions.
+
+### Ledger / Context tab helpers
+
+- **Ledger** assets & liabilities: parallel row review (green / yellow / red), tap for bottom sheet; cashflow tab → expense actuals helper (`ledger_expense_helper_page.dart`).
+- **Context** tab: parallel context-note review; editor uses **Update** (not “Update with AI”) for single-row refresh.
+- Internal agent ids: `ledger_review_asset`, `ledger_review_liability`, `context_review_asset`, `context_review_liability` (+ existing orchestrators).
+
+### Settings
+
+- Tab label **Helpers** (internal prompts); sub-sections: Home, Ledger, Context, Goals, Data.
+- **General → Reminders:** top row is **Goals** (replaced Expenses cadence); subtitle when plan changed or review overdue.
+- **Helpers → Goals:** three goal helper prompts + expense estimator; timeline / auto-allocate under **Goals options** (not Reminders).
+
+### Manual QA (Goals helper)
+
+- [ ] Hub: each section applies without optional note (snackbar).
+- [ ] Hub: optional note with LLM off → clear error; with key → review + Apply.
+- [ ] Settings → General: Goals cadence + “plan changed” copy after applying a section.
+- [ ] Retirement tile shows last-updated line.
+- [ ] Ledger/Context helpers: status icons + sheet on yellow/red.
 
 ---
 
@@ -12,7 +46,7 @@ No open tasks.
 
 - [ ] `cd zoro_flutter && dart analyze` — clean
 - [ ] `flutter test` — green (no Xcode required)
-- [ ] On a **device**: smoke Command center → Ledger → Context → Chat → Settings; dark + light if you use dark builds
+- [ ] On a **device**: smoke Command center → Ledger → Context → Goals → Settings; dark + light if you use dark builds
 - [ ] **Release** builds: no `--dart-define-from-file` with secrets; App Store / TestFlight use prod signing (`com.getzoro.zoroFlutter`)
 - [ ] `API_BASE_URL` points at production when you mean production
 
@@ -25,10 +59,10 @@ No open tasks.
 Five tabs in `MainScaffold` (`features/shell/main_scaffold.dart`):
 
 1. **Home** — `command_center_tab.dart` — Sankey, net-worth projection
-2. **Ledger** — `ledger_tab.dart` — assets, liabilities, income, expenses, cashflow + import/orchestrator
-3. **Context** — `context_tab.dart` — editor, orchestrator, planner
-4. **Goals** — `goals_tab.dart` — retirement / target goals
-5. **Settings** — `settings_tab.dart` — API keys, reminders, agents, ledger export/import, notifications
+2. **Ledger** — `ledger_tab.dart` — assets, liabilities, income, expenses, cashflow + import/orchestrator + row helpers
+3. **Context** — `context_tab.dart` — editor, orchestrator, row helper
+4. **Goals** — `goals_tab.dart` — retirement / target goals + helper hub
+5. **Settings** — `settings_tab.dart` — API keys, reminders, **Helpers** (prompts), ledger export/import, notifications
 
 Chat threads are persisted in `data/chats.json` (see repo README data layout).
 
@@ -55,7 +89,7 @@ Chat threads are persisted in `data/chats.json` (see repo README data layout).
 
 ## Data export / import
 
-See **[`../zoro-app/README.md` → On-device data layout](../zoro-app/README.md#on-device-data-layout)**. UI: Settings → Agents → Data. Tests: `test/app_state_transfer_test.dart`, `test/app_state_split_store_test.dart`.
+See **[`../zoro-app/README.md` → On-device data layout](../zoro-app/README.md#on-device-data-layout)**. UI: Settings → Helpers → Data. Tests: `test/app_state_transfer_test.dart`, `test/app_state_split_store_test.dart`.
 
 ---
 

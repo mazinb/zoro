@@ -9,7 +9,7 @@ Flutter client for Zoro. This app is currently **UI-first**: it boots directly i
   - **Ledger**: edit income, expenses (bucketed), allocations, assets/liabilities, monthly cashflow entries.
   - **Context**: Markdown notes on assets/liabilities/buckets/months (used by chat/agents).
   - **Chat**: threads tied to an “agent” (prompt + permissions); attach context bundles; send messages.
-  - **Settings**: reminders, agents, and API keys.
+  - **Settings**: reminders, helpers (on-device prompts), and API keys.
 
 ## v0 scope (what “works”)
 
@@ -18,7 +18,7 @@ Flutter client for Zoro. This app is currently **UI-first**: it boots directly i
   - Inputs: Opening, Closing, Saved, Invested, Note
   - Derived: Spending \(Closing − Opening − Saved − Invested\)
   - Rules: Closing required; Saved/Invested can be 0; opening prefills from last month’s closing and must match it.
-- **Chat + Agents**: local API keys; chat runs directly from device; internal helpers configurable in Settings.
+- **Chat + Helpers**: local API keys; chat runs directly from device; built-in helper prompts editable in Settings → Helpers.
 
 ## AI / Chat (local keys)
 
@@ -67,9 +67,13 @@ flutter run -d macos --dart-define=API_BASE_URL=https://www.getzoro.com
 - **App + state**: `lib/app.dart`, `lib/core/state/app_model.dart`
 - **Shell**: `lib/features/shell/main_scaffold.dart`
 - **Home**: `lib/features/command_center/command_center_tab.dart`
+- **Ledger**: `lib/features/ledger/ledger_tab.dart` — row-level helper review (assets/liabilities/cashflow)
+- **Context**: `lib/features/context/context_tab.dart` — parallel context-note review
+- **Goals**: `lib/features/goals/goals_tab.dart`, `lib/features/goals/goals_helper_hub_page.dart` — three-section structured helper
 - **Context editor**: `lib/features/context/context_editor_page.dart`
 - **Chat**: `lib/features/chat/chat_tab.dart`, `lib/core/llm/llm_client.dart`, `lib/core/llm/llm_key_store.dart`
-- **Settings**: `lib/features/settings/settings_tab.dart`
+- **Structured MCQ (fixed steps)**: `lib/shared/guided_mcq/structured_guide_page.dart`
+- **Settings**: `lib/features/settings/settings_tab.dart` (Helpers tab = internal agent prompts)
 
 ## Currency + FX (UI mock)
 

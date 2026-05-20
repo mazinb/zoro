@@ -1,7 +1,7 @@
 import '../../core/finance/goals_calculator.dart';
 import '../../core/state/app_model.dart';
 
-/// Applies structured `goalUpdates` from the goals guide synthesizer.
+/// Applies structured invest split and [goalUpdates] from Goals helper (§2) or LLM synth.
 void applyGoalsGuideStructured(AppModel model, Map<String, Object?> structured, {String? focusGoalId}) {
   final frac = structured['allocInvestFraction'];
   if (frac is num) {
@@ -123,33 +123,5 @@ void applyGoalExpenseEstimatorStructured(
   if (md.isNotEmpty) {
     final g = model.financialGoalById(goalId);
     if (g != null) model.upsertFinancialGoal(g.copyWith(contextMarkdown: md));
-  }
-}
-
-void applyGoalsGuideContext(
-  AppModel model, {
-  required String contextMarkdown,
-  required Map<String, Object?> structured,
-  String? focusGoalId,
-}) {
-  applyGoalsGuideStructured(model, structured, focusGoalId: focusGoalId);
-
-  final md = contextMarkdown.trim();
-  if (md.isEmpty) return;
-
-  final ctxGoalId = structured['contextGoalId']?.toString() ?? focusGoalId;
-  if (ctxGoalId != null && ctxGoalId.isNotEmpty) {
-    final g = model.financialGoalById(ctxGoalId);
-    if (g != null) {
-      model.upsertFinancialGoal(g.copyWith(contextMarkdown: md));
-      return;
-    }
-  }
-
-  if (focusGoalId != null) {
-    final g = model.financialGoalById(focusGoalId);
-    if (g != null) {
-      model.upsertFinancialGoal(g.copyWith(contextMarkdown: md));
-    }
   }
 }

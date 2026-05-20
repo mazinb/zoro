@@ -10,7 +10,6 @@ import '../../core/notifications/notification_service.dart';
 import '../../core/state/app_model.dart';
 import '../../core/state/internal_app_agent_definition.dart';
 import '../../dev/compile_time_api_keys.dart';
-import '../../shared/widgets/liquid_glass.dart';
 import 'data_transfer_pane.dart';
 import 'internal_agent_prompt_editor_page.dart';
 
@@ -557,8 +556,6 @@ class _AgentsPane extends StatefulWidget {
 }
 
 class _AgentsPaneState extends State<_AgentsPane> {
-  final _searchCtrl = TextEditingController();
-  String _query = '';
   AgentSettingsSection _section = AgentSettingsSection.context;
   late final TextEditingController _homeSummaryCtrl;
   final FocusNode _homeSummaryFocus = FocusNode();
@@ -584,7 +581,6 @@ class _AgentsPaneState extends State<_AgentsPane> {
   void dispose() {
     widget.sectionListenable?.removeListener(_onSectionListenable);
     widget.model.removeListener(_syncHomeSummaryCtrlFromModel);
-    _searchCtrl.dispose();
     _homeSummaryCtrl.dispose();
     _homeSummaryFocus.dispose();
     super.dispose();
@@ -601,18 +597,6 @@ class _AgentsPaneState extends State<_AgentsPane> {
       selection: TextSelection.collapsed(offset: m.length),
     );
     _suppressHomeSummaryOnChanged = false;
-  }
-
-  bool _matchesQuery(AppAgent a, String q) {
-    if (q.isEmpty) return true;
-    final hay = '${a.name}\n${a.description}\n${a.systemPrompt}\n${a.contextMarkdown}'.toLowerCase();
-    return hay.contains(q);
-  }
-
-  List<AppAgent> _filteredAgents({required bool Function(AppAgent a) where}) {
-    final model = widget.model;
-    final q = _query.trim().toLowerCase();
-    return model.agents.where(where).where((a) => _matchesQuery(a, q)).toList();
   }
 
   Widget _iconSwitcher() {
@@ -655,40 +639,6 @@ class _AgentsPaneState extends State<_AgentsPane> {
           iconTab(s: AgentSettingsSection.data, icon: Icons.import_export),
         ],
       ),
-    );
-  }
-
-  Widget _searchAndPlusRow(BuildContext context, {required VoidCallback onCreate, String searchHint = 'Search'}) {
-    final cs = Theme.of(context).colorScheme;
-    return Row(
-      children: [
-        Expanded(
-          child: TextField(
-            controller: _searchCtrl,
-            decoration: InputDecoration(
-              hintText: searchHint,
-              isDense: true,
-              border: const OutlineInputBorder(),
-            ),
-            onChanged: (v) => setState(() => _query = v),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Container(
-          height: 48,
-          width: 48,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: cs.outlineVariant),
-            color: cs.surfaceContainerHigh,
-          ),
-          child: IconButton(
-            tooltip: 'Create',
-            onPressed: onCreate,
-            icon: const Icon(Icons.add),
-          ),
-        ),
-      ],
     );
   }
 
@@ -936,73 +886,6 @@ class _AgentsPaneState extends State<_AgentsPane> {
     );
   }
 
-  Widget _agentLibraryPane({
-    required List<AppAgent> agents,
-    required VoidCallback onCreate,
-    required String emptyText,
-  }) {
-    final cs = Theme.of(context).colorScheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _searchAndPlusRow(context, onCreate: onCreate),
-        const SizedBox(height: 12),
-        if (agents.isEmpty)
-          Padding(
-            padding: const EdgeInsets.only(top: 12),
-            child: Text(emptyText, style: TextStyle(color: cs.onSurfaceVariant)),
-          )
-        else
-          Expanded(
-            child: ListView(
-              padding: EdgeInsets.zero,
-              children: [
-                for (final e in agents.asMap().entries)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: Card(
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(12),
-                        onTap: () => _openAgentEditor(context, index: e.key),
-                        child: Padding(
-                          padding: const EdgeInsets.all(14),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(e.value.name, style: const TextStyle(fontWeight: FontWeight.w900)),
-                                    const SizedBox(height: 2),
-                                    Text(e.value.description, style: TextStyle(color: cs.onSurfaceVariant)),
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      '${_userAgentKindLabel(e.value.kind)} · permissions: ${e.value.permissions.isEmpty ? 'none' : e.value.permissions.length}',
-                                      style: TextStyle(color: cs.outline, fontSize: 12, fontWeight: FontWeight.w600),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Icon(Icons.chevron_right, color: cs.outline),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-      ],
-    );
-  }
-
-  String _userAgentKindLabel(AppAgentKind k) => switch (k) {
-        AppAgentKind.helper => 'Helper',
-        AppAgentKind.analyst => 'Analyst',
-        AppAgentKind.researcher => 'Researcher',
-      };
-
   @override
   Widget build(BuildContext context) {
     Widget body = switch (_section) {
@@ -1024,43 +907,6 @@ class _AgentsPaneState extends State<_AgentsPane> {
         ],
       ),
     );
-  }
-
-  Future<void> _openAgentEditor(BuildContext context, {int? index}) async {
-    final model = widget.model;
-    final isNew = index == null;
-    final draft = isNew
-        ? AppAgent(
-            id: 'agent-${DateTime.now().microsecondsSinceEpoch}',
-            name: '',
-            description: '',
-            systemPrompt: '',
-            permissions: const [],
-            contextMarkdown: '',
-            kind: AppAgentKind.analyst,
-            toolHomeSummary: false,
-            toolWebResearch: false,
-          )
-        : model.agents[index].clone();
-
-    final outcome = await showLiquidGlassModalBottomSheet<_AgentEditorOutcome>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder: (ctx) => _AgentEditorSheet(model: model, draft: draft, canDelete: !isNew),
-    );
-    if (!context.mounted || outcome == null) return;
-    if (outcome.delete && index != null) {
-      model.removeAgentAt(index);
-      return;
-    }
-    final next = outcome.agent;
-    if (next == null) return;
-    if (isNew) {
-      model.addAgent(next);
-    } else {
-      model.updateAgent(index, next);
-    }
   }
 }
 
@@ -1559,305 +1405,6 @@ class _CadenceRow extends StatelessWidget {
     );
   }
 }
-
-class _AgentEditorOutcome {
-  const _AgentEditorOutcome({this.agent, this.delete = false});
-
-  final AppAgent? agent;
-  final bool delete;
-}
-
-class _AgentEditorSheet extends StatefulWidget {
-  const _AgentEditorSheet({required this.model, required this.draft, required this.canDelete});
-
-  final AppModel model;
-  final AppAgent draft;
-  final bool canDelete;
-
-  @override
-  State<_AgentEditorSheet> createState() => _AgentEditorSheetState();
-}
-
-class _AgentEditorSheetState extends State<_AgentEditorSheet> {
-  late AppAgent _agent;
-  late final TextEditingController _nameCtrl;
-  late final TextEditingController _descCtrl;
-  late final TextEditingController _promptCtrl;
-  late final TextEditingController _mdCtrl;
-
-  IconData _domainIcon(AgentDomain d) => switch (d) {
-        AgentDomain.expenses => Icons.pie_chart_outline,
-        AgentDomain.cashflow => Icons.swap_vert,
-        AgentDomain.income => Icons.payments_outlined,
-        AgentDomain.assets => Icons.savings_outlined,
-        AgentDomain.liabilities => Icons.credit_card,
-        AgentDomain.projection => Icons.auto_graph,
-      };
-
-  String _domainLabel(AgentDomain d) => switch (d) {
-        AgentDomain.expenses => 'Expenses',
-        AgentDomain.cashflow => 'Cash flow',
-        AgentDomain.income => 'Income',
-        AgentDomain.assets => 'Assets',
-        AgentDomain.liabilities => 'Liabilities',
-        AgentDomain.projection => 'Projection / FX',
-      };
-
-  String _agentKindEditorLabel(AppAgentKind k) => switch (k) {
-        AppAgentKind.helper => 'Helper — guides across the app',
-        AppAgentKind.analyst => 'Analyst — data + ledger tools',
-        AppAgentKind.researcher => 'Researcher — Gemini + markets tone',
-      };
-
-  bool _hasPerm(AgentDomain d, AgentAccess a) => _agent.permissions.contains(AgentPermission(domain: d, access: a));
-
-  void _setPerm(AgentDomain d, AgentAccess a, bool on) {
-    setState(() {
-      final next = [..._agent.permissions];
-      final p = AgentPermission(domain: d, access: a);
-      if (on) {
-        if (!next.contains(p)) next.add(p);
-      } else {
-        next.remove(p);
-      }
-      _agent.permissions = next;
-    });
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _agent = widget.draft.clone();
-    _nameCtrl = TextEditingController(text: _agent.name);
-    _descCtrl = TextEditingController(text: _agent.description);
-    _promptCtrl = TextEditingController(text: _agent.systemPrompt);
-    _mdCtrl = TextEditingController(text: _agent.contextMarkdown);
-  }
-
-  @override
-  void dispose() {
-    _nameCtrl.dispose();
-    _descCtrl.dispose();
-    _promptCtrl.dispose();
-    _mdCtrl.dispose();
-    super.dispose();
-  }
-
-  void _save() {
-    _agent.name = _nameCtrl.text.trim();
-    _agent.description = _descCtrl.text.trim();
-    _agent.systemPrompt = _promptCtrl.text.trim();
-    _agent.contextMarkdown = _mdCtrl.text.trim();
-    if (_agent.name.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Agent name is required'), behavior: SnackBarBehavior.floating),
-      );
-      return;
-    }
-    Navigator.of(context).pop(_AgentEditorOutcome(agent: _agent));
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final bottom = MediaQuery.of(context).viewInsets.bottom;
-    final safeBottom = MediaQuery.of(context).padding.bottom;
-    return Padding(
-      padding: EdgeInsets.fromLTRB(16, 6, 16, 16 + bottom + safeBottom),
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Agent',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Close',
-                  onPressed: () => Navigator.of(context).maybePop(),
-                  icon: const Icon(Icons.close),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _nameCtrl,
-              decoration: const InputDecoration(labelText: 'Name', border: OutlineInputBorder()),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _descCtrl,
-              maxLines: 2,
-              decoration: const InputDecoration(labelText: 'Description', border: OutlineInputBorder()),
-            ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<AppAgentKind>(
-              initialValue: _agent.kind,
-              decoration: const InputDecoration(
-                labelText: 'Agent type',
-                border: OutlineInputBorder(),
-              ),
-              items: [
-                for (final k in AppAgentKind.values)
-                  DropdownMenuItem(
-                    value: k,
-                    child: Text(_agentKindEditorLabel(k)),
-                  ),
-              ],
-              onChanged: (v) {
-                if (v == null) return;
-                setState(() {
-                  _agent.kind = v;
-                  if (v == AppAgentKind.researcher) {
-                    _agent.toolWebResearch = true;
-                  }
-                });
-              },
-            ),
-            const SizedBox(height: 8),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Home summary tool'),
-              subtitle: const Text('Model can set the Home card via zoro_actions'),
-              value: _agent.toolHomeSummary,
-              onChanged: (v) => setState(() => _agent.toolHomeSummary = v),
-            ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Web / markets context'),
-              subtitle: Text(
-                _agent.kind == AppAgentKind.researcher
-                    ? 'On for researcher (Gemini).'
-                    : 'Extra guidance for external context (still uses your chat provider unless researcher).',
-                style: const TextStyle(fontSize: 12),
-              ),
-              value: _agent.toolWebResearch,
-              onChanged: _agent.kind == AppAgentKind.researcher
-                  ? null
-                  : (v) => setState(() => _agent.toolWebResearch = v),
-            ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Settings admin tools'),
-              subtitle: const Text('Can change agents, LLM defaults, and privacy via zoro_actions'),
-              value: _agent.toolSettingsAdmin,
-              onChanged: (v) => setState(() => _agent.toolSettingsAdmin = v),
-            ),
-            const SizedBox(height: 8),
-            DropdownButtonFormField<LlmProvider?>(
-              initialValue: _agent.llmProviderOverride,
-              decoration: const InputDecoration(
-                labelText: 'LLM routing override',
-                border: OutlineInputBorder(),
-              ),
-              items: [
-                const DropdownMenuItem<LlmProvider?>(
-                  value: null,
-                  child: Text('Default (researcher → Gemini, others → global picker)'),
-                ),
-                for (final p in LlmProvider.values)
-                  DropdownMenuItem(
-                    value: p,
-                    child: Text(switch (p) {
-                      LlmProvider.appleFoundation => 'Apple on-device',
-                      LlmProvider.openai => 'OpenAI',
-                      LlmProvider.anthropic => 'Anthropic',
-                      LlmProvider.gemini => 'Gemini',
-                    }),
-                  ),
-              ],
-              onChanged: (v) => setState(() => _agent.llmProviderOverride = v),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _promptCtrl,
-              maxLines: 5,
-              decoration: const InputDecoration(
-                labelText: 'System prompt',
-                border: OutlineInputBorder(),
-                alignLabelWithHint: true,
-              ),
-            ),
-            const SizedBox(height: 12),
-            const Text('Permissions', style: TextStyle(fontWeight: FontWeight.w900)),
-            const SizedBox(height: 6),
-            ...AgentDomain.values.map((d) {
-              final cs = Theme.of(context).colorScheme;
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: cs.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: cs.outlineVariant),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: cs.surfaceContainerHigh,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Icon(_domainIcon(d), color: cs.onSurfaceVariant, size: 18),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(_domainLabel(d), style: const TextStyle(fontWeight: FontWeight.w900)),
-                      ),
-                      FilterChip(
-                        label: const Text('Read'),
-                        selected: _hasPerm(d, AgentAccess.read),
-                        onSelected: (on) => _setPerm(d, AgentAccess.read, on),
-                      ),
-                      const SizedBox(width: 8),
-                      FilterChip(
-                        label: const Text('Write'),
-                        selected: _hasPerm(d, AgentAccess.write),
-                        onSelected: (on) => _setPerm(d, AgentAccess.write, on),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _mdCtrl,
-              maxLines: 10,
-              decoration: const InputDecoration(
-                labelText: 'Context note (Markdown)',
-                border: OutlineInputBorder(),
-                alignLabelWithHint: true,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                if (widget.canDelete)
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(const _AgentEditorOutcome(delete: true)),
-                    child: Text('Delete', style: TextStyle(color: Theme.of(context).colorScheme.error)),
-                  ),
-                const Spacer(),
-                OutlinedButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),
-                const SizedBox(width: 8),
-                FilledButton(onPressed: _save, child: const Text('Save')),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// (Linking assets/liabilities into agent context removed for now.)
 
 class _NotificationsCard extends StatefulWidget {
   const _NotificationsCard({required this.model});
