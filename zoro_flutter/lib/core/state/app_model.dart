@@ -58,6 +58,7 @@ class NetWorthProjectionYearBreakdown {
 class AppModel extends ChangeNotifier {
   AppModel() {
     agents.addAll(_seedDefaultAgents());
+    repairDuplicateAssetIds(notify: false);
     repairDuplicateLiabilityIds(notify: false);
     ensureRetirementGoal();
     syncAllocationsFromFraction(notify: false);
@@ -830,7 +831,7 @@ class AppModel extends ChangeNotifier {
   /// Ledger assets / liabilities — mirrors web `/assets` row shape (`formType: assets`).
   final List<LedgerAssetRow> assets = [
     LedgerAssetRow(
-      id: newLedgerRowId('a'),
+      id: SeedLedgerIds.assetCondo,
       type: LedgerAssetType.property,
       currencyCountry: 'Thailand',
       name: 'Bangkok Condo',
@@ -850,7 +851,7 @@ class AppModel extends ChangeNotifier {
 ''',
     ),
     LedgerAssetRow(
-      id: newLedgerRowId('a'),
+      id: SeedLedgerIds.assetUsBrokerage,
       type: LedgerAssetType.investments,
       currencyCountry: 'US',
       name: 'US Brokerage',
@@ -877,7 +878,7 @@ class AppModel extends ChangeNotifier {
 ''',
     ),
     LedgerAssetRow(
-      id: newLedgerRowId('a'),
+      id: SeedLedgerIds.assetIndiaIndex,
       type: LedgerAssetType.investments,
       currencyCountry: 'India',
       name: 'India Index Fund',
@@ -902,7 +903,7 @@ class AppModel extends ChangeNotifier {
 ''',
     ),
     LedgerAssetRow(
-      id: newLedgerRowId('a'),
+      id: SeedLedgerIds.assetThaiCash,
       type: LedgerAssetType.savings,
       currencyCountry: 'Thailand',
       name: 'Thai Cash',
@@ -969,19 +970,19 @@ class AppModel extends ChangeNotifier {
   /// Multiple income sources; each line has its own currency (like ledger assets).
   final List<CashflowIncomeLine> incomeLines = [
     CashflowIncomeLine(
-      id: newLedgerRowId('i'),
+      id: SeedLedgerIds.incomeSalary,
       label: 'Salary',
       annualAmount: 4500000,
       currencyCountry: 'Thailand',
     ),
     CashflowIncomeLine(
-      id: newLedgerRowId('i'),
+      id: SeedLedgerIds.incomeRsu,
       label: 'RUS',
       annualAmount: 80000,
       currencyCountry: 'US',
     ),
     CashflowIncomeLine(
-      id: newLedgerRowId('i'),
+      id: SeedLedgerIds.incomeBonus,
       label: 'Bonus',
       annualAmount: 1200000,
       currencyCountry: 'Thailand',
@@ -1368,6 +1369,34 @@ class AppModel extends ChangeNotifier {
   }
 
   double liabilityPaydownMonthly(LedgerLiabilityRow l) => l.paydownMonthly.clamp(0, double.infinity);
+
+  /// Fixes persisted or seeded assets that share the same id (breaks context / cashflow links).
+  void repairDuplicateAssetIds({bool notify = true}) {
+    final seen = <String>{};
+    var changed = false;
+    for (var i = 0; i < assets.length; i++) {
+      final old = assets[i];
+      if (seen.add(old.id)) continue;
+      changed = true;
+      final newId = newLedgerRowId('a');
+      assets[i] = LedgerAssetRow(
+        id: newId,
+        type: old.type,
+        currencyCountry: old.currencyCountry,
+        name: old.name,
+        total: old.total,
+        label: old.label,
+        comment: old.comment,
+        contextMarkdown: old.contextMarkdown,
+        returnRatePct: old.returnRatePct,
+      );
+    }
+    if (changed) {
+      goalsLastUpdated = DateTime.now();
+      _scheduleAppStatePersist();
+      if (notify) notifyListeners();
+    }
+  }
 
   /// Fixes persisted or seeded rows that share the same id (breaks paydown / editors).
   void repairDuplicateLiabilityIds({bool notify = true}) {
@@ -1762,7 +1791,7 @@ class AppModel extends ChangeNotifier {
     final label = goal.isRetirement
         ? 'Retirement'
         : (goal.name.trim().isEmpty ? 'Target' : goal.name.trim());
-    final fmt = (double v) => formatCurrencyDisplay(v, currency: displayCurrency);
+    String fmt(double v) => formatCurrencyDisplay(v, currency: displayCurrency);
     if (goal.isRetirement) {
       return retirementInvestFeasibility(goal, now: now);
     }
@@ -1778,7 +1807,7 @@ class AppModel extends ChangeNotifier {
 
   /// Invest slice vs retirement need: caution if max slider fixes it; broken otherwise.
   GoalFeasibility retirementInvestFeasibility(FinancialGoal goal, {DateTime? now}) {
-    final fmt = (double v) => formatCurrencyDisplay(v, currency: displayCurrency);
+    String fmt(double v) => formatCurrencyDisplay(v, currency: displayCurrency);
     final required = goalRequiredMonthlySavingsFor(goal, now: now);
     final allocated = allocInvestmentsMonthly;
     final maxInvest = availableAfterExpensesMonthly;
@@ -2706,7 +2735,20 @@ class AppModel extends ChangeNotifier {
       incomeLines.isEmpty ? expensePresetCountry : incomeLines.first.currencyCountry;
 
   void addAsset(LedgerAssetRow row) {
-    assets.add(row);
+    final toAdd = assets.any((a) => a.id == row.id)
+        ? LedgerAssetRow(
+            id: newLedgerRowId('a'),
+            type: row.type,
+            currencyCountry: row.currencyCountry,
+            name: row.name,
+            total: row.total,
+            label: row.label,
+            comment: row.comment,
+            contextMarkdown: row.contextMarkdown,
+            returnRatePct: row.returnRatePct,
+          )
+        : row;
+    assets.add(toAdd);
     _sortAssetsByDisplayValueDescending();
     assetsLastReviewed = DateTime.now();
     userTouchedAssets = true;
@@ -2922,9 +2964,19 @@ class AppModel extends ChangeNotifier {
   }
 
   void setAssetContextMarkdown({required String assetId, required String markdown}) {
-    final idx = assets.indexWhere((a) => a.id == assetId);
-    if (idx < 0) return;
-    assets[idx].contextMarkdown = markdown;
+    final matches = <int>[
+      for (var i = 0; i < assets.length; i++)
+        if (assets[i].id == assetId) i,
+    ];
+    if (matches.isEmpty) return;
+    if (matches.length > 1) {
+      repairDuplicateAssetIds(notify: false);
+      final idx = assets.indexWhere((a) => a.id == assetId);
+      if (idx < 0) return;
+      assets[idx].contextMarkdown = markdown;
+    } else {
+      assets[matches.first].contextMarkdown = markdown;
+    }
     assetsLastReviewed = DateTime.now();
     userTouchedAssets = true;
     _touchContextNoteSaved(contextKeyAsset(assetId));
@@ -3191,10 +3243,10 @@ class AppModel extends ChangeNotifier {
   void setAllocFromSavingsPctOfSalary(double pct) {
     final paycheck = salaryNetMonthlyDisplay;
     if (paycheck <= 0.005) {
-      setAllocationSavings(0);
+      setAllocationSavings(0, quantize: false);
       return;
     }
-    setAllocationSavings(paycheck * (pct / 100));
+    setAllocationSavings(paycheck * (pct / 100), quantize: false);
   }
 
   void setAllocationContextMarkdown(String markdown) {
@@ -3205,11 +3257,39 @@ class AppModel extends ChangeNotifier {
 
   double predictedMonthlyForExpenseBucket(String k) => expenseBuckets[k] ?? 0;
 
-  void setAllocInvestFraction(double f) {
-    allocInvestFraction = _quantizeAllocInvestFraction(f);
+  void setAllocInvestFraction(double f, {bool quantize = true}) {
+    allocInvestFraction = quantize ? _quantizeAllocInvestFraction(f) : f.clamp(0.0, 1.0);
     allocationTargetLastUpdated = DateTime.now();
     syncAllocationsFromFraction();
     _scheduleAppStatePersist();
+  }
+
+  /// Sets invest/savings monthly amounts exactly; headline % follows these amounts.
+  void setAllocationMonthlyExact({required double investMonthly, required double savingsMonthly}) {
+    final avail = availableAfterExpensesMonthly;
+    if (avail <= 0) {
+      allocInvestFraction = 0;
+      allocInvestmentsMonthly = 0;
+      allocSavingsMonthly = 0;
+      _scheduleAppStatePersist();
+      notifyListeners();
+      return;
+    }
+    var invest = investMonthly.clamp(0.0, avail);
+    var savings = savingsMonthly.clamp(0.0, avail);
+    final total = invest + savings;
+    if (total > avail + 1e-6) {
+      final scale = avail / total;
+      invest *= scale;
+      savings *= scale;
+    }
+    allocInvestmentsMonthly = invest;
+    allocSavingsMonthly = savings;
+    allocInvestFraction = invest / avail;
+    allocationTargetLastUpdated = DateTime.now();
+    _clampLiabilityPaydownToSavings();
+    _scheduleAppStatePersist();
+    notifyListeners();
   }
 
   void syncAllocationsFromFraction({bool notify = true}) {
@@ -3250,7 +3330,7 @@ class AppModel extends ChangeNotifier {
     _scheduleAppStatePersist();
   }
 
-  void setAllocationSavings(double v) {
+  void setAllocationSavings(double v, {bool quantize = true}) {
     final avail = availableAfterExpensesMonthly;
     if (avail <= 0) {
       allocInvestFraction = 0;
@@ -3260,10 +3340,26 @@ class AppModel extends ChangeNotifier {
       notifyListeners();
       return;
     }
-    allocInvestFraction = _quantizeAllocInvestFraction(1.0 - (v / avail));
+    if (quantize) {
+      allocInvestFraction = _quantizeAllocInvestFraction(1.0 - (v / avail));
+      allocationTargetLastUpdated = DateTime.now();
+      syncAllocationsFromFraction();
+    } else {
+      setAllocationMonthlyExact(
+        investMonthly: avail - v.clamp(0.0, avail),
+        savingsMonthly: v.clamp(0.0, avail),
+      );
+      return;
+    }
     allocationTargetLastUpdated = DateTime.now();
-    syncAllocationsFromFraction();
     _scheduleAppStatePersist();
+  }
+
+  /// Invest / saved headline % from actual monthly amounts (not quantized slider steps).
+  int investPctOfAvailableRounded() {
+    final avail = availableAfterExpensesMonthly;
+    if (avail <= 0.005) return 0;
+    return (allocInvestmentsMonthly / avail * 100).round().clamp(0, 100);
   }
 
   void normalizeAllocations({bool notify = true}) {
@@ -3511,6 +3607,7 @@ class AppModel extends ChangeNotifier {
             for (final e in assetsRaw)
               if (app_state.decodeLedgerAssetRow(e) != null) app_state.decodeLedgerAssetRow(e)!,
           ]);
+        repairDuplicateAssetIds(notify: false);
       }
       final liabRaw = L['liabilities'];
       if (liabRaw is List) {

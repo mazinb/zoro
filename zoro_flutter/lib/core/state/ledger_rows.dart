@@ -2,7 +2,24 @@ import 'package:flutter/material.dart';
 
 /// Mirrors `zoro-app` account + liability row shapes (UI-only).
 
-String newLedgerRowId(String prefix) => '$prefix-${DateTime.now().microsecondsSinceEpoch}';
+/// Stable ids for bundled demo ledger rows (must remain unique).
+abstract final class SeedLedgerIds {
+  static const assetCondo = 'a-seed-condo';
+  static const assetUsBrokerage = 'a-seed-us-brokerage';
+  static const assetIndiaIndex = 'a-seed-india-index';
+  static const assetThaiCash = 'a-seed-thai-cash';
+  static const incomeSalary = 'i-seed-salary';
+  static const incomeRsu = 'i-seed-rsu';
+  static const incomeBonus = 'i-seed-bonus';
+}
+
+int _ledgerRowIdSeq = 0;
+
+/// New row id; sequence suffix avoids duplicate ids when several rows are created in one tick.
+String newLedgerRowId(String prefix) {
+  final seq = _ledgerRowIdSeq++;
+  return '$prefix-${DateTime.now().microsecondsSinceEpoch}-$seq';
+}
 
 enum LedgerAssetType {
   savings,

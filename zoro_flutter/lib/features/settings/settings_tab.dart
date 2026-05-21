@@ -508,7 +508,11 @@ class _GeneralPaneState extends State<_GeneralPane> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-                _GoalsReminderCadenceRow(model: model),
+                _CadenceRow(
+                  label: 'Goals',
+                  value: model.remindersGoalsCadence,
+                  onChanged: model.setReminderCadenceGoals,
+                ),
                 const SizedBox(height: 10),
                 _CadenceRow(
                   label: 'Cash flow',
@@ -752,6 +756,9 @@ class _AgentsPaneState extends State<_AgentsPane> {
       InternalAppAgentIds.goalsRetirementCorpus,
       InternalAppAgentIds.goalsRetirementSplit,
       InternalAppAgentIds.goalsRetirementBuckets,
+      InternalAppAgentIds.goalsReviewLiabilities,
+      InternalAppAgentIds.goalsReviewAssetReturns,
+      InternalAppAgentIds.goalsReviewAssumptions,
       InternalAppAgentIds.goalsExpenseEstimator,
     };
     final defs = kInternalAppAgentDefinitions.where((d) => goalsIds.contains(d.id)).toList()
@@ -760,6 +767,9 @@ class _AgentsPaneState extends State<_AgentsPane> {
           InternalAppAgentIds.goalsRetirementCorpus,
           InternalAppAgentIds.goalsRetirementSplit,
           InternalAppAgentIds.goalsRetirementBuckets,
+          InternalAppAgentIds.goalsReviewLiabilities,
+          InternalAppAgentIds.goalsReviewAssetReturns,
+          InternalAppAgentIds.goalsReviewAssumptions,
           InternalAppAgentIds.goalsExpenseEstimator,
         ];
         return order.indexOf(a.id).compareTo(order.indexOf(b.id));
@@ -799,43 +809,6 @@ class _AgentsPaneState extends State<_AgentsPane> {
                     ),
                   ),
                 ),
-              const SizedBox(height: 16),
-              Text(
-                'Goals options',
-                style: TextStyle(fontWeight: FontWeight.w900, color: cs.onSurface, fontSize: 15),
-              ),
-              const SizedBox(height: 8),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      SwitchListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text('Timeline progress', style: TextStyle(fontWeight: FontWeight.w800)),
-                        subtitle: Text(
-                          'Notify at halfway and three-quarters through each goal\'s timeline (by date).',
-                          style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
-                        ),
-                        value: model.goalsTimeProgressNotifications,
-                        onChanged: model.setGoalsTimeProgressNotifications,
-                      ),
-                      const SizedBox(height: 10),
-                      SwitchListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text('Prompt auto-allocate', style: TextStyle(fontWeight: FontWeight.w800)),
-                        subtitle: Text(
-                          'When adding a target, offer to split savings by monthly gap.',
-                          style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
-                        ),
-                        value: model.promptAutoAllocateOnNewGoal,
-                        onChanged: model.setPromptAutoAllocateOnNewGoal,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
             ],
           ),
         ),
@@ -1310,50 +1283,6 @@ class _ModelPicker extends StatelessWidget {
             onChanged(v);
           },
         ),
-      ],
-    );
-  }
-}
-
-class _GoalsReminderCadenceRow extends StatelessWidget {
-  const _GoalsReminderCadenceRow({required this.model});
-
-  final AppModel model;
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final now = DateTime.now();
-    final planAt = model.retirementPlanLastUpdatedAt();
-    final overdue = model.goalsReviewOverdueAt(now);
-    final unacked = model.goalsPlanHasUnacknowledgedUpdates(now: now);
-
-    String? subtitle;
-    if (planAt != null) {
-      final rel = formatAgentLastRunRelative(planAt, now: now) ?? 'recently';
-      subtitle = unacked ? 'Plan changed $rel — open Goals helper' : 'Last plan change $rel';
-    }
-    if (overdue && subtitle != null) {
-      subtitle = '$subtitle · review overdue';
-    } else if (overdue) {
-      subtitle = 'Review overdue';
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _CadenceRow(
-          label: 'Goals',
-          value: model.remindersGoalsCadence,
-          onChanged: model.setReminderCadenceGoals,
-        ),
-        if (subtitle != null) ...[
-          const SizedBox(height: 4),
-          Text(
-            subtitle,
-            style: TextStyle(fontSize: 12, color: unacked || overdue ? cs.primary : cs.onSurfaceVariant),
-          ),
-        ],
       ],
     );
   }

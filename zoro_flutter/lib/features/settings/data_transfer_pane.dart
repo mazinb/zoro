@@ -9,7 +9,6 @@ import '../../core/persistence/export_sanitizer.dart';
 import '../../core/state/app_model.dart';
 import '../../core/state/internal_app_agent_definition.dart';
 import 'data_json_viewer.dart';
-import 'import_review_sheet.dart';
 import 'internal_agent_prompt_editor_page.dart';
 
 /// Settings → Agents → Data: export / import.
@@ -35,8 +34,9 @@ class _DataTransferPaneState extends State<DataTransferPane> {
   String _contextGroup = ContextExportGroup.assets;
   String? _pickId;
 
-  String? _lastJson;
-  int? _lastJsonChars;
+  String? _exportJson;
+  String? _exportCacheKey;
+  bool _exportRedactionDone = false;
 
   String? _importText;
   String? _importLabel;
@@ -44,6 +44,10 @@ class _DataTransferPaneState extends State<DataTransferPane> {
   ImportAnalysis? _importAnalysis;
 
   AppModel get _m => widget.model;
+  bool get _hasImport => _importRoot != null;
+
+  String get _selectionCacheKey =>
+      '$_exportKind|$_ledgerScope|$_ledgerPartGroup|$_pickId|$_contextGroup|$_redact';
 
   bool get _isLedger => _exportKind == DataExportKind.ledger;
   bool get _ledgerPart => _isLedger && _ledgerScope == LedgerExportScope.part;
@@ -81,11 +85,18 @@ class _DataTransferPaneState extends State<DataTransferPane> {
     return null;
   }
 
+  void _invalidateExportCache() {
+    _exportJson = null;
+    _exportCacheKey = null;
+    _exportRedactionDone = false;
+  }
+
   void _onExportKindChanged(String? kind) {
     if (kind == null) return;
     setState(() {
       _exportKind = kind;
       _pickId = null;
+      _invalidateExportCache();
       if (kind == DataExportKind.ledger) {
         _ledgerScope = LedgerExportScope.full;
         _ledgerPartGroup = LedgerPartGroup.assets;
@@ -104,6 +115,7 @@ class _DataTransferPaneState extends State<DataTransferPane> {
     setState(() {
       _ledgerScope = scope;
       _pickId = null;
+      _invalidateExportCache();
       if (_ledgerPart) _syncLedgerPartPick();
     });
   }
@@ -113,6 +125,7 @@ class _DataTransferPaneState extends State<DataTransferPane> {
     setState(() {
       _ledgerPartGroup = group;
       _pickId = null;
+      _invalidateExportCache();
       _syncLedgerPartPick();
     });
   }
@@ -122,21 +135,14 @@ class _DataTransferPaneState extends State<DataTransferPane> {
     setState(() {
       _contextGroup = group;
       _pickId = null;
+      _invalidateExportCache();
       _syncContextPick();
     });
   }
 
-  void _syncLedgerPartPick() {
-    _syncPickIn(_ledgerPartItems);
-  }
-
-  void _syncContextPick() {
-    _syncPickIn(_contextItems);
-  }
-
-  void _syncAgentPick() {
-    _syncPickIn(_agentItems);
-  }
+  void _syncLedgerPartPick() => _syncPickIn(_ledgerPartItems);
+  void _syncContextPick() => _syncPickIn(_contextItems);
+  void _syncAgentPick() => _syncPickIn(_agentItems);
 
   void _syncPickIn(List<DataExportPick> items) {
     if (items.isEmpty) {
@@ -148,40 +154,53 @@ class _DataTransferPaneState extends State<DataTransferPane> {
     }
   }
 
-  Future<Map<String, dynamic>> _buildExportMap() async {
-    var map = AppStateTransfer.buildExportMap(
-      _m,
-      exportKind: _exportKind,
-      pickId: _pickId,
-      ledgerScope: _ledgerScope,
-      ledgerPartGroup: _ledgerPartGroup,
-      ledgerPartPickId: _ledgerPart ? _pickId : null,
+  Future<Map<String, dynamic>> _buildRawExportMap() {
+    return Future.value(
+      AppStateTransfer.buildExportMap(
+        _m,
+        exportKind: _exportKind,
+        pickId: _pickId,
+        ledgerScope: _ledgerScope,
+        ledgerPartGroup: _ledgerPartGroup,
+        ledgerPartPickId: _ledgerPart ? _pickId : null,
+      ),
     );
-    if (_redact) {
-      map = await ExportSanitizer.sanitizeExportMap(_m, map);
-    }
-    return map;
   }
 
-  Future<String> _encodeExport() async {
-    final map = await _buildExportMap();
-    return const JsonEncoder.withIndent('  ').convert(map);
-  }
-
-  Future<String?> _prepareExportJson() async {
+  /// Builds export JSON; runs redaction at most once until reset or selection changes.
+  Future<String?> _ensureExportJson({bool forceRedact = false}) async {
     if (!_canExport) {
       setState(() => _status = 'Choose an item.');
       return null;
     }
+
+    final key = _selectionCacheKey;
+    if (!forceRedact &&
+        _exportJson != null &&
+        _exportCacheKey == key &&
+        (!_redact || _exportRedactionDone)) {
+      return _exportJson;
+    }
+
     setState(() {
       _busy = true;
       _status = null;
     });
+
     try {
-      final text = await _encodeExport();
+      var map = await _buildRawExportMap();
+      if (_redact && (!_exportRedactionDone || forceRedact)) {
+        map = await ExportSanitizer.sanitizeExportMap(_m, map);
+        _exportRedactionDone = true;
+      } else if (!_redact) {
+        _exportRedactionDone = false;
+      }
+
+      final text = const JsonEncoder.withIndent('  ').convert(map);
+      if (!mounted) return null;
       setState(() {
-        _lastJson = text;
-        _lastJsonChars = text.length;
+        _exportJson = text;
+        _exportCacheKey = key;
       });
       return text;
     } catch (e) {
@@ -192,21 +211,23 @@ class _DataTransferPaneState extends State<DataTransferPane> {
     }
   }
 
-  String? _pickLabelForFileName() {
-    if (_ledgerPart && _pickId != null && _pickId != LedgerPartGroup.allItemsId) {
-      return _selectedPick?.label;
-    }
-    return _selectedPick?.label;
+  void _resetExportRedaction() {
+    setState(() {
+      _invalidateExportCache();
+      _status = null;
+    });
   }
 
+  String? _pickLabelForFileName() => _selectedPick?.label;
+
   Future<void> _viewExport() async {
-    final text = _lastJson ?? await _prepareExportJson();
+    final text = await _ensureExportJson();
     if (text == null || !mounted) return;
-    showDataJsonViewer(context, title: 'Export', jsonText: text);
+    showDataJsonViewer(context, title: 'Export', jsonText: text, subtitle: '${text.length} chars');
   }
 
   Future<void> _copyExport() async {
-    final text = _lastJson ?? await _prepareExportJson();
+    final text = await _ensureExportJson();
     if (text == null) return;
     await Clipboard.setData(ClipboardData(text: text));
     if (!mounted) return;
@@ -214,11 +235,10 @@ class _DataTransferPaneState extends State<DataTransferPane> {
   }
 
   Future<void> _downloadExport() async {
-    final text = _lastJson ?? await _prepareExportJson();
+    final text = await _ensureExportJson();
     if (text == null) return;
     setState(() => _busy = true);
     try {
-      final bytes = utf8.encode(text);
       final path = await FilePicker.saveFile(
         dialogTitle: 'Export',
         fileName: AppStateTransfer.suggestedExportFileName(
@@ -227,7 +247,7 @@ class _DataTransferPaneState extends State<DataTransferPane> {
         ),
         type: FileType.custom,
         allowedExtensions: const ['json'],
-        bytes: bytes,
+        bytes: utf8.encode(text),
       );
       if (!mounted) return;
       setState(() => _status = path == null ? 'Cancelled' : 'Saved');
@@ -267,12 +287,17 @@ class _DataTransferPaneState extends State<DataTransferPane> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _importText = null;
-        _importRoot = null;
-        _importAnalysis = null;
+        _clearImport();
         _status = e is FormatException ? e.message : '$e';
       });
     }
+  }
+
+  void _clearImport() {
+    _importText = null;
+    _importLabel = null;
+    _importRoot = null;
+    _importAnalysis = null;
   }
 
   void _viewImport() {
@@ -286,14 +311,11 @@ class _DataTransferPaneState extends State<DataTransferPane> {
     );
   }
 
-  Future<void> _runImport(ImportApplyMode mode) async {
+  Future<void> _applyImport(ImportApplyMode mode) async {
     final root = _importRoot;
-    if (root == null) {
-      setState(() => _status = 'Choose a file');
-      return;
-    }
+    if (root == null) return;
     if (mode == ImportApplyMode.merge && _importAnalysis?.supportsMerge != true) {
-      setState(() => _status = 'Run not available');
+      setState(() => _status = 'Save not available');
       return;
     }
     setState(() {
@@ -303,29 +325,15 @@ class _DataTransferPaneState extends State<DataTransferPane> {
     try {
       await AppStateTransfer.applyImport(_m, root, mode: mode);
       if (!mounted) return;
-      setState(() => _status = 'Done');
+      setState(() {
+        _status = 'Done';
+        _clearImport();
+      });
     } catch (e) {
       if (mounted) setState(() => _status = '$e');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
-  }
-
-  Future<void> _reviewImport() async {
-    final root = _importRoot;
-    final text = _importText;
-    final analysis = _importAnalysis;
-    final label = _importLabel;
-    if (root == null || text == null || analysis == null || label == null) return;
-
-    final mode = await showImportReviewSheet(
-      context,
-      analysis: analysis,
-      sourceLabel: label,
-      jsonText: text,
-    );
-    if (mode == null || !mounted) return;
-    await _runImport(mode);
   }
 
   Future<void> _openSanitizerPrompt() async {
@@ -354,7 +362,12 @@ class _DataTransferPaneState extends State<DataTransferPane> {
         selectedId: selectedId,
       ),
     );
-    if (picked != null && mounted) setState(() => _pickId = picked);
+    if (picked != null && mounted) {
+      setState(() {
+        _pickId = picked;
+        _invalidateExportCache();
+      });
+    }
   }
 
   Widget _threeButtonRow({
@@ -382,53 +395,53 @@ class _DataTransferPaneState extends State<DataTransferPane> {
 
   Widget _exportKindDropdown() {
     return DropdownButtonFormField<String>(
-      value: _exportKind,
+      initialValue: _exportKind,
       isExpanded: true,
       decoration: const InputDecoration(labelText: 'Export', border: OutlineInputBorder()),
       items: [
         for (final k in DataExportKind.all)
           DropdownMenuItem(value: k, child: Text(DataExportKind.label(k))),
       ],
-      onChanged: _busy ? null : _onExportKindChanged,
+      onChanged: _busy || _hasImport ? null : _onExportKindChanged,
     );
   }
 
   Widget _ledgerScopeDropdown() {
     return DropdownButtonFormField<String>(
-      value: _ledgerScope,
+      initialValue: _ledgerScope,
       isExpanded: true,
       decoration: const InputDecoration(labelText: 'Scope', border: OutlineInputBorder()),
       items: [
         for (final s in LedgerExportScope.all)
           DropdownMenuItem(value: s, child: Text(LedgerExportScope.label(s))),
       ],
-      onChanged: _busy ? null : _onLedgerScopeChanged,
+      onChanged: _busy || _hasImport ? null : _onLedgerScopeChanged,
     );
   }
 
   Widget _ledgerPartGroupDropdown() {
     return DropdownButtonFormField<String>(
-      value: _ledgerPartGroup,
+      initialValue: _ledgerPartGroup,
       isExpanded: true,
       decoration: const InputDecoration(labelText: 'Area', border: OutlineInputBorder()),
       items: [
         for (final g in LedgerPartGroup.all)
           DropdownMenuItem(value: g, child: Text(LedgerPartGroup.label(g))),
       ],
-      onChanged: _busy ? null : _onLedgerPartGroupChanged,
+      onChanged: _busy || _hasImport ? null : _onLedgerPartGroupChanged,
     );
   }
 
   Widget _contextGroupDropdown() {
     return DropdownButtonFormField<String>(
-      value: _contextGroup,
+      initialValue: _contextGroup,
       isExpanded: true,
       decoration: const InputDecoration(labelText: 'Area', border: OutlineInputBorder()),
       items: [
         for (final g in ContextExportGroup.all)
           DropdownMenuItem(value: g, child: Text(ContextExportGroup.label(g))),
       ],
-      onChanged: _busy ? null : _onContextGroupChanged,
+      onChanged: _busy || _hasImport ? null : _onContextGroupChanged,
     );
   }
 
@@ -439,10 +452,11 @@ class _DataTransferPaneState extends State<DataTransferPane> {
   }) {
     final selected = _selectedPick;
     final labelText = selected?.label ?? (items.isEmpty ? '—' : 'Choose…');
+    final disabled = _busy || _hasImport;
 
     if (items.length <= _kPickerSheetThreshold) {
       return DropdownButtonFormField<String>(
-        value: items.isEmpty ? null : _pickId,
+        initialValue: items.isEmpty ? null : _pickId,
         isExpanded: true,
         decoration: InputDecoration(labelText: label, border: const OutlineInputBorder()),
         items: [
@@ -452,14 +466,19 @@ class _DataTransferPaneState extends State<DataTransferPane> {
               child: Text(p.label, overflow: TextOverflow.ellipsis),
             ),
         ],
-        onChanged: items.isEmpty || _busy ? null : (v) => setState(() => _pickId = v),
+        onChanged: disabled || items.isEmpty
+            ? null
+            : (v) => setState(() {
+                  _pickId = v;
+                  _invalidateExportCache();
+                }),
       );
     }
 
     return InputDecorator(
       decoration: InputDecoration(labelText: label, border: const OutlineInputBorder()),
       child: InkWell(
-        onTap: items.isEmpty || _busy
+        onTap: disabled || items.isEmpty
             ? null
             : () => _openItemPicker(title: sheetTitle, items: items, selectedId: _pickId),
         child: Row(
@@ -469,7 +488,7 @@ class _DataTransferPaneState extends State<DataTransferPane> {
                 labelText,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  color: items.isEmpty
+                  color: items.isEmpty || disabled
                       ? Theme.of(context).colorScheme.onSurfaceVariant
                       : Theme.of(context).colorScheme.onSurface,
                 ),
@@ -483,21 +502,17 @@ class _DataTransferPaneState extends State<DataTransferPane> {
   }
 
   Widget _jsonPreviewPanel() {
-    final text = _lastJson;
-    if (text == null) return const SizedBox.shrink();
+    final text = _exportJson;
+    if (text == null || _hasImport) return const SizedBox.shrink();
     final cs = Theme.of(context).colorScheme;
     final preview = text.length > 1200 ? '${text.substring(0, 1200)}\n…' : text;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (_lastJsonChars != null)
-          Text(
-            '$_lastJsonChars chars',
-            style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12),
-          ),
+        Text('${text.length} chars', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12)),
         const SizedBox(height: 6),
         Container(
-          constraints: const BoxConstraints(maxHeight: 160),
+          constraints: const BoxConstraints(maxHeight: 140),
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
             color: cs.surfaceContainerHighest.withValues(alpha: 0.5),
@@ -515,6 +530,66 @@ class _DataTransferPaneState extends State<DataTransferPane> {
     );
   }
 
+  Widget _redactRow() {
+    final canReset = _redact && (_exportJson != null || _exportRedactionDone);
+    return Row(
+      children: [
+        const Expanded(child: Text('Redact')),
+        Switch(
+          value: _redact,
+          onChanged: _busy || _hasImport
+              ? null
+              : (v) => setState(() {
+                    _redact = v;
+                    _invalidateExportCache();
+                  }),
+        ),
+        IconButton(
+          icon: const Icon(Icons.info_outline, size: 22),
+          tooltip: 'Instructions',
+          onPressed: _busy || _hasImport ? null : _openSanitizerPrompt,
+        ),
+        IconButton(
+          icon: const Icon(Icons.refresh, size: 22),
+          tooltip: 'Re-run redaction',
+          onPressed: !canReset || _busy || _hasImport
+              ? null
+              : () => _resetExportRedaction(),
+        ),
+      ],
+    );
+  }
+
+  Widget _importFileRow() {
+    if (!_hasImport) {
+      return TextButton(
+        onPressed: _busy ? null : _pickImportFile,
+        child: const Text('Import file'),
+      );
+    }
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            _importLabel ?? 'File',
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+        ),
+        IconButton(
+          icon: const Icon(Icons.close, size: 20),
+          tooltip: 'Clear',
+          onPressed: _busy
+              ? null
+              : () => setState(() {
+                    _clearImport();
+                    _status = null;
+                  }),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -522,108 +597,79 @@ class _DataTransferPaneState extends State<DataTransferPane> {
     if (_needsContextPick) _syncContextPick();
     if (_needsAgentPick) _syncAgentPick();
 
-    final hasImport = _importRoot != null;
-    final canRun = hasImport && (_importAnalysis?.supportsMerge ?? false);
-    final canReplace = hasImport && (_importAnalysis?.supportsReplace ?? false);
+    final canSave = _hasImport && (_importAnalysis?.supportsMerge ?? false);
+    final canReplace = _hasImport && (_importAnalysis?.supportsReplace ?? false);
 
     return ListView(
       padding: EdgeInsets.zero,
       children: [
-        _exportKindDropdown(),
-        if (_isLedger) ...[
-          const SizedBox(height: 12),
-          _ledgerScopeDropdown(),
-          if (_ledgerPart) ...[
+        if (!_hasImport) ...[
+          _exportKindDropdown(),
+          if (_isLedger) ...[
             const SizedBox(height: 12),
-            _ledgerPartGroupDropdown(),
+            _ledgerScopeDropdown(),
+            if (_ledgerPart) ...[
+              const SizedBox(height: 12),
+              _ledgerPartGroupDropdown(),
+              const SizedBox(height: 12),
+              _itemPickerField(
+                label: 'Item',
+                items: _ledgerPartItems,
+                sheetTitle: LedgerPartGroup.label(_ledgerPartGroup),
+              ),
+            ],
+          ],
+          if (_needsContextPick) ...[
+            const SizedBox(height: 12),
+            _contextGroupDropdown(),
             const SizedBox(height: 12),
             _itemPickerField(
               label: 'Item',
-              items: _ledgerPartItems,
-              sheetTitle: LedgerPartGroup.label(_ledgerPartGroup),
+              items: _contextItems,
+              sheetTitle: ContextExportGroup.label(_contextGroup),
             ),
           ],
+          if (_needsAgentPick) ...[
+            const SizedBox(height: 12),
+            _itemPickerField(label: 'Agent', items: _agentItems, sheetTitle: 'Agents'),
+          ],
+          const SizedBox(height: 12),
+          _redactRow(),
+          const SizedBox(height: 12),
+          _threeButtonRow(
+            actions: [
+              (label: 'View', onPressed: _busy || !_canExport ? null : _viewExport, filled: false),
+              (label: 'Copy', onPressed: _busy || !_canExport ? null : _copyExport, filled: false),
+              (label: 'Download', onPressed: _busy || !_canExport ? null : _downloadExport, filled: true),
+            ],
+          ),
+          if (_exportJson != null) ...[
+            const SizedBox(height: 12),
+            _jsonPreviewPanel(),
+          ],
         ],
-        if (_needsContextPick) ...[
+        if (_hasImport) ...[
+          _importFileRow(),
           const SizedBox(height: 12),
-          _contextGroupDropdown(),
-          const SizedBox(height: 12),
-          _itemPickerField(
-            label: 'Item',
-            items: _contextItems,
-            sheetTitle: ContextExportGroup.label(_contextGroup),
+          _threeButtonRow(
+            actions: [
+              (label: 'View', onPressed: _busy ? null : _viewImport, filled: false),
+              (label: 'Save', onPressed: canSave && !_busy ? () => _applyImport(ImportApplyMode.merge) : null, filled: true),
+              (label: 'Replace', onPressed: canReplace && !_busy ? () => _applyImport(ImportApplyMode.replace) : null, filled: false),
+            ],
           ),
         ],
-        if (_needsAgentPick) ...[
-          const SizedBox(height: 12),
-          _itemPickerField(label: 'Agent', items: _agentItems, sheetTitle: 'Agents'),
+        if (!_hasImport) ...[
+          const SizedBox(height: 16),
+          _importFileRow(),
         ],
-        const SizedBox(height: 12),
-        Row(
-          children: [
-            const Expanded(child: Text('Redact')),
-            Switch(
-              value: _redact,
-              onChanged: _busy ? null : (v) => setState(() => _redact = v),
-            ),
-            IconButton(
-              icon: const Icon(Icons.info_outline, size: 22),
-              tooltip: 'Instructions',
-              onPressed: _busy ? null : _openSanitizerPrompt,
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        _threeButtonRow(
-          actions: [
-            (label: 'View', onPressed: _busy || !_canExport ? null : _viewExport, filled: false),
-            (label: 'Copy', onPressed: _busy || !_canExport ? null : _copyExport, filled: false),
-            (label: 'Download', onPressed: _busy || !_canExport ? null : _downloadExport, filled: true),
-          ],
-        ),
-        if (_lastJson != null) ...[
-          const SizedBox(height: 12),
-          _jsonPreviewPanel(),
-        ],
-        const SizedBox(height: 24),
-        OutlinedButton(
-          onPressed: _busy ? null : _pickImportFile,
-          child: Text(hasImport ? (_importLabel ?? 'File') : 'Choose file'),
-        ),
-        const SizedBox(height: 12),
-        _threeButtonRow(
-          actions: [
-            (label: 'View', onPressed: hasImport && !_busy ? _viewImport : null, filled: false),
-            (
-              label: 'Run',
-              onPressed: canRun && !_busy ? () => _runImport(ImportApplyMode.merge) : null,
-              filled: true,
-            ),
-            (
-              label: 'Replace',
-              onPressed: canReplace && !_busy ? () => _runImport(ImportApplyMode.replace) : null,
-              filled: false,
-            ),
-          ],
-        ),
-        if (hasImport)
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: TextButton(
-              onPressed: _busy ? null : _reviewImport,
-              child: const Text('Summary'),
-            ),
-          ),
         if (_busy) ...[
           const SizedBox(height: 20),
           const Center(child: CircularProgressIndicator()),
         ],
         if (_status != null) ...[
           const SizedBox(height: 12),
-          Text(
-            _status!,
-            style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13),
-          ),
+          Text(_status!, style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13)),
         ],
       ],
     );

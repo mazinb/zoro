@@ -64,6 +64,7 @@ class _GoalEditorSheet extends StatefulWidget {
 class _GoalEditorSheetState extends State<_GoalEditorSheet> {
   late TextEditingController _nameCtrl;
   late TextEditingController _targetCtrl;
+  late TextEditingController _swrCtrl;
   DateTime? _targetDate;
   double _swr = 4;
   double _buffer = 0;
@@ -94,6 +95,7 @@ class _GoalEditorSheetState extends State<_GoalEditorSheet> {
     _targetDate = g?.targetDate;
     _corpusFromExpenses = g?.corpusAutoFromExpenses ?? true;
     _swr = g?.safeWithdrawalRatePct ?? 4;
+    _swrCtrl = TextEditingController(text: _swr.toStringAsFixed(1));
     _buffer = g?.corpusBufferPct ?? 0;
     _savingsWeight = g?.savingsWeight ?? 1;
     _retirementExtras = Set<String>.from(widget.model.retirementExtraAssetIds);
@@ -105,6 +107,7 @@ class _GoalEditorSheetState extends State<_GoalEditorSheet> {
   void dispose() {
     _nameCtrl.dispose();
     _targetCtrl.dispose();
+    _swrCtrl.dispose();
     super.dispose();
   }
 
@@ -148,6 +151,8 @@ class _GoalEditorSheetState extends State<_GoalEditorSheet> {
     if (g == null) return;
     final m = widget.model;
     final isRetirement = g.isRetirement;
+    final swrParsed = double.tryParse(_swrCtrl.text.trim());
+    if (swrParsed != null) _swr = clampWithdrawalRatePct(swrParsed);
     final target = isRetirement
         ? (_corpusFromExpenses
             ? computeRetirementCorpus(
@@ -182,71 +187,6 @@ class _GoalEditorSheetState extends State<_GoalEditorSheet> {
     final id = widget.goalId;
     if (id != null) widget.model.removeFinancialGoal(id);
     if (mounted) Navigator.of(context).pop();
-  }
-
-  Widget _contextAndDateSection(BuildContext context, FinancialGoal g, AppModel m) {
-    final cs = Theme.of(context).colorScheme;
-
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.6)),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          InkWell(
-            onTap: _pickDate,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              child: Row(
-                children: [
-                  Icon(Icons.event_outlined, size: 18, color: cs.onSurfaceVariant),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      goalDateLabel(_targetDate),
-                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
-                    ),
-                  ),
-                  Icon(Icons.chevron_right, size: 18, color: cs.onSurfaceVariant),
-                ],
-              ),
-            ),
-          ),
-          Divider(height: 1, color: cs.outlineVariant.withValues(alpha: 0.5)),
-          InkWell(
-            onTap: () {
-              Navigator.of(context).push<void>(
-                MaterialPageRoute(
-                  builder: (ctx) => GoalContextPage(model: m, goalId: g.id),
-                ),
-              );
-            },
-            borderRadius: const BorderRadius.vertical(bottom: Radius.circular(8)),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Context notes',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14,
-                        color: cs.onSurfaceVariant,
-                      ),
-                    ),
-                  ),
-                  Icon(Icons.chevron_right, size: 18, color: cs.onSurfaceVariant),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
   Widget _retirementAssetSection({
@@ -490,26 +430,38 @@ class _GoalEditorSheetState extends State<_GoalEditorSheet> {
                       ),
                       onChanged: (_) => setState(() {}),
                     ),
-                  Text('SWR ${_swr.round()}%', style: TextStyle(fontWeight: FontWeight.w800, color: cs.onSurfaceVariant, fontSize: 12)),
+                  Text(
+                    'Withdrawal rate',
+                    style: TextStyle(fontWeight: FontWeight.w800, color: cs.onSurfaceVariant, fontSize: 12),
+                  ),
+                  const SizedBox(height: 4),
+                  TextField(
+                    controller: _swrCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      suffixText: '%',
+                      border: OutlineInputBorder(),
+                    ),
+                    onChanged: (t) {
+                      final v = double.tryParse(t.trim());
+                      if (v != null) setState(() => _swr = clampWithdrawalRatePct(v));
+                    },
+                  ),
                   Slider(
                     value: _swr.clamp(1, 10),
                     min: 1,
                     max: 10,
-                    divisions: 9,
-                    label: '${_swr.round()}%',
-                    onChanged: (v) => setState(() => _swr = v),
+                    divisions: 18,
+                    label: '${_swr.toStringAsFixed(1)}%',
+                    onChanged: (v) {
+                      final q = (v * 2).round() / 2;
+                      setState(() {
+                        _swr = q;
+                        _swrCtrl.text = q.toStringAsFixed(1);
+                      });
+                    },
                   ),
-                  Text('Buffer ${_buffer.round()}%', style: TextStyle(fontWeight: FontWeight.w800, color: cs.onSurfaceVariant, fontSize: 12)),
-                  Slider(
-                    value: _buffer.clamp(0, 100),
-                    min: 0,
-                    max: 100,
-                    divisions: 20,
-                    label: '${_buffer.round()}%',
-                    onChanged: (v) => setState(() => _buffer = v),
-                  ),
-                  const SizedBox(height: 6),
-                  _contextAndDateSection(context, g, m),
                   const SizedBox(height: 10),
                   _retirementAssetSection(
                     title: 'Property',

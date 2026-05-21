@@ -341,7 +341,7 @@ class NotificationService {
         ReminderDomain.income => 'Confirm your income lines are still accurate.',
         ReminderDomain.assets => 'Take a moment to refresh your asset balances.',
         ReminderDomain.liabilities => 'Update your liability balances.',
-        ReminderDomain.goals => 'Review targets, savings split, and retirement corpus.',
+        ReminderDomain.goals => 'Tap to open Goals helper and review your plan.',
       };
 
   static const int _goalMilestoneNotificationId = 901;

@@ -148,18 +148,7 @@ class _ContextTabState extends State<ContextTab> {
           final slot = model.contextAssetReviewById[a.id];
           final r = slot?.result;
           final reviewing = slot?.reviewing ?? false;
-          final reviewRes = r;
-          final reviewBanner = slot != null &&
-                  !slot.bannerDismissed &&
-                  reviewRes != null
-              ? (reviewRes.bannerNote.trim().isNotEmpty
-                  ? reviewRes.bannerNote.trim()
-                  : reviewRes.detail.trim())
-              : '';
-          final useReviewBanner = reviewBanner.isNotEmpty;
-          final subtitle = useReviewBanner
-              ? reviewBanner
-              : _hint(a.contextMarkdown ?? '');
+          final subtitle = _hint(a.contextMarkdown ?? '');
           final useLeading = slot != null && (reviewing || r != null);
           return Padding(
             padding: const EdgeInsets.only(bottom: 10),
@@ -192,30 +181,7 @@ class _ContextTabState extends State<ContextTab> {
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             Text(name, style: const TextStyle(fontWeight: FontWeight.w900)),
-                            LedgerCardSubtitle(
-                              text: subtitle,
-                              level: useReviewBanner ? reviewRes!.level : null,
-                              onDismiss: useReviewBanner
-                                  ? () => model.dismissContextAssetReviewBanner(a.id)
-                                  : null,
-                              onApply: useReviewBanner &&
-                                      reviewRes!.suggestedContextMarkdown.trim().isNotEmpty
-                                  ? () {
-                                      model.applyContextAssetReview(a.id);
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        const SnackBar(
-                                          content: Text('Context updated'),
-                                          behavior: SnackBarBehavior.floating,
-                                        ),
-                                      );
-                                    }
-                                  : null,
-                              applyLabel: useReviewBanner &&
-                                      (reviewRes?.suggestedContextMarkdown.trim().isNotEmpty ??
-                                          false)
-                                  ? 'Update'
-                                  : null,
-                            ),
+                            LedgerCardSubtitle(text: subtitle),
                           ],
                         ),
                       ),
@@ -246,18 +212,7 @@ class _ContextTabState extends State<ContextTab> {
           final slot = model.contextLiabilityReviewById[l.id];
           final r = slot?.result;
           final reviewing = slot?.reviewing ?? false;
-          final reviewRes = r;
-          final reviewBanner = slot != null &&
-                  !slot.bannerDismissed &&
-                  reviewRes != null
-              ? (reviewRes.bannerNote.trim().isNotEmpty
-                  ? reviewRes.bannerNote.trim()
-                  : reviewRes.detail.trim())
-              : '';
-          final useReviewBanner = reviewBanner.isNotEmpty;
-          final subtitle = useReviewBanner
-              ? reviewBanner
-              : _hint(l.contextMarkdown ?? '');
+          final subtitle = _hint(l.contextMarkdown ?? '');
           final useLeading = slot != null && (reviewing || r != null);
           return Padding(
             padding: const EdgeInsets.only(bottom: 10),
@@ -290,30 +245,7 @@ class _ContextTabState extends State<ContextTab> {
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             Text(name, style: const TextStyle(fontWeight: FontWeight.w900)),
-                            LedgerCardSubtitle(
-                              text: subtitle,
-                              level: useReviewBanner ? reviewRes!.level : null,
-                              onDismiss: useReviewBanner
-                                  ? () => model.dismissContextLiabilityReviewBanner(l.id)
-                                  : null,
-                              onApply: useReviewBanner &&
-                                      reviewRes!.suggestedContextMarkdown.trim().isNotEmpty
-                                  ? () {
-                                      model.applyContextLiabilityReview(l.id);
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        const SnackBar(
-                                          content: Text('Context updated'),
-                                          behavior: SnackBarBehavior.floating,
-                                        ),
-                                      );
-                                    }
-                                  : null,
-                              applyLabel: useReviewBanner &&
-                                      (reviewRes?.suggestedContextMarkdown.trim().isNotEmpty ??
-                                          false)
-                                  ? 'Update'
-                                  : null,
-                            ),
+                            LedgerCardSubtitle(text: subtitle),
                           ],
                         ),
                       ),

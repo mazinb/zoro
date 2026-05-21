@@ -18,6 +18,7 @@ class CommandCenterTab extends StatefulWidget {
     required this.model,
     required this.onGoToLedger,
     this.onGoToGoals,
+    this.onOpenGoalsHelper,
     /// When set (e.g. in tests), reminder copy and overdue highlighting use this instead of [DateTime.now].
     this.previewNowForReminders,
   });
@@ -25,6 +26,7 @@ class CommandCenterTab extends StatefulWidget {
   final AppModel model;
   final void Function(String section) onGoToLedger;
   final VoidCallback? onGoToGoals;
+  final VoidCallback? onOpenGoalsHelper;
   final DateTime? previewNowForReminders;
 
   @override
@@ -193,15 +195,6 @@ class _CommandCenterTabState extends State<CommandCenterTab> with TickerProvider
     final now = widget.previewNowForReminders ?? DateTime.now();
     final cs = Theme.of(context).colorScheme;
     final reminders = <_ReminderItem>[
-      if (widget.model.remindersExpensesCadence != ReminderCadence.off)
-        _ReminderItem(
-          rowKey: const ValueKey<String>('reminder-expenses'),
-          title: 'Expenses',
-          detail: _lastUpdatedDetail(widget.model.expenseEstimatesLastUpdated, now),
-          onTap: () => widget.onGoToLedger('expenses'),
-          icon: Icons.pie_chart_outline,
-          overdue: widget.model.expensesReviewOverdueAt(now),
-        ),
       if (widget.model.remindersCashflowCadence != ReminderCadence.off)
         _ReminderItem(
           rowKey: const ValueKey<String>('reminder-cashflow'),
@@ -237,6 +230,15 @@ class _CommandCenterTabState extends State<CommandCenterTab> with TickerProvider
           onTap: () => widget.onGoToLedger('liabilities'),
           icon: Icons.credit_card,
           overdue: widget.model.liabilitiesReviewOverdueAt(now),
+        ),
+      if (widget.model.remindersGoalsCadence != ReminderCadence.off)
+        _ReminderItem(
+          rowKey: const ValueKey<String>('reminder-goals'),
+          title: 'Goals',
+          detail: _lastUpdatedDetail(widget.model.retirementPlanLastUpdatedAt(), now),
+          onTap: widget.onOpenGoalsHelper ?? widget.onGoToGoals ?? () {},
+          icon: Icons.flag_outlined,
+          overdue: widget.model.goalsReviewOverdueAt(now),
         ),
     ];
     return ListView(

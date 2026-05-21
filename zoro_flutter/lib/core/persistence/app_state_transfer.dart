@@ -199,10 +199,10 @@ class AppStateTransfer {
         }
         final key = partPickId;
         final out = <String, dynamic>{};
-        if (buckets is Map && key != null && buckets.containsKey(key)) {
+        if (buckets is Map && buckets.containsKey(key)) {
           out['expenseBuckets'] = {key: buckets[key]};
         }
-        if (ctx is Map && key != null && ctx.containsKey(key)) {
+        if (ctx is Map && ctx.containsKey(key)) {
           out['expenseBucketContextMarkdown'] = {key: ctx[key]};
         }
         return out;
@@ -211,7 +211,7 @@ class AppStateTransfer {
         if (raw is! Map) return {'monthlyCashflowByMonth': <String, dynamic>{}};
         if (allInGroup) return {'monthlyCashflowByMonth': raw};
         final key = partPickId;
-        if (key == null || !raw.containsKey(key)) return {'monthlyCashflowByMonth': <String, dynamic>{}};
+        if (!raw.containsKey(key)) return {'monthlyCashflowByMonth': <String, dynamic>{}};
         return {'monthlyCashflowByMonth': {key: raw[key]}};
       default:
         return {};
@@ -791,6 +791,6 @@ class AppStateTransfer {
     final slug = pickLabel != null && pickLabel.trim().isNotEmpty
         ? '_${pickLabel.trim().toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '_').replaceAll(RegExp(r'_+'), '_')}'
         : '';
-    return 'zoro_${exportKind}${slug}_$stamp.json';
+    return 'zoro_$exportKind${slug}_$stamp.json';
   }
 }

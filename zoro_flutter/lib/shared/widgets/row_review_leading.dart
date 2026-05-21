@@ -141,15 +141,11 @@ class RowReviewNoteBanner extends StatelessWidget {
     required this.note,
     required this.level,
     required this.onDismiss,
-    this.onApply,
-    this.applyLabel,
   });
 
   final String note;
   final RowReviewLevel level;
   final VoidCallback onDismiss;
-  final VoidCallback? onApply;
-  final String? applyLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -187,21 +183,6 @@ class RowReviewNoteBanner extends StatelessWidget {
               ),
             ),
           ),
-          if (onApply != null && (applyLabel ?? '').isNotEmpty)
-            TextButton(
-              onPressed: onApply,
-              style: TextButton.styleFrom(
-                foregroundColor: fg,
-                padding: EdgeInsets.zero,
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                visualDensity: VisualDensity.compact,
-              ),
-              child: Text(
-                applyLabel!,
-                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
-              ),
-            ),
           IconButton(
             icon: Icon(Icons.close, size: 16, color: fg),
             padding: EdgeInsets.zero,

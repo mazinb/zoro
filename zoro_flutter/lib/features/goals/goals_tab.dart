@@ -4,7 +4,6 @@ import 'package:flutter/services.dart';
 import '../../core/finance/goal_asset_buckets.dart';
 import '../../core/finance/goals_calculator.dart';
 import '../../core/state/app_model.dart';
-import '../../core/state/internal_app_agent_definition.dart';
 import '../../core/state/financial_goals.dart';
 import '../../core/state/ledger_rows.dart';
 import '../../shared/widgets/liquid_glass.dart';
@@ -13,6 +12,7 @@ import 'goal_editor_sheet.dart';
 import 'goal_widgets.dart';
 import 'goals_ai_flow.dart';
 import 'goals_allocation_sheet.dart';
+import 'goals_helper_hub_page.dart';
 import 'goals_paydown_sheet.dart';
 
 /// Goals tab type scale (aligned with Ledger cards).
@@ -26,26 +26,67 @@ abstract final class _GoalsType {
   static const rowMeta = TextStyle(fontWeight: FontWeight.w600, fontSize: 13);
 }
 
-class GoalsTab extends StatelessWidget {
+class GoalsTab extends StatefulWidget {
   const GoalsTab({
     super.key,
     required this.model,
     this.onGoToLedger,
     this.onGoToSettingsPermissions,
+    this.pendingOpenHelper = false,
+    this.onPendingOpenHelperHandled,
   });
 
   final AppModel model;
   final void Function(String section)? onGoToLedger;
   final VoidCallback? onGoToSettingsPermissions;
+  final bool pendingOpenHelper;
+  final VoidCallback? onPendingOpenHelperHandled;
+
+  @override
+  State<GoalsTab> createState() => GoalsTabState();
+}
+
+class GoalsTabState extends State<GoalsTab> {
+  void openHelperHub() {
+    openGoalsHelperHub(
+      context: context,
+      model: widget.model,
+      onOpenSettings: widget.onGoToSettingsPermissions,
+    );
+  }
+
+  @override
+  void didUpdateWidget(GoalsTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.pendingOpenHelper && !oldWidget.pendingOpenHelper) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        openHelperHub();
+        widget.onPendingOpenHelperHandled?.call();
+      });
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.pendingOpenHelper) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        openHelperHub();
+        widget.onPendingOpenHelperHandled?.call();
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: model,
+      listenable: widget.model,
       builder: (context, _) => _GoalsBody(
-        model: model,
-        onGoToLedger: onGoToLedger,
-        onGoToSettingsPermissions: onGoToSettingsPermissions,
+        model: widget.model,
+        onGoToLedger: widget.onGoToLedger,
+        onGoToSettingsPermissions: widget.onGoToSettingsPermissions,
       ),
     );
   }
@@ -67,17 +108,15 @@ class _GoalsBody extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final avail = m.availableAfterExpensesMonthly;
     final hide = m.privacyHideAmounts;
-    final sliderPct = (m.allocInvestFraction * 100).round();
-    final savedPct = 100 - sliderPct;
-    final headline = sliderPct > 50
-        ? '$sliderPct% invested'
-        : (sliderPct == 50 ? '50% saved' : '$savedPct% saved');
-    final planFeas = m.planFeasibility();
-    final hasWarning = !planFeas.isOk;
+    final investPct = m.investPctOfAvailableRounded();
+    final savedPct = 100 - investPct;
+    final headline = investPct > 50
+        ? '$investPct% invested'
+        : (investPct == 50 ? '50% saved' : '$savedPct% saved');
     final hasNotes = m.allocationContextMarkdown.trim().isNotEmpty;
 
     return LiquidGlassPanel(
-      padding: EdgeInsets.fromLTRB(14, 14, 14, hasWarning ? 12 : 14),
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
@@ -116,29 +155,35 @@ class _GoalsBody extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
-                  child: _FlowAmount(
+                  child: _EditableFlowAmount(
                     label: 'Savings',
-                    amount: goalMoney(m, m.allocSavingsMonthly, hide: hide),
+                    amount: m.allocSavingsMonthly,
+                    model: m,
+                    hide: hide,
                     accent: cs.secondary,
                     align: CrossAxisAlignment.start,
+                    onApply: (v) => m.setAllocationMonthlyExact(
+                      investMonthly: m.allocInvestmentsMonthly,
+                      savingsMonthly: v,
+                    ),
                   ),
                 ),
                 Expanded(
-                  child: _FlowAmount(
+                  child: _EditableFlowAmount(
                     label: 'Invest',
-                    amount: goalMoney(m, m.allocInvestmentsMonthly, hide: hide),
+                    amount: m.allocInvestmentsMonthly,
+                    model: m,
+                    hide: hide,
                     accent: m.accent,
                     align: CrossAxisAlignment.end,
+                    onApply: (v) => m.setAllocationMonthlyExact(
+                      investMonthly: v,
+                      savingsMonthly: m.allocSavingsMonthly,
+                    ),
                   ),
                 ),
               ],
             ),
-          ZoroPlanStatusStrip(
-            feasibility: planFeas,
-            onAdjustRetirementDate: planFeas.needsDateAdjust
-                ? () => m.pickRetirementTargetDate(context)
-                : null,
-          ),
         ],
       ),
     );
@@ -249,28 +294,78 @@ class _GoalsBody extends StatelessWidget {
   }
 }
 
-class _FlowAmount extends StatelessWidget {
-  const _FlowAmount({
+class _EditableFlowAmount extends StatelessWidget {
+  const _EditableFlowAmount({
     required this.label,
     required this.amount,
+    required this.model,
+    required this.hide,
     required this.accent,
     required this.align,
+    required this.onApply,
   });
 
   final String label;
-  final String amount;
+  final double amount;
+  final AppModel model;
+  final bool hide;
   final Color accent;
   final CrossAxisAlignment align;
+  final ValueChanged<double> onApply;
+
+  Future<void> _edit(BuildContext context) async {
+    final ctrl = TextEditingController(
+      text: amount > 0 ? goalFormatGrouped(model, amount, hide: hide) : '',
+    );
+    final next = await showDialog<double>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('$label /mo', style: const TextStyle(fontWeight: FontWeight.w900)),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(labelText: 'Monthly amount', border: OutlineInputBorder()),
+          onSubmitted: (_) => Navigator.pop(ctx, goalParseGroupedAmount(ctrl.text)),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, goalParseGroupedAmount(ctrl.text)),
+            child: const Text('Update'),
+          ),
+        ],
+      ),
+    );
+    ctrl.dispose();
+    if (next != null) onApply(next);
+  }
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return Column(
-      crossAxisAlignment: align,
-      children: [
-        Text(label, style: _GoalsType.rowMeta.copyWith(color: cs.onSurfaceVariant)),
-        Text('$amount/mo', style: _GoalsType.tileBody.copyWith(color: accent)),
-      ],
+    final display = goalMoney(model, amount, hide: hide);
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: hide ? null : () => _edit(context),
+        borderRadius: BorderRadius.circular(6),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          child: Column(
+            crossAxisAlignment: align,
+            children: [
+              Text(label, style: _GoalsType.rowMeta.copyWith(color: cs.onSurfaceVariant)),
+              Text('$display/mo', style: _GoalsType.tileBody.copyWith(color: accent)),
+              if (!hide)
+                Text(
+                  'Tap to update',
+                  style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant, fontWeight: FontWeight.w600),
+                ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -449,7 +544,7 @@ class _GoalsSection extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
               Expanded(child: Text(title, style: _GoalsType.sectionTitle)),
-              if (headerTrailing != null) headerTrailing!,
+              ?headerTrailing,
             ],
           ),
           if (hasSubtitle) ...[
@@ -558,14 +653,6 @@ class _LiabilityRow extends StatelessWidget {
   }
 }
 
-String _retirementLastUpdatedLine(AppModel m) {
-  final at = m.retirementPlanLastUpdatedAt();
-  if (at == null) return 'Plan not updated';
-  final rel = formatAgentLastRunRelative(at) ?? 'recently';
-  if (m.goalsPlanHasUnacknowledgedUpdates()) return 'Updated $rel · review in helper';
-  return 'Updated $rel';
-}
-
 class _GoalTile extends StatelessWidget {
   const _GoalTile({
     required this.model,
@@ -623,11 +710,23 @@ class _GoalTile extends StatelessWidget {
                         Row(
                           children: [
                             const Expanded(child: Text('Retirement', style: _GoalsType.tileTitle)),
-                            if (timeLabel.isNotEmpty)
+                            if (timeLabel.isNotEmpty) ...[
                               Text(
                                 timeLabel,
                                 style: _GoalsType.rowMeta.copyWith(color: cs.onSurfaceVariant),
                               ),
+                              const SizedBox(width: 6),
+                              TextButton(
+                                style: TextButton.styleFrom(
+                                  visualDensity: VisualDensity.compact,
+                                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                                  minimumSize: const Size(0, 28),
+                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                ),
+                                onPressed: () => model.pickRetirementTargetDate(context),
+                                child: Text('Update', style: TextStyle(fontWeight: FontWeight.w800, color: accent)),
+                              ),
+                            ],
                           ],
                         ),
                         const SizedBox(height: 2),
@@ -635,13 +734,6 @@ class _GoalTile extends StatelessWidget {
                           amountsLine,
                           style: _GoalsType.tileMeta.copyWith(color: cs.onSurfaceVariant),
                         ),
-                        if (goal.isRetirement) ...[
-                          const SizedBox(height: 2),
-                          Text(
-                            _retirementLastUpdatedLine(model),
-                            style: _GoalsType.rowMeta.copyWith(color: cs.onSurfaceVariant, fontSize: 11),
-                          ),
-                        ],
                       ],
                     ),
                   ),

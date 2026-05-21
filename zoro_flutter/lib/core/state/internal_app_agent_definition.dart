@@ -23,6 +23,9 @@ abstract final class InternalAppAgentIds {
   static const goalsRetirementSplit = 'goals_retirement_split';
   static const goalsRetirementBuckets = 'goals_retirement_buckets';
   static const goalsExpenseEstimator = 'goals_expense_estimator';
+  static const goalsReviewLiabilities = 'goals_review_liabilities';
+  static const goalsReviewAssetReturns = 'goals_review_asset_returns';
+  static const goalsReviewAssumptions = 'goals_review_assumptions';
 
   static const exportSanitizer = 'export_sanitizer';
 }
@@ -341,7 +344,7 @@ Capture lender, rate terms, payment amount and timing, and anything special (int
 You help set retirement corpus assumptions using recurring monthly expenses from the ledger.
 
 Questions (planner):
-- Confirm safe withdrawal rate (1–10%, default 4%).
+- Confirm withdrawal rate (1–10%, default 4%; 0.5% steps or any exact value).
 - Confirm buffer percent (0–100% on top of base corpus).
 - Confirm using auto corpus from all recurring expense buckets.
 - Stop when SWR, buffer, and intent are clear.
@@ -410,6 +413,72 @@ Use asset ids from payload.assets. Investment accounts already count toward reti
     infoWhatItDoes: 'Optional LLM pass for retirement asset inclusion and savings pool weighting.',
     infoContextSent: 'Ledger assets, current retirementExtraAssetIds, target goal weights, MCQ answers.',
     modelDomainHints: 'Synth only — deterministic apply when optional note is empty.',
+  ),
+  InternalAppAgentDefinition(
+    id: InternalAppAgentIds.goalsReviewLiabilities,
+    title: 'Review liabilities',
+    listSubtitle: 'Goals → loan paydown',
+    icon: Icons.credit_card_outlined,
+    defaultSystemPrompt: '''
+Refine monthly paydown amounts per liability when the user added an optional note.
+
+Return JSON only:
+{
+  "summary": "one short sentence",
+  "liabilityUpdates": [
+    { "liabilityId": "<id>", "paydownMonthly": 0 }
+  ]
+}
+
+Use liability ids from payload.liabilities. Do not change balances or interest rates unless the note requires it.
+''',
+    infoWhatItDoes: 'Optional LLM pass for loan paydown amounts after structured numeric steps.',
+    infoContextSent: 'Liability balances, rates, current paydown, MCQ answers.',
+    modelDomainHints: 'Synth only.',
+  ),
+  InternalAppAgentDefinition(
+    id: InternalAppAgentIds.goalsReviewAssetReturns,
+    title: 'Asset returns',
+    listSubtitle: 'Goals → investment return %',
+    icon: Icons.trending_up,
+    defaultSystemPrompt: '''
+Refine expected annual return % on investment assets and optional projection invest rates when the user added a note.
+
+Return JSON only:
+{
+  "summary": "one short sentence",
+  "assetReturnUpdates": [ { "assetId": "<id>", "returnRatePct": 7 } ],
+  "projectionInvestReturnPctAnnual": { "usd": 8, "thb": 6 }
+}
+
+Use asset ids from payload.assets. returnRatePct is annual percent (-20 to 50).
+''',
+    infoWhatItDoes: 'Optional LLM pass for per-asset return assumptions used in projections.',
+    infoContextSent: 'Investment assets, current return rates, projection defaults.',
+    modelDomainHints: 'Synth only.',
+  ),
+  InternalAppAgentDefinition(
+    id: InternalAppAgentIds.goalsReviewAssumptions,
+    title: 'Rates & FX',
+    listSubtitle: 'Goals → projection & exchange rates',
+    icon: Icons.percent_outlined,
+    defaultSystemPrompt: '''
+Update projection invest/savings/inflation rates per currency and FX when the user added an optional note.
+
+Return JSON only:
+{
+  "summary": "one short sentence",
+  "projectionInvestReturnPctAnnual": { "usd": 8 },
+  "projectionSavingsReturnPctAnnual": { "usd": 3 },
+  "projectionInflationPctAnnual": { "usd": 2.5 },
+  "fxUsdPerUnit": { "thb": 0.028 }
+}
+
+fxUsdPerUnit values are USD per 1 unit of foreign currency (same as app storage). Use currency keys from payload.
+''',
+    infoWhatItDoes: 'Optional LLM pass for interest, inflation, and exchange rate assumptions.',
+    infoContextSent: 'Current projection maps and FX overrides.',
+    modelDomainHints: 'Synth only.',
   ),
   InternalAppAgentDefinition(
     id: InternalAppAgentIds.goalsExpenseEstimator,

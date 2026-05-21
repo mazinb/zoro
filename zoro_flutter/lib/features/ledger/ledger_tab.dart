@@ -514,17 +514,6 @@ class _LedgerTabState extends State<LedgerTab> {
                   usdPerUnitOverrides: widget.model.fxUsdPerUnitResolved,
                   privacyHideAmounts: widget.model.privacyHideAmounts,
                   reviewSlot: slot,
-                  onDismissBanner: () =>
-                      widget.model.dismissLedgerAssetReviewBanner(e.value.id),
-                  onApplyComment: () {
-                    widget.model.applyLedgerAssetReviewComment(e.value.id);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Comment updated'),
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                  },
                   onTap: () {
                     if (widget.model.privacyHideAmounts) {
                       _privacyDenied();
@@ -561,8 +550,6 @@ class _LedgerTabState extends State<LedgerTab> {
                   usdPerUnitOverrides: widget.model.fxUsdPerUnitResolved,
                   privacyHideAmounts: widget.model.privacyHideAmounts,
                   reviewSlot: slot,
-                  onDismissBanner: () =>
-                      widget.model.dismissLedgerLiabilityReviewBanner(e.value.id),
                   onTap: () {
                     if (widget.model.privacyHideAmounts) {
                       _privacyDenied();
@@ -1228,8 +1215,6 @@ class _LedgerAssetCard extends StatelessWidget {
     required this.privacyHideAmounts,
     required this.onTap,
     this.reviewSlot,
-    this.onDismissBanner,
-    this.onApplyComment,
   });
 
   final AppModel model;
@@ -1240,8 +1225,6 @@ class _LedgerAssetCard extends StatelessWidget {
   final bool privacyHideAmounts;
   final VoidCallback onTap;
   final RowReviewSlot? reviewSlot;
-  final VoidCallback? onDismissBanner;
-  final VoidCallback? onApplyComment;
 
   @override
   Widget build(BuildContext context) {
@@ -1260,27 +1243,14 @@ class _LedgerAssetCard extends StatelessWidget {
     final alwaysGreen = model.primaryCashBalanceIsMirrored(row);
     final showStatus = reviewing || effective != null || alwaysGreen;
 
-    final reviewRes = reviewSlot?.result;
-    final reviewBanner = reviewSlot != null &&
-            !reviewSlot!.bannerDismissed &&
-            reviewRes != null
-        ? reviewRes.bannerNote.trim()
-        : '';
-    final useReviewBanner = reviewBanner.isNotEmpty;
     final localNote =
-        !useReviewBanner && !reviewing && (effective?.bannerNote.trim().isNotEmpty ?? false)
+        !reviewing && (effective?.bannerNote.trim().isNotEmpty ?? false)
             ? effective!.bannerNote.trim()
             : '';
-    final subtitle = useReviewBanner
-        ? reviewBanner
-        : localNote.isNotEmpty
-            ? localNote
-            : row.comment.trim();
-    final subtitleLevel = useReviewBanner
-        ? reviewRes!.level
-        : localNote.isNotEmpty
-            ? effective!.level
-            : null;
+    final subtitle =
+        localNote.isNotEmpty ? localNote : row.comment.trim();
+    final subtitleLevel =
+        localNote.isNotEmpty ? effective!.level : null;
 
     return Card(
       child: InkWell(
@@ -1319,15 +1289,6 @@ class _LedgerAssetCard extends StatelessWidget {
                     LedgerCardSubtitle(
                       text: subtitle,
                       level: subtitleLevel,
-                      onDismiss: useReviewBanner ? onDismissBanner : null,
-                      onApply: useReviewBanner &&
-                              (reviewRes?.suggestedComment.trim().isNotEmpty ?? false)
-                          ? onApplyComment
-                          : null,
-                      applyLabel: useReviewBanner &&
-                              (reviewRes?.suggestedComment.trim().isNotEmpty ?? false)
-                          ? 'Apply'
-                          : null,
                     ),
                   ],
                 ),
@@ -1361,7 +1322,6 @@ class _LedgerLiabilityCard extends StatelessWidget {
     required this.privacyHideAmounts,
     required this.onTap,
     this.reviewSlot,
-    this.onDismissBanner,
   });
 
   final AppModel model;
@@ -1372,7 +1332,6 @@ class _LedgerLiabilityCard extends StatelessWidget {
   final bool privacyHideAmounts;
   final VoidCallback onTap;
   final RowReviewSlot? reviewSlot;
-  final VoidCallback? onDismissBanner;
 
   @override
   Widget build(BuildContext context) {
@@ -1396,27 +1355,14 @@ class _LedgerLiabilityCard extends StatelessWidget {
     final effective = effectiveLedgerLiabilityStatus(model, row, reviewSlot);
     final showStatus = reviewing || effective != null;
 
-    final reviewRes = reviewSlot?.result;
-    final reviewBanner = reviewSlot != null &&
-            !reviewSlot!.bannerDismissed &&
-            reviewRes != null
-        ? reviewRes.bannerNote.trim()
-        : '';
-    final useReviewBanner = reviewBanner.isNotEmpty;
     final localNote =
-        !useReviewBanner && !reviewing && (effective?.bannerNote.trim().isNotEmpty ?? false)
+        !reviewing && (effective?.bannerNote.trim().isNotEmpty ?? false)
             ? effective!.bannerNote.trim()
             : '';
-    final subtitle = useReviewBanner
-        ? reviewBanner
-        : localNote.isNotEmpty
-            ? localNote
-            : row.comment.trim();
-    final subtitleLevel = useReviewBanner
-        ? reviewRes!.level
-        : localNote.isNotEmpty
-            ? effective!.level
-            : null;
+    final subtitle =
+        localNote.isNotEmpty ? localNote : row.comment.trim();
+    final subtitleLevel =
+        localNote.isNotEmpty ? effective!.level : null;
 
     return Card(
       child: InkWell(
@@ -1455,7 +1401,6 @@ class _LedgerLiabilityCard extends StatelessWidget {
                     LedgerCardSubtitle(
                       text: subtitle,
                       level: subtitleLevel,
-                      onDismiss: useReviewBanner ? onDismissBanner : null,
                     ),
                   ],
                 ),

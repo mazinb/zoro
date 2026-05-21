@@ -9,15 +9,11 @@ class LedgerCardSubtitle extends StatelessWidget {
     required this.text,
     this.level,
     this.onDismiss,
-    this.onApply,
-    this.applyLabel,
   });
 
   final String text;
   final RowReviewLevel? level;
   final VoidCallback? onDismiss;
-  final VoidCallback? onApply;
-  final String? applyLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -46,21 +42,6 @@ class LedgerCardSubtitle extends StatelessWidget {
               ),
             ),
           ),
-          if (onApply != null && (applyLabel ?? '').isNotEmpty)
-            TextButton(
-              onPressed: onApply,
-              style: TextButton.styleFrom(
-                foregroundColor: fg,
-                padding: const EdgeInsets.symmetric(horizontal: 6),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                visualDensity: VisualDensity.compact,
-              ),
-              child: Text(
-                applyLabel!,
-                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 11),
-              ),
-            ),
           if (onDismiss != null)
             GestureDetector(
               onTap: onDismiss,

@@ -30,7 +30,11 @@ class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver
 
   static const int _homeIndex = 0;
   static const int _ledgerIndex = 1;
+  static const int _contextIndex = 2;
+  static const int _goalsIndex = 3;
   static const int _settingsIndex = 4;
+  bool _pendingOpenGoalsHelper = false;
+  final GlobalKey<GoalsTabState> _goalsTabKey = GlobalKey<GoalsTabState>();
 
   void _onPrivacyInteractionDenied() {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -39,14 +43,14 @@ class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver
         behavior: SnackBarBehavior.floating,
         action: SnackBarAction(
           label: 'Home',
-          onPressed: () => setState(() => _index = _homeIndex),
+          onPressed: () => _selectShellTab(_homeIndex),
         ),
       ),
     );
   }
 
   void _goToSettingsTab(int tabIndex, {AgentSettingsSection? agentSection}) {
-    setState(() => _index = _settingsIndex);
+    _selectShellTab(_settingsIndex);
     _settingsTabIndex.value = tabIndex;
     if (agentSection != null) {
       _settingsAgentSection.value = agentSection;
@@ -110,21 +114,53 @@ class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver
     }
   }
 
+  void _clearReviewStateForTab(int tabIndex) {
+    if (tabIndex == _ledgerIndex) {
+      widget.model.clearLedgerAssetReviews();
+      widget.model.clearLedgerLiabilityReviews();
+    }
+    if (tabIndex == _contextIndex) {
+      widget.model.clearContextAssetReviews();
+      widget.model.clearContextLiabilityReviews();
+    }
+  }
+
+  /// Row-review icons/subtitles are ephemeral; clear when leaving Ledger or Context.
+  void _selectShellTab(int next, {void Function()? andThen}) {
+    if (next != _index) _clearReviewStateForTab(_index);
+    setState(() {
+      _index = next;
+      andThen?.call();
+    });
+  }
+
+  void _onBottomNavSelected(int next) => _selectShellTab(next);
+
+  void _goToGoalsAndOpenHelper() {
+    _selectShellTab(_goalsIndex, andThen: () {
+      _ledgerFocus = null;
+      _pendingOpenGoalsHelper = true;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _goalsTabKey.currentState?.openHelperHub();
+      if (mounted) setState(() => _pendingOpenGoalsHelper = false);
+    });
+  }
+
   void _handleNotificationPayload(NotificationPayload payload) {
     if (!mounted) return;
     switch (payload.kind) {
       case NotificationKind.agentTask:
-        setState(() {
-          _index = _homeIndex;
-          _ledgerFocus = null;
-        });
+        _selectShellTab(_homeIndex, andThen: () => _ledgerFocus = null);
       case NotificationKind.reminder:
         final domain = payload.domain;
         if (domain == null) return;
-        setState(() {
-          _index = _ledgerIndex;
-          _ledgerFocus = domain.name;
-        });
+        if (domain == ReminderDomain.goals) {
+          _goToGoalsAndOpenHelper();
+          return;
+        }
+        _selectShellTab(_ledgerIndex, andThen: () => _ledgerFocus = domain.name);
     }
   }
 
@@ -133,14 +169,9 @@ class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver
     final pages = <Widget>[
       CommandCenterTab(
         model: widget.model,
-        onGoToLedger: (section) => setState(() {
-          _index = _ledgerIndex;
-          _ledgerFocus = section;
-        }),
-        onGoToGoals: () => setState(() {
-          _index = 3;
-          _ledgerFocus = null;
-        }),
+        onGoToLedger: (section) => _selectShellTab(_ledgerIndex, andThen: () => _ledgerFocus = section),
+        onGoToGoals: () => _selectShellTab(_goalsIndex, andThen: () => _ledgerFocus = null),
+        onOpenGoalsHelper: _goToGoalsAndOpenHelper,
       ),
       LedgerTab(
         model: widget.model,
@@ -149,11 +180,13 @@ class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver
       ),
       ContextTab(model: widget.model),
       GoalsTab(
+        key: _goalsTabKey,
         model: widget.model,
-        onGoToLedger: (section) => setState(() {
-          _index = _ledgerIndex;
-          _ledgerFocus = section;
-        }),
+        pendingOpenHelper: _pendingOpenGoalsHelper,
+        onPendingOpenHelperHandled: () {
+          if (_pendingOpenGoalsHelper) setState(() => _pendingOpenGoalsHelper = false);
+        },
+        onGoToLedger: (section) => _selectShellTab(_ledgerIndex, andThen: () => _ledgerFocus = section),
         onGoToSettingsPermissions: () => _goToSettingsTab(SettingsTabIndex.permissions),
       ),
       SettingsTab(
@@ -190,7 +223,7 @@ class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver
           child: LiquidGlassBar(
             child: NavigationBar(
               selectedIndex: _index,
-              onDestinationSelected: (i) => setState(() => _index = i),
+              onDestinationSelected: _onBottomNavSelected,
               destinations: const [
                 NavigationDestination(
                   icon: Icon(Icons.dashboard_outlined),

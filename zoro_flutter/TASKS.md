@@ -18,6 +18,7 @@ Privacy-first: sensitive finance data stays on device; production API: **getzoro
 - Section apply logic: `lib/features/goals/goals_structured_sections.dart`.
 - Persisted timestamps: `retirementCorpusLastUpdated`, `allocationTargetLastUpdated` (split), `retirementBucketsLastUpdated`, `goalsReviewAcknowledgedAt` (clears “plan changed” in Settings).
 - **Removed (dead):** `goals_guide_flow.dart`, `goals_planner_config.dart`, `goals_retirement_corpus_config.dart`, `applyGoalsGuideContext`. Legacy agent id `goals_guide` may still exist in saved custom prompts.
+- **Asset context collision fix:** demo assets now use stable `SeedLedgerIds` (`a-seed-us-brokerage`, `a-seed-india-index`, …). `newLedgerRowId` adds a sequence suffix; `repairDuplicateAssetIds()` runs on launch and after import (same idea as liabilities). Old saves with duplicate ids are repaired on load; fresh install recommended once to reset sidecar markdown files.
 - **Note:** Chat `AppAgent` CRUD UI was removed from Settings (helpers pane is internal prompts only). Agents are still seeded / tool-updated via chat actions.
 
 ### Ledger / Context tab helpers

@@ -3,9 +3,18 @@ import '../../core/state/app_model.dart';
 
 /// Applies structured invest split and [goalUpdates] from Goals helper (§2) or LLM synth.
 void applyGoalsGuideStructured(AppModel model, Map<String, Object?> structured, {String? focusGoalId}) {
-  final frac = structured['allocInvestFraction'];
-  if (frac is num) {
-    model.setAllocInvestFraction(frac.toDouble().clamp(0.0, 1.0));
+  final invest = structured['allocInvestmentsMonthly'];
+  final savings = structured['allocSavingsMonthly'];
+  if (invest is num && savings is num) {
+    model.setAllocationMonthlyExact(
+      investMonthly: invest.toDouble(),
+      savingsMonthly: savings.toDouble(),
+    );
+  } else {
+    final frac = structured['allocInvestFraction'];
+    if (frac is num) {
+      model.setAllocInvestFraction(frac.toDouble().clamp(0.0, 1.0), quantize: false);
+    }
   }
 
   final updatesRaw = structured['goalUpdates'];
