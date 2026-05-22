@@ -73,6 +73,72 @@ void main() {
     });
   });
 
+  group('goalEffectiveTarget', () {
+    test('keeps retirement corpus fixed (ignores corpusAdjustment)', () {
+      final goal = FinancialGoal(
+        id: 'r',
+        kind: FinancialGoalKind.retirement,
+        name: 'Retirement',
+        corpusAutoFromExpenses: true,
+        safeWithdrawalRatePct: 4,
+        corpusBufferPct: 0,
+        corpusAdjustment: 500_000,
+      );
+      final base = computeRetirementCorpus(
+        recurringExpensesMonthly: 5000,
+        safeWithdrawalRatePct: 4,
+        corpusBufferPct: 0,
+      );
+      final effective = goalEffectiveTarget(
+        goal: goal,
+        recurringExpensesMonthly: 5000,
+      );
+      expect(effective, closeTo(base, 1));
+    });
+  });
+
+  group('requiredMonthlyToReachTarget', () {
+    test('more months until retire lowers required invest', () {
+      const target = 1_000_000.0;
+      const current = 100_000.0;
+      const rate = 6.0;
+      final soon = requiredMonthlyToReachTarget(
+        current: current,
+        target: target,
+        months: 120,
+        annualReturnPct: rate,
+      );
+      final later = requiredMonthlyToReachTarget(
+        current: current,
+        target: target,
+        months: 240,
+        annualReturnPct: rate,
+      );
+      expect(later, lessThan(soon));
+    });
+  });
+
+  group('futureValueOfMonthlyContributions', () {
+    test('12 months at 6% annual beats straight principal', () {
+      final fv = futureValueOfMonthlyContributions(
+        monthlyPayment: 10_000,
+        annualReturnPct: 6,
+        months: 12,
+      );
+      expect(fv, greaterThan(120_000));
+      expect(fv, lessThan(125_000));
+    });
+  });
+
+  group('shiftRetirementTargetDate', () {
+    test('shifts calendar only', () {
+      final base = DateTime(2035, 6, 1);
+      final shifted = shiftRetirementTargetDate(baseDate: base, yearsDelta: 2);
+      expect(shifted.year, 2037);
+      expect(shifted.month, 6);
+    });
+  });
+
   group('computeDeficitSavingsWeights', () {
     test('weights follow required monthly deficits', () {
       final w = computeDeficitSavingsWeights(

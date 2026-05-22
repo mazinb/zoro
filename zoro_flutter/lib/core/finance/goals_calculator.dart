@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import '../state/financial_goals.dart';
 
 enum GoalFeasibilityLevel { ok, caution, broken }
@@ -30,6 +32,16 @@ double clampWithdrawalRatePct(double pct) => pct.clamp(1.0, 10.0);
 
 double clampCorpusBufferPct(double pct) => pct.clamp(0.0, 100.0);
 
+/// Half-point steps (1.0, 1.5, … 10.0) — slider and year shifts use this ladder.
+double quantizeWithdrawalRatePct(double pct) =>
+    (clampWithdrawalRatePct(pct) * 2).round() / 2;
+
+int withdrawalRateStepIndex(double pct) =>
+    ((quantizeWithdrawalRatePct(pct) - 1) * 2).round().clamp(0, 18);
+
+double withdrawalRateFromStep(int step) =>
+    quantizeWithdrawalRatePct(1 + step * 0.5);
+
 /// Retirement corpus from recurring monthly expenses, SWR, and buffer.
 double computeRetirementCorpus({
   required double recurringExpensesMonthly,
@@ -48,6 +60,7 @@ double goalEffectiveTarget({
   required FinancialGoal goal,
   required double recurringExpensesMonthly,
 }) {
+  var base = goal.targetAmount;
   if (goal.isRetirement && goal.corpusAutoFromExpenses) {
     return computeRetirementCorpus(
       recurringExpensesMonthly: recurringExpensesMonthly,
@@ -55,8 +68,66 @@ double goalEffectiveTarget({
       corpusBufferPct: goal.corpusBufferPct,
     );
   }
-  return goal.targetAmount;
+  return base;
 }
+
+double monthlyRateFromAnnualPct(double annualReturnPct) => annualReturnPct / 100 / 12;
+
+/// Future value of [months] monthly invest contributions at [annualReturnPct].
+double futureValueOfMonthlyContributions({
+  required double monthlyPayment,
+  required double annualReturnPct,
+  required int months,
+}) {
+  if (months <= 0 || monthlyPayment <= 0) return 0;
+  final r = monthlyRateFromAnnualPct(annualReturnPct);
+  if (r.abs() < 1e-12) return monthlyPayment * months;
+  final factor = math.pow(1 + r, months);
+  return monthlyPayment * (factor - 1) / r;
+}
+
+/// Months until [target] from [current] with monthly [monthlyPayment] and [annualReturnPct].
+int? monthsToReachTargetWithContributions({
+  required double current,
+  required double target,
+  required double monthlyPayment,
+  required double annualReturnPct,
+  int maxMonths = 6000,
+}) {
+  if (target <= current + 0.5) return 0;
+  if (monthlyPayment <= 0.5) return null;
+  final r = monthlyRateFromAnnualPct(annualReturnPct);
+  var balance = current;
+  for (var m = 0; m < maxMonths; m++) {
+    if (balance >= target - 0.5) return m;
+    balance = balance * (1 + r) + monthlyPayment;
+  }
+  return null;
+}
+
+/// Monthly invest needed to reach [target] from [current] in [months] at [annualReturnPct].
+double requiredMonthlyToReachTarget({
+  required double current,
+  required double target,
+  required int months,
+  required double annualReturnPct,
+}) {
+  if (target <= current + 0.5) return 0;
+  if (months <= 0) return (target - current).clamp(0, double.infinity);
+  final r = monthlyRateFromAnnualPct(annualReturnPct);
+  final factor = math.pow(1 + r, months);
+  final futureCurrent = current * factor;
+  if (target <= futureCurrent + 0.5) return 0;
+  if (r.abs() < 1e-12) return (target - futureCurrent) / months;
+  return (target - futureCurrent) * r / (factor - 1);
+}
+
+/// Shifts retire-by calendar date only (corpus stays fixed).
+DateTime shiftRetirementTargetDate({
+  required DateTime baseDate,
+  required int yearsDelta,
+}) =>
+    DateTime(baseDate.year + yearsDelta, baseDate.month, baseDate.day);
 
 double goalRequiredMonthlySavings({
   required FinancialGoal goal,

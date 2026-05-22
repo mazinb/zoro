@@ -12,6 +12,7 @@ class ZoroStatusIcon extends StatelessWidget {
     required this.feasibility,
     this.onAction,
     this.actionLabel,
+    this.extraLines = const [],
     this.size = 20,
   });
 
@@ -19,12 +20,14 @@ class ZoroStatusIcon extends StatelessWidget {
     GoalFeasibility feasibility, {
     VoidCallback? onAction,
     String? actionLabel,
+    List<String> extraLines = const [],
     double size = 20,
   }) {
     return ZoroStatusIcon(
       feasibility: feasibility,
       onAction: onAction,
       actionLabel: actionLabel,
+      extraLines: extraLines,
       size: size,
     );
   }
@@ -32,6 +35,7 @@ class ZoroStatusIcon extends StatelessWidget {
   final GoalFeasibility feasibility;
   final VoidCallback? onAction;
   final String? actionLabel;
+  final List<String> extraLines;
   final double size;
 
   void _showDetail(BuildContext context) {
@@ -46,14 +50,21 @@ class ZoroStatusIcon extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(feasibility.title, style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: cs.onSurface)),
-            if (feasibility.detail.trim().isNotEmpty) ...[
-              const SizedBox(height: 6),
+            if (feasibility.detail.trim().isNotEmpty)
               Text(
                 feasibility.detail,
-                style: TextStyle(fontSize: 14, color: cs.onSurfaceVariant, fontWeight: FontWeight.w600, height: 1.35),
-              ),
-            ],
+                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: cs.onSurface),
+              )
+            else
+              Text(feasibility.title, style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: cs.onSurface)),
+            for (final line in extraLines)
+              if (line.trim().isNotEmpty) ...[
+                const SizedBox(height: 6),
+                Text(
+                  line,
+                  style: TextStyle(fontSize: 14, color: cs.onSurfaceVariant, fontWeight: FontWeight.w600, height: 1.35),
+                ),
+              ],
             if (actionLabel != null && onAction != null) ...[
               const SizedBox(height: 16),
               FilledButton(
@@ -140,7 +151,7 @@ class ZoroPlanStatusStrip extends StatelessWidget {
                 foregroundColor: cs.error,
               ),
               child: const Text(
-                'Adjust retirement date',
+                'Update retire-by',
                 style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
               ),
             ),

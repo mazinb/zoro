@@ -1589,8 +1589,8 @@ class AppModel extends ChangeNotifier {
         totalTargetRequiredMonthly: totalTargetRequiredMonthly,
       );
 
-  double investMonthlyForRetirement() =>
-      allocInvestmentsMonthly + savingsOverflowToRetirementMonthly;
+  /// Monthly invest slice from the Goals split slider (retire-by / need math).
+  double investMonthlyForRetirement() => allocInvestmentsMonthly;
 
   FinancialGoal? financialGoalById(String id) {
     for (final g in financialGoals) {
@@ -1762,13 +1762,32 @@ class AppModel extends ChangeNotifier {
         recurringExpensesMonthly: recurringExpensesMonthly,
       );
 
-  double goalRequiredMonthlySavingsFor(FinancialGoal goal, {DateTime? now}) =>
-      goalRequiredMonthlySavings(
-        goal: goal,
-        currentAmount: goalCurrentAmount(goal),
-        effectiveTarget: goalEffectiveTargetAmount(goal),
-        now: now,
-      );
+  double goalRequiredMonthlySavingsFor(FinancialGoal goal, {DateTime? now}) {
+    if (goal.isRetirement) {
+      return retirementRequiredInvestMonthly(goal, now: now);
+    }
+    return goalRequiredMonthlySavings(
+      goal: goal,
+      currentAmount: goalCurrentAmount(goal),
+      effectiveTarget: goalEffectiveTargetAmount(goal),
+      now: now,
+    );
+  }
+
+  /// Invest /mo needed to hit fixed corpus by [goal.targetDate] (settings invest return).
+  double retirementRequiredInvestMonthly(FinancialGoal goal, {DateTime? now}) {
+    final target = goalEffectiveTargetAmount(goal);
+    final current = goalCurrentAmount(goal);
+    final months = goalMonthsRemaining(goal.targetDate, now: now);
+    if (months == null) return 0;
+    final annualReturn = projectionInvestReturnPctAnnual[displayCurrency] ?? 0;
+    return requiredMonthlyToReachTarget(
+      current: current,
+      target: target,
+      months: months,
+      annualReturnPct: annualReturn,
+    );
+  }
 
   double get totalRequiredMonthlyForTargets {
     var sum = 0.0;
@@ -1849,15 +1868,15 @@ class AppModel extends ChangeNotifier {
     if (maxInvest >= required * 0.95) {
       return GoalFeasibility(
         level: GoalFeasibilityLevel.caution,
-        title: 'Tight',
-        detail: 'need ${fmt(required)}/mo to retire',
+        title: 'Behind',
+        detail: '${fmt(required)}/mo needed',
       );
     }
 
     return GoalFeasibility(
       level: GoalFeasibilityLevel.broken,
-      title: 'Short on invest',
-      detail: 'need ${fmt(required)}/mo to retire',
+      title: 'Behind',
+      detail: '${fmt(required)}/mo needed',
       needsDateAdjust: true,
     );
   }
@@ -1875,20 +1894,40 @@ class AppModel extends ChangeNotifier {
     return retirementInvestFeasibility(r, now: now);
   }
 
-  Future<void> pickRetirementTargetDate(BuildContext context) async {
+  /// Months until corpus at invest /mo and settings invest return; null if no invest flow.
+  int? monthsToRetirementCorpus(FinancialGoal goal, {DateTime? now}) {
+    final monthly = investMonthlyForRetirement();
+    if (monthly <= 0.5) return null;
+    final annualReturn = projectionInvestReturnPctAnnual[displayCurrency] ?? 0;
+    return monthsToReachTargetWithContributions(
+      current: goalCurrentAmount(goal),
+      target: goalEffectiveTargetAmount(goal),
+      monthlyPayment: monthly,
+      annualReturnPct: annualReturn,
+    );
+  }
+
+  /// Retire-by date implied by corpus gap and invest /mo (no picker).
+  DateTime? retirementTargetDateFromPlan(FinancialGoal goal, {DateTime? now}) {
+    final months = monthsToRetirementCorpus(goal, now: now);
+    if (months == null) return null;
+    final n = now ?? DateTime.now();
+    return DateTime(n.year, n.month + months, n.day);
+  }
+
+  /// Sets retire-by to the plan-implied date (earlier when inputs allow).
+  bool updateRetirementTargetDateFromPlan({DateTime? now}) {
     final r = retirementGoal;
-    if (r == null) return;
-    final now = DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: r.targetDate ?? DateTime(now.year + 10, now.month, now.day),
-      firstDate: now,
-      lastDate: DateTime(now.year + 60),
-    );
-    if (picked == null) return;
+    if (r == null) return false;
+    final computed = retirementTargetDateFromPlan(r, now: now);
+    if (computed == null) return false;
     upsertFinancialGoal(
-      r.copyWith(targetDate: picked, timelineStart: r.timelineStart ?? DateTime.now()),
+      r.copyWith(
+        targetDate: computed,
+        timelineStart: r.timelineStart ?? DateTime.now(),
+      ),
     );
+    return true;
   }
 
   void syncRetirementCorpusTarget({bool notify = true}) {

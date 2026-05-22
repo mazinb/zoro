@@ -6,7 +6,6 @@ import '../../core/state/app_model.dart';
 import '../../core/state/financial_goals.dart';
 import '../../core/state/ledger_rows.dart';
 import '../../shared/widgets/liquid_glass.dart';
-import '../../shared/widgets/zoro_status_banner.dart';
 import 'goal_context_page.dart';
 import 'goal_widgets.dart';
 
@@ -64,7 +63,6 @@ class _GoalEditorSheet extends StatefulWidget {
 class _GoalEditorSheetState extends State<_GoalEditorSheet> {
   late TextEditingController _nameCtrl;
   late TextEditingController _targetCtrl;
-  late TextEditingController _swrCtrl;
   DateTime? _targetDate;
   double _swr = 4;
   double _buffer = 0;
@@ -94,8 +92,7 @@ class _GoalEditorSheetState extends State<_GoalEditorSheet> {
     );
     _targetDate = g?.targetDate;
     _corpusFromExpenses = g?.corpusAutoFromExpenses ?? true;
-    _swr = g?.safeWithdrawalRatePct ?? 4;
-    _swrCtrl = TextEditingController(text: _swr.toStringAsFixed(1));
+    _swr = quantizeWithdrawalRatePct(g?.safeWithdrawalRatePct ?? 4);
     _buffer = g?.corpusBufferPct ?? 0;
     _savingsWeight = g?.savingsWeight ?? 1;
     _retirementExtras = Set<String>.from(widget.model.retirementExtraAssetIds);
@@ -107,11 +104,52 @@ class _GoalEditorSheetState extends State<_GoalEditorSheet> {
   void dispose() {
     _nameCtrl.dispose();
     _targetCtrl.dispose();
-    _swrCtrl.dispose();
     super.dispose();
   }
 
   double _parseTarget() => goalParseGroupedAmount(_targetCtrl.text);
+
+  double _draftCorpusTarget(AppModel m) {
+    if (_corpusFromExpenses) {
+      return computeRetirementCorpus(
+        recurringExpensesMonthly: m.recurringExpensesMonthly,
+        safeWithdrawalRatePct: _swr,
+        corpusBufferPct: _buffer,
+      );
+    }
+    return _parseTarget();
+  }
+
+  FinancialGoal _draftRetirement(AppModel m, FinancialGoal g) {
+    return g.copyWith(
+      targetAmount: _draftCorpusTarget(m),
+      targetDate: _targetDate,
+      safeWithdrawalRatePct: _swr,
+      corpusBufferPct: _buffer,
+      corpusAutoFromExpenses: _corpusFromExpenses,
+    );
+  }
+
+  void _applyRetireByFromInvestFlow(AppModel m, FinancialGoal g) {
+    final draft = _draftRetirement(m, g);
+    final computed = m.retirementTargetDateFromPlan(draft);
+    if (computed == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Raise invest /mo in the split above first.')),
+      );
+      return;
+    }
+    setState(() => _targetDate = computed);
+  }
+
+  void _shiftRetirementYears(AppModel m, FinancialGoal g, int yearsDelta) {
+    final base = _targetDate ??
+        m.retirementTargetDateFromPlan(_draftRetirement(m, g)) ??
+        DateTime.now();
+    setState(() {
+      _targetDate = shiftRetirementTargetDate(baseDate: base, yearsDelta: yearsDelta);
+    });
+  }
 
   Future<void> _pickDate() async {
     final now = DateTime.now();
@@ -151,8 +189,6 @@ class _GoalEditorSheetState extends State<_GoalEditorSheet> {
     if (g == null) return;
     final m = widget.model;
     final isRetirement = g.isRetirement;
-    final swrParsed = double.tryParse(_swrCtrl.text.trim());
-    if (swrParsed != null) _swr = clampWithdrawalRatePct(swrParsed);
     final target = isRetirement
         ? (_corpusFromExpenses
             ? computeRetirementCorpus(
@@ -168,9 +204,10 @@ class _GoalEditorSheetState extends State<_GoalEditorSheet> {
       targetDate: _targetDate,
       clearTargetDate: _targetDate == null,
       savingsWeight: _savingsWeight.clamp(0, 1e6),
-      safeWithdrawalRatePct: clampWithdrawalRatePct(_swr),
+      safeWithdrawalRatePct: quantizeWithdrawalRatePct(_swr),
       corpusBufferPct: clampCorpusBufferPct(_buffer),
       corpusAutoFromExpenses: isRetirement ? _corpusFromExpenses : g.corpusAutoFromExpenses,
+      corpusAdjustment: isRetirement ? 0 : g.corpusAdjustment,
     );
     if (g.isRetirement) {
       m.setRetirementExtraAssetIds(_retirementExtras);
@@ -277,11 +314,12 @@ class _GoalEditorSheetState extends State<_GoalEditorSheet> {
           safeWithdrawalRatePct: _swr,
           corpusBufferPct: _buffer,
           corpusAutoFromExpenses: isRetirement ? _corpusFromExpenses : g.corpusAutoFromExpenses,
+          corpusAdjustment: isRetirement ? 0 : g.corpusAdjustment,
           savingsWeight: _savingsWeight,
         );
-        final feas = isRetirement
-            ? m.retirementInvestFeasibility(draft)
-            : m.goalFeasibility(draft);
+        final displayCorpus = isRetirement
+            ? (_corpusFromExpenses ? previewCorpus : _parseTarget())
+            : corpusTarget;
         final pool = m.savingsMonthlyForTargetsPool;
         final share = m.normalizedTargetSavingsShares()[g.id] ?? 0;
         final monthlyFromWeight = isRetirement ? 0.0 : pool * share;
@@ -310,10 +348,6 @@ class _GoalEditorSheetState extends State<_GoalEditorSheet> {
                     ),
                   ],
                 ),
-                if (!feas.isOk) ...[
-                  ZoroStatusBanner.fromGoalFeasibility(feas, compact: true),
-                  const SizedBox(height: 8),
-                ],
                 if (!isRetirement) ...[
                   TextField(
                     controller: _nameCtrl,
@@ -391,6 +425,16 @@ class _GoalEditorSheetState extends State<_GoalEditorSheet> {
                     },
                   ),
                 ] else ...[
+                  _RetirementPlanPanel(
+                    model: m,
+                    draft: draft,
+                    hide: hide,
+                    investMonthly: m.allocInvestmentsMonthly,
+                    requiredMonthly: m.retirementRequiredInvestMonthly(draft),
+                    onUpdateFromFlow: () => _applyRetireByFromInvestFlow(m, g),
+                    onShiftYears: (y) => _shiftRetirementYears(m, g, y),
+                  ),
+                  const SizedBox(height: 12),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     dense: true,
@@ -412,7 +456,7 @@ class _GoalEditorSheetState extends State<_GoalEditorSheet> {
                     Padding(
                       padding: const EdgeInsets.only(bottom: 8),
                       child: Text(
-                        goalMoney(m, previewCorpus, hide: hide),
+                        goalMoney(m, displayCorpus, hide: hide),
                         style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 20),
                       ),
                     )
@@ -423,45 +467,28 @@ class _GoalEditorSheetState extends State<_GoalEditorSheet> {
                       inputFormatters: [
                         GroupedIntegerTextInputFormatter(currency: m.displayCurrency),
                       ],
-                      decoration: const InputDecoration(
+                      decoration: InputDecoration(
                         labelText: 'Corpus target',
                         isDense: true,
-                        border: OutlineInputBorder(),
+                        border: const OutlineInputBorder(),
+                        prefixText: m.displayCurrency == CurrencyCode.aed ? null : m.displayCurrency.symbol,
                       ),
                       onChanged: (_) => setState(() {}),
                     ),
-                  Text(
-                    'Withdrawal rate',
-                    style: TextStyle(fontWeight: FontWeight.w800, color: cs.onSurfaceVariant, fontSize: 12),
-                  ),
-                  const SizedBox(height: 4),
-                  TextField(
-                    controller: _swrCtrl,
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(
-                      isDense: true,
-                      suffixText: '%',
-                      border: OutlineInputBorder(),
+                  if (_corpusFromExpenses) ...[
+                    Text(
+                      'Withdrawal ${_swr.toStringAsFixed(1)}%',
+                      style: TextStyle(fontWeight: FontWeight.w800, color: cs.onSurfaceVariant, fontSize: 12),
                     ),
-                    onChanged: (t) {
-                      final v = double.tryParse(t.trim());
-                      if (v != null) setState(() => _swr = clampWithdrawalRatePct(v));
-                    },
-                  ),
-                  Slider(
-                    value: _swr.clamp(1, 10),
-                    min: 1,
-                    max: 10,
-                    divisions: 18,
-                    label: '${_swr.toStringAsFixed(1)}%',
-                    onChanged: (v) {
-                      final q = (v * 2).round() / 2;
-                      setState(() {
-                        _swr = q;
-                        _swrCtrl.text = q.toStringAsFixed(1);
-                      });
-                    },
-                  ),
+                    Slider(
+                      value: _swr.clamp(1, 10),
+                      min: 1,
+                      max: 10,
+                      divisions: 18,
+                      label: '${_swr.toStringAsFixed(1)}%',
+                      onChanged: (v) => setState(() => _swr = quantizeWithdrawalRatePct(v)),
+                    ),
+                  ],
                   const SizedBox(height: 10),
                   _retirementAssetSection(
                     title: 'Property',
@@ -504,6 +531,129 @@ class _GoalEditorSheetState extends State<_GoalEditorSheet> {
           ),
         );
       },
+    );
+  }
+}
+
+class _RetirementPlanPanel extends StatelessWidget {
+  const _RetirementPlanPanel({
+    required this.model,
+    required this.draft,
+    required this.hide,
+    required this.investMonthly,
+    required this.requiredMonthly,
+    required this.onUpdateFromFlow,
+    required this.onShiftYears,
+  });
+
+  final AppModel model;
+  final FinancialGoal draft;
+  final bool hide;
+  final double investMonthly;
+  final double requiredMonthly;
+  final VoidCallback onUpdateFromFlow;
+  final ValueChanged<int> onShiftYears;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final timeLabel = retirementTimeToTargetLabel(model, draft);
+    final hasDate = draft.targetDate != null;
+    final onTrack = hasDate && requiredMonthly <= 0.5 || (hasDate && investMonthly >= requiredMonthly * 0.95);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Text('Retire', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: cs.onSurfaceVariant)),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                timeLabel.isEmpty ? '—' : timeLabel,
+                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17),
+              ),
+            ),
+            TextButton(
+              onPressed: onUpdateFromFlow,
+              style: TextButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                minimumSize: const Size(0, 32),
+              ),
+              child: Text('Update', style: TextStyle(fontWeight: FontWeight.w800, color: model.accent)),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Invest', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: cs.onSurfaceVariant)),
+                  Text(
+                    '${goalMoney(model, investMonthly, hide: hide)}/mo',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w900, color: model.accent),
+                  ),
+                ],
+              ),
+            ),
+            if (hasDate)
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text('Need', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: cs.onSurfaceVariant)),
+                    Text(
+                      onTrack ? 'On track' : '${goalMoney(model, requiredMonthly, hide: hide)}/mo',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w900,
+                        color: onTrack ? cs.primary : cs.onSurface,
+                      ),
+                      textAlign: TextAlign.end,
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(child: _HorizonChip(label: '−2 yr', onTap: () => onShiftYears(-2))),
+            const SizedBox(width: 6),
+            Expanded(child: _HorizonChip(label: '−1 yr', onTap: () => onShiftYears(-1))),
+            const SizedBox(width: 6),
+            Expanded(child: _HorizonChip(label: '+1 yr', onTap: () => onShiftYears(1))),
+            const SizedBox(width: 6),
+            Expanded(child: _HorizonChip(label: '+2 yr', onTap: () => onShiftYears(2))),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _HorizonChip extends StatelessWidget {
+  const _HorizonChip({required this.label, required this.onTap});
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return OutlinedButton(
+      onPressed: onTap,
+      style: OutlinedButton.styleFrom(
+        visualDensity: VisualDensity.compact,
+        padding: const EdgeInsets.symmetric(vertical: 10),
+      ),
+      child: Text(label, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: cs.onSurface)),
     );
   }
 }

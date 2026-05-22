@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/finance/currency.dart';
 import '../../core/state/app_model.dart';
+import '../../core/state/financial_goals.dart';
 import '../../core/state/ledger_rows.dart';
 import '../../shared/widgets/liquid_glass.dart';
 
@@ -35,6 +36,24 @@ int? goalMonthsRemaining(DateTime? target) {
 }
 
 /// e.g. `8 mo`, `3 yr`, `2 yr 4 mo`, `Past due`.
+/// One-line shortfall vs corpus (invest /mo toward target).
+String retirementMonthlyNeedLine(AppModel model, FinancialGoal goal, {bool hide = false}) {
+  final required = model.goalRequiredMonthlySavingsFor(goal);
+  final invest = model.allocInvestmentsMonthly;
+  if (goal.targetDate == null && required <= 0.5) return '';
+  if (required <= 0.5) return 'On track';
+  if (invest >= required * 0.95) {
+    return 'On track · ${goalMoney(model, invest, hide: hide)}/mo';
+  }
+  return 'Need ${goalMoney(model, required, hide: hide)}/mo';
+}
+
+/// Retire-by label from saved date or plan-implied date.
+String retirementTimeToTargetLabel(AppModel model, FinancialGoal goal) {
+  final d = goal.targetDate ?? model.retirementTargetDateFromPlan(goal);
+  return goalTimeToTargetLabel(d);
+}
+
 String goalTimeToTargetLabel(DateTime? target) {
   final months = goalMonthsRemaining(target);
   if (months == null) return '';

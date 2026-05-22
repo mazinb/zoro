@@ -391,7 +391,7 @@ class _SavingsSalaryPctBoxState extends State<_SavingsSalaryPctBox> {
   }
 
   String _formatPct(double v) {
-    if (v <= 0.005) return '';
+    if (v <= 0.005) return '0';
     final r = v.round();
     if ((v - r).abs() < 0.05) return r.toString();
     return v.toStringAsFixed(1);
@@ -676,8 +676,8 @@ class _GoalTile extends StatelessWidget {
     final progress = effectiveTarget > 0
         ? (current / effectiveTarget).clamp(0.0, 1.0)
         : model.goalProgressFraction(goal);
-    final feas = model.goalFeasibility(goal);
-    final timeLabel = goalTimeToTargetLabel(goal.targetDate);
+    final feas = model.retirementInvestFeasibility(goal);
+    final timeLabel = retirementTimeToTargetLabel(model, goal);
     final amountsLine = effectiveTarget > 0
         ? '${goalMoney(model, current, hide: hide)} → ${goalMoney(model, effectiveTarget, hide: hide)}'
         : goalMoney(model, current, hide: hide);
@@ -695,13 +695,7 @@ class _GoalTile extends StatelessWidget {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _RetirementLeadingIcon(
-                    feasibility: feas,
-                    accent: accent,
-                    onAdjustRetirementDate: feas.needsDateAdjust
-                        ? () => model.pickRetirementTargetDate(context)
-                        : null,
-                  ),
+                  _RetirementLeadingIcon(feasibility: feas, accent: accent),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(
@@ -710,23 +704,11 @@ class _GoalTile extends StatelessWidget {
                         Row(
                           children: [
                             const Expanded(child: Text('Retirement', style: _GoalsType.tileTitle)),
-                            if (timeLabel.isNotEmpty) ...[
+                            if (timeLabel.isNotEmpty)
                               Text(
                                 timeLabel,
                                 style: _GoalsType.rowMeta.copyWith(color: cs.onSurfaceVariant),
                               ),
-                              const SizedBox(width: 6),
-                              TextButton(
-                                style: TextButton.styleFrom(
-                                  visualDensity: VisualDensity.compact,
-                                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                                  minimumSize: const Size(0, 28),
-                                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                ),
-                                onPressed: () => model.pickRetirementTargetDate(context),
-                                child: Text('Update', style: TextStyle(fontWeight: FontWeight.w800, color: accent)),
-                              ),
-                            ],
                           ],
                         ),
                         const SizedBox(height: 2),
@@ -754,12 +736,10 @@ class _RetirementLeadingIcon extends StatelessWidget {
   const _RetirementLeadingIcon({
     required this.feasibility,
     required this.accent,
-    this.onAdjustRetirementDate,
   });
 
   final GoalFeasibility feasibility;
   final Color accent;
-  final VoidCallback? onAdjustRetirementDate;
 
   @override
   Widget build(BuildContext context) {
@@ -771,12 +751,7 @@ class _RetirementLeadingIcon extends StatelessWidget {
         width: box,
         height: box,
         child: Center(
-          child: ZoroStatusIcon.fromGoalFeasibility(
-            feasibility,
-            size: iconSize,
-            onAction: feasibility.needsDateAdjust ? onAdjustRetirementDate : null,
-            actionLabel: feasibility.needsDateAdjust ? 'Adjust retirement date' : null,
-          ),
+          child: ZoroStatusIcon.fromGoalFeasibility(feasibility, size: iconSize),
         ),
       );
     }

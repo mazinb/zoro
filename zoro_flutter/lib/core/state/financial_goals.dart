@@ -28,7 +28,7 @@ class FinancialGoal {
   double savingsWeight;
   /// Display order for savings waterfall (lower = filled first).
   int sortOrder;
-  /// Legacy — ignored in progress math; kept for import compatibility.
+  /// Legacy persisted field; not used in retire math (corpus is fixed).
   double corpusAdjustment;
   String contextMarkdown;
 

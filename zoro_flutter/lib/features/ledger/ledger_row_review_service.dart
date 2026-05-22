@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import '../../core/finance/currency.dart';
+import '../../core/finance/row_review_payload.dart';
 import '../../core/finance/row_review_result.dart';
 import '../../core/llm/active_llm_completion.dart';
 import '../../core/llm/prompt_context_budget.dart';
@@ -35,11 +35,12 @@ Return ONE JSON object only (no markdown fences):
     return [
       'You review ONE asset row. Ledger balance is correct.',
       _jsonContract,
+      assetReviewAmountRules,
       'Rules:',
-      '- Only compare **dollar amounts** in contextMarkdown to the ledger total.',
-      '- ok = context explains what is in the account and described amounts match the total (within ~15%).',
-      '- caution = missing breakdown, amounts in context do not match total, or context is empty of useful detail.',
-      '- broken = only if context amounts are nonsense relative to the total (not for naming/wording differences).',
+      '- Compare amounts in contextMarkdown to **ledgerTotal** in **accountCurrency** (see amount rules above).',
+      '- ok = context explains what is in the account and described amounts match ledgerTotal (within ~15% after correct FX).',
+      '- caution = missing breakdown, amounts in context do not match ledgerTotal, or context is empty of useful detail.',
+      '- broken = only if context amounts are nonsense relative to ledgerTotal (not for naming/wording differences).',
       '- Do NOT consider cashflow, imports, or balance changes — those are handled elsewhere.',
       '- suggestedComment: short card note only; do not write full context here.',
       '---',
@@ -59,8 +60,9 @@ Return ONE JSON object only (no markdown fences):
     return [
       'You review ONE liability row. Ledger balance is correct.',
       _jsonContract,
+      liabilityReviewAmountRules,
       'Rules:',
-      '- Only check whether contextMarkdown explains the debt and whether **amounts** there match the ledger balance.',
+      '- Only check whether contextMarkdown explains the debt and whether **amounts** there match **ledgerTotal** in **accountCurrency**.',
       '- Do NOT flag broken or caution because the account title and context wording differ (e.g. "Condo" vs "mortgage on apartment").',
       '- Do NOT require interest rate here — rate is on the ledger card separately.',
       '- Do NOT consider cashflow paydowns.',
@@ -129,11 +131,7 @@ Return ONE JSON object only (no markdown fences):
         model.setLedgerAssetReview(
           row.id,
           reviewing: false,
-          result: const RowReviewResult(
-            level: RowReviewLevel.ok,
-            title: 'Linked to Cash',
-            detail: 'Balance follows your latest month closing on the Cash tab.',
-          ),
+          result: primaryCashLinkedReviewResult,
         );
         return;
       }
@@ -153,17 +151,9 @@ Return ONE JSON object only (no markdown fences):
         return;
       }
 
-      final displayVal = model.assetDisplayValue(row);
       final payload = {
         'privacyHideAmounts': model.privacyHideAmounts,
-        'asset': {
-          'id': row.id,
-          'type': row.type.apiValue,
-          'name': row.name,
-          'comment': row.comment,
-          'total': displayVal,
-          'valueFormatted': formatCurrencyDisplay(displayVal, currency: model.displayCurrency),
-        },
+        'asset': assetReviewLedgerPayload(model, row),
         'contextMarkdown': ctx,
       };
       var user = jsonEncode(payload);
@@ -229,14 +219,7 @@ Return ONE JSON object only (no markdown fences):
 
       final payload = {
         'privacyHideAmounts': model.privacyHideAmounts,
-        'liability': {
-          'id': row.id,
-          'type': row.type.apiValue,
-          'name': row.name,
-          'comment': row.comment,
-          'total': row.total,
-          'interestRatePct': row.interestRatePct,
-        },
+        'liability': liabilityReviewLedgerPayload(model, row),
         'contextMarkdown': ctx,
       };
       var user = jsonEncode(payload);

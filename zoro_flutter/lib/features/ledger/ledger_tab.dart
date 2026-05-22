@@ -1240,8 +1240,7 @@ class _LedgerAssetCard extends StatelessWidget {
     final title = row.name.trim().isEmpty ? row.type.label : row.name;
     final reviewing = reviewSlot?.reviewing ?? false;
     final effective = effectiveLedgerAssetStatus(model, row, reviewSlot);
-    final alwaysGreen = model.primaryCashBalanceIsMirrored(row);
-    final showStatus = reviewing || effective != null || alwaysGreen;
+    final showStatus = reviewing || effective != null;
 
     final localNote =
         !reviewing && (effective?.bannerNote.trim().isNotEmpty ?? false)

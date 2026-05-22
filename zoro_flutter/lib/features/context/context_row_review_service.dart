@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import '../../core/finance/currency.dart';
+import '../../core/finance/row_review_payload.dart';
 import '../../core/finance/row_review_result.dart';
 import '../../core/llm/active_llm_completion.dart';
 import '../../core/llm/prompt_context_budget.dart';
@@ -35,11 +35,12 @@ Return ONE JSON object only (no markdown fences):
     return [
       'You review context notes for ONE asset. Ledger balance and comment are correct — only improve context.',
       _jsonContract,
+      assetReviewAmountRules,
       'Rules:',
-      '- ok = context explains holdings and any amount breakdown matches ledger total.',
-      '- caution = missing breakdown, rate, institution detail, or context total off vs ledger.',
-      '- broken = only if context dollar amounts are impossible vs the balance (not wording differences).',
-      '- Only mention amount gaps in context (under/over vs ledger), not changing ledger.',
+      '- ok = context explains holdings and any amount breakdown matches **ledgerTotal** in **accountCurrency**.',
+      '- caution = missing breakdown, rate, institution detail, or context total off vs ledgerTotal.',
+      '- broken = only if context amounts are impossible vs ledgerTotal after correct FX (not wording differences).',
+      '- Only mention amount gaps in context (under/over vs ledgerTotal), not changing ledger.',
       '- suggestedContextMarkdown should be a complete useful note when caution/broken.',
       '---',
       'User instructions:',
@@ -58,6 +59,7 @@ Return ONE JSON object only (no markdown fences):
     return [
       'You review context notes for ONE liability. Ledger balance and rate field are correct — only improve context.',
       _jsonContract,
+      liabilityReviewAmountRules,
       'Rules:',
       '- Loans need rate, payment rhythm, lender in context when not obvious from ledger.',
       '- caution = missing terms; broken = contradicts ledger.',
@@ -107,16 +109,17 @@ Return ONE JSON object only (no markdown fences):
     required void Function() onTrim,
   }) async {
     try {
-      final displayVal = model.assetDisplayValue(row);
+      if (model.primaryCashBalanceIsMirrored(row)) {
+        model.setContextAssetReview(
+          row.id,
+          reviewing: false,
+          result: primaryCashLinkedReviewResult,
+        );
+        return;
+      }
+
       final payload = {
-        'asset': {
-          'id': row.id,
-          'type': row.type.apiValue,
-          'name': row.name,
-          'comment': row.comment,
-          'total': displayVal,
-          'valueFormatted': formatCurrencyDisplay(displayVal, currency: model.displayCurrency),
-        },
+        'asset': assetReviewLedgerPayload(model, row),
         'contextMarkdown': (row.contextMarkdown ?? '').trim(),
         'contextLastUpdated':
             model.contextNoteLastUpdatedIso(AppModel.contextKeyAsset(row.id)),
@@ -158,14 +161,7 @@ Return ONE JSON object only (no markdown fences):
   }) async {
     try {
       final payload = {
-        'liability': {
-          'id': row.id,
-          'type': row.type.apiValue,
-          'name': row.name,
-          'comment': row.comment,
-          'total': row.total,
-          'interestRatePct': row.interestRatePct,
-        },
+        'liability': liabilityReviewLedgerPayload(model, row),
         'contextMarkdown': (row.contextMarkdown ?? '').trim(),
         'contextLastUpdated':
             model.contextNoteLastUpdatedIso(AppModel.contextKeyLiability(row.id)),

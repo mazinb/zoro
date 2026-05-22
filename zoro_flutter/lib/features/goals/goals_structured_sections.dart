@@ -106,68 +106,98 @@ String _splitSubtitle(AppModel m, GoalFeasibility? feas, int investPct, DateTime
   return '$status$investPct% invest · $date${updated != null ? " · $updated" : ""}';
 }
 
-List<StructuredGuideChoice> _withdrawalRateChoices(double current) {
-  final choices = <StructuredGuideChoice>[];
-  for (var pct = 2.5; pct <= 6.0 + 0.01; pct += 0.5) {
-    final id = 'swr_${pct.toStringAsFixed(1).replaceAll('.', '_')}';
-    final label = pct == 4.0 ? '${pct.toStringAsFixed(1)}% — classic' : '${pct.toStringAsFixed(1)}%';
-    choices.add(StructuredGuideChoice(id: id, label: label));
-  }
-  choices.add(StructuredGuideChoice(
-    id: 'swr_custom',
-    label: 'Custom — enter on next step (${current.toStringAsFixed(1)}% now)',
-  ));
-  return choices;
+double _bufferFromLifestyleAndCushion(String? lifestyle, String? cushion) {
+  var buf = switch (lifestyle) {
+    'life_lower' => 5.0,
+    'life_similar' => 12.0,
+    'life_higher' => 22.0,
+    _ => 15.0,
+  };
+  buf += switch (cushion) {
+    'cush_none' => 0.0,
+    'cush_moderate' => 10.0,
+    'cush_large' => 22.0,
+    _ => 5.0,
+  };
+  return clampCorpusBufferPct(buf);
 }
 
-double _swrFromChoice(String? id, double fallback) {
-  if (id == null || id == 'swr_custom') return fallback;
-  if (!id.startsWith('swr_')) return fallback;
-  final raw = id.substring(4).replaceAll('_', '.');
-  return double.tryParse(raw) ?? fallback;
+double _swrFromDrawdownStyle(String? style) {
+  return clampWithdrawalRatePct(switch (style) {
+    'draw_conservative' => 3.0,
+    'draw_classic' => 4.0,
+    'draw_flexible' => 5.0,
+    'draw_help' => 4.0,
+    _ => 4.0,
+  });
+}
+
+Map<String, double> _corpusParamsFromGuideAnswers(
+  AppModel model,
+  StructuredGuideResult result,
+) {
+  final lifestyle = result.singleFor('lifestyle');
+  final cushion = result.singleFor('cushion');
+  final draw = result.singleFor('drawdown_style');
+  final buf = _bufferFromLifestyleAndCushion(lifestyle, cushion);
+  final swr = _swrFromDrawdownStyle(draw);
+  return {'swr': swr, 'buffer': buf};
 }
 
 List<StructuredGuideStep> corpusGuideSteps(AppModel model) {
   final r = model.retirementGoal;
-  final swr = r?.safeWithdrawalRatePct ?? 4;
-  final buf = r?.corpusBufferPct ?? 0;
   final auto = r?.corpusAutoFromExpenses ?? true;
+  final draft = StructuredGuideResult(answers: const [], optionalNote: '');
+  final params = _corpusParamsFromGuideAnswers(model, draft);
+  final previewCorpus = computeRetirementCorpus(
+    recurringExpensesMonthly: model.recurringExpensesMonthly,
+    safeWithdrawalRatePct: params['swr']!,
+    corpusBufferPct: params['buffer']!,
+  );
+  final previewTxt = goalMoney(model, previewCorpus);
+
   return [
     StructuredGuideStep(
-      id: 'swr_pick',
-      prompt: 'Withdrawal rate',
-      hint: 'Annual % of corpus you plan to withdraw. Currently ${swr.toStringAsFixed(1)}%.',
-      choices: _withdrawalRateChoices(swr),
+      id: 'lifestyle',
+      prompt: 'Retirement spending vs today',
+      hint: 'Rough picture — we will size the corpus from your ledger expenses.',
+      choices: const [
+        StructuredGuideChoice(id: 'life_lower', label: 'Lower — lean / downsized'),
+        StructuredGuideChoice(id: 'life_similar', label: 'About the same as today'),
+        StructuredGuideChoice(id: 'life_higher', label: 'Higher — travel, healthcare, help family'),
+        StructuredGuideChoice(id: 'life_unsure', label: 'Not sure — use a moderate cushion'),
+      ],
     ),
     StructuredGuideStep(
-      id: 'swr_value',
-      prompt: 'Withdrawal rate (exact %)',
-      kind: StructuredGuideStepKind.numeric,
-      numericInitial: swr,
-      numericSuffix: '%',
-      numericMin: 1,
-      numericMax: 10,
-      hint: 'Any value from 1% to 10%.',
+      id: 'cushion',
+      prompt: 'Extra safety beyond monthly expenses',
+      choices: const [
+        StructuredGuideChoice(id: 'cush_none', label: 'Minimal extra buffer'),
+        StructuredGuideChoice(id: 'cush_moderate', label: 'Moderate cushion'),
+        StructuredGuideChoice(id: 'cush_large', label: 'Large cushion — sleep-well money'),
+        StructuredGuideChoice(id: 'cush_unsure', label: 'Not sure — light buffer'),
+      ],
     ),
     StructuredGuideStep(
-      id: 'buffer',
-      prompt: 'Safety buffer on corpus',
-      kind: StructuredGuideStepKind.numeric,
-      numericInitial: buf,
-      numericSuffix: '%',
-      numericMin: 0,
-      numericMax: 100,
-      hint: 'Extra cushion on top of expense-based corpus.',
+      id: 'drawdown_style',
+      prompt: 'How conservative should withdrawals be?',
+      hint: 'We translate this to a withdrawal rate for you — no need to pick a %.',
+      choices: const [
+        StructuredGuideChoice(id: 'draw_conservative', label: 'Very conservative — preserve corpus'),
+        StructuredGuideChoice(id: 'draw_classic', label: 'Balanced — classic planning'),
+        StructuredGuideChoice(id: 'draw_flexible', label: 'Flexible — spend a bit more early'),
+        StructuredGuideChoice(id: 'draw_help', label: 'Help me decide — use balanced default'),
+      ],
     ),
     StructuredGuideStep(
       id: 'auto_expenses',
-      prompt: 'Corpus from recurring expenses?',
+      prompt: 'Base corpus on ledger expenses?',
       choices: [
         StructuredGuideChoice(
           id: 'auto_yes',
-          label: auto ? 'Yes — keep linked to ledger expenses' : 'Yes — link to ledger expenses',
+          label: auto ? 'Yes — keep linked to recurring expenses' : 'Yes — link to ledger expenses',
         ),
-        const StructuredGuideChoice(id: 'auto_no', label: 'No — fixed corpus amount'),
+        const StructuredGuideChoice(id: 'auto_no', label: 'No — I may set a custom amount'),
         if (model.recurringExpensesMonthly <= 0)
           const StructuredGuideChoice(
             id: 'auto_setup',
@@ -175,23 +205,33 @@ List<StructuredGuideStep> corpusGuideSteps(AppModel model) {
           ),
       ],
     ),
+    StructuredGuideStep(
+      id: 'corpus_confirm',
+      prompt: 'Suggested corpus: $previewTxt',
+      hint: 'From your answers + ledger expenses. You can accept or optionally override.',
+      choices: [
+        StructuredGuideChoice(id: 'accept', label: 'Use $previewTxt'),
+        const StructuredGuideChoice(id: 'custom', label: 'Enter a different amount (optional)'),
+      ],
+    ),
+    StructuredGuideStep(
+      id: 'corpus_custom',
+      prompt: 'Custom corpus (optional)',
+      kind: StructuredGuideStepKind.numeric,
+      numericInitial: previewCorpus,
+      numericSuffix: '',
+      numericMin: 0,
+      hint: 'Leave blank to keep the suggestion.',
+    ),
   ];
 }
 
 Map<String, Object?> corpusStructuredFromAnswers(AppModel model, StructuredGuideResult result) {
   final r = model.retirementGoal;
-  final pick = result.singleFor('swr_pick');
-  var swr = r?.safeWithdrawalRatePct ?? 4;
-  if (pick == 'swr_custom') {
-    swr = result.numericFor('swr_value') ?? swr;
-  } else if (pick != null) {
-    swr = _swrFromChoice(pick, swr);
-  } else {
-    swr = result.numericFor('swr_value') ?? swr;
-  }
-  swr = clampWithdrawalRatePct(swr);
+  final params = _corpusParamsFromGuideAnswers(model, result);
+  final swr = params['swr']!;
+  final buf = params['buffer']!;
 
-  final buf = result.numericFor('buffer') ?? r?.corpusBufferPct ?? 0;
   final autoId = result.singleFor('auto_expenses');
   final auto = switch (autoId) {
     'auto_yes' => true,
@@ -199,18 +239,40 @@ Map<String, Object?> corpusStructuredFromAnswers(AppModel model, StructuredGuide
     'auto_setup' => model.recurringExpensesMonthly > 0,
     _ => r?.corpusAutoFromExpenses ?? true,
   };
-  final corpus = computeRetirementCorpus(
+
+  var corpus = computeRetirementCorpus(
     recurringExpensesMonthly: model.recurringExpensesMonthly,
     safeWithdrawalRatePct: swr,
     corpusBufferPct: buf,
   );
+
+  final confirm = result.singleFor('corpus_confirm');
+  if (confirm == 'custom') {
+    final custom = result.numericFor('corpus_custom');
+    if (custom != null && custom > 0.5) corpus = custom;
+  }
+
+  final lifestyle = result.singleFor('lifestyle');
+  final draw = result.singleFor('drawdown_style');
+  final lifestyleLabel = switch (lifestyle) {
+    'life_lower' => 'lean retirement',
+    'life_similar' => 'similar spending',
+    'life_higher' => 'higher spending',
+    _ => 'moderate spending',
+  };
+  final drawLabel = switch (draw) {
+    'draw_conservative' => 'conservative withdrawals',
+    'draw_flexible' => 'flexible withdrawals',
+    _ => 'balanced withdrawals',
+  };
+
   return {
     'safeWithdrawalRatePct': swr,
     'corpusBufferPct': buf,
     'corpusAutoFromExpenses': auto,
     'targetAmount': corpus,
     'summary':
-        'Corpus ${auto ? "from expenses" : "manual"} at ${swr.toStringAsFixed(1)}% withdrawal, ${buf.round()}% buffer',
+        '$lifestyleLabel · $drawLabel · ${auto ? "corpus from expenses" : "custom corpus"} · ${swr.toStringAsFixed(1)}% draw',
   };
 }
 

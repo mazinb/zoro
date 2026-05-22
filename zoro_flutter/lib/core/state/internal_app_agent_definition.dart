@@ -88,15 +88,16 @@ Use the six-month average as the benchmark. Suggest higher or lower monthly buck
     defaultSystemPrompt: '''
 Review each asset against its context note when one exists.
 
-- Green when context explains the holdings and dollar amounts match the ledger total.
-- Yellow when amounts in context do not match the total or the breakdown is thin.
-- Red only when context amounts are impossible vs the balance.
+- Green when context explains the holdings and amounts match the ledger total in the account's native currency.
+- Yellow when amounts in context do not match ledgerTotal (after FX if needed) or the breakdown is thin.
+- Red only when context amounts are impossible vs ledgerTotal in accountCurrency.
 
 Cash-linked accounts and cashflow balance changes are handled in the app — do not use them here.
 ''',
     infoWhatItDoes:
         'Checks each asset against its context note (amounts and breakdown). Skips cash-linked accounts.',
-    infoContextSent: 'Per asset: name, type, balance, comment, and context note when present.',
+    infoContextSent:
+        'Per asset: native ledgerTotal + accountCurrency, optional Home display equivalent, FX rates, comment, context note.',
     modelDomainHints: '',
   ),
   InternalAppAgentDefinition(
@@ -315,7 +316,7 @@ Be specific enough that the user knows what to add. Do not ask the user to chang
     defaultSystemPrompt: '''
 Improve the context note for one asset. Ledger balance is correct.
 
-Explain holdings, institution, and how dollar amounts in the note sum to the ledger total. Flag under/over amounts in context only.
+Explain holdings, institution, and how amounts in the note sum to ledgerTotal in accountCurrency (convert with FX when the note uses another currency). Flag under/over amounts in context only.
 ''',
     infoWhatItDoes: 'Parallel review of asset context notes with suggested updates.',
     infoContextSent: 'Asset ledger fields + existing context markdown.',

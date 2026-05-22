@@ -65,13 +65,6 @@ RowReviewResult? effectiveLedgerAssetStatus(
   LedgerAssetRow row,
   RowReviewSlot? slot,
 ) {
-  if (model.primaryCashBalanceIsMirrored(row)) {
-    return const RowReviewResult(
-      level: RowReviewLevel.ok,
-      title: 'Linked to Cash',
-      detail: 'Balance follows your latest month closing on the Cash tab.',
-    );
-  }
   final local = cashflowLinkedCautionForAsset(model, row);
   if (slot == null || slot.reviewing) return local;
   return mergeRowReviewResults(slot.result, local);

@@ -1,5 +1,6 @@
 import '../../core/constants/web_expenses_income.dart';
 import '../../core/finance/currency.dart';
+import '../../core/finance/row_review_payload.dart';
 import '../../core/state/app_model.dart';
 import '../../core/state/internal_app_agent_definition.dart';
 import '../../core/state/ledger_rows.dart';
@@ -41,18 +42,10 @@ class ContextPlannerConfig {
       buildPayload: (m, qa) {
         final row = m.assetById(assetId);
         if (row == null) return {'qaHistory': qa};
-        final displayVal = m.assetDisplayValue(row);
         return {
           'asset': {
-            'id': row.id,
-            'type': row.type.apiValue,
-            'name': row.name,
-            'total': displayVal,
-            'currencyCountry': row.currencyCountry,
+            ...assetReviewLedgerPayload(m, row),
             'label': row.label,
-            'comment': row.comment,
-            'displayCurrency': m.displayCurrency.name,
-            'valueFormatted': formatCurrencyDisplay(displayVal, currency: m.displayCurrency),
           },
           'existingContextMarkdown': initialMarkdown,
           'contextLastUpdated': m.contextNoteLastUpdatedIso(key),
@@ -82,16 +75,7 @@ class ContextPlannerConfig {
         final row = m.liabilityById(liabilityId);
         if (row == null) return {'qaHistory': qa};
         return {
-          'liability': {
-            'id': row.id,
-            'type': row.type.apiValue,
-            'name': row.name,
-            'total': row.total,
-            'currencyCountry': row.currencyCountry,
-            'comment': row.comment,
-            'displayCurrency': m.displayCurrency.name,
-            'balanceFormatted': formatCurrencyDisplay(row.total, currency: m.displayCurrency),
-          },
+          'liability': liabilityReviewLedgerPayload(m, row),
           'existingContextMarkdown': initialMarkdown,
           'contextLastUpdated': m.contextNoteLastUpdatedIso(key),
           'qaHistory': qa,
