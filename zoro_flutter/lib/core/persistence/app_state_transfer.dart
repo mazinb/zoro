@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'agent_json.dart';
 import 'app_state_codec.dart';
 import '../constants/web_expenses_income.dart';
+import '../finance/historical_returns.dart';
 import '../state/app_model.dart';
 import '../state/financial_goals.dart';
 import '../state/ledger_rows.dart';
@@ -15,8 +16,9 @@ abstract final class DataExportKind {
   static const context = 'context';
   static const agent = 'agent';
   static const chats = 'chats';
+  static const historicalReturns = 'historicalReturns';
 
-  static const all = [ledger, goals, settings, context, agent, chats];
+  static const all = [ledger, goals, settings, context, agent, chats, historicalReturns];
 
   static String label(String kind) => switch (kind) {
         ledger => 'Ledger',
@@ -25,6 +27,7 @@ abstract final class DataExportKind {
         context => 'Context note',
         agent => 'Agent',
         chats => 'Chats',
+        historicalReturns => 'Historical returns',
         _ => kind,
       };
 }
@@ -262,6 +265,23 @@ class AppStateTransfer {
         {'goals': model.financialGoals.map(encodeFinancialGoal).toList()},
       );
 
+  static Map<String, dynamic> buildHistoricalReturnsExportMap(AppModel model) {
+    model.ensureDefaultHistoricalReturns();
+    return _envelope(
+      DataExportKind.historicalReturns,
+      {
+        'historicalReturns': {
+          'series': model.historicalReturnSeries.map(encodeHistoricalReturnSeries).toList(),
+          'corpusBacktest': encodeCorpusBacktestPrefs(
+            equityPct: model.corpusBacktestEquityPct,
+            equitySeriesId: model.corpusBacktestEquitySeriesId,
+            debtSeriesId: model.corpusBacktestDebtSeriesId,
+          ),
+        },
+      },
+    );
+  }
+
   static Map<String, dynamic> buildSettingsExportMap(AppModel model) {
     final snap = model.buildPersistedSnapshot();
     final settings = Map<String, dynamic>.from(snap['settings'] as Map);
@@ -396,6 +416,7 @@ class AppStateTransfer {
       DataExportKind.goals => buildGoalsExportMap(model),
       DataExportKind.settings => buildSettingsExportMap(model),
       DataExportKind.chats => buildChatsExportMap(model),
+      DataExportKind.historicalReturns => buildHistoricalReturnsExportMap(model),
       DataExportKind.agent => buildAgentExportMap(model, pickId ?? ''),
       DataExportKind.context => buildContextExportMap(model, pickId ?? ''),
       _ => throw ArgumentError('Unknown export kind: $exportKind'),
@@ -461,6 +482,8 @@ class AppStateTransfer {
         root['agent'] is Map ? null : 'Missing "agent" object.',
       DataExportKind.chats =>
         root['chats'] is Map ? null : 'Missing "chats" object.',
+      DataExportKind.historicalReturns =>
+        root['historicalReturns'] is Map ? null : 'Missing "historicalReturns" object.',
       _ => 'Unknown exportKind.',
     };
   }
@@ -594,6 +617,23 @@ class AppStateTransfer {
           supportsMerge: false,
           supportsReplace: true,
         );
+      case DataExportKind.historicalReturns:
+        final block = root['historicalReturns'];
+        var seriesCount = 0;
+        if (block is Map) {
+          final raw = block['series'];
+          if (raw is List) seriesCount = raw.length;
+        }
+        lines.add(ImportSummaryLine(label: '$seriesCount return series', action: ImportSummaryAction.update));
+        lines.add(const ImportSummaryLine(label: 'Corpus backtest prefs if present', action: ImportSummaryAction.info));
+        return ImportAnalysis(
+          exportKind: kind,
+          title: title,
+          lines: lines,
+          root: root,
+          supportsMerge: true,
+          supportsReplace: true,
+        );
       default:
         throw ArgumentError('Unsupported kind: $kind');
     }
@@ -715,8 +755,40 @@ class AppStateTransfer {
       case DataExportKind.chats:
         await model.applyImportedChats(Map<String, dynamic>.from(root['chats'] as Map));
         return;
+      case DataExportKind.historicalReturns:
+        await _applyHistoricalReturnsImport(model, root, mode);
+        return;
       default:
         throw ArgumentError('Unsupported exportKind: $kind');
+    }
+  }
+
+  static Future<void> _applyHistoricalReturnsImport(
+    AppModel model,
+    Map<String, dynamic> root,
+    ImportApplyMode mode,
+  ) async {
+    final block = Map<String, dynamic>.from(root['historicalReturns'] as Map);
+    final raw = block['series'];
+    final incoming = <HistoricalReturnSeries>[
+      if (raw is List)
+        for (final e in raw)
+          if (decodeHistoricalReturnSeries(e) != null) decodeHistoricalReturnSeries(e)!,
+    ];
+    if (mode == ImportApplyMode.replace) {
+      await model.replaceHistoricalReturnSeriesFromImport(incoming);
+    } else {
+      model.mergeHistoricalReturnSeriesFromImport(incoming);
+    }
+    final prefs = block['corpusBacktest'];
+    if (prefs is Map) {
+      final p = Map<String, dynamic>.from(prefs);
+      final eq = p['equityPct'];
+      if (eq is num) model.setCorpusBacktestEquityPct(eq.toDouble());
+      final es = p['equitySeriesId']?.toString();
+      if (es != null && es.isNotEmpty) model.setCorpusBacktestSeriesIds(equityId: es);
+      final ds = p['debtSeriesId']?.toString();
+      if (ds != null && ds.isNotEmpty) model.setCorpusBacktestSeriesIds(debtId: ds);
     }
   }
 

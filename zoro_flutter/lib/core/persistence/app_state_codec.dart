@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import '../finance/currency.dart';
+import '../finance/historical_returns.dart';
 import '../state/app_model.dart';
 import '../state/cashflow_income_line.dart';
 import '../state/financial_goals.dart';
@@ -328,7 +329,7 @@ Map<String, dynamic> encodeFinancialGoal(FinancialGoal g) => {
       'linkedAssetIds': g.linkedAssetIds,
       'savingsWeight': g.savingsWeight,
       'sortOrder': g.sortOrder,
-      'corpusAdjustment': g.corpusAdjustment,
+      'corpusSurplus': g.corpusSurplus,
       if (g.contextMarkdown.trim().isNotEmpty) 'contextMarkdown': g.contextMarkdown,
       if (g.isRetirement) ...{
         'safeWithdrawalRatePct': g.safeWithdrawalRatePct,
@@ -364,8 +365,8 @@ FinancialGoal? decodeFinancialGoal(Object? raw) {
   final savingsWeight = sw is num ? sw.toDouble() : double.tryParse(sw?.toString() ?? '') ?? 1;
   final so = m['sortOrder'];
   final sortOrder = so is num ? so.round() : int.tryParse(so?.toString() ?? '') ?? 0;
-  final ca = m['corpusAdjustment'];
-  final corpusAdjustment = ca is num ? ca.toDouble() : double.tryParse(ca?.toString() ?? '') ?? 0;
+  final cs = m['corpusSurplus'] ?? m['corpusAdjustment'];
+  final corpusSurplus = cs is num ? cs.toDouble() : double.tryParse(cs?.toString() ?? '') ?? 0;
   final swr = m['safeWithdrawalRatePct'];
   final safeWithdrawalRatePct =
       swr is num ? swr.toDouble() : double.tryParse(swr?.toString() ?? '') ?? 4;
@@ -385,7 +386,7 @@ FinancialGoal? decodeFinancialGoal(Object? raw) {
     linkedAssetIds: linked,
     savingsWeight: savingsWeight > 0 ? savingsWeight : 1,
     sortOrder: sortOrder,
-    corpusAdjustment: corpusAdjustment,
+    corpusSurplus: corpusSurplus,
     contextMarkdown: m['contextMarkdown']?.toString() ?? '',
     safeWithdrawalRatePct: safeWithdrawalRatePct,
     corpusBufferPct: corpusBufferPct,
@@ -445,4 +446,20 @@ void decodeNotificationsBlock(AppModel m, Object? raw) {
   if (n['userTouchedIncome'] == true) m.userTouchedIncome = true;
   if (n['userTouchedAssets'] == true) m.userTouchedAssets = true;
   if (n['userTouchedLiabilities'] == true) m.userTouchedLiabilities = true;
+}
+
+Map<String, dynamic> encodeCorpusBacktestBlock(AppModel model) => encodeCorpusBacktestPrefs(
+      equityPct: model.corpusBacktestEquityPct,
+      equitySeriesId: model.corpusBacktestEquitySeriesId,
+      debtSeriesId: model.corpusBacktestDebtSeriesId,
+    );
+
+void decodeCorpusBacktestBlock(Object? raw, AppModel model) {
+  if (raw is! Map) return;
+  decodeCorpusBacktestPrefs(
+    Map<String, dynamic>.from(raw),
+    onEquityPct: (v) => model.corpusBacktestEquityPct = v,
+    onEquitySeriesId: (v) => model.corpusBacktestEquitySeriesId = v,
+    onDebtSeriesId: (v) => model.corpusBacktestDebtSeriesId = v,
+  );
 }

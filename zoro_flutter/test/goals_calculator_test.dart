@@ -5,26 +5,30 @@ import 'package:zoro_flutter/core/state/financial_goals.dart';
 
 void main() {
   group('computeRetirementCorpus', () {
-    test('uses annual spend, SWR, and buffer', () {
-      // 5000/mo => 60k/yr; 4% SWR => 1.5M; +10% buffer => 1.65M
-      final c = computeRetirementCorpus(
+    test('uses annual spend and SWR (base corpus)', () {
+      final c = computeRetirementCorpusBase(
         recurringExpensesMonthly: 5000,
         safeWithdrawalRatePct: 4,
-        corpusBufferPct: 10,
       );
-      expect(c, closeTo(1650000, 1));
+      expect(c, closeTo(1500000, 1));
+    });
+
+    test('surplus from buffer % is separate', () {
+      final base = computeRetirementCorpusBase(
+        recurringExpensesMonthly: 5000,
+        safeWithdrawalRatePct: 4,
+      );
+      expect(surplusFromCorpusBufferPct(base, 10), closeTo(150000, 1));
     });
 
     test('clamps SWR to 1-10%', () {
-      final low = computeRetirementCorpus(
+      final low = computeRetirementCorpusBase(
         recurringExpensesMonthly: 1000,
         safeWithdrawalRatePct: 0.5,
-        corpusBufferPct: 0,
       );
-      final high = computeRetirementCorpus(
+      final high = computeRetirementCorpusBase(
         recurringExpensesMonthly: 1000,
         safeWithdrawalRatePct: 99,
-        corpusBufferPct: 0,
       );
       expect(low, greaterThan(high));
     });
@@ -74,26 +78,39 @@ void main() {
   });
 
   group('goalEffectiveTarget', () {
-    test('keeps retirement corpus fixed (ignores corpusAdjustment)', () {
+    test('corpus base excludes surplus', () {
       final goal = FinancialGoal(
         id: 'r',
         kind: FinancialGoalKind.retirement,
         name: 'Retirement',
         corpusAutoFromExpenses: true,
         safeWithdrawalRatePct: 4,
-        corpusBufferPct: 0,
-        corpusAdjustment: 500_000,
+        corpusBufferPct: 10,
+        corpusSurplus: 500_000,
       );
-      final base = computeRetirementCorpus(
+      final base = computeRetirementCorpusBase(
         recurringExpensesMonthly: 5000,
         safeWithdrawalRatePct: 4,
-        corpusBufferPct: 0,
       );
       final effective = goalEffectiveTarget(
         goal: goal,
         recurringExpensesMonthly: 5000,
       );
       expect(effective, closeTo(base, 1));
+      expect(goal.corpusSurplus, 500_000);
+    });
+  });
+
+  group('surplusAfterCorpusIncrease', () {
+    test('corpus rise eats surplus first', () {
+      expect(
+        surplusAfterCorpusIncrease(surplus: 5_000_000, oldBase: 100_000_000, newBase: 103_000_000),
+        closeTo(2_000_000, 1),
+      );
+      expect(
+        surplusAfterCorpusIncrease(surplus: 1_000_000, oldBase: 100_000_000, newBase: 90_000_000),
+        closeTo(1_000_000, 1),
+      );
     });
   });
 

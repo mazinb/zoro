@@ -10,6 +10,14 @@ Privacy-first finance on device. Production API: **getzoro.com**. On-device stor
 
 ---
 
+## Shipped (Corpus backtest)
+
+- **Corpus backtest** replaces Goals helper “Withdrawal & corpus” MCQ: year-by-year table (expense, corpus start/end, blended returns, monthly draw) against historical equity/debt datasets.
+- Default **S&P 500** + **US Aggregate Bond** (1995–2024, 30 calendar years). Debt/equity split slider; withdrawal rate tap + slider (same 1–10% ladder as retirement editor).
+- **Settings → Data → Historical returns** export/import for custom return series (merge or replace).
+
+---
+
 ## Ship checklist
 
 - [ ] `cd zoro_flutter && dart analyze` — no warnings you care about
@@ -23,10 +31,8 @@ Privacy-first finance on device. Production API: **getzoro.com**. On-device stor
 
 ## Shipped (Goals retire tradeoff)
 
-- **Corpus fixed** (expenses × SWR or manual); year chips move **calendar only**.
-- **Invest /mo** = Goals split slider (`allocInvestmentsMonthly`).
-- **Need /mo** = invest required to hit corpus by retire date (settings **invest return %**).
-- **Update** = retire date from current invest /mo + corpus (return-aware).
+- **Corpus** (base) + **surplus** (separate): agent buffer % seeds surplus; year chips add contribution FV to surplus; holdings above corpus raise surplus.
+- **Invest /mo** vs **Need /mo** vs retire date; progress bar shows surplus tail.
 - Allocation notes sheet; savings % of salary; cashflow savings lines link to assets/liabilities.
 
 Helper hub: `goals_helper_hub_page.dart` + `goals_structured_sections.dart`. Tests: `test/goals_calculator_test.dart`, `test/goals_allocation_test.dart`.

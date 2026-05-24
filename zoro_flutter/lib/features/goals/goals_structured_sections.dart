@@ -10,6 +10,7 @@ import '../../shared/guided_mcq/structured_guide_page.dart';
 import 'goal_widgets.dart';
 import 'goals_apply_updates.dart';
 import 'goals_structured_llm.dart';
+import 'corpus_backtest_page.dart';
 
 String? goalsSectionLastUpdatedLabel(DateTime? at, {DateTime? now}) {
   if (at == null) return null;
@@ -46,13 +47,13 @@ List<GoalsHelperSectionMeta> goalsHelperSections(AppModel model) {
   return [
     GoalsHelperSectionMeta(
       id: 'corpus',
-      title: 'Withdrawal & corpus',
+      title: 'Corpus backtest',
       subtitle: corpus > 0
           ? '${goalMoney(model, corpus)} · ${goalsSectionLastUpdatedLabel(model.retirementCorpusLastUpdated, now: now) ?? "not set"}'
-          : 'Withdrawal rate, buffer, expenses',
+          : 'Historical drawdown vs debt & equity',
       icon: Icons.beach_access_outlined,
-      stepCount: corpusGuideSteps(model).length,
-      onOpen: (ctx) => openCorpusStructuredGuide(context: ctx, model: model),
+      stepCount: 0,
+      onOpen: (ctx) => openCorpusBacktestPage(context: ctx, model: model),
     ),
     GoalsHelperSectionMeta(
       id: 'split',
@@ -149,11 +150,11 @@ List<StructuredGuideStep> corpusGuideSteps(AppModel model) {
   final auto = r?.corpusAutoFromExpenses ?? true;
   final draft = StructuredGuideResult(answers: const [], optionalNote: '');
   final params = _corpusParamsFromGuideAnswers(model, draft);
-  final previewCorpus = computeRetirementCorpus(
+  final previewCorpus = computeRetirementCorpusBase(
     recurringExpensesMonthly: model.recurringExpensesMonthly,
     safeWithdrawalRatePct: params['swr']!,
-    corpusBufferPct: params['buffer']!,
   );
+  final previewSurplus = surplusFromCorpusBufferPct(previewCorpus, params['buffer']!);
   final previewTxt = goalMoney(model, previewCorpus);
 
   return [
@@ -207,7 +208,9 @@ List<StructuredGuideStep> corpusGuideSteps(AppModel model) {
     ),
     StructuredGuideStep(
       id: 'corpus_confirm',
-      prompt: 'Suggested corpus: $previewTxt',
+      prompt: previewSurplus > 0.5
+          ? 'Suggested corpus: $previewTxt + ${goalMoney(model, previewSurplus)} surplus'
+          : 'Suggested corpus: $previewTxt',
       hint: 'From your answers + ledger expenses. You can accept or optionally override.',
       choices: [
         StructuredGuideChoice(id: 'accept', label: 'Use $previewTxt'),
@@ -240,11 +243,11 @@ Map<String, Object?> corpusStructuredFromAnswers(AppModel model, StructuredGuide
     _ => r?.corpusAutoFromExpenses ?? true,
   };
 
-  var corpus = computeRetirementCorpus(
+  var corpus = computeRetirementCorpusBase(
     recurringExpensesMonthly: model.recurringExpensesMonthly,
     safeWithdrawalRatePct: swr,
-    corpusBufferPct: buf,
   );
+  var surplus = surplusFromCorpusBufferPct(corpus, buf);
 
   final confirm = result.singleFor('corpus_confirm');
   if (confirm == 'custom') {
@@ -271,8 +274,9 @@ Map<String, Object?> corpusStructuredFromAnswers(AppModel model, StructuredGuide
     'corpusBufferPct': buf,
     'corpusAutoFromExpenses': auto,
     'targetAmount': corpus,
+    'corpusSurplus': surplus,
     'summary':
-        '$lifestyleLabel · $drawLabel · ${auto ? "corpus from expenses" : "custom corpus"} · ${swr.toStringAsFixed(1)}% draw',
+        '$lifestyleLabel · $drawLabel · ${auto ? "corpus from expenses" : "custom corpus"} · ${swr.toStringAsFixed(1)}% draw · ${buf.round()}% surplus',
   };
 }
 
@@ -286,10 +290,12 @@ List<String> corpusPreviewLines(AppModel model, StructuredGuideResult result) {
     if (swr is num) 'Withdrawal rate: ${swr.toStringAsFixed(1)}%',
     if (buf is num) 'Buffer: ${buf.round()}%',
     if (corpus is num) 'Target corpus: ${goalMoney(model, corpus.toDouble())}',
+    if (s['corpusSurplus'] is num && (s['corpusSurplus'] as num) > 0)
+      'Surplus: ${goalMoney(model, (s['corpusSurplus'] as num).toDouble())}',
   ];
   final annual = model.recurringExpensesMonthly * 12;
-  if (annual > 0 && corpus is num && corpus > 0 && buf is num) {
-    final implied = annual / (corpus / (1 + buf / 100)) * 100;
+  if (annual > 0 && corpus is num && corpus > 0) {
+    final implied = annual / corpus.toDouble() * 100;
     lines.add('Implied withdrawal from expenses: ${implied.toStringAsFixed(2)}%');
   }
   return lines;

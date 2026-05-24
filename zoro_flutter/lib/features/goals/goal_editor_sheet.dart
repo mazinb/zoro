@@ -60,12 +60,22 @@ class _GoalEditorSheet extends StatefulWidget {
   State<_GoalEditorSheet> createState() => _GoalEditorSheetState();
 }
 
+bool _setEquals(Set<String> a, Set<String> b) {
+  if (a.length != b.length) return false;
+  for (final id in a) {
+    if (!b.contains(id)) return false;
+  }
+  return true;
+}
+
 class _GoalEditorSheetState extends State<_GoalEditorSheet> {
   late TextEditingController _nameCtrl;
   late TextEditingController _targetCtrl;
+  late TextEditingController _surplusCtrl;
   DateTime? _targetDate;
   double _swr = 4;
   double _buffer = 0;
+  double _surplus = 0;
   double _savingsWeight = 1;
   bool _corpusFromExpenses = true;
   late Set<String> _retirementExtras;
@@ -90,6 +100,12 @@ class _GoalEditorSheetState extends State<_GoalEditorSheet> {
           ? formatGroupedInteger(g.targetAmount.round(), currency: widget.model.displayCurrency)
           : '',
     );
+    _surplus = g?.corpusSurplus ?? 0;
+    _surplusCtrl = TextEditingController(
+      text: _surplus > 0
+          ? formatGroupedInteger(_surplus.round(), currency: widget.model.displayCurrency)
+          : '',
+    );
     _targetDate = g?.targetDate;
     _corpusFromExpenses = g?.corpusAutoFromExpenses ?? true;
     _swr = quantizeWithdrawalRatePct(g?.safeWithdrawalRatePct ?? 4);
@@ -104,17 +120,42 @@ class _GoalEditorSheetState extends State<_GoalEditorSheet> {
   void dispose() {
     _nameCtrl.dispose();
     _targetCtrl.dispose();
+    _surplusCtrl.dispose();
     super.dispose();
   }
 
   double _parseTarget() => goalParseGroupedAmount(_targetCtrl.text);
 
-  double _draftCorpusTarget(AppModel m) {
+  double _parseSurplus() => goalParseGroupedAmount(_surplusCtrl.text);
+
+  double _corpusBaseForDraft(AppModel m) {
     if (_corpusFromExpenses) {
-      return computeRetirementCorpus(
+      return computeRetirementCorpusBase(
         recurringExpensesMonthly: m.recurringExpensesMonthly,
         safeWithdrawalRatePct: _swr,
-        corpusBufferPct: _buffer,
+      );
+    }
+    return _parseTarget();
+  }
+
+  void _eatSurplusForCorpusChange(double oldBase, double newBase) {
+    final next = surplusAfterCorpusIncrease(
+      surplus: _surplus,
+      oldBase: oldBase,
+      newBase: newBase,
+    );
+    if ((next - _surplus).abs() < 0.5) return;
+    _surplus = next;
+    _surplusCtrl.text = _surplus > 0
+        ? formatGroupedInteger(_surplus.round(), currency: widget.model.displayCurrency)
+        : '';
+  }
+
+  double _draftCorpusTarget(AppModel m) {
+    if (_corpusFromExpenses) {
+      return computeRetirementCorpusBase(
+        recurringExpensesMonthly: m.recurringExpensesMonthly,
+        safeWithdrawalRatePct: _swr,
       );
     }
     return _parseTarget();
@@ -127,11 +168,13 @@ class _GoalEditorSheetState extends State<_GoalEditorSheet> {
       safeWithdrawalRatePct: _swr,
       corpusBufferPct: _buffer,
       corpusAutoFromExpenses: _corpusFromExpenses,
+      corpusSurplus: _surplus,
     );
   }
 
   void _applyRetireByFromInvestFlow(AppModel m, FinancialGoal g) {
-    final draft = _draftRetirement(m, g);
+    // Plan date = earliest reach of base corpus at invest /mo; surplus is not part of the target.
+    final draft = _draftRetirement(m, g).copyWith(corpusSurplus: 0);
     final computed = m.retirementTargetDateFromPlan(draft);
     if (computed == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -139,15 +182,31 @@ class _GoalEditorSheetState extends State<_GoalEditorSheet> {
       );
       return;
     }
-    setState(() => _targetDate = computed);
+    setState(() {
+      _targetDate = computed;
+      _surplus = 0;
+      _surplusCtrl.text = '';
+    });
   }
 
   void _shiftRetirementYears(AppModel m, FinancialGoal g, int yearsDelta) {
     final base = _targetDate ??
         m.retirementTargetDateFromPlan(_draftRetirement(m, g)) ??
         DateTime.now();
+    final annualReturn = m.projectionInvestReturnPctAnnual[m.displayCurrency] ?? 0;
+    final delta = retirementSurplusDeltaForYears(
+      yearsDelta: yearsDelta,
+      monthlyInvest: m.allocInvestmentsMonthly,
+      annualReturnPct: annualReturn,
+    );
     setState(() {
       _targetDate = shiftRetirementTargetDate(baseDate: base, yearsDelta: yearsDelta);
+      if (delta.abs() > 0.5) {
+        _surplus = (_surplus + delta).clamp(0, double.infinity);
+        _surplusCtrl.text = _surplus > 0
+            ? formatGroupedInteger(_surplus.round(), currency: m.displayCurrency)
+            : '';
+      }
     });
   }
 
@@ -191,10 +250,9 @@ class _GoalEditorSheetState extends State<_GoalEditorSheet> {
     final isRetirement = g.isRetirement;
     final target = isRetirement
         ? (_corpusFromExpenses
-            ? computeRetirementCorpus(
+            ? computeRetirementCorpusBase(
                 recurringExpensesMonthly: m.recurringExpensesMonthly,
                 safeWithdrawalRatePct: _swr,
-                corpusBufferPct: _buffer,
               )
             : _parseTarget())
         : _parseTarget();
@@ -207,12 +265,12 @@ class _GoalEditorSheetState extends State<_GoalEditorSheet> {
       safeWithdrawalRatePct: quantizeWithdrawalRatePct(_swr),
       corpusBufferPct: clampCorpusBufferPct(_buffer),
       corpusAutoFromExpenses: isRetirement ? _corpusFromExpenses : g.corpusAutoFromExpenses,
-      corpusAdjustment: isRetirement ? 0 : g.corpusAdjustment,
+      corpusSurplus: isRetirement ? _parseSurplus() : g.corpusSurplus,
     );
-    if (g.isRetirement) {
+    m.upsertFinancialGoal(next);
+    if (g.isRetirement && !_setEquals(_retirementExtras, m.retirementExtraAssetIds)) {
       m.setRetirementExtraAssetIds(_retirementExtras);
     }
-    m.upsertFinancialGoal(next);
     if (mounted) Navigator.of(context).pop();
   }
 
@@ -298,10 +356,9 @@ class _GoalEditorSheetState extends State<_GoalEditorSheet> {
         final isRetirement = g.isRetirement;
 
         final previewCorpus = isRetirement
-            ? computeRetirementCorpus(
+            ? computeRetirementCorpusBase(
                 recurringExpensesMonthly: m.recurringExpensesMonthly,
                 safeWithdrawalRatePct: _swr,
-                corpusBufferPct: _buffer,
               )
             : _parseTarget();
         final corpusTarget = isRetirement
@@ -314,12 +371,13 @@ class _GoalEditorSheetState extends State<_GoalEditorSheet> {
           safeWithdrawalRatePct: _swr,
           corpusBufferPct: _buffer,
           corpusAutoFromExpenses: isRetirement ? _corpusFromExpenses : g.corpusAutoFromExpenses,
-          corpusAdjustment: isRetirement ? 0 : g.corpusAdjustment,
+          corpusSurplus: isRetirement ? _surplus : g.corpusSurplus,
           savingsWeight: _savingsWeight,
         );
         final displayCorpus = isRetirement
             ? (_corpusFromExpenses ? previewCorpus : _parseTarget())
             : corpusTarget;
+        final displaySurplus = isRetirement ? _surplus : 0.0;
         final pool = m.savingsMonthlyForTargetsPool;
         final share = m.normalizedTargetSavingsShares()[g.id] ?? 0;
         final monthlyFromWeight = isRetirement ? 0.0 : pool * share;
@@ -441,6 +499,7 @@ class _GoalEditorSheetState extends State<_GoalEditorSheet> {
                     title: const Text('Corpus from expenses', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14)),
                     value: _corpusFromExpenses,
                     onChanged: (on) {
+                      final oldBase = _corpusBaseForDraft(m);
                       setState(() {
                         _corpusFromExpenses = on;
                         if (!on && _targetCtrl.text.trim().isEmpty) {
@@ -449,31 +508,75 @@ class _GoalEditorSheetState extends State<_GoalEditorSheet> {
                             currency: m.displayCurrency,
                           );
                         }
+                        _eatSurplusForCorpusChange(oldBase, _corpusBaseForDraft(m));
                       });
                     },
                   ),
                   if (_corpusFromExpenses)
                     Padding(
                       padding: const EdgeInsets.only(bottom: 8),
-                      child: Text(
-                        goalMoney(m, displayCorpus, hide: hide),
-                        style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            goalMoney(m, displayCorpus, hide: hide),
+                            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 20),
+                          ),
+                          if (displaySurplus > 0.5)
+                            Text(
+                              '+ ${goalMoney(m, displaySurplus, hide: hide)} surplus',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: cs.onSurfaceVariant,
+                              ),
+                            ),
+                        ],
                       ),
                     )
                   else
-                    TextField(
-                      controller: _targetCtrl,
-                      keyboardType: TextInputType.number,
-                      inputFormatters: [
-                        GroupedIntegerTextInputFormatter(currency: m.displayCurrency),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _targetCtrl,
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [
+                              GroupedIntegerTextInputFormatter(currency: m.displayCurrency),
+                            ],
+                            decoration: InputDecoration(
+                              labelText: 'Corpus target',
+                              isDense: true,
+                              border: const OutlineInputBorder(),
+                              prefixText:
+                                  m.displayCurrency == CurrencyCode.aed ? null : m.displayCurrency.symbol,
+                            ),
+                            onChanged: (_) => setState(() {}),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: TextField(
+                            controller: _surplusCtrl,
+                            keyboardType: TextInputType.number,
+                            inputFormatters: [
+                              GroupedIntegerTextInputFormatter(currency: m.displayCurrency),
+                            ],
+                            decoration: InputDecoration(
+                              labelText: 'Surplus',
+                              isDense: true,
+                              border: const OutlineInputBorder(),
+                              prefixText:
+                                  m.displayCurrency == CurrencyCode.aed ? null : m.displayCurrency.symbol,
+                            ),
+                            onChanged: (_) {
+                              _surplus = _parseSurplus();
+                              setState(() {});
+                            },
+                          ),
+                        ),
                       ],
-                      decoration: InputDecoration(
-                        labelText: 'Corpus target',
-                        isDense: true,
-                        border: const OutlineInputBorder(),
-                        prefixText: m.displayCurrency == CurrencyCode.aed ? null : m.displayCurrency.symbol,
-                      ),
-                      onChanged: (_) => setState(() {}),
                     ),
                   if (_corpusFromExpenses) ...[
                     Text(
@@ -486,7 +589,13 @@ class _GoalEditorSheetState extends State<_GoalEditorSheet> {
                       max: 10,
                       divisions: 18,
                       label: '${_swr.toStringAsFixed(1)}%',
-                      onChanged: (v) => setState(() => _swr = quantizeWithdrawalRatePct(v)),
+                      onChanged: (v) {
+                        final oldBase = _corpusBaseForDraft(m);
+                        setState(() {
+                          _swr = quantizeWithdrawalRatePct(v);
+                          _eatSurplusForCorpusChange(oldBase, _corpusBaseForDraft(m));
+                        });
+                      },
                     ),
                   ],
                   const SizedBox(height: 10),

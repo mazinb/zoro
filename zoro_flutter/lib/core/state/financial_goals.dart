@@ -9,7 +9,7 @@ class FinancialGoal {
     List<String>? linkedAssetIds,
     this.savingsWeight = 1,
     this.sortOrder = 0,
-    this.corpusAdjustment = 0,
+    this.corpusSurplus = 0,
     this.contextMarkdown = '',
     this.safeWithdrawalRatePct = 4,
     this.corpusBufferPct = 0,
@@ -28,13 +28,13 @@ class FinancialGoal {
   double savingsWeight;
   /// Display order for savings waterfall (lower = filled first).
   int sortOrder;
-  /// Legacy persisted field; not used in retire math (corpus is fixed).
-  double corpusAdjustment;
+  /// Cushion on top of base corpus (agent %, manual, years, overflow).
+  double corpusSurplus;
   String contextMarkdown;
 
   /// Safe withdrawal rate for retirement corpus (1–10%).
   double safeWithdrawalRatePct;
-  /// Extra corpus buffer as percent of base (0–100%).
+  /// Agent buffer as % of base corpus → seeds [corpusSurplus].
   double corpusBufferPct;
   /// When true, [targetAmount] is derived from ledger recurring expenses.
   bool corpusAutoFromExpenses;
@@ -52,7 +52,7 @@ class FinancialGoal {
         linkedAssetIds: List<String>.from(linkedAssetIds),
         savingsWeight: savingsWeight,
         sortOrder: sortOrder,
-        corpusAdjustment: corpusAdjustment,
+        corpusSurplus: corpusSurplus,
         contextMarkdown: contextMarkdown,
         safeWithdrawalRatePct: safeWithdrawalRatePct,
         corpusBufferPct: corpusBufferPct,
@@ -68,7 +68,7 @@ class FinancialGoal {
     List<String>? linkedAssetIds,
     double? savingsWeight,
     int? sortOrder,
-    double? corpusAdjustment,
+    double? corpusSurplus,
     String? contextMarkdown,
     double? safeWithdrawalRatePct,
     double? corpusBufferPct,
@@ -85,7 +85,7 @@ class FinancialGoal {
         linkedAssetIds: linkedAssetIds ?? List<String>.from(this.linkedAssetIds),
         savingsWeight: savingsWeight ?? this.savingsWeight,
         sortOrder: sortOrder ?? this.sortOrder,
-        corpusAdjustment: corpusAdjustment ?? this.corpusAdjustment,
+        corpusSurplus: corpusSurplus ?? this.corpusSurplus,
         contextMarkdown: contextMarkdown ?? this.contextMarkdown,
         safeWithdrawalRatePct: safeWithdrawalRatePct ?? this.safeWithdrawalRatePct,
         corpusBufferPct: corpusBufferPct ?? this.corpusBufferPct,

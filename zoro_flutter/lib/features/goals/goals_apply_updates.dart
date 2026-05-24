@@ -35,6 +35,7 @@ void applyGoalsGuideStructured(AppModel model, Map<String, Object?> structured, 
       'name',
       'targetAmount',
       'targetDate',
+      'corpusSurplus',
       'corpusAdjustment',
       'safeWithdrawalRatePct',
       'corpusBufferPct',
@@ -73,8 +74,8 @@ void applyGoalsGuideStructured(AppModel model, Map<String, Object?> structured, 
     }
 
     if (existing.isRetirement) {
-      final ca = u['corpusAdjustment'];
-      if (ca is num) next = next.copyWith(corpusAdjustment: ca.toDouble());
+      final cs = u['corpusSurplus'] ?? u['corpusAdjustment'];
+      if (cs is num) next = next.copyWith(corpusSurplus: cs.toDouble());
       final swr = u['safeWithdrawalRatePct'];
       if (swr is num) next = next.copyWith(safeWithdrawalRatePct: clampWithdrawalRatePct(swr.toDouble()));
       final buf = u['corpusBufferPct'];
@@ -106,6 +107,15 @@ void applyRetirementCorpusStructured(
   }
   final target = structured['targetAmount'];
   if (target is num) next = next.copyWith(targetAmount: target.toDouble());
+  final surplus = structured['corpusSurplus'];
+  if (surplus is num) {
+    next = next.copyWith(corpusSurplus: surplus.toDouble().clamp(0, double.infinity));
+  } else if (buf is num) {
+    final base = model.goalRetirementCorpusBaseAmount(next);
+    next = next.copyWith(
+      corpusSurplus: surplusFromCorpusBufferPct(base, next.corpusBufferPct),
+    );
+  }
   final md = contextMarkdown.trim();
   if (md.isNotEmpty) next = next.copyWith(contextMarkdown: md);
   model.upsertFinancialGoal(next);

@@ -42,33 +42,64 @@ int withdrawalRateStepIndex(double pct) =>
 double withdrawalRateFromStep(int step) =>
     quantizeWithdrawalRatePct(1 + step * 0.5);
 
-/// Retirement corpus from recurring monthly expenses, SWR, and buffer.
+/// Base retirement corpus from expenses and SWR (no surplus).
+double computeRetirementCorpusBase({
+  required double recurringExpensesMonthly,
+  required double safeWithdrawalRatePct,
+}) {
+  final swr = clampWithdrawalRatePct(safeWithdrawalRatePct);
+  final annualSpend = recurringExpensesMonthly * 12;
+  if (annualSpend <= 0 || swr <= 0) return 0;
+  return annualSpend / (swr / 100);
+}
+
+@Deprecated('Use computeRetirementCorpusBase')
 double computeRetirementCorpus({
   required double recurringExpensesMonthly,
   required double safeWithdrawalRatePct,
   required double corpusBufferPct,
+}) =>
+    computeRetirementCorpusBase(
+      recurringExpensesMonthly: recurringExpensesMonthly,
+      safeWithdrawalRatePct: safeWithdrawalRatePct,
+    );
+
+/// Surplus from agent buffer % of base corpus.
+double surplusFromCorpusBufferPct(double baseCorpus, double corpusBufferPct) {
+  if (baseCorpus <= 0) return 0;
+  return baseCorpus * clampCorpusBufferPct(corpusBufferPct) / 100;
+}
+
+/// When base corpus rises, surplus is reduced first (down to zero).
+double surplusAfterCorpusIncrease({
+  required double surplus,
+  required double oldBase,
+  required double newBase,
 }) {
-  final swr = clampWithdrawalRatePct(safeWithdrawalRatePct);
-  final buffer = clampCorpusBufferPct(corpusBufferPct);
-  final annualSpend = recurringExpensesMonthly * 12;
-  if (annualSpend <= 0 || swr <= 0) return 0;
-  final base = annualSpend / (swr / 100);
-  return base * (1 + buffer / 100);
+  final increase = (newBase - oldBase).clamp(0, double.infinity);
+  if (increase <= 0) return surplus.clamp(0, double.infinity);
+  return (surplus - increase).clamp(0, double.infinity);
+}
+
+double goalRetirementCorpusBase({
+  required FinancialGoal goal,
+  required double recurringExpensesMonthly,
+}) {
+  if (!goal.isRetirement) return goal.targetAmount;
+  if (goal.corpusAutoFromExpenses) {
+    return computeRetirementCorpusBase(
+      recurringExpensesMonthly: recurringExpensesMonthly,
+      safeWithdrawalRatePct: goal.safeWithdrawalRatePct,
+    );
+  }
+  return goal.targetAmount;
 }
 
 double goalEffectiveTarget({
   required FinancialGoal goal,
   required double recurringExpensesMonthly,
 }) {
-  var base = goal.targetAmount;
-  if (goal.isRetirement && goal.corpusAutoFromExpenses) {
-    return computeRetirementCorpus(
-      recurringExpensesMonthly: recurringExpensesMonthly,
-      safeWithdrawalRatePct: goal.safeWithdrawalRatePct,
-      corpusBufferPct: goal.corpusBufferPct,
-    );
-  }
-  return base;
+  return goalRetirementCorpusBase(goal: goal, recurringExpensesMonthly: recurringExpensesMonthly);
 }
 
 double monthlyRateFromAnnualPct(double annualReturnPct) => annualReturnPct / 100 / 12;
@@ -128,6 +159,21 @@ DateTime shiftRetirementTargetDate({
   required int yearsDelta,
 }) =>
     DateTime(baseDate.year + yearsDelta, baseDate.month, baseDate.day);
+
+/// Extra surplus from [yearsDelta] of invest /mo at [annualReturnPct].
+double retirementSurplusDeltaForYears({
+  required int yearsDelta,
+  required double monthlyInvest,
+  required double annualReturnPct,
+}) {
+  if (yearsDelta == 0 || monthlyInvest <= 0) return 0;
+  final credit = futureValueOfMonthlyContributions(
+    monthlyPayment: monthlyInvest,
+    annualReturnPct: annualReturnPct,
+    months: 12 * yearsDelta.abs(),
+  );
+  return yearsDelta > 0 ? credit : -credit;
+}
 
 double goalRequiredMonthlySavings({
   required FinancialGoal goal,

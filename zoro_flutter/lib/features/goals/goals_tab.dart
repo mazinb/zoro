@@ -672,15 +672,11 @@ class _GoalTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final current = model.goalCurrentAmount(goal);
-    final effectiveTarget = model.goalEffectiveTargetAmount(goal);
-    final progress = effectiveTarget > 0
-        ? (current / effectiveTarget).clamp(0.0, 1.0)
-        : model.goalProgressFraction(goal);
+    final corpusBase = model.goalRetirementCorpusBaseAmount(goal);
+    final surplus = model.goalRetirementSurplusTotal(goal);
     final feas = model.retirementInvestFeasibility(goal);
     final timeLabel = retirementTimeToTargetLabel(model, goal);
-    final amountsLine = effectiveTarget > 0
-        ? '${goalMoney(model, current, hide: hide)} → ${goalMoney(model, effectiveTarget, hide: hide)}'
-        : goalMoney(model, current, hide: hide);
+    final amountsLine = retirementAmountsLine(model, goal, hide: hide);
 
     return Material(
       color: Colors.transparent,
@@ -723,7 +719,12 @@ class _GoalTile extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 8),
-              GoalProgressBar(fraction: progress, accent: accent),
+              RetirementGoalProgressBar(
+                corpusBase: corpusBase,
+                surplus: surplus,
+                current: current,
+                accent: accent,
+              ),
             ],
           ),
         ),

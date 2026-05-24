@@ -107,6 +107,156 @@ class GoalProgressBar extends StatelessWidget {
   }
 }
 
+/// Retirement: corpus zone + subtle surplus tail; fill shows progress through both.
+class RetirementGoalProgressBar extends StatelessWidget {
+  const RetirementGoalProgressBar({
+    super.key,
+    required this.corpusBase,
+    required this.surplus,
+    required this.current,
+    required this.accent,
+  });
+
+  final double corpusBase;
+  final double surplus;
+  final double current;
+  final Color accent;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    // Trough behind segments — reads clearly on glass in light and dark.
+    final trough = isDark
+        ? cs.surfaceContainerHighest.withValues(alpha: 0.55)
+        : cs.surfaceContainerHigh;
+    final corpusTrack = isDark
+        ? cs.onSurface.withValues(alpha: 0.2)
+        : cs.outlineVariant.withValues(alpha: 0.55);
+    final surplusTrack = isDark
+        ? cs.onSurface.withValues(alpha: 0.32)
+        : cs.outline.withValues(alpha: 0.35);
+    final borderColor = isDark
+        ? cs.outline.withValues(alpha: 0.55)
+        : cs.outlineVariant;
+    final dividerColor = isDark ? cs.outline.withValues(alpha: 0.95) : cs.outline;
+    const barHeight = 10.0;
+    const dividerWidth = 2.0;
+    const segmentGap = 1.0;
+
+    final total = (corpusBase + surplus).clamp(0.001, double.infinity);
+    final corpusEnd = (corpusBase / total).clamp(0.0, 1.0);
+    final fillEnd = (current / total).clamp(0.0, 1.0);
+    final inSurplus = current > corpusBase + 0.5;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final w = constraints.maxWidth;
+        final dividerX = surplus > 0.5 ? w * corpusEnd : 0.0;
+
+        return DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(6),
+            color: trough,
+            border: Border.all(color: borderColor, width: 1),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(5),
+            child: SizedBox(
+              height: barHeight,
+              child: Stack(
+                clipBehavior: Clip.hardEdge,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(1),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          flex: (corpusBase * 1000).round().clamp(1, 1000000),
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: corpusTrack,
+                              borderRadius: BorderRadius.horizontal(
+                                left: const Radius.circular(4),
+                                right: surplus > 0.5 ? Radius.zero : const Radius.circular(4),
+                              ),
+                            ),
+                          ),
+                        ),
+                        if (surplus > 0.5) ...[
+                          SizedBox(width: segmentGap),
+                          Expanded(
+                            flex: (surplus * 1000).round().clamp(1, 1000000),
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: surplusTrack,
+                                borderRadius: const BorderRadius.horizontal(right: Radius.circular(4)),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  if (fillEnd > 0.001)
+                    Padding(
+                      padding: const EdgeInsets.all(1),
+                      child: Align(
+                        alignment: Alignment.centerLeft,
+                        child: Container(
+                          width: (w - 2) * fillEnd,
+                          decoration: BoxDecoration(
+                            color: inSurplus ? accent.withValues(alpha: 0.72) : accent,
+                            borderRadius: BorderRadius.horizontal(
+                              left: const Radius.circular(4),
+                              right: fillEnd >= 0.995 ? const Radius.circular(4) : Radius.zero,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  if (surplus > 0.5 && corpusEnd > 0.02 && corpusEnd < 0.98)
+                    Positioned(
+                      left: dividerX - dividerWidth / 2,
+                      top: 1,
+                      bottom: 1,
+                      child: Container(
+                        width: dividerWidth,
+                        decoration: BoxDecoration(
+                          color: dividerColor,
+                          borderRadius: BorderRadius.circular(1),
+                          boxShadow: isDark
+                              ? null
+                              : [
+                                  BoxShadow(
+                                    color: cs.shadow.withValues(alpha: 0.12),
+                                    blurRadius: 0,
+                                    offset: const Offset(0.5, 0),
+                                  ),
+                                ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+String retirementAmountsLine(AppModel model, FinancialGoal goal, {bool hide = false}) {
+  final current = model.goalCurrentAmount(goal);
+  final base = model.goalRetirementCorpusBaseAmount(goal);
+  final surplus = model.goalRetirementSurplusTotal(goal);
+  final cur = goalMoney(model, current, hide: hide);
+  final baseTxt = goalMoney(model, base, hide: hide);
+  if (surplus <= 0.5) return '$cur → $baseTxt';
+  return '$cur → $baseTxt + ${goalMoney(model, surplus, hide: hide)}';
+}
+
 class GoalCardShell extends StatelessWidget {
   const GoalCardShell({
     super.key,

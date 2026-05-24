@@ -9,7 +9,9 @@ import '../constants/web_expenses_income.dart';
 import '../finance/currency.dart';
 import '../finance/goal_allocation.dart';
 import '../finance/goal_asset_buckets.dart';
+import '../finance/corpus_backtest.dart';
 import '../finance/goals_calculator.dart';
+import '../finance/historical_returns.dart';
 import '../../dev/compile_time_api_keys.dart';
 import '../finance/row_review_result.dart';
 import '../llm/apple_foundation_channel.dart';
@@ -1243,6 +1245,15 @@ class AppModel extends ChangeNotifier {
   /// Property/other asset ids included in retirement corpus (unlisted → savings pool).
   final Set<String> retirementExtraAssetIds = {};
 
+  /// Historical return datasets for corpus backtest (built-ins + imported).
+  final List<HistoricalReturnSeries> historicalReturnSeries = [];
+
+  /// Equity share of retirement portfolio in backtest (0–100).
+  double corpusBacktestEquityPct = 60;
+
+  String corpusBacktestEquitySeriesId = kDefaultUsSp500SeriesId;
+  String corpusBacktestDebtSeriesId = kDefaultUsAggBondSeriesId;
+
   AssetsGoalsPolicy get assetsGoalsPolicy => AssetsGoalsPolicy(
         retirementExtraAssetIds: retirementExtraAssetIds,
       );
@@ -1251,6 +1262,7 @@ class AppModel extends ChangeNotifier {
     retirementExtraAssetIds
       ..clear()
       ..addAll(ids);
+    absorbRetirementHoldingsIntoSurplus(notify: false);
     _scheduleAppStatePersist();
     notifyListeners();
   }
@@ -1689,11 +1701,14 @@ class AppModel extends ChangeNotifier {
 
   void upsertFinancialGoal(FinancialGoal goal, {bool touchGoalsUpdated = true}) {
     final ix = financialGoals.indexWhere((g) => g.id == goal.id);
+    final prev = ix >= 0 ? financialGoals[ix] : null;
     var next = goal;
-    if (ix >= 0) {
-      final prev = financialGoals[ix];
+    if (prev != null) {
       if (next.targetDate != null && prev.targetDate == null && next.timelineStart == null) {
         next = next.copyWith(timelineStart: DateTime.now());
+      }
+      if (next.isRetirement) {
+        next = retirementGoalWithSurplusAfterCorpusChange(next, prev);
       }
     } else if (next.targetDate != null && next.timelineStart == null) {
       next = next.copyWith(timelineStart: DateTime.now());
@@ -1750,17 +1765,58 @@ class AppModel extends ChangeNotifier {
   double computedRetirementCorpus([FinancialGoal? retirement]) {
     final r = retirement ?? retirementGoal;
     if (r == null) return 0;
-    return computeRetirementCorpus(
+    return goalRetirementCorpusBase(
+      goal: r,
       recurringExpensesMonthly: recurringExpensesMonthly,
-      safeWithdrawalRatePct: r.safeWithdrawalRatePct,
-      corpusBufferPct: r.corpusBufferPct,
     );
   }
 
-  double goalEffectiveTargetAmount(FinancialGoal goal) => goalEffectiveTarget(
+  double goalRetirementCorpusBaseAmount(FinancialGoal goal) => goalRetirementCorpusBase(
         goal: goal,
         recurringExpensesMonthly: recurringExpensesMonthly,
       );
+
+  double goalRetirementSurplus(FinancialGoal goal) => goal.corpusSurplus.clamp(0, double.infinity);
+
+  /// Stored surplus only (not inflated on save).
+  double goalRetirementSurplusTotal(FinancialGoal goal) => goalRetirementSurplus(goal);
+
+  FinancialGoal retirementGoalWithSurplusAfterCorpusChange(
+    FinancialGoal goal,
+    FinancialGoal previous,
+  ) {
+    if (!goal.isRetirement) return goal;
+    final oldBase = goalRetirementCorpusBaseAmount(previous);
+    final newBase = goalRetirementCorpusBaseAmount(goal);
+    final surplus = surplusAfterCorpusIncrease(
+      surplus: goal.corpusSurplus,
+      oldBase: oldBase,
+      newBase: newBase,
+    );
+    return goal.copyWith(corpusSurplus: surplus);
+  }
+
+  /// When holdings exceed base corpus, raise stored surplus to that excess (asset changes only).
+  void absorbRetirementHoldingsIntoSurplus({bool notify = true}) {
+    final r = retirementGoal;
+    if (r == null) return;
+    final base = goalRetirementCorpusBaseAmount(r);
+    final overflow = (goalCurrentAmount(r) - base).clamp(0.0, double.infinity);
+    if (overflow <= r.corpusSurplus + 0.5) return;
+    final ix = financialGoals.indexWhere((g) => g.id == r.id);
+    if (ix < 0) return;
+    financialGoals[ix] = r.copyWith(corpusSurplus: overflow);
+    _scheduleAppStatePersist();
+    if (notify) notifyListeners();
+  }
+
+  double goalEffectiveTargetAmount(FinancialGoal goal) {
+    if (goal.isRetirement) return goalRetirementCorpusBaseAmount(goal);
+    return goalEffectiveTarget(
+      goal: goal,
+      recurringExpensesMonthly: recurringExpensesMonthly,
+    );
+  }
 
   double goalRequiredMonthlySavingsFor(FinancialGoal goal, {DateTime? now}) {
     if (goal.isRetirement) {
@@ -1915,14 +1971,15 @@ class AppModel extends ChangeNotifier {
     return DateTime(n.year, n.month + months, n.day);
   }
 
-  /// Sets retire-by to the plan-implied date (earlier when inputs allow).
+  /// Earliest retire-by at invest /mo to reach base corpus; clears plan surplus.
   bool updateRetirementTargetDateFromPlan({DateTime? now}) {
     final r = retirementGoal;
     if (r == null) return false;
-    final computed = retirementTargetDateFromPlan(r, now: now);
+    final planGoal = r.copyWith(corpusSurplus: 0);
+    final computed = retirementTargetDateFromPlan(planGoal, now: now);
     if (computed == null) return false;
     upsertFinancialGoal(
-      r.copyWith(
+      planGoal.copyWith(
         targetDate: computed,
         timelineStart: r.timelineStart ?? DateTime.now(),
       ),
@@ -1944,6 +2001,95 @@ class AppModel extends ChangeNotifier {
   }
 
   void applyComputedRetirementTarget() => syncRetirementCorpusTarget();
+
+  void ensureDefaultHistoricalReturns() {
+    final merged = mergeHistoricalReturnSeries(
+      stored: historicalReturnSeries,
+      incoming: const [],
+    );
+    if (historicalReturnSeries.length != merged.length ||
+        !historicalReturnSeries.every((s) => merged.any((m) => m.id == s.id))) {
+      historicalReturnSeries
+        ..clear()
+        ..addAll(merged);
+    }
+  }
+
+  HistoricalReturnSeries? historicalSeriesById(String id) =>
+      historicalReturnSeriesById(historicalReturnSeries, id);
+
+  List<HistoricalReturnSeries> historicalSeriesForClass(HistoricalAssetClass assetClass) =>
+      historicalReturnSeriesForClass(historicalReturnSeries, assetClass);
+
+  void setCorpusBacktestEquityPct(double pct) {
+    final next = pct.clamp(0, 100);
+    if ((corpusBacktestEquityPct - next).abs() < 0.01) return;
+    corpusBacktestEquityPct = next.toDouble();
+    _scheduleAppStatePersist();
+    notifyListeners();
+  }
+
+  void setCorpusBacktestSeriesIds({String? equityId, String? debtId}) {
+    var changed = false;
+    if (equityId != null && equityId.isNotEmpty && corpusBacktestEquitySeriesId != equityId) {
+      corpusBacktestEquitySeriesId = equityId;
+      changed = true;
+    }
+    if (debtId != null && debtId.isNotEmpty && corpusBacktestDebtSeriesId != debtId) {
+      corpusBacktestDebtSeriesId = debtId;
+      changed = true;
+    }
+    if (!changed) return;
+    _scheduleAppStatePersist();
+    notifyListeners();
+  }
+
+  void mergeHistoricalReturnSeriesFromImport(Iterable<HistoricalReturnSeries> incoming) {
+    final merged = mergeHistoricalReturnSeries(
+      stored: historicalReturnSeries,
+      incoming: incoming,
+    );
+    historicalReturnSeries
+      ..clear()
+      ..addAll(merged);
+    _scheduleAppStatePersist();
+    notifyListeners();
+  }
+
+  Future<void> replaceHistoricalReturnSeriesFromImport(List<HistoricalReturnSeries> incoming) async {
+    historicalReturnSeries
+      ..clear()
+      ..addAll(mergeHistoricalReturnSeries(stored: const [], incoming: incoming));
+    _scheduleAppStatePersist();
+    notifyListeners();
+  }
+
+  CorpusBacktestResult? corpusBacktestPreview({double? safeWithdrawalRatePct}) {
+    ensureDefaultHistoricalReturns();
+    final r = retirementGoal;
+    if (r == null) return null;
+    final equity = historicalSeriesById(corpusBacktestEquitySeriesId) ??
+        historicalSeriesById(kDefaultUsSp500SeriesId);
+    final debt = historicalSeriesById(corpusBacktestDebtSeriesId) ??
+        historicalSeriesById(kDefaultUsAggBondSeriesId);
+    if (equity == null || debt == null) return null;
+    final swr = safeWithdrawalRatePct ?? r.safeWithdrawalRatePct;
+    final initial = r.corpusAutoFromExpenses
+        ? computeRetirementCorpusBase(
+            recurringExpensesMonthly: recurringExpensesMonthly,
+            safeWithdrawalRatePct: swr,
+          )
+        : goalRetirementCorpusBaseAmount(r);
+    if (initial <= 0.5) return null;
+    final expenseMonthly = r.corpusAutoFromExpenses ? recurringExpensesMonthly : initial * swr / 100 / 12;
+    return runCorpusBacktest(
+      initialCorpus: initial,
+      monthlyExpense: expenseMonthly,
+      equitySeries: equity,
+      debtSeries: debt,
+      equityPct: corpusBacktestEquityPct,
+    );
+  }
 
   void setRetirementCorpusParams({
     double? safeWithdrawalRatePct,
@@ -3464,6 +3610,10 @@ class AppModel extends ChangeNotifier {
         if (allocationContextMarkdown.trim().isNotEmpty)
           'allocationContextMarkdown': allocationContextMarkdown,
         'retirementExtraAssetIds': retirementExtraAssetIds.toList(),
+        'corpusBacktest': app_state.encodeCorpusBacktestBlock(this),
+        if (historicalReturnSeries.any((s) => !s.builtin))
+          'historicalReturnSeries':
+              historicalReturnSeries.where((s) => !s.builtin).map(encodeHistoricalReturnSeries).toList(),
         'fxUsdPerUnitOverride': {
           for (final e in _fxUsdPerUnitOverride.entries) e.key.name: e.value,
         },
@@ -3763,6 +3913,16 @@ class AppModel extends ChangeNotifier {
       app_state.decodeProjectionMap(projectionInvestReturnPctAnnual, L['projectionInvestReturnPctAnnual']);
       app_state.decodeProjectionMap(projectionSavingsReturnPctAnnual, L['projectionSavingsReturnPctAnnual']);
       app_state.decodeProjectionMap(projectionInflationPctAnnual, L['projectionInflationPctAnnual']);
+      historicalReturnSeries.clear();
+      final hrs = L['historicalReturnSeries'];
+      if (hrs is List) {
+        for (final e in hrs) {
+          final s = decodeHistoricalReturnSeries(e);
+          if (s != null) historicalReturnSeries.add(s);
+        }
+      }
+      app_state.decodeCorpusBacktestBlock(L['corpusBacktest'], this);
+      ensureDefaultHistoricalReturns();
     }
 
     final ctx = root['context'];
