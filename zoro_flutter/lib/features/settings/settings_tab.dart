@@ -6,6 +6,8 @@ import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/finance/currency.dart';
+import '../../shared/help/tab_help_content.dart';
+import '../../shared/widgets/tab_header_actions.dart';
 import '../../core/notifications/notification_service.dart';
 import '../../core/state/app_model.dart';
 import '../../core/state/internal_app_agent_definition.dart';
@@ -95,6 +97,11 @@ class _SettingsTabState extends State<SettingsTab> with SingleTickerProviderStat
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                       fontWeight: FontWeight.w900,
                     ),
+              ),
+              const Spacer(),
+              TabHeaderActions(
+                model: widget.model,
+                help: TabHelpContent.settings,
               ),
             ],
           ),
@@ -445,6 +452,48 @@ class _GeneralPaneState extends State<_GeneralPane> {
     );
   }
 
+  Future<void> _openExportPage() async {
+    if (!mounted) return;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (ctx) => Scaffold(
+          appBar: AppBar(title: const Text('Export / import')),
+          body: DataTransferPane(model: model),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmReset() async {
+    HapticFeedback.mediumImpact();
+    final res = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Reset Zoro?'),
+        content: const Text('This will erase all on-device data and restart onboarding.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.of(ctx).pop(false);
+              await _openExportPage();
+            },
+            child: const Text('Export'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Erase'),
+          ),
+        ],
+      ),
+    );
+    if (res != true) return;
+    await model.resetAllUserDataAndRestartOnboarding();
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -496,6 +545,18 @@ class _GeneralPaneState extends State<_GeneralPane> {
             _fxCard(context),
             const SizedBox(height: 12),
             _currencyAssumptionsCard(),
+            const SizedBox(height: 12),
+            const Text('Reset', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+            const SizedBox(height: 8),
+            _settingsCard(
+              child: ListTile(
+                leading: const Icon(Icons.restart_alt),
+                title: const Text('Restart onboarding', style: TextStyle(fontWeight: FontWeight.w900)),
+                subtitle: const Text('Erase all on-device data'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: _confirmReset,
+              ),
+            ),
             const SizedBox(height: 12),
         const Text('Notifications', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
         const SizedBox(height: 8),

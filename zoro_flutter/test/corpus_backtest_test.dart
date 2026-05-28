@@ -29,6 +29,7 @@ void main() {
       final result = runCorpusBacktest(
         initialCorpus: 1_000_000,
         monthlyExpense: 5000,
+        inflationPctAnnual: 3,
         equitySeries: equity,
         debtSeries: debt,
         equityPct: 60,
@@ -38,6 +39,7 @@ void main() {
       expect(result.years.first.year, 2000);
       expect(result.years.first.blendedReturnPct, closeTo(8, 0.01)); // 0.6*10 + 0.4*5
       expect(result.years.first.corpusEnd, greaterThan(0));
+      expect(result.years[1].expenseAnnual, greaterThan(result.years[0].expenseAnnual));
     });
 
     test('flags depletion when annual expense exceeds corpus', () {
@@ -51,6 +53,7 @@ void main() {
       final result = runCorpusBacktest(
         initialCorpus: 10_000,
         monthlyExpense: 2000,
+        inflationPctAnnual: 0,
         equitySeries: oneYear,
         debtSeries: oneYear,
         equityPct: 50,
@@ -58,6 +61,41 @@ void main() {
       expect(result.survived, isFalse);
       expect(result.firstDepletionYear, 2008);
       expect(result.years.single.depleted, isTrue);
+    });
+
+    test('startYear begins the simulation later', () {
+      final equity = HistoricalReturnSeries(
+        id: 'eq',
+        name: 'Eq',
+        assetClass: HistoricalAssetClass.equity,
+        region: 'US',
+        returnsByYear: const [
+          HistoricalReturnYear(year: 2000, returnPct: 0),
+          HistoricalReturnYear(year: 2001, returnPct: 0),
+          HistoricalReturnYear(year: 2002, returnPct: 0),
+        ],
+      );
+      final debt = HistoricalReturnSeries(
+        id: 'debt',
+        name: 'Debt',
+        assetClass: HistoricalAssetClass.debt,
+        region: 'US',
+        returnsByYear: const [
+          HistoricalReturnYear(year: 2000, returnPct: 0),
+          HistoricalReturnYear(year: 2001, returnPct: 0),
+          HistoricalReturnYear(year: 2002, returnPct: 0),
+        ],
+      );
+      final result = runCorpusBacktest(
+        initialCorpus: 1_000_000,
+        monthlyExpense: 1000,
+        inflationPctAnnual: 0,
+        equitySeries: equity,
+        debtSeries: debt,
+        equityPct: 50,
+        startYear: 2001,
+      );
+      expect(result.years.first.year, 2001);
     });
   });
 

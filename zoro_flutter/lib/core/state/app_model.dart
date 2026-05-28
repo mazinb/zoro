@@ -168,7 +168,18 @@ class AppModel extends ChangeNotifier {
   }
 
   /// Restores state from [AppStateStore] JSON (e.g. after load or in tests).
-  void applyPersistedSnapshot(Map<String, dynamic> root) => _applyAppStateMap(root);
+  void applyPersistedSnapshot(Map<String, dynamic> root) {
+    _applyAppStateMap(root);
+    if (!onboardingComplete &&
+        (userTouchedExpenses ||
+            userTouchedIncome ||
+            userTouchedAssets ||
+            userTouchedLiabilities ||
+            monthlyCashflowByMonth.isNotEmpty ||
+            incomeLines.isNotEmpty)) {
+      onboardingComplete = true;
+    }
+  }
 
   /// Import path: replace in-memory state and flush to disk.
   Future<void> applyImportedSnapshot(Map<String, dynamic> root) async {
@@ -654,6 +665,17 @@ class AppModel extends ChangeNotifier {
   bool userTouchedIncome = false;
   bool userTouchedAssets = false;
   bool userTouchedLiabilities = false;
+
+  /// First-run onboarding (currency, income, expense estimates). Persisted in settings.
+  bool onboardingComplete = false;
+
+  /// Optional demo data (seeded from onboarding).
+  bool dummyDataActive = false;
+
+  /// Snapshot of only the demo data we seeded. Used to remove only untouched entries.
+  /// Shape:
+  /// { "monthlyCashflowByMonth": { "YYYY-MM": { ...encoded MonthlyCashflowEntry... } } }
+  Map<String, dynamic> dummySeedSnapshot = {};
 
   /// THB matches [expensePresetCountry] bucket units so the Sankey and ledger stay aligned at boot.
   CurrencyCode displayCurrency = CurrencyCode.thb;
@@ -1253,6 +1275,7 @@ class AppModel extends ChangeNotifier {
 
   String corpusBacktestEquitySeriesId = kDefaultUsSp500SeriesId;
   String corpusBacktestDebtSeriesId = kDefaultUsAggBondSeriesId;
+  int? corpusBacktestStartYear;
 
   AssetsGoalsPolicy get assetsGoalsPolicy => AssetsGoalsPolicy(
         retirementExtraAssetIds: retirementExtraAssetIds,
@@ -2044,6 +2067,13 @@ class AppModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setCorpusBacktestStartYear(int? year) {
+    if (year == corpusBacktestStartYear) return;
+    corpusBacktestStartYear = year;
+    _scheduleAppStatePersist();
+    notifyListeners();
+  }
+
   void mergeHistoricalReturnSeriesFromImport(Iterable<HistoricalReturnSeries> incoming) {
     final merged = mergeHistoricalReturnSeries(
       stored: historicalReturnSeries,
@@ -2082,12 +2112,15 @@ class AppModel extends ChangeNotifier {
         : goalRetirementCorpusBaseAmount(r);
     if (initial <= 0.5) return null;
     final expenseMonthly = r.corpusAutoFromExpenses ? recurringExpensesMonthly : initial * swr / 100 / 12;
+    final inflation = projectionInflationPctAnnual[displayCurrency] ?? 0;
     return runCorpusBacktest(
       initialCorpus: initial,
       monthlyExpense: expenseMonthly,
+      inflationPctAnnual: inflation,
       equitySeries: equity,
       debtSeries: debt,
       equityPct: corpusBacktestEquityPct,
+      startYear: corpusBacktestStartYear,
     );
   }
 
@@ -3077,6 +3110,74 @@ class AppModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Applies first-run onboarding: USD home currency, two FX picks, income lines, buckets.
+  void applyOnboardingSetup({
+    required CurrencyCode homeQuickPick1,
+    required CurrencyCode homeQuickPick2,
+    required Map<CurrencyCode, double> unitsPerUsdByCurrency,
+    required double salaryAnnualUsd,
+    double? bonusAnnualUsd,
+    double? rsuAnnualUsd,
+    double? effectiveTaxRatePct,
+    required Map<String, double> expenseBucketsMonthlyUsd,
+    String? expenseContextNote,
+  }) {
+    for (final e in unitsPerUsdByCurrency.entries) {
+      if (e.value > 0) {
+        setFxUsdPerUnitOverride(e.key, 1 / e.value);
+      }
+    }
+    setHomeCurrencyQuickPick(1, homeQuickPick1);
+    setHomeCurrencyQuickPick(2, homeQuickPick2);
+    if (displayCurrency != CurrencyCode.usd) {
+      setDisplayCurrency(CurrencyCode.usd);
+    }
+    incomeLines
+      ..clear()
+      ..add(
+        CashflowIncomeLine(
+          id: newLedgerRowId('i'),
+          label: 'Salary',
+          annualAmount: salaryAnnualUsd,
+          currencyCountry: CurrencyCode.usd.code,
+        ),
+      );
+    if (bonusAnnualUsd != null && bonusAnnualUsd > 0) {
+      incomeLines.add(
+        CashflowIncomeLine(
+          id: newLedgerRowId('i'),
+          label: 'Bonus',
+          annualAmount: bonusAnnualUsd,
+          currencyCountry: CurrencyCode.usd.code,
+        ),
+      );
+    }
+    if (rsuAnnualUsd != null && rsuAnnualUsd > 0) {
+      incomeLines.add(
+        CashflowIncomeLine(
+          id: newLedgerRowId('i'),
+          label: 'RSUs',
+          annualAmount: rsuAnnualUsd,
+          currencyCountry: CurrencyCode.usd.code,
+        ),
+      );
+    }
+    incomeLastUpdated = DateTime.now();
+    userTouchedIncome = true;
+    setEffectiveTaxRatePct(effectiveTaxRatePct);
+    for (final e in expenseBucketsMonthlyUsd.entries) {
+      setExpenseBucket(e.key, e.value);
+    }
+    if (expenseContextNote != null && expenseContextNote.trim().isNotEmpty) {
+      setExpenseBucketContextMarkdown(bucketKey: 'other', markdown: expenseContextNote.trim());
+    }
+    markExpenseEstimatesUpdated();
+    onboardingComplete = true;
+    syncAllocationsFromFraction();
+    _scheduleAppStatePersist();
+    notifyListeners();
+  }
+
   void setExpenseBucketContextMarkdown({required String bucketKey, required String markdown}) {
     expenseBucketContextMarkdown = {...expenseBucketContextMarkdown, bucketKey: markdown};
     _touchContextNoteSaved(contextKeyBucket(bucketKey));
@@ -3363,6 +3464,119 @@ class AppModel extends ChangeNotifier {
     monthlyCashflowByMonth.clear();
   }
 
+  bool get dummyDataPristine {
+    if (!dummyDataActive) return false;
+    final snapRaw = dummySeedSnapshot['monthlyCashflowByMonth'];
+    if (snapRaw is! Map) return false;
+    for (final e in snapRaw.entries) {
+      final mk = e.key.toString();
+      final cur = monthlyCashflowByMonth[mk];
+      if (cur == null) return false;
+      final curEnc = app_state.encodeMonthlyCashflowEntry(cur);
+      if (curEnc.toString() != e.value.toString()) return false;
+    }
+    return true;
+  }
+
+  void seedDummyData() {
+    if (dummyDataActive) return;
+    final now = DateTime.now();
+    final base = DateTime(now.year, now.month, 1);
+    final months = <String>[];
+    for (var i = 6; i >= 1; i--) {
+      final d = DateTime(base.year, base.month - i, 1);
+      months.add(monthKeyFor(d));
+    }
+
+    final seeded = <String, dynamic>{};
+    var opening = 12000.0;
+    for (final mk in months) {
+      final earned = (netIncomeMonthly * 0.92).clamp(0, double.infinity).toDouble();
+      final spending = (totalExpensesMonthly * 0.95).clamp(0, double.infinity).toDouble();
+      final saved = (availableAfterExpensesMonthly * 0.35).clamp(0, double.infinity).toDouble();
+      final invested = (availableAfterExpensesMonthly * 0.55).clamp(0, double.infinity).toDouble();
+      final closing = (opening + earned - spending - saved - invested).clamp(0, double.infinity).toDouble();
+      final e = MonthlyCashflowEntry(
+        monthKey: mk,
+        openingBalance: opening,
+        closingBalance: closing,
+        monthlyEarned: earned,
+        monthlySpending: spending,
+        outflowToCashFd: saved,
+        outflowToInvested: invested,
+        savingsLines: const [],
+        investmentLines: const [],
+      );
+      monthlyCashflowByMonth[mk] = e;
+      seeded[mk] = app_state.encodeMonthlyCashflowEntry(e);
+      opening = closing;
+    }
+
+    dummyDataActive = true;
+    dummySeedSnapshot = {'monthlyCashflowByMonth': seeded};
+    _scheduleAppStatePersist();
+    notifyListeners();
+  }
+
+  void clearDummyDataIfUntouched() {
+    final snapRaw = dummySeedSnapshot['monthlyCashflowByMonth'];
+    if (snapRaw is Map) {
+      for (final e in snapRaw.entries) {
+        final mk = e.key.toString();
+        final cur = monthlyCashflowByMonth[mk];
+        if (cur == null) continue;
+        final curEnc = app_state.encodeMonthlyCashflowEntry(cur);
+        if (curEnc.toString() == e.value.toString()) {
+          monthlyCashflowByMonth.remove(mk);
+        }
+      }
+    }
+    dummyDataActive = false;
+    dummySeedSnapshot = {};
+    _scheduleAppStatePersist();
+    notifyListeners();
+  }
+
+  Future<void> resetAllUserDataAndRestartOnboarding() async {
+    assets.clear();
+    liabilities.clear();
+    incomeLines.clear();
+    monthlyCashflowByMonth.clear();
+    expenseBuckets = {
+      for (final k in expenseBucketKeys) k: presetForCountry(expensePresetCountry).buckets[k]!.value,
+    };
+    expenseBucketContextMarkdown = {for (final k in expenseBucketKeys) k: ''};
+    primaryIncomeAssetId = null;
+    effectiveTaxRatePct = null;
+    incomeLastUpdated = null;
+    expenseEstimatesLastUpdated = null;
+    allocationTargetLastUpdated = null;
+    assetsLastReviewed = null;
+    liabilitiesLastReviewed = null;
+    allocInvestFraction = 0.5;
+    allocInvestmentsMonthly = 0;
+    allocSavingsMonthly = 0;
+    allocationContextMarkdown = '';
+
+    clearLedgerAssetReviews();
+    clearLedgerLiabilityReviews();
+    clearContextAssetReviews();
+    clearContextLiabilityReviews();
+    contextNoteSavedAtUtc.clear();
+    financialGoals.clear();
+
+    userTouchedExpenses = false;
+    userTouchedIncome = false;
+    userTouchedAssets = false;
+    userTouchedLiabilities = false;
+    onboardingComplete = false;
+    dummyDataActive = false;
+    dummySeedSnapshot = {};
+
+    await persistAppStateToDisk();
+    notifyListeners();
+  }
+
   double get totalIncomeAnnualDisplay => incomeLines.fold<double>(
         0,
         (s, line) =>
@@ -3563,6 +3777,9 @@ class AppModel extends ChangeNotifier {
         'anthropicModel': anthropicModel,
         'geminiModel': geminiModel,
         'privacyHideAmounts': privacyHideAmounts,
+        'onboardingComplete': onboardingComplete,
+        'dummyDataActive': dummyDataActive,
+        'dummySeedSnapshot': dummySeedSnapshot,
         'homeSummaryText': homeSummaryText,
         'displayCurrency': displayCurrency.name,
         'homeCurrencyQuickPick1': homeCurrencyQuickPick1.name,
@@ -3680,6 +3897,16 @@ class AppModel extends ChangeNotifier {
       final gm = s['geminiModel']?.toString();
       if (gm != null && gm.trim().isNotEmpty) geminiModel = gm.trim();
       if (s['privacyHideAmounts'] == true) privacyHideAmounts = true;
+      if (s.containsKey('onboardingComplete')) {
+        onboardingComplete = s['onboardingComplete'] == true;
+      }
+      if (s.containsKey('dummyDataActive')) {
+        dummyDataActive = s['dummyDataActive'] == true;
+      }
+      final seed = s['dummySeedSnapshot'];
+      if (seed is Map) {
+        dummySeedSnapshot = Map<String, dynamic>.from(seed);
+      }
       final h = s['homeSummaryText']?.toString();
       if (h != null) homeSummaryText = h;
       final dc = s['displayCurrency']?.toString();

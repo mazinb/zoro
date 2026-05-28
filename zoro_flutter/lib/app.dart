@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import 'core/state/app_model.dart';
-import 'features/shell/main_scaffold.dart';
+import 'features/shell/app_shell.dart';
 
 class ZoroApp extends StatefulWidget {
   const ZoroApp({super.key});
@@ -35,7 +35,7 @@ class _ZoroAppState extends State<ZoroApp> {
           theme: _model.themedLight(),
           darkTheme: _model.themedDark(),
           themeMode: _model.themeModePreference,
-          home: MainScaffold(model: _model),
+          home: AppShell(model: _model),
         );
       },
     );

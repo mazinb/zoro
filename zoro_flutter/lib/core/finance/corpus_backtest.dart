@@ -29,6 +29,8 @@ class CorpusBacktestResult {
     required this.equityPct,
     required this.equitySeriesName,
     required this.debtSeriesName,
+    required this.startYear,
+    required this.inflationPctAnnual,
   });
 
   final double initialCorpus;
@@ -38,23 +40,31 @@ class CorpusBacktestResult {
   final double equityPct;
   final String equitySeriesName;
   final String debtSeriesName;
+  final int startYear;
+  final double inflationPctAnnual;
 }
 
-/// Simulate annual drawdown: withdraw [annualExpense] at year start, then apply blended return.
+/// Simulate annual drawdown: withdraw inflation-adjusted expenses at year start,
+/// then apply blended return. Expenses grow by [inflationPctAnnual] each year.
 List<CorpusBacktestYearRow> simulateCorpusBacktest({
   required double initialCorpus,
-  required double annualExpense,
+  required double annualExpenseInitial,
+  required double inflationPctAnnual,
   required HistoricalReturnSeries equitySeries,
   required HistoricalReturnSeries debtSeries,
   required double equityPct,
+  int? startYear,
 }) {
   final eqW = equityPct.clamp(0, 100) / 100;
   final debtW = 1 - eqW;
   final overlap = equitySeries.years.toSet().intersection(debtSeries.years.toSet()).toList()..sort();
+  final years = startYear == null ? overlap : overlap.where((y) => y >= startYear).toList();
   var corpus = initialCorpus;
   final rows = <CorpusBacktestYearRow>[];
+  final inf = (inflationPctAnnual / 100).clamp(-0.5, 2.0);
+  var annualExpense = annualExpenseInitial;
 
-  for (final year in overlap) {
+  for (final year in years) {
     final eqRet = equitySeries.returnPctFor(year);
     final debtRet = debtSeries.returnPctFor(year);
     if (eqRet == null || debtRet == null) continue;
@@ -76,6 +86,7 @@ List<CorpusBacktestYearRow> simulateCorpusBacktest({
     );
     corpus = corpusEnd;
     if (depleted) break;
+    annualExpense = (annualExpense * (1 + inf)).clamp(0, double.infinity);
   }
 
   return rows;
@@ -84,17 +95,21 @@ List<CorpusBacktestYearRow> simulateCorpusBacktest({
 CorpusBacktestResult runCorpusBacktest({
   required double initialCorpus,
   required double monthlyExpense,
+  required double inflationPctAnnual,
   required HistoricalReturnSeries equitySeries,
   required HistoricalReturnSeries debtSeries,
   required double equityPct,
+  int? startYear,
 }) {
   final annual = monthlyExpense * 12;
   final rows = simulateCorpusBacktest(
     initialCorpus: initialCorpus,
-    annualExpense: annual,
+    annualExpenseInitial: annual,
+    inflationPctAnnual: inflationPctAnnual,
     equitySeries: equitySeries,
     debtSeries: debtSeries,
     equityPct: equityPct,
+    startYear: startYear,
   );
   final firstDepletion = rows.where((r) => r.depleted).map((r) => r.year).cast<int?>().firstOrNull;
   final survived = rows.isNotEmpty && firstDepletion == null;
@@ -106,6 +121,8 @@ CorpusBacktestResult runCorpusBacktest({
     equityPct: equityPct.clamp(0, 100),
     equitySeriesName: equitySeries.name,
     debtSeriesName: debtSeries.name,
+    startYear: rows.isEmpty ? (startYear ?? 0) : rows.first.year,
+    inflationPctAnnual: inflationPctAnnual,
   );
 }
 

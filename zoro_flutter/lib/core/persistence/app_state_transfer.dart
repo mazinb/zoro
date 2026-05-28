@@ -276,6 +276,7 @@ class AppStateTransfer {
             equityPct: model.corpusBacktestEquityPct,
             equitySeriesId: model.corpusBacktestEquitySeriesId,
             debtSeriesId: model.corpusBacktestDebtSeriesId,
+            startYear: model.corpusBacktestStartYear,
           ),
         },
       },

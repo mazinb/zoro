@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import '../../core/constants/web_expenses_income.dart';
 import '../../core/finance/currency.dart';
 import '../../core/state/app_model.dart';
+import '../../shared/help/tab_help_content.dart';
 import '../../shared/widgets/ledger_card_subtitle.dart';
+import '../../shared/widgets/tab_header_actions.dart';
 import '../../shared/widgets/row_review_leading.dart';
 import '../../core/state/ledger_rows.dart';
 import 'context_editor_page.dart';
@@ -118,23 +120,12 @@ class _ContextTabState extends State<ContextTab> {
               style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
             ),
             const Spacer(),
-            IconButton.filledTonal(
-              onPressed: _contextReviewRunning ? null : _runContextHelper,
-              icon: _contextReviewRunning
-                  ? SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: model.accent,
-                      ),
-                    )
-                  : const Icon(Icons.auto_awesome),
-              tooltip: 'Help',
-              style: IconButton.styleFrom(
-                backgroundColor: model.accentSoft,
-                foregroundColor: model.accent,
-              ),
+            TabHeaderActions(
+              model: model,
+              help: TabHelpContent.context,
+              assistantRunning: _contextReviewRunning,
+              assistantTooltip: 'Context assistant',
+              onAssistant: _runContextHelper,
             ),
           ],
         ),

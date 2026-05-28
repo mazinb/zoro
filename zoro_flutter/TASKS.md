@@ -6,7 +6,8 @@ Privacy-first finance on device. Production API: **getzoro.com**. On-device stor
 
 ## Next
 
-- [ ] **Onboarding** — first-run flow: income/expenses/assets, split slider, retirement date vs invest /mo (see Goals editor retire panel). Unlock reminders per existing `remindersOnboardingComplete` gates.
+- [x] **Onboarding (v1)** — 3-step first-run: USD + 2 FX picks, income (salary/bonus/RSU/tax), 4× expense MCQ + optional Apple on-device note. Tab ? how-it-works + Reddit footer.
+- [ ] **Onboarding (v2)** — assets/liabilities seed, split slider, retirement date vs invest /mo (Goals editor retire panel).
 
 ---
 

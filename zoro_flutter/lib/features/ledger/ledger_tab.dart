@@ -1,9 +1,13 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:dirham_symbol/dirham_symbol.dart';
 
 import '../../core/state/app_model.dart';
+import '../../shared/help/tab_help_content.dart';
 import '../../shared/widgets/liquid_glass.dart';
+import '../../shared/widgets/tab_header_actions.dart';
 import '../../core/state/monthly_cashflow_entry.dart';
 import '../../core/state/ledger_rows.dart';
 import '../../core/constants/web_expenses_income.dart';
@@ -421,25 +425,14 @@ class _LedgerTabState extends State<LedgerTab> {
               ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
             ),
             const Spacer(),
-            IconButton.filledTonal(
-              onPressed: _ledgerReviewRunning ? null : _onLedgerHelperPressed,
-              icon: _ledgerReviewRunning
-                  ? SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: widget.model.accent,
-                      ),
-                    )
-                  : const Icon(Icons.auto_awesome),
-              tooltip: _mode == LedgerMode.cashflow
+            TabHeaderActions(
+              model: widget.model,
+              help: TabHelpContent.ledger,
+              assistantRunning: _ledgerReviewRunning,
+              assistantTooltip: _mode == LedgerMode.cashflow
                   ? 'Expense estimates'
                   : (_mode == LedgerMode.assets ? 'Review assets' : 'Review liabilities'),
-              style: IconButton.styleFrom(
-                backgroundColor: widget.model.accentSoft,
-                foregroundColor: widget.model.accent,
-              ),
+              onAssistant: _onLedgerHelperPressed,
             ),
             const SizedBox(width: 10),
             if (_mode == LedgerMode.cashflow)
@@ -996,6 +989,8 @@ class _MonthlyCashflowEditorPageState
                   child: TextField(
                     controller: _openingCtrl,
                     keyboardType: TextInputType.number,
+                    textInputAction: TextInputAction.next,
+                    onSubmitted: (_) => FocusScope.of(context).nextFocus(),
                     inputFormatters: [
                       GroupedIntegerTextInputFormatter(
                         currency: m.displayCurrency,
@@ -1014,6 +1009,8 @@ class _MonthlyCashflowEditorPageState
                   child: TextField(
                     controller: _closingCtrl,
                     keyboardType: TextInputType.number,
+                    textInputAction: TextInputAction.next,
+                    onSubmitted: (_) => FocusScope.of(context).nextFocus(),
                     inputFormatters: [
                       GroupedIntegerTextInputFormatter(
                         currency: m.displayCurrency,
@@ -1031,6 +1028,8 @@ class _MonthlyCashflowEditorPageState
             TextField(
               controller: _earnedCtrl,
               keyboardType: TextInputType.number,
+              textInputAction: TextInputAction.next,
+              onSubmitted: (_) => FocusScope.of(context).nextFocus(),
               inputFormatters: [
                 GroupedIntegerTextInputFormatter(currency: m.displayCurrency),
               ],
@@ -1046,6 +1045,8 @@ class _MonthlyCashflowEditorPageState
                   child: TextField(
                     controller: _cashFdCtrl,
                     keyboardType: TextInputType.number,
+                    textInputAction: TextInputAction.next,
+                    onSubmitted: (_) => FocusScope.of(context).nextFocus(),
                     inputFormatters: [
                       GroupedIntegerTextInputFormatter(
                         currency: m.displayCurrency,
@@ -1062,6 +1063,9 @@ class _MonthlyCashflowEditorPageState
                   child: TextField(
                     controller: _invCtrl,
                     keyboardType: TextInputType.number,
+                    textInputAction: TextInputAction.done,
+                    onEditingComplete: () => FocusManager.instance.primaryFocus?.unfocus(),
+                    onSubmitted: (_) => FocusManager.instance.primaryFocus?.unfocus(),
                     inputFormatters: [
                       GroupedIntegerTextInputFormatter(
                         currency: m.displayCurrency,
@@ -2291,7 +2295,10 @@ class _ExpensesSection extends StatelessWidget {
         Center(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            child: ExpenseDonutChart(
+            child: _InteractiveExpenseDonut(
+              model: model,
+              enabled: !privacy,
+              onDisabled: onPrivacyInteractionDenied,
               segments: segments,
               centerTitle: centerTitle,
               centerSubtitle: 'est. / month',
@@ -2307,27 +2314,37 @@ class _ExpensesSection extends StatelessWidget {
           runSpacing: 8,
           children: [
             for (final s in segments)
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 10,
-                    height: 10,
-                    decoration: BoxDecoration(
-                      color: s.color,
-                      shape: BoxShape.circle,
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: privacy
+                    ? onPrivacyInteractionDenied
+                    : () => openSingleExpenseBucketEditorSheet(
+                          context: context,
+                          model: model,
+                          bucketKey: s.key,
+                        ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 10,
+                      height: 10,
+                      decoration: BoxDecoration(
+                        color: s.color,
+                        shape: BoxShape.circle,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    s.label,
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: cs.onSurfaceVariant,
+                    const SizedBox(width: 6),
+                    Text(
+                      s.label,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: cs.onSurfaceVariant,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
           ],
         ),
@@ -2348,13 +2365,7 @@ class _ExpensesSection extends StatelessWidget {
               onPressed: privacy
                   ? onPrivacyInteractionDenied
                   : () {
-                      Navigator.of(context).push<void>(
-                        MaterialPageRoute<void>(
-                          fullscreenDialog: true,
-                          builder: (ctx) =>
-                              ExpenseEstimatesEditorPage(model: model),
-                        ),
-                      );
+                      openExpenseEstimatesEditorSheet(context: context, model: model);
                     },
               icon: Icon(
                 Icons.tune,
@@ -2412,6 +2423,134 @@ class _ExpensesSection extends StatelessWidget {
             ),
         ],
       ],
+    );
+  }
+}
+
+/// iOS-ish press feedback + segment-aware long press on the donut ring.
+class _InteractiveExpenseDonut extends StatefulWidget {
+  const _InteractiveExpenseDonut({
+    required this.model,
+    required this.enabled,
+    required this.onDisabled,
+    required this.segments,
+    required this.centerTitle,
+    required this.centerSubtitle,
+    required this.size,
+    required this.strokeWidth,
+  });
+
+  final AppModel model;
+  final bool enabled;
+  final VoidCallback onDisabled;
+  final List<ExpenseDonutSegment> segments;
+  final String centerTitle;
+  final String centerSubtitle;
+  final double size;
+  final double strokeWidth;
+
+  @override
+  State<_InteractiveExpenseDonut> createState() => _InteractiveExpenseDonutState();
+}
+
+class _InteractiveExpenseDonutState extends State<_InteractiveExpenseDonut> {
+  bool _pressed = false;
+  String? _pendingBucketKey;
+
+  void _setPressed(bool v) {
+    if (_pressed == v) return;
+    setState(() => _pressed = v);
+  }
+
+  String? _bucketKeyAtLocalPosition(Offset p) {
+    final size = widget.size;
+    final strokeWidth = widget.strokeWidth;
+    final c = Offset(size / 2, size / 2);
+    final d = (p - c).distance;
+    final radius = (size - strokeWidth) / 2;
+    final inner = radius - strokeWidth / 2;
+    final outer = radius + strokeWidth / 2;
+    if (d < inner || d > outer) return null;
+
+    final total = widget.segments.fold<double>(0, (s, e) => s + e.value);
+    if (total <= 0) return null;
+
+    // Angle where 0 corresponds to start = -pi/2 (12 o'clock), increasing clockwise.
+    var ang = math.atan2(p.dy - c.dy, p.dx - c.dx);
+    ang = ang - (-math.pi / 2);
+    while (ang < 0) {
+      ang += 2 * math.pi;
+    }
+    while (ang >= 2 * math.pi) {
+      ang -= 2 * math.pi;
+    }
+
+    var acc = 0.0;
+    for (final seg in widget.segments) {
+      if (seg.value <= 0) continue;
+      final sweep = (seg.value / total) * 2 * math.pi;
+      if (ang >= acc && ang < acc + sweep) return seg.key;
+      acc += sweep;
+    }
+    return null;
+  }
+
+  Future<void> _openPendingBucket() async {
+    final k = _pendingBucketKey;
+    if (k == null) return;
+    await openSingleExpenseBucketEditorSheet(
+      context: context,
+      model: widget.model,
+      bucketKey: k,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTapDown: (_) {
+        if (!widget.enabled) return;
+        HapticFeedback.selectionClick();
+        _setPressed(true);
+      },
+      onTapCancel: () => _setPressed(false),
+      onTapUp: (_) => _setPressed(false),
+      onLongPressStart: (d) {
+        if (!widget.enabled) {
+          widget.onDisabled();
+          return;
+        }
+        _pendingBucketKey = _bucketKeyAtLocalPosition(d.localPosition);
+        if (_pendingBucketKey != null) {
+          HapticFeedback.selectionClick();
+        }
+        _setPressed(true);
+      },
+      onLongPressEnd: (_) => _setPressed(false),
+      onLongPress: widget.enabled
+          ? () {
+              if (_pendingBucketKey == null) return;
+              _openPendingBucket();
+            }
+          : widget.onDisabled,
+      child: AnimatedScale(
+        scale: _pressed ? 0.985 : 1.0,
+        duration: const Duration(milliseconds: 110),
+        curve: Curves.easeOutCubic,
+        child: AnimatedOpacity(
+          opacity: _pressed ? 0.94 : 1.0,
+          duration: const Duration(milliseconds: 110),
+          curve: Curves.easeOutCubic,
+          child: ExpenseDonutChart(
+            segments: widget.segments,
+            centerTitle: widget.centerTitle,
+            centerSubtitle: widget.centerSubtitle,
+            size: widget.size,
+            strokeWidth: widget.strokeWidth,
+          ),
+        ),
+      ),
     );
   }
 }

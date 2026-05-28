@@ -452,6 +452,7 @@ Map<String, dynamic> encodeCorpusBacktestBlock(AppModel model) => encodeCorpusBa
       equityPct: model.corpusBacktestEquityPct,
       equitySeriesId: model.corpusBacktestEquitySeriesId,
       debtSeriesId: model.corpusBacktestDebtSeriesId,
+      startYear: model.corpusBacktestStartYear,
     );
 
 void decodeCorpusBacktestBlock(Object? raw, AppModel model) {
@@ -461,5 +462,6 @@ void decodeCorpusBacktestBlock(Object? raw, AppModel model) {
     onEquityPct: (v) => model.corpusBacktestEquityPct = v,
     onEquitySeriesId: (v) => model.corpusBacktestEquitySeriesId = v,
     onDebtSeriesId: (v) => model.corpusBacktestDebtSeriesId = v,
+    onStartYear: (v) => model.corpusBacktestStartYear = v,
   );
 }

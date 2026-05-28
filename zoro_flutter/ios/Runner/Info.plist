@@ -70,6 +70,8 @@
 	<false/>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Used for optional on-device model download and inference helpers.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Zoro lets you choose photos of statements, receipts, or notes to import into your ledger, cashflow, or personal context. Images stay on your device unless you send them to your own LLM provider in Settings.</string>
 	<key>UIFileSharingEnabled</key>
 	<true/>
 </dict>

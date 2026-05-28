@@ -34,6 +34,7 @@ class CorpusBacktestPage extends StatefulWidget {
 class _CorpusBacktestPageState extends State<CorpusBacktestPage> {
   late double _swr;
   late bool _corpusFromExpenses;
+  int? _startYear;
 
   AppModel get m => widget.model;
 
@@ -43,6 +44,7 @@ class _CorpusBacktestPageState extends State<CorpusBacktestPage> {
     final r = m.retirementGoal;
     _swr = quantizeWithdrawalRatePct(r?.safeWithdrawalRatePct ?? 4);
     _corpusFromExpenses = r?.corpusAutoFromExpenses ?? true;
+    _startYear = m.corpusBacktestStartYear;
   }
 
   double get _corpusBase {
@@ -80,6 +82,17 @@ class _CorpusBacktestPageState extends State<CorpusBacktestPage> {
         final debtPct = 100 - equityPct;
         final equityOptions = m.historicalSeriesForClass(HistoricalAssetClass.equity);
         final debtOptions = m.historicalSeriesForClass(HistoricalAssetClass.debt);
+        final inflation = (m.projectionInflationPctAnnual[m.displayCurrency] ?? 0).toStringAsFixed(1);
+
+        final eq = m.historicalSeriesById(m.corpusBacktestEquitySeriesId) ??
+            m.historicalSeriesById(kDefaultUsSp500SeriesId);
+        final de = m.historicalSeriesById(m.corpusBacktestDebtSeriesId) ??
+            m.historicalSeriesById(kDefaultUsAggBondSeriesId);
+        final overlapYears = (eq == null || de == null)
+            ? const <int>[]
+            : (eq.years.toSet().intersection(de.years.toSet()).toList()..sort());
+        final minYear = overlapYears.isEmpty ? null : overlapYears.first;
+        final maxYear = overlapYears.isEmpty ? null : overlapYears.last;
 
         return Scaffold(
           extendBodyBehindAppBar: true,
@@ -136,6 +149,50 @@ class _CorpusBacktestPageState extends State<CorpusBacktestPage> {
                           value: _corpusFromExpenses,
                           onChanged: (on) => setState(() => _corpusFromExpenses = on),
                         ),
+                        if (minYear != null && maxYear != null) ...[
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              Text(
+                                'Start year',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 12,
+                                  color: cs.onSurfaceVariant,
+                                ),
+                              ),
+                              const Spacer(),
+                              Text(
+                                (_startYear ?? minYear).toString(),
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 12,
+                                  color: cs.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ),
+                          Slider(
+                            value: ((_startYear ?? minYear) - minYear).toDouble(),
+                            min: 0,
+                            max: (maxYear - minYear).toDouble(),
+                            divisions: (maxYear - minYear).clamp(1, 120),
+                            label: (_startYear ?? minYear).toString(),
+                            onChanged: (v) {
+                              final year = (minYear + v.round()).clamp(minYear, maxYear);
+                              setState(() => _startYear = year);
+                              m.setCorpusBacktestStartYear(year);
+                            },
+                          ),
+                          Text(
+                            'Expenses grow with inflation ($inflation%/yr)',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: cs.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),

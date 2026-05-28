@@ -251,11 +251,13 @@ Map<String, dynamic> encodeCorpusBacktestPrefs({
   required double equityPct,
   required String equitySeriesId,
   required String debtSeriesId,
+  int? startYear,
 }) =>
     {
       'equityPct': equityPct,
       'equitySeriesId': equitySeriesId,
       'debtSeriesId': debtSeriesId,
+      'startYear': startYear,
     };
 
 void decodeCorpusBacktestPrefs(
@@ -263,6 +265,7 @@ void decodeCorpusBacktestPrefs(
   required void Function(double equityPct) onEquityPct,
   required void Function(String equitySeriesId) onEquitySeriesId,
   required void Function(String debtSeriesId) onDebtSeriesId,
+  void Function(int startYear)? onStartYear,
 }) {
   if (raw == null) return;
   final eq = raw['equityPct'];
@@ -271,4 +274,6 @@ void decodeCorpusBacktestPrefs(
   if (es != null && es.isNotEmpty) onEquitySeriesId(es);
   final ds = raw['debtSeriesId']?.toString();
   if (ds != null && ds.isNotEmpty) onDebtSeriesId(ds);
+  final sy = raw['startYear'];
+  if (onStartYear != null && sy is num) onStartYear(sy.round());
 }

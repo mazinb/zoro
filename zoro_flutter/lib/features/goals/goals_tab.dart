@@ -6,7 +6,9 @@ import '../../core/finance/goals_calculator.dart';
 import '../../core/state/app_model.dart';
 import '../../core/state/financial_goals.dart';
 import '../../core/state/ledger_rows.dart';
+import '../../shared/help/tab_help_content.dart';
 import '../../shared/widgets/liquid_glass.dart';
+import '../../shared/widgets/tab_header_actions.dart';
 import '../../shared/widgets/zoro_status_banner.dart';
 import 'goal_editor_sheet.dart';
 import 'goal_widgets.dart';
@@ -213,17 +215,14 @@ class _GoalsBody extends StatelessWidget {
           children: [
             Text('Goals', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
             const Spacer(),
-            IconButton.filledTonal(
-              onPressed: () => openGoalsAiAssistant(
+            TabHeaderActions(
+              model: m,
+              help: TabHelpContent.goals,
+              assistantTooltip: 'Goals helper',
+              onAssistant: () => openGoalsAiAssistant(
                 context: context,
                 model: m,
                 onOpenSettings: onGoToSettingsPermissions,
-              ),
-              icon: const Icon(Icons.auto_awesome),
-              tooltip: 'Goals assistant',
-              style: IconButton.styleFrom(
-                backgroundColor: m.accentSoft,
-                foregroundColor: accent,
               ),
             ),
           ],

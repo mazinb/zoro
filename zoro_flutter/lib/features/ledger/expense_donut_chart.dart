@@ -5,8 +5,9 @@ import 'package:flutter/material.dart';
 import '../../core/constants/web_expenses_income.dart';
 
 class ExpenseDonutSegment {
-  const ExpenseDonutSegment({required this.label, required this.value, required this.color});
+  const ExpenseDonutSegment({required this.key, required this.label, required this.value, required this.color});
 
+  final String key;
   final String label;
   final double value;
   final Color color;
@@ -132,7 +133,7 @@ List<ExpenseDonutSegment> expenseDonutSegmentsFromPreset(
     final v = expenseBuckets[k] ?? 0;
     if (v <= 0) continue;
     final label = _shortExpenseLabel(k);
-    out.add(ExpenseDonutSegment(label: label, value: v, color: bucketColorHighContrast(k)));
+    out.add(ExpenseDonutSegment(key: k, label: label, value: v, color: bucketColorHighContrast(k)));
   }
   return out;
 }
