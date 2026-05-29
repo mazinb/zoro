@@ -52,6 +52,20 @@ class ExpenseBucketPreset {
 
 const countryPresets = <CountryPreset>[
   CountryPreset(
+    name: 'Hong Kong',
+    flag: '🇭🇰',
+    currencySymbol: r'HK$',
+    buckets: {
+      // Conservative defaults; mostly used for label/symbol + slider bounds.
+      'housing': ExpenseBucketPreset(label: 'Housing & Utilities', value: 16000, min: 7000, max: 40000, step: 500),
+      'food': ExpenseBucketPreset(label: 'Food & Dining', value: 7000, min: 3000, max: 20000, step: 250),
+      'transportation': ExpenseBucketPreset(label: 'Transportation', value: 1200, min: 400, max: 4000, step: 100),
+      'healthcare': ExpenseBucketPreset(label: 'Healthcare & Insurance', value: 2000, min: 500, max: 8000, step: 100),
+      'entertainment': ExpenseBucketPreset(label: 'Entertainment & Leisure', value: 2000, min: 500, max: 8000, step: 100),
+      'other': ExpenseBucketPreset(label: 'Other Expenses', value: 2000, min: 500, max: 8000, step: 100),
+    },
+  ),
+  CountryPreset(
     name: 'India',
     flag: '🇮🇳',
     currencySymbol: '₹',
@@ -95,7 +109,8 @@ const countryPresets = <CountryPreset>[
 CountryPreset presetForCountry(String name) {
   return countryPresets.firstWhere(
     (c) => c.name == name,
-    orElse: () => countryPresets.first,
+    // Never default to India; unknown currencies should not show the wrong flag/symbol.
+    orElse: () => countryPresets.firstWhere((c) => c.name == 'US'),
   );
 }
 

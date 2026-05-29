@@ -28,6 +28,7 @@ abstract final class InternalAppAgentIds {
   static const goalsReviewAssumptions = 'goals_review_assumptions';
 
   static const exportSanitizer = 'export_sanitizer';
+  static const homeSummaryHelper = 'home_summary_helper';
 }
 
 /// Registry entry for Settings → App helpers. Add rows here to surface new built-in helpers.
@@ -506,6 +507,22 @@ Only include bucket keys from payload.bucketKeys. Amounts are monthly in display
     infoWhatItDoes: 'AI proposes monthly expense bucket estimates; user reviews before updating the ledger.',
     infoContextSent: 'Goal name/kind, current bucket estimates, recurring total — compact, no full asset list.',
     modelDomainHints: 'Planner: max 5 questions. Synth: expenseBuckets object with proposed monthly values.',
+  ),
+  InternalAppAgentDefinition(
+    id: InternalAppAgentIds.homeSummaryHelper,
+    title: 'Home summary',
+    listSubtitle: 'Home → daily note (on-device)',
+    icon: Icons.wb_sunny_outlined,
+    defaultSystemPrompt: '''
+You rotate through one area of the user's finances each day (assets, liabilities, cash flow, context notes, or goals).
+
+Be practical: call out what looks stale, missing, or on track. One gentle nudge is enough.
+''',
+    infoWhatItDoes:
+        'When the app opens, writes a short daily note on Home — one topic per day, sized for Apple on-device models.',
+    infoContextSent:
+        'Compact JSON for the day\'s focus only: totals, review freshness, a few row names, or goals snapshot.',
+    modelDomainHints: 'Plain text only; never return JSON.',
   ),
   InternalAppAgentDefinition(
     id: InternalAppAgentIds.exportSanitizer,

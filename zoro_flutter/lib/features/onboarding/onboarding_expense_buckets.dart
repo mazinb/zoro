@@ -152,12 +152,13 @@ Future<Map<String, double>?> appleOnboardingExpenseBuckets({
   required String note,
   required StructuredGuideResult mcq,
   required double netMonthlyIncomeDisplay,
+  required CurrencyCode expenseCurrency,
   required Map<String, double> baselineBuckets,
 }) async {
   if (!model.appleFoundationRuntimeAvailable) return null;
 
   final payload = {
-    'displayCurrency': CurrencyCode.usd.name,
+    'displayCurrency': expenseCurrency.name,
     'netMonthlyIncome': netMonthlyIncomeDisplay,
     'bucketKeys': recurringExpenseBucketKeys,
     'baselineBuckets': baselineBuckets,

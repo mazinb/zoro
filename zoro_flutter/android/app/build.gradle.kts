@@ -6,6 +6,9 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+import java.util.Properties
+import java.io.FileInputStream
+
 android {
     namespace = "com.getzoro.zoroFlutter.zoro_flutter"
     compileSdk = flutter.compileSdkVersion
@@ -31,6 +34,24 @@ android {
         versionName = flutter.versionName
     }
 
+    val keystoreProperties = Properties()
+    val keystorePropertiesFile = rootProject.file("key.properties")
+    val hasReleaseKeys = keystorePropertiesFile.exists()
+    if (hasReleaseKeys) {
+        keystoreProperties.load(FileInputStream(keystorePropertiesFile))
+    }
+
+    signingConfigs {
+        if (hasReleaseKeys) {
+            create("release") {
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+                storeFile = file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+            }
+        }
+    }
+
     flavorDimensions += "env"
     productFlavors {
         create("dev") {
@@ -46,9 +67,10 @@ android {
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // Release signing: uses android/key.properties when present (do NOT ship
+            // to the Play Store with debug keys). Local `flutter run --release`
+            // still works without keys by falling back to debug signing.
+            signingConfig = signingConfigs.getByName(if (hasReleaseKeys) "release" else "debug")
         }
     }
 }

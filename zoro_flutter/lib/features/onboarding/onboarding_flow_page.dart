@@ -9,6 +9,7 @@ import '../../shared/guided_mcq/structured_guide_page.dart';
 import '../../shared/help/how_it_works_page.dart';
 import '../../shared/help/tab_help_content.dart';
 import '../../shared/widgets/liquid_glass.dart';
+import 'onboarding_dummy_seed.dart';
 import 'onboarding_expense_buckets.dart';
 
 const _kOnboardingFxPickerOptions = <CurrencyCode>[
@@ -19,6 +20,7 @@ const _kOnboardingFxPickerOptions = <CurrencyCode>[
   CurrencyCode.aud,
   CurrencyCode.eur,
   CurrencyCode.jpy,
+  CurrencyCode.hkd,
 ];
 
 /// First-run setup: currencies → income → expense estimates.
@@ -41,6 +43,7 @@ class _OnboardingFlowPageState extends State<OnboardingFlowPage> {
   final Map<String, TextEditingController> _manualBucketCtrls = {};
   bool _expenseManual = false;
   bool? _addDummyData;
+  CurrencyCode _expenseCcy = CurrencyCode.usd;
 
   CurrencyCode? _pick1;
   CurrencyCode? _pick2;
@@ -51,6 +54,9 @@ class _OnboardingFlowPageState extends State<OnboardingFlowPage> {
   final _bonusCtrl = TextEditingController();
   final _rsuCtrl = TextEditingController();
   final _taxCtrl = TextEditingController();
+  CurrencyCode _salaryCcy = CurrencyCode.usd;
+  CurrencyCode _bonusCcy = CurrencyCode.usd;
+  CurrencyCode _rsuCcy = CurrencyCode.usd;
 
   bool _finishing = false;
 
@@ -89,16 +95,29 @@ class _OnboardingFlowPageState extends State<OnboardingFlowPage> {
   }
 
   double get _netMonthlyIncomeUsd {
-    final grossAnnual = _annualFromSalaryField() + (_parseIncomeField(_bonusCtrl) ?? 0) + (_parseIncomeField(_rsuCtrl) ?? 0);
+    // Approx in USD for onboarding heuristics only.
+    double toUsd(double v, CurrencyCode c) => convertCurrency(value: v, from: c, to: CurrencyCode.usd);
+    final salaryAnnualUsd = toUsd(_annualFromSalaryField(), _salaryCcy);
+    final bonusAnnualUsd = toUsd((_parseIncomeField(_bonusCtrl) ?? 0), _bonusCcy);
+    final rsuAnnualUsd = toUsd((_parseIncomeField(_rsuCtrl) ?? 0), _rsuCcy);
+    final grossAnnual = salaryAnnualUsd + bonusAnnualUsd + rsuAnnualUsd;
     final tax = double.tryParse(_taxCtrl.text.trim()) ?? 0;
     final netAnnual = grossAnnual * (1 - tax.clamp(0, 90) / 100);
     return netAnnual / 12;
   }
 
+  // Allow only 2 currencies: one required income currency + optional second.
   bool get _canNextCurrency =>
-      _pick1 != null && _pick2 != null && _pick1 != _pick2;
+      _pick1 != null && (_pick2 == null || _pick2 != _pick1);
 
   bool get _canNextIncome => (_parseIncomeField(_salaryCtrl) ?? 0) > 0;
+
+  List<CurrencyCode> get _expenseCurrencyOptions {
+    final p1 = _pick1 ?? CurrencyCode.usd;
+    final out = <CurrencyCode>[CurrencyCode.usd, p1];
+    if (_pick2 != null && _pick2 != p1) out.add(_pick2!);
+    return out;
+  }
 
   List<StructuredGuideStep> get _expenseSteps =>
       onboardingExpenseMcqSteps(netMonthlyIncomeDisplay: _netMonthlyIncomeUsd);
@@ -165,7 +184,7 @@ class _OnboardingFlowPageState extends State<OnboardingFlowPage> {
   TextEditingController _bucketCtrl(String key, double initial) {
     return _manualBucketCtrls.putIfAbsent(
       key,
-      () => TextEditingController(text: formatGroupedInteger(initial.round(), currency: CurrencyCode.usd)),
+      () => TextEditingController(text: formatGroupedInteger(initial.round(), currency: _expenseCcy)),
     );
   }
 
@@ -179,7 +198,14 @@ class _OnboardingFlowPageState extends State<OnboardingFlowPage> {
   void _next() {
     if (_mainStep == 0) {
       if (!_canNextCurrency) return;
-      setState(() => _mainStep = 1);
+      setState(() {
+        _mainStep = 1;
+        // Default income currencies to the chosen “income currency”.
+        final c = _pick1 ?? CurrencyCode.usd;
+        _salaryCcy = c;
+        _bonusCcy = c;
+        _rsuCcy = c;
+      });
       return;
     }
     if (_mainStep == 1) {
@@ -189,6 +215,7 @@ class _OnboardingFlowPageState extends State<OnboardingFlowPage> {
         _expenseSubStep = _expenseManual ? -1 : 0;
         _expenseSelected.clear();
         _addDummyData = null;
+        _expenseCcy = _pick1 ?? CurrencyCode.usd;
       });
       return;
     }
@@ -217,7 +244,7 @@ class _OnboardingFlowPageState extends State<OnboardingFlowPage> {
   }
 
   Future<void> _finish({required bool addDummyData}) async {
-    if (_finishing || _pick1 == null || _pick2 == null) return;
+    if (_finishing || _pick1 == null) return;
     setState(() => _finishing = true);
 
     final mcq = StructuredGuideResult(
@@ -225,22 +252,22 @@ class _OnboardingFlowPageState extends State<OnboardingFlowPage> {
       optionalNote: _expenseNoteCtrl.text.trim(),
     );
     final fx = <CurrencyCode, double>{};
-    for (final c in [_pick1!, _pick2!]) {
+    for (final c in [_pick1!, _pick2]) {
+      if (c == null) continue;
       final perUsd = double.tryParse(_fxController(c).text.trim().replaceAll(',', ''));
       if (perUsd != null && perUsd > 0) fx[c] = perUsd;
     }
 
     Map<String, double> buckets;
+    final fxOverrides = {for (final e in fx.entries) e.key: 1 / e.value};
     if (_expenseManual) {
       buckets = {for (final k in recurringExpenseBucketKeys) k: _parseBucketCtrl(k)};
     } else {
       buckets = deterministicOnboardingExpenseBuckets(
-        displayCurrency: CurrencyCode.usd,
+        displayCurrency: _expenseCcy,
         mcq: mcq,
         netMonthlyIncomeDisplay: _netMonthlyIncomeUsd,
-        usdPerUnitOverrides: {
-          for (final e in fx.entries) e.key: 1 / e.value,
-        },
+        usdPerUnitOverrides: fxOverrides,
       );
     }
 
@@ -251,6 +278,7 @@ class _OnboardingFlowPageState extends State<OnboardingFlowPage> {
         note: note,
         mcq: mcq,
         netMonthlyIncomeDisplay: _netMonthlyIncomeUsd,
+        expenseCurrency: _expenseCcy,
         baselineBuckets: buckets,
       );
       if (ai != null && ai.isNotEmpty) buckets = ai;
@@ -258,17 +286,35 @@ class _OnboardingFlowPageState extends State<OnboardingFlowPage> {
 
     widget.model.applyOnboardingSetup(
       homeQuickPick1: _pick1!,
-      homeQuickPick2: _pick2!,
+      homeQuickPick2: _pick2,
       unitsPerUsdByCurrency: fx,
-      salaryAnnualUsd: _annualFromSalaryField(),
-      bonusAnnualUsd: (_parseIncomeField(_bonusCtrl) ?? 0) > 0 ? (_parseIncomeField(_bonusCtrl) ?? 0) : null,
-      rsuAnnualUsd: (_parseIncomeField(_rsuCtrl) ?? 0) > 0 ? (_parseIncomeField(_rsuCtrl) ?? 0) : null,
+      salaryAnnual: _annualFromSalaryField(),
+      salaryCurrency: _salaryCcy,
+      bonusAnnual: (_parseIncomeField(_bonusCtrl) ?? 0) > 0 ? (_parseIncomeField(_bonusCtrl) ?? 0) : null,
+      bonusCurrency: _bonusCcy,
+      rsuAnnual: (_parseIncomeField(_rsuCtrl) ?? 0) > 0 ? (_parseIncomeField(_rsuCtrl) ?? 0) : null,
+      rsuCurrency: _rsuCcy,
       effectiveTaxRatePct: double.tryParse(_taxCtrl.text.trim()),
-      expenseBucketsMonthlyUsd: buckets,
+      expenseBucketsMonthly: buckets,
+      expenseCurrency: _expenseCcy,
       expenseContextNote: note.isEmpty ? null : note,
     );
     if (addDummyData) {
-      widget.model.seedDummyData();
+      final ok = await synthesizeDummyLedgerWithApple(
+        widget.model,
+        primaryCurrency: _salaryCcy,
+        secondaryCurrency: _pick2,
+      );
+      if (!ok) {
+        applyFallbackDummyLedger(
+          widget.model,
+          primaryCurrency: _salaryCcy,
+          secondaryCurrency: _pick2,
+        );
+      }
+      widget.model.finalizeOnboardingDummyLedger();
+    } else {
+      widget.model.clearDummyDataIfUntouched();
     }
 
     if (!mounted) return;
@@ -330,6 +376,12 @@ class _OnboardingFlowPageState extends State<OnboardingFlowPage> {
                         bonusCtrl: _bonusCtrl,
                         rsuCtrl: _rsuCtrl,
                         taxCtrl: _taxCtrl,
+                        salaryCcy: _salaryCcy,
+                        bonusCcy: _bonusCcy,
+                        rsuCcy: _rsuCcy,
+                        onSalaryCcy: (c) => setState(() => _salaryCcy = c),
+                        onBonusCcy: (c) => setState(() => _bonusCcy = c),
+                        onRsuCcy: (c) => setState(() => _rsuCcy = c),
                         onFieldChanged: () => setState(() {}),
                       ),
                     _ => _onExpenseDummyStep
@@ -341,6 +393,9 @@ class _OnboardingFlowPageState extends State<OnboardingFlowPage> {
                             ? _ExpenseNoteStep(controller: _expenseNoteCtrl, finishing: _finishing)
                             : _onExpenseManualStep
                                 ? _ExpenseManualStep(
+                                    expenseCurrency: _expenseCcy,
+                                    currencyOptions: _expenseCurrencyOptions,
+                                    onExpenseCurrency: (c) => setState(() => _expenseCcy = c),
                                     bucketCtrl: _bucketCtrl,
                                     onSwitchToMcq: () => setState(() {
                                       _expenseManual = false;
@@ -351,6 +406,9 @@ class _OnboardingFlowPageState extends State<OnboardingFlowPage> {
                                     step: _currentExpenseStep!,
                                     subIndex: _expenseSubStep,
                                     subTotal: _expenseSteps.length,
+                                    expenseCurrency: _expenseCcy,
+                                    currencyOptions: _expenseCurrencyOptions,
+                                    onExpenseCurrency: (c) => setState(() => _expenseCcy = c),
                                     selected: _expenseSelected,
                                     onSelect: (id, multi) {
                                       setState(() {
@@ -457,12 +515,12 @@ class _CurrencyStep extends StatelessWidget {
     return ListView(
       children: [
         Text(
-          'Home currency',
+          'Currencies',
           style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17, color: cs.onSurface),
         ),
         const SizedBox(height: 6),
         Text(
-          'USD is your default. Pick two more currencies for quick switching on Home.',
+          'Pick your income currency. USD is only used as the reference for exchange rates.',
           style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13, height: 1.35),
         ),
         const SizedBox(height: 16),
@@ -480,7 +538,7 @@ class _CurrencyStep extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         _CurrencyPickCard(
-          label: 'Second currency',
+          label: 'Income currency',
           value: pick1,
           exclude: pick2,
           onChanged: onPick1,
@@ -491,7 +549,7 @@ class _CurrencyStep extends StatelessWidget {
         ],
         const SizedBox(height: 12),
         _CurrencyPickCard(
-          label: 'Third currency',
+          label: 'Optional second currency',
           value: pick2,
           exclude: pick1,
           onChanged: onPick2,
@@ -596,6 +654,12 @@ class _IncomeStep extends StatelessWidget {
     required this.bonusCtrl,
     required this.rsuCtrl,
     required this.taxCtrl,
+    required this.salaryCcy,
+    required this.bonusCcy,
+    required this.rsuCcy,
+    required this.onSalaryCcy,
+    required this.onBonusCcy,
+    required this.onRsuCcy,
     required this.onFieldChanged,
   });
 
@@ -605,6 +669,12 @@ class _IncomeStep extends StatelessWidget {
   final TextEditingController bonusCtrl;
   final TextEditingController rsuCtrl;
   final TextEditingController taxCtrl;
+  final CurrencyCode salaryCcy;
+  final CurrencyCode bonusCcy;
+  final CurrencyCode rsuCcy;
+  final ValueChanged<CurrencyCode> onSalaryCcy;
+  final ValueChanged<CurrencyCode> onBonusCcy;
+  final ValueChanged<CurrencyCode> onRsuCcy;
   final VoidCallback onFieldChanged;
 
   @override
@@ -617,7 +687,7 @@ class _IncomeStep extends StatelessWidget {
         Text('Income', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17, color: cs.onSurface)),
         const SizedBox(height: 6),
         Text(
-          'All amounts in USD. Bonus and RSUs are annual (optional).',
+          'Pick a currency per line. Bonus and RSUs are annual (optional).',
           style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13, height: 1.35),
         ),
         const SizedBox(height: 14),
@@ -633,11 +703,29 @@ class _IncomeStep extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 14),
-        _IncomeField(ctrl: salaryCtrl, label: 'Salary ($salaryPeriod)', required: true, onChanged: onFieldChanged),
+        _IncomeAmountRow(
+          ctrl: salaryCtrl,
+          currency: salaryCcy,
+          onCurrencyChanged: onSalaryCcy,
+          label: 'Salary ($salaryPeriod)',
+          onChanged: onFieldChanged,
+        ),
         const SizedBox(height: 10),
-        _IncomeField(ctrl: bonusCtrl, label: 'Bonus (Annual)', onChanged: onFieldChanged),
+        _IncomeAmountRow(
+          ctrl: bonusCtrl,
+          currency: bonusCcy,
+          onCurrencyChanged: onBonusCcy,
+          label: 'Bonus (Annual)',
+          onChanged: onFieldChanged,
+        ),
         const SizedBox(height: 10),
-        _IncomeField(ctrl: rsuCtrl, label: 'RSUs (Annual)', onChanged: onFieldChanged),
+        _IncomeAmountRow(
+          ctrl: rsuCtrl,
+          currency: rsuCcy,
+          onCurrencyChanged: onRsuCcy,
+          label: 'RSUs (Annual)',
+          onChanged: onFieldChanged,
+        ),
         const SizedBox(height: 14),
         TextField(
           controller: taxCtrl,
@@ -655,34 +743,100 @@ class _IncomeStep extends StatelessWidget {
   }
 }
 
-class _IncomeField extends StatelessWidget {
-  const _IncomeField({
+class _IncomeAmountRow extends StatelessWidget {
+  const _IncomeAmountRow({
     required this.ctrl,
+    required this.currency,
+    required this.onCurrencyChanged,
     required this.label,
-    this.required = false,
     required this.onChanged,
   });
 
   final TextEditingController ctrl;
+  final CurrencyCode currency;
+  final ValueChanged<CurrencyCode> onCurrencyChanged;
   final String label;
-  final bool required;
   final VoidCallback onChanged;
 
   @override
   Widget build(BuildContext context) {
-    return TextField(
-      controller: ctrl,
-      keyboardType: TextInputType.number,
-      onChanged: (_) => onChanged(),
-      inputFormatters: [
-        GroupedIntegerTextInputFormatter(currency: CurrencyCode.usd),
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          flex: 7,
+          child: TextField(
+            controller: ctrl,
+            keyboardType: TextInputType.number,
+            onChanged: (_) => onChanged(),
+            inputFormatters: [
+              GroupedIntegerTextInputFormatter(currency: currency),
+            ],
+            decoration: InputDecoration(
+              labelText: label,
+              prefixText: currency.symbol,
+              border: const OutlineInputBorder(),
+              isDense: true,
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          flex: 4,
+          child: DropdownButtonFormField<CurrencyCode>(
+            initialValue: currency,
+            decoration: const InputDecoration(
+              labelText: 'Currency',
+              border: OutlineInputBorder(),
+              isDense: true,
+            ),
+            items: [
+              for (final c in kDisplayCurrencyPickerOptions)
+                DropdownMenuItem(value: c, child: Text('${c.flag} ${c.code}')),
+            ],
+            onChanged: (v) {
+              if (v != null) onCurrencyChanged(v);
+            },
+          ),
+        ),
       ],
-      decoration: InputDecoration(
-        labelText: label,
-        prefixText: r'$',
-        border: const OutlineInputBorder(),
-        isDense: true,
-      ),
+    );
+  }
+}
+
+class _ExpenseCurrencyPicker extends StatelessWidget {
+  const _ExpenseCurrencyPicker({
+    required this.selected,
+    required this.options,
+    required this.onSelected,
+  });
+
+  final CurrencyCode selected;
+  final List<CurrencyCode> options;
+  final ValueChanged<CurrencyCode> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Expense estimates in', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13)),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final c in options)
+              ChoiceChip(
+                label: Text('${c.flag} ${c.code}'),
+                selected: selected == c,
+                onSelected: (_) => onSelected(c),
+              ),
+          ],
+        ),
+        const SizedBox(height: 12),
+      ],
     );
   }
 }
@@ -692,6 +846,9 @@ class _ExpenseMcqStep extends StatelessWidget {
     required this.step,
     required this.subIndex,
     required this.subTotal,
+    required this.expenseCurrency,
+    required this.currencyOptions,
+    required this.onExpenseCurrency,
     required this.selected,
     required this.onSelect,
     required this.onSkipToManual,
@@ -700,6 +857,9 @@ class _ExpenseMcqStep extends StatelessWidget {
   final StructuredGuideStep step;
   final int subIndex;
   final int subTotal;
+  final CurrencyCode expenseCurrency;
+  final List<CurrencyCode> currencyOptions;
+  final ValueChanged<CurrencyCode> onExpenseCurrency;
   final Set<String> selected;
   final void Function(String id, bool multi) onSelect;
   final VoidCallback onSkipToManual;
@@ -716,6 +876,13 @@ class _ExpenseMcqStep extends StatelessWidget {
           'Monthly expenses',
           style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17, color: cs.onSurface),
         ),
+        if (subIndex == 0) ...[
+          _ExpenseCurrencyPicker(
+            selected: expenseCurrency,
+            options: currencyOptions,
+            onSelected: onExpenseCurrency,
+          ),
+        ],
         Text(
           'Question ${subIndex + 1} of $subTotal',
           style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.w700),
@@ -756,15 +923,25 @@ class _ExpenseMcqStep extends StatelessWidget {
 }
 
 class _ExpenseManualStep extends StatelessWidget {
-  const _ExpenseManualStep({required this.bucketCtrl, required this.onSwitchToMcq});
+  const _ExpenseManualStep({
+    required this.expenseCurrency,
+    required this.currencyOptions,
+    required this.onExpenseCurrency,
+    required this.bucketCtrl,
+    required this.onSwitchToMcq,
+  });
 
+  final CurrencyCode expenseCurrency;
+  final List<CurrencyCode> currencyOptions;
+  final ValueChanged<CurrencyCode> onExpenseCurrency;
   final TextEditingController Function(String key, double initial) bucketCtrl;
   final VoidCallback onSwitchToMcq;
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final preset = presetForCountry('US');
+    final presetCountry = presetCountryForDisplayCurrency(expenseCurrency);
+    final preset = presetForCountry(presetCountry);
     return ListView(
       children: [
         Row(
@@ -780,18 +957,23 @@ class _ExpenseManualStep extends StatelessWidget {
         ),
         const SizedBox(height: 6),
         Text(
-          'Type your monthly estimates in USD. You can refine later in Ledger.',
+          'Pick a currency, then type monthly estimates. You can refine later in Ledger.',
           style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13, height: 1.35),
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 10),
+        _ExpenseCurrencyPicker(
+          selected: expenseCurrency,
+          options: currencyOptions,
+          onSelected: onExpenseCurrency,
+        ),
         for (final k in recurringExpenseBucketKeys) ...[
           TextField(
             controller: bucketCtrl(k, preset.buckets[k]!.value),
             keyboardType: TextInputType.number,
-            inputFormatters: [GroupedIntegerTextInputFormatter(currency: CurrencyCode.usd)],
+            inputFormatters: [GroupedIntegerTextInputFormatter(currency: expenseCurrency)],
             decoration: InputDecoration(
               labelText: preset.buckets[k]!.label,
-              prefixText: r'$',
+              prefixText: expenseCurrency.symbol,
               border: const OutlineInputBorder(),
               isDense: true,
             ),
@@ -851,14 +1033,14 @@ class _DummyDataStep extends StatelessWidget {
         Text('Demo data', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17, color: cs.onSurface)),
         const SizedBox(height: 6),
         Text(
-          'Add example cash-flow months so the charts look alive while you explore.',
+          'Add example assets and liabilities (condo, investments, loans) tailored to your currencies. Cash-flow months stay empty until you add them.',
           style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13, height: 1.35),
         ),
         const SizedBox(height: 14),
         option(
           v: true,
-          title: 'Add demo months',
-          subtitle: 'You can remove them later (until edited).',
+          title: 'Add demo ledger',
+          subtitle: 'Sample condo, brokerage, and loans — removable if untouched.',
         ),
         const SizedBox(height: 10),
         option(

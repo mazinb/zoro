@@ -4,8 +4,8 @@ abstract final class TabHelpContent {
     title: 'How onboarding works',
     bullets: [
       'Everything you enter is saved on this device only — not uploaded to a server.',
-      'Currencies and exchange rates power Home’s multi-currency view and conversions.',
-      'Income and tax rate drive your Sankey cash-flow picture and what’s left to invest or save.',
+      'Currencies and exchange rates enable conversions inside the app.',
+      'Income and tax rate are used for calculations.',
       'Expense estimates seed your monthly budget buckets; you can refine them anytime in Ledger.',
     ],
   );
@@ -14,8 +14,10 @@ abstract final class TabHelpContent {
     title: 'How Ledger works',
     bullets: [
       'Assets and liabilities are your balance sheet; Cash tracks real monthly in/out.',
-      'Income lines are annual amounts per source; tax % is applied on Home’s Sankey.',
-      'Expense estimates are planned monthly buckets — separate from actual spending in Cash.',
+      'Income lines are annual amounts per source; tax % is an approx effective tax rate for calculations.',
+      'Expense estimates are planned monthly buckets separate from actual spending in Cash.',
+      'AI asset import can auto-populate context notes with extracted details.',
+      'Recommended: use Import with AI on an image or PDF (requires cloud API keys).',
       'The ✨ action runs an on-device or cloud assistant depending on your Settings keys.',
     ],
   );
@@ -24,6 +26,7 @@ abstract final class TabHelpContent {
     title: 'How Context works',
     bullets: [
       'Attach notes to assets and liabilities so assistants understand your situation.',
+      'AI asset import can auto-populate context files with extracted details.',
       'Estimates vs actuals compares budget buckets to recent Cash spending.',
       'The ✨ action drafts or refreshes context notes from your ledger data.',
     ],
@@ -35,7 +38,7 @@ abstract final class TabHelpContent {
       'The split slider divides what’s left after expenses between savings and investments.',
       'Retirement corpus can track expenses automatically or a custom target.',
       'Goals helper walks structured steps (corpus, allocation, paydown) with optional AI.',
-      'The ✨ action opens Goals helper — same hub as reminder deep links.',
+      'The ✨ action opens Goals helper so you can adjust inputs and backtest your plan.',
     ],
   );
 
@@ -45,7 +48,7 @@ abstract final class TabHelpContent {
       'General: theme, privacy mask, display currency, FX rates, and projection assumptions.',
       'Helpers: tune built-in agent prompts used by ✨ actions across the app.',
       'API keys: optional cloud models; Apple on-device works without keys when available.',
-      'Data: export, import, and backup live on this device.',
+      'Export / import lives in Helpers → Data.',
     ],
   );
 }

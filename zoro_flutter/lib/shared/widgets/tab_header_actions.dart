@@ -83,7 +83,7 @@ Future<void> _openDummyDataSheet(BuildContext context, {required AppModel model}
           const Text('Demo data', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
           const SizedBox(height: 6),
           Text(
-            'You have seeded demo cash-flow months. You can clear them anytime as long as you haven’t edited them.',
+            'You have seeded demo assets and liabilities. You can clear them anytime as long as you haven’t edited them.',
             style: TextStyle(color: Theme.of(ctx).colorScheme.onSurfaceVariant, height: 1.35),
           ),
           const SizedBox(height: 12),

@@ -7,6 +7,8 @@ import '../../core/notifications/notification_service.dart';
 import '../../core/state/app_model.dart';
 import '../../shared/widgets/liquid_glass.dart';
 import '../command_center/command_center_tab.dart';
+import '../../core/home/home_summary_focus_domain.dart';
+import '../command_center/home_summary_helper_service.dart';
 import '../context/context_tab.dart';
 import '../ledger/ledger_tab.dart';
 import '../goals/goals_tab.dart';
@@ -35,6 +37,8 @@ class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver
   static const int _settingsIndex = 4;
   bool _pendingOpenGoalsHelper = false;
   final GlobalKey<GoalsTabState> _goalsTabKey = GlobalKey<GoalsTabState>();
+  String? _homeSummaryHelperAttemptedDayKey;
+  bool _homeSummaryHelperBootstrapHandled = false;
 
   void _onPrivacyInteractionDenied() {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -80,6 +84,7 @@ class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    widget.model.addListener(_onAppModelChanged);
     _notifTapSub = NotificationService.instance.onTap.listen(_handleNotificationPayload);
     // Drain any payload that launched the app from a terminated state.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -97,6 +102,7 @@ class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver
 
   @override
   void dispose() {
+    widget.model.removeListener(_onAppModelChanged);
     _notifTapSub?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _settingsTabIndex.dispose();
@@ -111,7 +117,26 @@ class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver
     }
     if (state == AppLifecycleState.resumed) {
       unawaited(widget.model.reconcileNotifications());
+      _maybeRunHomeSummaryHelper();
     }
+  }
+
+  void _onAppModelChanged() {
+    if (!widget.model.bootstrapped || _homeSummaryHelperBootstrapHandled) return;
+    _homeSummaryHelperBootstrapHandled = true;
+    // Defer until after bootstrap notifications reconcile — avoids overlapping Apple FM calls.
+    Future<void>.delayed(const Duration(milliseconds: 800), () {
+      if (!mounted) return;
+      _maybeRunHomeSummaryHelper();
+    });
+  }
+
+  void _maybeRunHomeSummaryHelper() {
+    if (!widget.model.bootstrapped || !widget.model.onboardingComplete) return;
+    final dayKey = homeSummaryCalendarDayKey(DateTime.now());
+    if (_homeSummaryHelperAttemptedDayKey == dayKey) return;
+    _homeSummaryHelperAttemptedDayKey = dayKey;
+    unawaited(HomeSummaryHelperService().maybeRunOnAppOpen(widget.model));
   }
 
   void _clearReviewStateForTab(int tabIndex) {

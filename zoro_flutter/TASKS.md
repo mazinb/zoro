@@ -6,8 +6,10 @@ Privacy-first finance on device. Production API: **getzoro.com**. On-device stor
 
 ## Next
 
+- [x] **Home summary helper** — daily on-app-open rotation (assets / liabilities / cashflow / context / goals); Apple on-device prompt budget; Home (i) sheet for focus toggles + last run.
 - [x] **Onboarding (v1)** — 3-step first-run: USD + 2 FX picks, income (salary/bonus/RSU/tax), 4× expense MCQ + optional Apple on-device note. Tab ? how-it-works + Reddit footer.
-- [ ] **Onboarding (v2)** — assets/liabilities seed, split slider, retirement date vs invest /mo (Goals editor retire panel).
+- [x] **Onboarding demo ledger** — optional demo assets/liabilities (condo, US brokerage, India fund, cash, mortgage, car loan) via Apple on-device customization from onboarding currencies; clear untouched rows from header bolt. Expense estimate currency picker (USD + FX picks); `expenseEstimateCurrency` on export/import.
+- [ ] **Onboarding (v2)** — split slider, retirement date vs invest /mo (Goals editor retire panel).
 
 ---
 
@@ -21,8 +23,8 @@ Privacy-first finance on device. Production API: **getzoro.com**. On-device stor
 
 ## Ship checklist
 
-- [ ] `cd zoro_flutter && dart analyze` — no warnings you care about
-- [ ] `flutter test` — green
+- [x] `cd zoro_flutter && dart analyze` — no warnings you care about
+- [x] `flutter test` — green
 - [ ] Device smoke: Home → Ledger → Context → Goals → Settings
 - [ ] Release: prod bundle `com.getzoro.zoroFlutter`, `API_BASE_URL` = production, no secrets in `--dart-define-from-file`
 

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -10,13 +11,17 @@ import '../state/app_model.dart';
 import 'notification_payload.dart';
 
 void _log(String message) {
-  // print (not debugPrint) so Xcode device console shows [ZoroNotif] in Release.
-  print('[ZoroNotif] $message');
+  developer.log(message, name: 'ZoroNotif');
 }
 
 void _logError(String message, [Object? error, StackTrace? stack]) {
-  print('[ZoroNotif] $message${error != null ? ': $error' : ''}');
-  if (stack != null) print(stack);
+  developer.log(
+    message,
+    name: 'ZoroNotif',
+    error: error,
+    stackTrace: stack,
+    level: 1000,
+  );
 }
 
 /// Single channel id reused for both agent-task pings and reminder summaries.
@@ -323,7 +328,8 @@ class NotificationService {
 
   // Must be a top-level/static handler for background dispatch.
   static void _onBackgroundResponse(NotificationResponse response) {
-    _log('background tap payload=${response.payload}');
+    final suffix = kReleaseMode ? '' : ' payload=${response.payload}';
+    _log('background tap$suffix');
   }
 
   static String _reminderTitleFor(ReminderDomain d) => switch (d) {
@@ -367,7 +373,8 @@ class NotificationService {
 void zoroBackgroundNotificationResponse(NotificationResponse response) {
   // Background taps for action buttons; the foreground stream re-emits when
   // the app comes back. Body intentionally minimal.
-  print('[ZoroNotif] bg response payload=${response.payload}');
+  final suffix = kReleaseMode ? '' : ' payload=${response.payload}';
+  developer.log('bg response$suffix', name: 'ZoroNotif');
 }
 
 /// Coarse status surfaced to the Settings UI.

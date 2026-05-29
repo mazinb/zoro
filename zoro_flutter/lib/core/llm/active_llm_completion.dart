@@ -15,15 +15,18 @@ Future<String> completeForActiveProvider(
   if (key == null) {
     throw LlmException('Missing API key for ${provider.name}');
   }
-  return LlmClient().complete(
+  final modelName = model.modelFor(provider);
+  final out = await LlmClient().complete(
     provider: provider,
     apiKey: key,
-    model: model.modelFor(provider),
+    model: modelName,
     system: system,
     user: user,
     maxOutputTokens: maxOutputTokens,
     preferJsonObjectOutput: preferJsonObjectOutput && provider == LlmProvider.openai,
   );
+  model.recordLlmRequest(provider: provider, model: modelName);
+  return out;
 }
 
 /// Parses model JSON; on failure runs one repair pass via the active provider.

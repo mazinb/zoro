@@ -196,12 +196,19 @@ class AppStateTransfer {
         final ctx = full['expenseBucketContextMarkdown'];
         if (allInGroup) {
           return {
+            if (full['ledgerDisplayCurrency'] != null) 'ledgerDisplayCurrency': full['ledgerDisplayCurrency'],
+            if (full['expenseEstimateCurrency'] != null)
+              'expenseEstimateCurrency': full['expenseEstimateCurrency'],
             if (buckets is Map) 'expenseBuckets': buckets,
             if (ctx is Map) 'expenseBucketContextMarkdown': ctx,
           };
         }
         final key = partPickId;
         final out = <String, dynamic>{};
+        if (full['ledgerDisplayCurrency'] != null) out['ledgerDisplayCurrency'] = full['ledgerDisplayCurrency'];
+        if (full['expenseEstimateCurrency'] != null) {
+          out['expenseEstimateCurrency'] = full['expenseEstimateCurrency'];
+        }
         if (buckets is Map && buckets.containsKey(key)) {
           out['expenseBuckets'] = {key: buckets[key]};
         }
@@ -212,10 +219,18 @@ class AppStateTransfer {
       case LedgerPartGroup.months:
         final raw = full['monthlyCashflowByMonth'];
         if (raw is! Map) return {'monthlyCashflowByMonth': <String, dynamic>{}};
-        if (allInGroup) return {'monthlyCashflowByMonth': raw};
+        if (allInGroup) {
+          return {
+            if (full['ledgerDisplayCurrency'] != null) 'ledgerDisplayCurrency': full['ledgerDisplayCurrency'],
+            'monthlyCashflowByMonth': raw,
+          };
+        }
         final key = partPickId;
         if (!raw.containsKey(key)) return {'monthlyCashflowByMonth': <String, dynamic>{}};
-        return {'monthlyCashflowByMonth': {key: raw[key]}};
+        return {
+          if (full['ledgerDisplayCurrency'] != null) 'ledgerDisplayCurrency': full['ledgerDisplayCurrency'],
+          'monthlyCashflowByMonth': {key: raw[key]},
+        };
       default:
         return {};
     }

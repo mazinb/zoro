@@ -118,15 +118,6 @@ export function FeatureCarousel({
     scrollToDom(1, false);
   }, [scrollToDom]);
 
-  useEffect(() => {
-    const interval = window.setInterval(() => {
-      const logical = activeIndexRef.current;
-      const dom = logicalToDom(logical);
-      scrollToDom(dom + 1, true);
-    }, 6000);
-    return () => window.clearInterval(interval);
-  }, [scrollToDom]);
-
   const getClosestDom = useCallback(() => {
     const container = scrollRef.current;
     if (!container) return 1;

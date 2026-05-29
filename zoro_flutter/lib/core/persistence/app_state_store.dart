@@ -1,6 +1,11 @@
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 
 import 'app_state_split_store.dart';
+
+bool get _shouldLogPersistErrors =>
+    kDebugMode && !Platform.environment.containsKey('FLUTTER_TEST');
 
 /// Persists app state as a manifest plus linked JSON files under application support.
 class AppStateStore {
@@ -12,7 +17,7 @@ class AppStateStore {
     try {
       await AppStateSplitStore.saveMonolithic(root);
     } catch (e, st) {
-      if (kDebugMode) {
+      if (_shouldLogPersistErrors) {
         debugPrint('[AppStateStore] save failed: $e\n$st');
       }
     }

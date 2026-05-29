@@ -57,16 +57,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const signupCount = useWaitlistCount(isRoadmapVisible);
   const timelineMilestones = buildTimelineMilestones(signupCount);
 
-  // Auto-scroll carousel
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentIndex((prev) => (prev + 1) % personas.length);
-    }, 5000);
-
-    return () => clearInterval(interval);
-  }, []);
-
-  // Scroll carousel on index change
+  // Scroll carousel when user picks a slide (arrows or dots)
   useEffect(() => {
     if (carouselRef.current) {
       const scrollContainer = carouselRef.current;

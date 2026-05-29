@@ -14,6 +14,9 @@ import 'context_markdown_sidecar.dart';
 /// Bump this constant and the README table when paths or split rules change.
 const int kAppStateSplitLayoutVersion = 2;
 
+bool get _shouldLogSplitStore =>
+    kDebugMode && !Platform.environment.containsKey('FLUTTER_TEST');
+
 @pragma('vm:entry-point')
 void _jsonDecodeWorker(List<Object?> message) {
   final reply = message[0] as SendPort;
@@ -161,7 +164,7 @@ abstract final class AppStateSplitStore {
     try {
       await ContextMarkdownSidecar.hydrate(assembled);
     } catch (e, st) {
-      if (kDebugMode) {
+      if (_shouldLogSplitStore) {
         debugPrint('[AppStateSplitStore] hydrate failed: $e\n$st');
       }
     }
@@ -170,7 +173,7 @@ abstract final class AppStateSplitStore {
 
   static Future<void> _migrateMonolithicV1(Directory sup, Map<String, dynamic> monolithic) async {
     await saveMonolithic(monolithic);
-    if (kDebugMode) {
+    if (_shouldLogSplitStore) {
       debugPrint('[AppStateSplitStore] migrated monolithic v1 → split v2');
     }
   }

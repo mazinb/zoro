@@ -70,7 +70,9 @@ import FoundationModels
       if #available(iOS 26.4, *) {
         Task {
           do {
-            let tokens = try await countTokens26_4(combined)
+            let tokens = try await AppleFoundationModelsSerialGate.shared.perform {
+              try await countTokens26_4(combined)
+            }
             DispatchQueue.main.async {
               result(["tokens": tokens])
             }
@@ -113,7 +115,9 @@ import FoundationModels
         }
         Task {
           do {
-            let text = try await runComplete26(args: args)
+            let text = try await AppleFoundationModelsSerialGate.shared.perform {
+              try await runComplete26(args: args)
+            }
             DispatchQueue.main.async {
               result(text)
             }
@@ -136,6 +140,32 @@ import FoundationModels
   }
 
   #if canImport(FoundationModels)
+    /// Foundation Models must not be called concurrently; overlapping sessions can fail with
+    /// "invalid reuse after initialization failure".
+    @available(iOS 26.0, *)
+    private actor AppleFoundationModelsSerialGate {
+      static let shared = AppleFoundationModelsSerialGate()
+      private init() {}
+
+      func perform<T>(_ work: @Sendable () async throws -> T) async throws -> T {
+        try await work()
+      }
+    }
+
+    @available(iOS 26.0, *)
+    private static func requireAvailableModel() throws {
+      let model = SystemLanguageModel.default
+      switch model.availability {
+      case .available:
+        return
+      case .unavailable(let reason):
+        throw NSError(
+          domain: "AppleFoundationModels",
+          code: 2,
+          userInfo: [NSLocalizedDescriptionKey: humanizeUnavailable(reason)])
+      }
+    }
+
     @available(iOS 26.0, *)
     private static func capabilitiesMap26() -> [String: Any] {
       let model = SystemLanguageModel.default
@@ -178,12 +208,14 @@ import FoundationModels
     /// Exact token footprint; API added in iOS 26.4.
     @available(iOS 26.4, *)
     private static func countTokens26_4(_ text: String) async throws -> Int {
+      try requireAvailableModel()
       let model = SystemLanguageModel.default
       return try await model.tokenCount(for: text)
     }
 
     @available(iOS 26.0, *)
     private static func runComplete26(args: [String: Any]) async throws -> String {
+      try requireAvailableModel()
       let system = (args["system"] as? String) ?? ""
       let user = (args["user"] as? String) ?? ""
       let session = LanguageModelSession(instructions: system)

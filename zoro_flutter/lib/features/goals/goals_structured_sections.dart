@@ -862,7 +862,7 @@ List<StructuredGuideStep> assumptionsGuideSteps(AppModel model) {
   final currencies = {
     CurrencyCode.usd,
     model.homeCurrencyQuickPick1,
-    model.homeCurrencyQuickPick2,
+    if (model.homeCurrencyQuickPick2 != null) model.homeCurrencyQuickPick2!,
   };
   final steps = <StructuredGuideStep>[
     for (final c in currencies)
@@ -896,7 +896,10 @@ List<StructuredGuideStep> assumptionsGuideSteps(AppModel model) {
         numericMax: 15,
       ),
   ];
-  for (final c in [model.homeCurrencyQuickPick1, model.homeCurrencyQuickPick2]) {
+  for (final c in [
+    model.homeCurrencyQuickPick1,
+    if (model.homeCurrencyQuickPick2 != null) model.homeCurrencyQuickPick2!,
+  ]) {
     final usdPerUnit = model.usdPerUnitResolved(c);
     steps.add(
       StructuredGuideStep(
@@ -1006,7 +1009,9 @@ Future<void> openAssumptionsStructuredGuide({
       'projectionInflationPctAnnual': model.projectionInflationPctAnnual.map((k, v) => MapEntry(k.name, v)),
       'fxUsdPerUnit': {
         model.homeCurrencyQuickPick1.name: model.usdPerUnitResolved(model.homeCurrencyQuickPick1),
-        model.homeCurrencyQuickPick2.name: model.usdPerUnitResolved(model.homeCurrencyQuickPick2),
+        if (model.homeCurrencyQuickPick2 != null)
+          model.homeCurrencyQuickPick2!.name:
+              model.usdPerUnitResolved(model.homeCurrencyQuickPick2!),
       },
     },
     onApplyStructured: (structured) {

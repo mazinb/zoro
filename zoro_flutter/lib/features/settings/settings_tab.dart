@@ -13,6 +13,7 @@ import '../../core/state/app_model.dart';
 import '../../core/state/internal_app_agent_definition.dart';
 import '../../dev/compile_time_api_keys.dart';
 import 'data_transfer_pane.dart';
+import '../command_center/home_summary_helper_sheet.dart';
 import 'internal_agent_prompt_editor_page.dart';
 
 abstract class SettingsTabIndex {
@@ -159,9 +160,14 @@ class _GeneralPaneState extends State<_GeneralPane> {
 
   void _syncFxFieldsFromModel() {
     final u1 = model.usdPerUnitResolved(model.homeCurrencyQuickPick1);
-    final u2 = model.usdPerUnitResolved(model.homeCurrencyQuickPick2);
     final next1 = u1 > 0 ? (1 / u1).toStringAsFixed(2) : '';
-    final next2 = u2 > 0 ? (1 / u2).toStringAsFixed(2) : '';
+    final pick2 = model.homeCurrencyQuickPick2;
+    final next2 = pick2 == null
+        ? ''
+        : () {
+            final u2 = model.usdPerUnitResolved(pick2);
+            return u2 > 0 ? (1 / u2).toStringAsFixed(2) : '';
+          }();
     _fxSilentControllerSync = true;
     _usdToThbCtrl.text = next1;
     _usdToInrCtrl.text = next2;
@@ -193,10 +199,13 @@ class _GeneralPaneState extends State<_GeneralPane> {
     } else {
       model.setFxUsdPerUnitOverride(model.homeCurrencyQuickPick1, null);
     }
-    if (inrPerUsd != null && inrPerUsd > 0) {
-      model.setFxUsdPerUnitOverride(model.homeCurrencyQuickPick2, 1 / inrPerUsd);
-    } else {
-      model.setFxUsdPerUnitOverride(model.homeCurrencyQuickPick2, null);
+    final pick2 = model.homeCurrencyQuickPick2;
+    if (pick2 != null) {
+      if (inrPerUsd != null && inrPerUsd > 0) {
+        model.setFxUsdPerUnitOverride(pick2, 1 / inrPerUsd);
+      } else {
+        model.setFxUsdPerUnitOverride(pick2, null);
+      }
     }
     _syncFxFieldsFromModel();
     setState(() {});
@@ -249,7 +258,7 @@ class _GeneralPaneState extends State<_GeneralPane> {
                   for (final c in {
                     CurrencyCode.usd,
                     model.homeCurrencyQuickPick1,
-                    model.homeCurrencyQuickPick2,
+                    if (model.homeCurrencyQuickPick2 != null) model.homeCurrencyQuickPick2!,
                   })
                     Padding(
                       padding: const EdgeInsets.only(bottom: 14),
@@ -323,6 +332,7 @@ class _GeneralPaneState extends State<_GeneralPane> {
     CurrencyCode.aud,
     CurrencyCode.eur,
     CurrencyCode.jpy,
+    CurrencyCode.hkd,
   ];
 
   Widget _fxRateRow(
@@ -330,6 +340,8 @@ class _GeneralPaneState extends State<_GeneralPane> {
     required TextEditingController controller,
     required CurrencyCode selected,
     required ValueChanged<CurrencyCode> onCurrencyChanged,
+    CurrencyCode? exclude,
+    Widget? trailing,
   }) {
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -378,13 +390,14 @@ class _GeneralPaneState extends State<_GeneralPane> {
               isDense: true,
               items: [
                 for (final c in _fxPickerOptions)
-                  DropdownMenuItem(
-                    value: c,
-                    child: Text(
-                      '${c.flag} ${c.code} · ${c.symbol}',
-                      style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: cs.onSurfaceVariant),
+                  if (c != exclude)
+                    DropdownMenuItem(
+                      value: c,
+                      child: Text(
+                        '${c.flag} ${c.code} · ${c.symbol}',
+                        style: TextStyle(fontWeight: FontWeight.w900, fontSize: 13, color: cs.onSurfaceVariant),
+                      ),
                     ),
-                  ),
               ],
               onChanged: (c) {
                 if (c == null) return;
@@ -392,6 +405,10 @@ class _GeneralPaneState extends State<_GeneralPane> {
               },
             ),
           ),
+          if (trailing != null) ...[
+            const SizedBox(width: 4),
+            trailing,
+          ],
         ],
       ),
     );
@@ -422,6 +439,7 @@ class _GeneralPaneState extends State<_GeneralPane> {
                     context,
                     controller: _usdToThbCtrl,
                     selected: model.homeCurrencyQuickPick1,
+                    exclude: model.homeCurrencyQuickPick2,
                     onCurrencyChanged: (c) {
                       if (c == model.homeCurrencyQuickPick1) return;
                       model.setFxUsdPerUnitOverride(model.homeCurrencyQuickPick1, null);
@@ -430,19 +448,44 @@ class _GeneralPaneState extends State<_GeneralPane> {
                       _applyFxFromFieldsToModel();
                     },
                   ),
-                  Divider(height: 1, thickness: 0.5, color: cs.outlineVariant.withValues(alpha: 0.35)),
-                  _fxRateRow(
-                    context,
-                    controller: _usdToInrCtrl,
-                    selected: model.homeCurrencyQuickPick2,
-                    onCurrencyChanged: (c) {
-                      if (c == model.homeCurrencyQuickPick2) return;
-                      model.setFxUsdPerUnitOverride(model.homeCurrencyQuickPick2, null);
-                      model.setHomeCurrencyQuickPick(2, c);
-                      _syncFxFieldsFromModel();
-                      _applyFxFromFieldsToModel();
-                    },
-                  ),
+                  if (model.homeCurrencyQuickPick2 != null) ...[
+                    Divider(height: 1, thickness: 0.5, color: cs.outlineVariant.withValues(alpha: 0.35)),
+                    _fxRateRow(
+                      context,
+                      controller: _usdToInrCtrl,
+                      selected: model.homeCurrencyQuickPick2!,
+                      exclude: model.homeCurrencyQuickPick1,
+                      onCurrencyChanged: (c) {
+                        final cur = model.homeCurrencyQuickPick2;
+                        if (cur == null || c == cur) return;
+                        model.setFxUsdPerUnitOverride(cur, null);
+                        model.setHomeCurrencyQuickPick(2, c);
+                        _syncFxFieldsFromModel();
+                        _applyFxFromFieldsToModel();
+                      },
+                      trailing: IconButton(
+                        tooltip: 'Remove second currency',
+                        icon: Icon(Icons.close, size: 20, color: cs.onSurfaceVariant),
+                        onPressed: () {
+                          model.setSecondHomeCurrency(null);
+                          _syncFxFieldsFromModel();
+                          setState(() {});
+                        },
+                      ),
+                    ),
+                  ] else
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: () {
+                          model.addSecondHomeCurrency();
+                          _syncFxFieldsFromModel();
+                          setState(() {});
+                        },
+                        icon: const Icon(Icons.add, size: 18),
+                        label: const Text('Add second currency'),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -454,6 +497,17 @@ class _GeneralPaneState extends State<_GeneralPane> {
 
   Future<void> _openExportPage() async {
     if (!mounted) return;
+    // Prefer navigating within Settings → Helpers → Data.
+    final root = context.findAncestorStateOfType<_SettingsTabState>();
+    if (root != null) {
+      root._tabs.animateTo(1);
+      final s = root.widget.agentSectionListenable;
+      if (s is ValueNotifier<AgentSettingsSection>) {
+        s.value = AgentSettingsSection.data;
+      }
+      return;
+    }
+    // Fallback (should be rare): open a dedicated page.
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
         builder: (ctx) => Scaffold(
@@ -545,19 +599,6 @@ class _GeneralPaneState extends State<_GeneralPane> {
             _fxCard(context),
             const SizedBox(height: 12),
             _currencyAssumptionsCard(),
-            const SizedBox(height: 12),
-            const Text('Reset', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
-            const SizedBox(height: 8),
-            _settingsCard(
-              child: ListTile(
-                leading: const Icon(Icons.restart_alt),
-                title: const Text('Restart onboarding', style: TextStyle(fontWeight: FontWeight.w900)),
-                subtitle: const Text('Erase all on-device data'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: _confirmReset,
-              ),
-            ),
-            const SizedBox(height: 12),
         const Text('Notifications', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
         const SizedBox(height: 8),
         _NotificationsCard(model: model),
@@ -602,7 +643,13 @@ class _GeneralPaneState extends State<_GeneralPane> {
             ),
         ),
         const SizedBox(height: 12),
-        const SizedBox.shrink(),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton(
+            onPressed: _confirmReset,
+            child: const Text('Restart onboarding'),
+          ),
+        ),
           ],
         );
       },
@@ -709,17 +756,52 @@ class _AgentsPaneState extends State<_AgentsPane> {
 
   Widget _homePane() {
     final model = widget.model;
+    final homeHelperDef = internalAppAgentDefinitionById(InternalAppAgentIds.homeSummaryHelper);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        if (homeHelperDef != null) ...[
+          Card(
+            child: ListTile(
+              leading: CircleAvatar(
+                backgroundColor: model.accentSoft,
+                child: Icon(homeHelperDef.icon, color: model.accent, size: 22),
+              ),
+              title: Text(homeHelperDef.title, style: const TextStyle(fontWeight: FontWeight.w900)),
+              subtitle: Text(
+                homeHelperDef.listSubtitle,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  fontSize: 12,
+                ),
+              ),
+              trailing: Icon(Icons.chevron_right, color: Theme.of(context).colorScheme.outline),
+              onTap: () {
+                Navigator.of(context).push<void>(
+                  MaterialPageRoute(
+                    builder: (ctx) => InternalAgentPromptEditorPage(definition: homeHelperDef, model: model),
+                  ),
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
         Row(
           children: [
-            Expanded(
-              child: Text(
-                'Home summary',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
-              ),
+            Text(
+              'Home summary',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
             ),
+            IconButton(
+              tooltip: 'Daily focus topics',
+              visualDensity: VisualDensity.compact,
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+              onPressed: () => showHomeSummaryHelperSheet(context, model),
+              icon: Icon(Icons.info_outline, size: 20, color: Theme.of(context).colorScheme.outline),
+            ),
+            const Spacer(),
             TextButton(
               onPressed: model.homeSummaryText.trim().isEmpty
                   ? null
@@ -1146,6 +1228,7 @@ class _ApiKeysPaneState extends State<_ApiKeysPane> {
     return ListenableBuilder(
       listenable: m,
       builder: (context, _) {
+        int usageFor(LlmProvider p, String model) => m.llmRequestsByModelKey['${p.name}:$model'] ?? 0;
         return ListView(
           padding: const EdgeInsets.all(20),
           children: [
@@ -1213,6 +1296,15 @@ class _ApiKeysPaneState extends State<_ApiKeysPane> {
                   options: _openAiModelOptions,
                   onChanged: (v) => m.setModelFor(LlmProvider.openai, v),
                 ),
+                const SizedBox(height: 6),
+                Text(
+                  'Requests: ${usageFor(LlmProvider.openai, _openAiModelCtrl.text.trim())}',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _anthropicCtrl,
@@ -1255,6 +1347,15 @@ class _ApiKeysPaneState extends State<_ApiKeysPane> {
                   options: _anthropicModelOptions,
                   onChanged: (v) => m.setModelFor(LlmProvider.anthropic, v),
                 ),
+                const SizedBox(height: 6),
+                Text(
+                  'Requests: ${usageFor(LlmProvider.anthropic, _anthropicModelCtrl.text.trim())}',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _geminiCtrl,
@@ -1296,6 +1397,15 @@ class _ApiKeysPaneState extends State<_ApiKeysPane> {
                   controller: _geminiModelCtrl,
                   options: _geminiModelOptions,
                   onChanged: (v) => m.setModelFor(LlmProvider.gemini, v),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Requests: ${usageFor(LlmProvider.gemini, _geminiModelCtrl.text.trim())}',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                   ],
                 ),

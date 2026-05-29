@@ -1,6 +1,8 @@
+import 'dart:developer' as developer;
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../shared/theme/app_theme.dart';
@@ -20,6 +22,7 @@ import '../notifications/notification_service.dart';
 import '../persistence/agent_json.dart';
 import '../persistence/app_state_codec.dart' as app_state;
 import '../persistence/app_state_store.dart';
+import '../home/home_summary_focus_domain.dart';
 import 'cashflow_income_line.dart';
 import 'financial_goals.dart';
 import 'internal_app_agent_definition.dart';
@@ -65,6 +68,10 @@ class AppModel extends ChangeNotifier {
     ensureRetirementGoal();
     syncAllocationsFromFraction(notify: false);
     _seedDummyCashflowData();
+    // Default seeded ledger rows act as optional demo content.
+    // On new installs, onboarding can keep or clear them.
+    dummyDataActive = true;
+    _captureDummySeedSnapshot();
   }
 
   static const double spendVarianceBandPct = 0.10;
@@ -143,6 +150,61 @@ class AppModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Calendar day key (`YYYY-MM-DD`) when the Home summary helper last completed.
+  String? homeSummaryHelperLastRunDayKey;
+
+  /// Rotates through [homeSummaryHelperIncludedDomainIds] (one domain per day).
+  int homeSummaryHelperRotationIndex = 0;
+
+  /// Subset of [HomeSummaryFocusDomain] ids included in daily rotation.
+  List<String> homeSummaryHelperIncludedDomainIds = [
+    for (final d in HomeSummaryFocusDomain.values) d.id,
+  ];
+
+  /// Ephemeral — true while the daily Home summary helper LLM call is in flight.
+  bool homeSummaryHelperRunning = false;
+
+  List<HomeSummaryFocusDomain> get homeSummaryHelperIncludedDomains =>
+      homeSummaryParseIncludedIds(homeSummaryHelperIncludedDomainIds);
+
+  void setHomeSummaryHelperIncludedDomains(Iterable<HomeSummaryFocusDomain> domains) {
+    final ids = [
+      for (final d in domains) d.id,
+    ];
+    if (ids.isEmpty) return;
+    final next = List<String>.from(ids);
+    if (listEquals(homeSummaryHelperIncludedDomainIds, next)) return;
+    homeSummaryHelperIncludedDomainIds = next;
+    homeSummaryHelperRotationIndex = homeSummaryHelperRotationIndex % next.length;
+    _scheduleAppStatePersist();
+    notifyListeners();
+  }
+
+  DateTime? get homeSummaryHelperLastRunAt {
+    final key = homeSummaryHelperLastRunDayKey;
+    if (key == null) return null;
+    final parts = key.split('-');
+    if (parts.length != 3) return null;
+    final y = int.tryParse(parts[0]);
+    final m = int.tryParse(parts[1]);
+    final d = int.tryParse(parts[2]);
+    if (y == null || m == null || d == null) return null;
+    return DateTime(y, m, d);
+  }
+
+  void markHomeSummaryHelperRan(String dayKey) {
+    homeSummaryHelperLastRunDayKey = dayKey;
+    homeSummaryHelperRotationIndex += 1;
+    _scheduleAppStatePersist();
+    notifyListeners();
+  }
+
+  void setHomeSummaryHelperRunning(bool value) {
+    if (homeSummaryHelperRunning == value) return;
+    homeSummaryHelperRunning = value;
+    notifyListeners();
+  }
+
   /// Agents (UI-only). Seeded in constructor; replaced when persisted settings load.
   final List<AppAgent> agents = [];
 
@@ -198,6 +260,16 @@ class AppModel extends ChangeNotifier {
   /// Merge ledger rows by stable [id] (names may differ after a sanitized export).
   Future<void> mergeImportedLedger(Map<String, dynamic> ledger) async {
     final L = Map<String, dynamic>.from(ledger);
+    CurrencyCode? importLedgerCurrency;
+    final rawLedgerCurrency = L['ledgerDisplayCurrency']?.toString().trim();
+    if (rawLedgerCurrency != null && rawLedgerCurrency.isNotEmpty) {
+      for (final c in CurrencyCode.values) {
+        if (c.name == rawLedgerCurrency) {
+          importLedgerCurrency = c;
+          break;
+        }
+      }
+    }
     final assetsRaw = L['assets'];
     if (assetsRaw is List) {
       for (final e in assetsRaw) {
@@ -239,13 +311,44 @@ class AppModel extends ChangeNotifier {
       notifyIncomeChanged();
     }
     final eb = L['expenseBuckets'];
+    CurrencyCode? importExpenseCurrency;
+    final rawExpenseCcy = L['expenseEstimateCurrency']?.toString().trim();
+    if (rawExpenseCcy != null && rawExpenseCcy.isNotEmpty) {
+      for (final c in CurrencyCode.values) {
+        if (c.name == rawExpenseCcy) {
+          importExpenseCurrency = c;
+          break;
+        }
+      }
+    }
     if (eb is Map) {
+      var bucketCurrency = importExpenseCurrency ?? importLedgerCurrency;
+      // Legacy heuristic for missing currency.
+      if (bucketCurrency == null && displayCurrency == CurrencyCode.thb) {
+        var maxV = 0.0;
+        var anyPositive = false;
+        for (final k in expenseBucketKeys) {
+          final v = eb[k];
+          final d = v is num ? v.toDouble() : double.tryParse(v?.toString() ?? '');
+          if (d == null) continue;
+          if (d > 0.005) anyPositive = true;
+          if (d > maxV) maxV = d;
+        }
+        if (anyPositive && maxV > 0 && maxV < 10000) {
+          bucketCurrency = CurrencyCode.usd;
+        }
+      }
+      if (bucketCurrency != null) {
+        expenseEstimateCurrency = bucketCurrency;
+      }
       for (final e in eb.entries) {
         final key = e.key.toString();
         if (!expenseBucketKeys.contains(key)) continue;
         final v = e.value;
         final d = v is num ? v.toDouble() : double.tryParse(v?.toString() ?? '');
-        if (d != null) setExpenseBucket(key, d);
+        if (d != null) {
+          setExpenseBucket(key, d);
+        }
       }
     }
     final ectx = L['expenseBucketContextMarkdown'];
@@ -672,30 +775,45 @@ class AppModel extends ChangeNotifier {
   /// Optional demo data (seeded from onboarding).
   bool dummyDataActive = false;
 
-  /// Snapshot of only the demo data we seeded. Used to remove only untouched entries.
-  /// Shape:
-  /// { "monthlyCashflowByMonth": { "YYYY-MM": { ...encoded MonthlyCashflowEntry... } } }
+  /// Snapshot of only the demo assets/liabilities we seeded. Used to remove only untouched entries.
+  /// Shape: { "assets": [ ... ], "liabilities": [ ... ] }
   Map<String, dynamic> dummySeedSnapshot = {};
+
+  /// Currency in which [expenseBuckets] amounts are stored (may differ from [displayCurrency]).
+  CurrencyCode? expenseEstimateCurrency;
+
+  /// Simple usage stats: request count per provider+model key (e.g. "openai:gpt-4o").
+  Map<String, int> llmRequestsByModelKey = {};
 
   /// THB matches [expensePresetCountry] bucket units so the Sankey and ledger stay aligned at boot.
   CurrencyCode displayCurrency = CurrencyCode.thb;
 
-  /// Home uses a 3-way currency toggle: USD + two user-pickable currencies.
+  /// Home display toggle: USD + primary FX. Optional second FX when set.
   CurrencyCode homeCurrencyQuickPick1 = CurrencyCode.thb;
-  CurrencyCode homeCurrencyQuickPick2 = CurrencyCode.inr;
+  CurrencyCode? homeCurrencyQuickPick2;
+
+  /// Segments for Home's currency control (2 or 3 pills).
+  List<CurrencyCode> get homeDisplayCurrencyOptions => [
+        CurrencyCode.usd,
+        homeCurrencyQuickPick1,
+        ?homeCurrencyQuickPick2,
+      ];
 
   void setHomeCurrencyQuickPick(int slot, CurrencyCode next) {
     if (next == CurrencyCode.usd) return; // USD is always present as its own toggle.
-    final prev = (slot == 1) ? homeCurrencyQuickPick1 : (slot == 2 ? homeCurrencyQuickPick2 : null);
-    if (prev == null) return;
-    if (slot == 1) {
-      if (homeCurrencyQuickPick1 == next) return;
-      homeCurrencyQuickPick1 = next;
-    } else if (slot == 2) {
-      if (homeCurrencyQuickPick2 == next) return;
-      homeCurrencyQuickPick2 = next;
-    } else {
+    if (slot == 2) {
+      setSecondHomeCurrency(next);
       return;
+    }
+    if (slot != 1) return;
+    final prev = homeCurrencyQuickPick1;
+    if (homeCurrencyQuickPick1 == next) return;
+    homeCurrencyQuickPick1 = next;
+    if (homeCurrencyQuickPick2 == next) {
+      homeCurrencyQuickPick2 = null;
+      if (displayCurrency == next) {
+        setDisplayCurrency(homeCurrencyQuickPick1);
+      }
     }
 
     // Keep the % sliders “the same” when swapping currencies in Home slots:
@@ -709,6 +827,39 @@ class AppModel extends ChangeNotifier {
 
     _scheduleAppStatePersist();
     notifyListeners();
+  }
+
+  void setSecondHomeCurrency(CurrencyCode? next) {
+    if (next != null && (next == CurrencyCode.usd || next == homeCurrencyQuickPick1)) {
+      return;
+    }
+    final prev = homeCurrencyQuickPick2;
+    if (prev == next) return;
+    homeCurrencyQuickPick2 = next;
+    if (next == null) {
+      _fxUsdPerUnitOverride.remove(prev);
+      if (prev != null && displayCurrency == prev) {
+        setDisplayCurrency(homeCurrencyQuickPick1);
+      }
+    } else if (prev != null) {
+      final inv = projectionInvestReturnPctAnnual[prev];
+      final sav = projectionSavingsReturnPctAnnual[prev];
+      final inf = projectionInflationPctAnnual[prev];
+      if (inv != null) projectionInvestReturnPctAnnual[next] = inv;
+      if (sav != null) projectionSavingsReturnPctAnnual[next] = sav;
+      if (inf != null) projectionInflationPctAnnual[next] = inf;
+    }
+    _scheduleAppStatePersist();
+    notifyListeners();
+  }
+
+  void addSecondHomeCurrency() {
+    if (homeCurrencyQuickPick2 != null) return;
+    final next = kDisplayCurrencyPickerOptions.firstWhere(
+      (c) => c != CurrencyCode.usd && c != homeCurrencyQuickPick1,
+      orElse: () => CurrencyCode.inr,
+    );
+    setSecondHomeCurrency(next);
   }
 
   /// Optional FX overrides: USD value of **1 unit** of THB/INR (same convention as [CurrencyCodeUi.usdPerUnit]).
@@ -745,6 +896,7 @@ class AppModel extends ChangeNotifier {
     CurrencyCode.aud: 7.0,
     CurrencyCode.eur: 7.0,
     CurrencyCode.jpy: 6.0,
+    CurrencyCode.hkd: 6.5,
   };
 
   final Map<CurrencyCode, double> projectionSavingsReturnPctAnnual = {
@@ -756,6 +908,7 @@ class AppModel extends ChangeNotifier {
     CurrencyCode.aud: 4.0,
     CurrencyCode.eur: 3.5,
     CurrencyCode.jpy: 1.0,
+    CurrencyCode.hkd: 2.0,
   };
 
   final Map<CurrencyCode, double> projectionInflationPctAnnual = {
@@ -767,6 +920,7 @@ class AppModel extends ChangeNotifier {
     CurrencyCode.aud: 3.0,
     CurrencyCode.eur: 2.5,
     CurrencyCode.jpy: 2.0,
+    CurrencyCode.hkd: 2.5,
   };
 
   void setProjectionRatesForCurrency(
@@ -1015,7 +1169,7 @@ class AppModel extends ChangeNotifier {
 
   double? effectiveTaxRatePct = 22;
 
-  /// Expenses (mirrors web buckets). Amounts are interpreted in [displayCurrency] for display/FX.
+  /// Expenses (mirrors web buckets). Amounts are in [expenseEstimateCurrency] (or [displayCurrency] when null).
   late Map<String, double> expenseBuckets = {
     for (final k in expenseBucketKeys) k: presetForCountry(expensePresetCountry).buckets[k]!.value,
   };
@@ -2797,8 +2951,13 @@ class AppModel extends ChangeNotifier {
       }
       await _scheduleNextReminderSlot();
     } catch (e, st) {
-      // ignore: avoid_print
-      print('[ZoroNotif] sync failed: $e\n$st');
+      developer.log(
+        'sync failed',
+        name: 'ZoroNotif',
+        error: e,
+        stackTrace: st,
+        level: 1000,
+      );
     }
   }
 
@@ -2809,8 +2968,13 @@ class AppModel extends ChangeNotifier {
     try {
       await NotificationService.instance.init();
     } catch (e, st) {
-      // ignore: avoid_print
-      print('[ZoroNotif] reconcile init failed: $e\n$st');
+      developer.log(
+        'reconcile init failed',
+        name: 'ZoroNotif',
+        error: e,
+        stackTrace: st,
+        level: 1000,
+      );
       return;
     }
     await syncNotifications();
@@ -2885,15 +3049,24 @@ class AppModel extends ChangeNotifier {
     await persistAppStateToDisk();
   }
 
+  CurrencyCode get expenseCurrencyResolved => expenseEstimateCurrency ?? displayCurrency;
+
+  double expenseBucketInDisplayCurrency(String key) {
+    final raw = expenseBuckets[key] ?? 0;
+    return moneyInDisplayCurrency(raw, expenseCurrencyResolved);
+  }
+
   void setDisplayCurrency(CurrencyCode next) {
     if (displayCurrency == next) return;
     final from = displayCurrency;
     displayCurrency = next;
     final fx = fxUsdPerUnitResolved;
+    final expenseFrom = expenseCurrencyResolved;
     expenseBuckets = {
       for (final e in expenseBuckets.entries)
-        e.key: convertCurrency(value: e.value, from: from, to: next, usdPerUnitOverrides: fx),
+        e.key: convertCurrency(value: e.value, from: expenseFrom, to: next, usdPerUnitOverrides: fx),
     };
+    expenseEstimateCurrency = next;
     for (final e in monthlyCashflowByMonth.values) {
       e.openingBalance = convertCurrency(value: e.openingBalance, from: from, to: next, usdPerUnitOverrides: fx);
       e.closingBalance = convertCurrency(value: e.closingBalance, from: from, to: next, usdPerUnitOverrides: fx);
@@ -3113,13 +3286,17 @@ class AppModel extends ChangeNotifier {
   /// Applies first-run onboarding: USD home currency, two FX picks, income lines, buckets.
   void applyOnboardingSetup({
     required CurrencyCode homeQuickPick1,
-    required CurrencyCode homeQuickPick2,
+    CurrencyCode? homeQuickPick2,
     required Map<CurrencyCode, double> unitsPerUsdByCurrency,
-    required double salaryAnnualUsd,
-    double? bonusAnnualUsd,
-    double? rsuAnnualUsd,
+    required double salaryAnnual,
+    required CurrencyCode salaryCurrency,
+    double? bonusAnnual,
+    required CurrencyCode bonusCurrency,
+    double? rsuAnnual,
+    required CurrencyCode rsuCurrency,
     double? effectiveTaxRatePct,
-    required Map<String, double> expenseBucketsMonthlyUsd,
+    required Map<String, double> expenseBucketsMonthly,
+    required CurrencyCode expenseCurrency,
     String? expenseContextNote,
   }) {
     for (final e in unitsPerUsdByCurrency.entries) {
@@ -3128,9 +3305,14 @@ class AppModel extends ChangeNotifier {
       }
     }
     setHomeCurrencyQuickPick(1, homeQuickPick1);
-    setHomeCurrencyQuickPick(2, homeQuickPick2);
-    if (displayCurrency != CurrencyCode.usd) {
-      setDisplayCurrency(CurrencyCode.usd);
+    if (homeQuickPick2 != null && homeQuickPick2 != homeQuickPick1) {
+      setSecondHomeCurrency(homeQuickPick2);
+    } else {
+      setSecondHomeCurrency(null);
+    }
+    // Use the user's chosen income currency as the app display currency.
+    if (displayCurrency != salaryCurrency) {
+      setDisplayCurrency(salaryCurrency);
     }
     incomeLines
       ..clear()
@@ -3138,34 +3320,35 @@ class AppModel extends ChangeNotifier {
         CashflowIncomeLine(
           id: newLedgerRowId('i'),
           label: 'Salary',
-          annualAmount: salaryAnnualUsd,
-          currencyCountry: CurrencyCode.usd.code,
+          annualAmount: salaryAnnual,
+          currencyCountry: salaryCurrency.code,
         ),
       );
-    if (bonusAnnualUsd != null && bonusAnnualUsd > 0) {
+    if (bonusAnnual != null && bonusAnnual > 0) {
       incomeLines.add(
         CashflowIncomeLine(
           id: newLedgerRowId('i'),
           label: 'Bonus',
-          annualAmount: bonusAnnualUsd,
-          currencyCountry: CurrencyCode.usd.code,
+          annualAmount: bonusAnnual,
+          currencyCountry: bonusCurrency.code,
         ),
       );
     }
-    if (rsuAnnualUsd != null && rsuAnnualUsd > 0) {
+    if (rsuAnnual != null && rsuAnnual > 0) {
       incomeLines.add(
         CashflowIncomeLine(
           id: newLedgerRowId('i'),
           label: 'RSUs',
-          annualAmount: rsuAnnualUsd,
-          currencyCountry: CurrencyCode.usd.code,
+          annualAmount: rsuAnnual,
+          currencyCountry: rsuCurrency.code,
         ),
       );
     }
     incomeLastUpdated = DateTime.now();
     userTouchedIncome = true;
     setEffectiveTaxRatePct(effectiveTaxRatePct);
-    for (final e in expenseBucketsMonthlyUsd.entries) {
+    expenseEstimateCurrency = expenseCurrency;
+    for (final e in expenseBucketsMonthly.entries) {
       setExpenseBucket(e.key, e.value);
     }
     if (expenseContextNote != null && expenseContextNote.trim().isNotEmpty) {
@@ -3464,70 +3647,72 @@ class AppModel extends ChangeNotifier {
     monthlyCashflowByMonth.clear();
   }
 
+  void _captureDummySeedSnapshot() {
+    dummySeedSnapshot = {
+      'assets': assets.map(app_state.encodeLedgerAssetRow).toList(),
+      'liabilities': liabilities.map(app_state.encodeLedgerLiabilityRow).toList(),
+    };
+  }
+
   bool get dummyDataPristine {
     if (!dummyDataActive) return false;
-    final snapRaw = dummySeedSnapshot['monthlyCashflowByMonth'];
-    if (snapRaw is! Map) return false;
-    for (final e in snapRaw.entries) {
-      final mk = e.key.toString();
-      final cur = monthlyCashflowByMonth[mk];
+    final assetsRaw = dummySeedSnapshot['assets'];
+    final liabsRaw = dummySeedSnapshot['liabilities'];
+    if (assetsRaw is! List || liabsRaw is! List) return false;
+
+    for (final a in assetsRaw) {
+      if (a is! Map) return false;
+      final id = a['id']?.toString();
+      if (id == null) return false;
+      final cur = assetById(id);
       if (cur == null) return false;
-      final curEnc = app_state.encodeMonthlyCashflowEntry(cur);
-      if (curEnc.toString() != e.value.toString()) return false;
+      if (app_state.encodeLedgerAssetRow(cur).toString() != a.toString()) return false;
+    }
+    for (final l in liabsRaw) {
+      if (l is! Map) return false;
+      final id = l['id']?.toString();
+      if (id == null) return false;
+      final cur = liabilityById(id);
+      if (cur == null) return false;
+      if (app_state.encodeLedgerLiabilityRow(cur).toString() != l.toString()) return false;
     }
     return true;
   }
 
-  void seedDummyData() {
-    if (dummyDataActive) return;
-    final now = DateTime.now();
-    final base = DateTime(now.year, now.month, 1);
-    final months = <String>[];
-    for (var i = 6; i >= 1; i--) {
-      final d = DateTime(base.year, base.month - i, 1);
-      months.add(monthKeyFor(d));
-    }
-
-    final seeded = <String, dynamic>{};
-    var opening = 12000.0;
-    for (final mk in months) {
-      final earned = (netIncomeMonthly * 0.92).clamp(0, double.infinity).toDouble();
-      final spending = (totalExpensesMonthly * 0.95).clamp(0, double.infinity).toDouble();
-      final saved = (availableAfterExpensesMonthly * 0.35).clamp(0, double.infinity).toDouble();
-      final invested = (availableAfterExpensesMonthly * 0.55).clamp(0, double.infinity).toDouble();
-      final closing = (opening + earned - spending - saved - invested).clamp(0, double.infinity).toDouble();
-      final e = MonthlyCashflowEntry(
-        monthKey: mk,
-        openingBalance: opening,
-        closingBalance: closing,
-        monthlyEarned: earned,
-        monthlySpending: spending,
-        outflowToCashFd: saved,
-        outflowToInvested: invested,
-        savingsLines: const [],
-        investmentLines: const [],
-      );
-      monthlyCashflowByMonth[mk] = e;
-      seeded[mk] = app_state.encodeMonthlyCashflowEntry(e);
-      opening = closing;
-    }
-
+  /// Call after onboarding replaces demo assets/liabilities (Apple or fallback templates).
+  void finalizeOnboardingDummyLedger() {
     dummyDataActive = true;
-    dummySeedSnapshot = {'monthlyCashflowByMonth': seeded};
+    _captureDummySeedSnapshot();
+    assetsLastReviewed = DateTime.now();
+    liabilitiesLastReviewed = DateTime.now();
     _scheduleAppStatePersist();
     notifyListeners();
   }
 
   void clearDummyDataIfUntouched() {
-    final snapRaw = dummySeedSnapshot['monthlyCashflowByMonth'];
-    if (snapRaw is Map) {
-      for (final e in snapRaw.entries) {
-        final mk = e.key.toString();
-        final cur = monthlyCashflowByMonth[mk];
+    final assetsRaw = dummySeedSnapshot['assets'];
+    if (assetsRaw is List) {
+      for (final a in assetsRaw) {
+        if (a is! Map) continue;
+        final id = a['id']?.toString();
+        if (id == null) continue;
+        final cur = assetById(id);
         if (cur == null) continue;
-        final curEnc = app_state.encodeMonthlyCashflowEntry(cur);
-        if (curEnc.toString() == e.value.toString()) {
-          monthlyCashflowByMonth.remove(mk);
+        if (app_state.encodeLedgerAssetRow(cur).toString() == a.toString()) {
+          assets.removeWhere((x) => x.id == id);
+        }
+      }
+    }
+    final liabsRaw = dummySeedSnapshot['liabilities'];
+    if (liabsRaw is List) {
+      for (final l in liabsRaw) {
+        if (l is! Map) continue;
+        final id = l['id']?.toString();
+        if (id == null) continue;
+        final cur = liabilityById(id);
+        if (cur == null) continue;
+        if (app_state.encodeLedgerLiabilityRow(cur).toString() == l.toString()) {
+          liabilities.removeWhere((x) => x.id == id);
         }
       }
     }
@@ -3535,6 +3720,12 @@ class AppModel extends ChangeNotifier {
     dummySeedSnapshot = {};
     _scheduleAppStatePersist();
     notifyListeners();
+  }
+
+  void recordLlmRequest({required LlmProvider provider, required String model}) {
+    final key = '${provider.name}:$model';
+    llmRequestsByModelKey[key] = (llmRequestsByModelKey[key] ?? 0) + 1;
+    _scheduleAppStatePersist();
   }
 
   Future<void> resetAllUserDataAndRestartOnboarding() async {
@@ -3572,6 +3763,7 @@ class AppModel extends ChangeNotifier {
     onboardingComplete = false;
     dummyDataActive = false;
     dummySeedSnapshot = {};
+    expenseEstimateCurrency = null;
 
     await persistAppStateToDisk();
     notifyListeners();
@@ -3598,7 +3790,7 @@ class AppModel extends ChangeNotifier {
   double get recurringExpensesMonthly {
     return recurringExpenseBucketKeys.fold<double>(
       0,
-      (s, k) => s + (expenseBuckets[k] ?? 0),
+      (s, k) => s + expenseBucketInDisplayCurrency(k),
     );
   }
 
@@ -3654,7 +3846,7 @@ class AppModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  double predictedMonthlyForExpenseBucket(String k) => expenseBuckets[k] ?? 0;
+  double predictedMonthlyForExpenseBucket(String k) => expenseBucketInDisplayCurrency(k);
 
   void setAllocInvestFraction(double f, {bool quantize = true}) {
     allocInvestFraction = quantize ? _quantizeAllocInvestFraction(f) : f.clamp(0.0, 1.0);
@@ -3780,10 +3972,15 @@ class AppModel extends ChangeNotifier {
         'onboardingComplete': onboardingComplete,
         'dummyDataActive': dummyDataActive,
         'dummySeedSnapshot': dummySeedSnapshot,
+        'llmRequestsByModelKey': llmRequestsByModelKey,
         'homeSummaryText': homeSummaryText,
+        'homeSummaryHelperLastRunDayKey': homeSummaryHelperLastRunDayKey,
+        'homeSummaryHelperRotationIndex': homeSummaryHelperRotationIndex,
+        'homeSummaryHelperIncludedDomainIds': List<String>.from(homeSummaryHelperIncludedDomainIds),
         'displayCurrency': displayCurrency.name,
         'homeCurrencyQuickPick1': homeCurrencyQuickPick1.name,
-        'homeCurrencyQuickPick2': homeCurrencyQuickPick2.name,
+        if (homeCurrencyQuickPick2 != null)
+          'homeCurrencyQuickPick2': homeCurrencyQuickPick2!.name,
         'themeMode': themeModePreference.name,
         'notifications': app_state.encodeNotificationsBlock(this),
         'remindersExpensesCadence': remindersExpensesCadence.name,
@@ -3806,6 +4003,10 @@ class AppModel extends ChangeNotifier {
         'remindersYearlyDay': remindersYearlyDay,
       },
       'ledger': {
+        // Currency for all ledger money fields that are stored in display units
+        // (expense buckets, cashflow months, allocation monthly amounts).
+        'ledgerDisplayCurrency': displayCurrency.name,
+        'expenseEstimateCurrency': expenseCurrencyResolved.name,
         'assets': assets.map(app_state.encodeLedgerAssetRow).toList(),
         'liabilities': liabilities.map(app_state.encodeLedgerLiabilityRow).toList(),
         'incomeLines': incomeLines.map(app_state.encodeIncomeLine).toList(),
@@ -3907,8 +4108,30 @@ class AppModel extends ChangeNotifier {
       if (seed is Map) {
         dummySeedSnapshot = Map<String, dynamic>.from(seed);
       }
+      final usage = s['llmRequestsByModelKey'];
+      if (usage is Map) {
+        llmRequestsByModelKey = {
+          for (final e in usage.entries) e.key.toString(): (e.value is num ? (e.value as num).round() : int.tryParse(e.value.toString()) ?? 0),
+        };
+      }
       final h = s['homeSummaryText']?.toString();
       if (h != null) homeSummaryText = h;
+      final hDay = s['homeSummaryHelperLastRunDayKey']?.toString().trim();
+      if (hDay != null && hDay.isNotEmpty) homeSummaryHelperLastRunDayKey = hDay;
+      final hRot = s['homeSummaryHelperRotationIndex'];
+      if (hRot is num) homeSummaryHelperRotationIndex = hRot.round().clamp(0, 999999);
+      final hDomains = s['homeSummaryHelperIncludedDomainIds'];
+      if (hDomains is List) {
+        homeSummaryHelperIncludedDomainIds = [
+          for (final e in hDomains)
+            if (e != null) e.toString(),
+        ];
+        if (homeSummaryHelperIncludedDomainIds.isEmpty) {
+          homeSummaryHelperIncludedDomainIds = [
+            for (final d in HomeSummaryFocusDomain.values) d.id,
+          ];
+        }
+      }
       final dc = s['displayCurrency']?.toString();
       if (dc != null) {
         for (final c in CurrencyCode.values) {
@@ -3927,8 +4150,10 @@ class AppModel extends ChangeNotifier {
           }
         }
       }
+      homeCurrencyQuickPick2 = null;
+      final legacyThird = s['thirdCurrencyEnabled'];
       final hq2 = s['homeCurrencyQuickPick2']?.toString();
-      if (hq2 != null) {
+      if (legacyThird != false && hq2 != null && hq2.isNotEmpty) {
         for (final c in CurrencyCode.values) {
           if (c.name == hq2) {
             homeCurrencyQuickPick2 = c;
@@ -3936,22 +4161,25 @@ class AppModel extends ChangeNotifier {
           }
         }
       }
-      // Home's SegmentedButton is USD + two quick picks; every segment value must
-      // be unique — corrupted prefs (e.g. duplicate slots or USD in a slot) assert in debug.
+      // Home's SegmentedButton is USD + quick pick(s); every segment value must be unique.
       var fixedHomeCurrencyQuickPicks = false;
       if (homeCurrencyQuickPick1 == CurrencyCode.usd) {
         homeCurrencyQuickPick1 = CurrencyCode.thb;
         fixedHomeCurrencyQuickPicks = true;
       }
       if (homeCurrencyQuickPick2 == CurrencyCode.usd) {
-        homeCurrencyQuickPick2 = CurrencyCode.inr;
+        homeCurrencyQuickPick2 = null;
         fixedHomeCurrencyQuickPicks = true;
       }
-      if (homeCurrencyQuickPick1 == homeCurrencyQuickPick2) {
-        homeCurrencyQuickPick2 = kDisplayCurrencyPickerOptions.firstWhere(
-          (c) => c != CurrencyCode.usd && c != homeCurrencyQuickPick1,
-          orElse: () => CurrencyCode.inr,
-        );
+      if (homeCurrencyQuickPick2 != null &&
+          homeCurrencyQuickPick1 == homeCurrencyQuickPick2) {
+        homeCurrencyQuickPick2 = null;
+        fixedHomeCurrencyQuickPicks = true;
+      }
+      if (displayCurrency != CurrencyCode.usd &&
+          displayCurrency != homeCurrencyQuickPick1 &&
+          displayCurrency != homeCurrencyQuickPick2) {
+        displayCurrency = homeCurrencyQuickPick1;
         fixedHomeCurrencyQuickPicks = true;
       }
       if (fixedHomeCurrencyQuickPicks) {
@@ -4015,6 +4243,16 @@ class AppModel extends ChangeNotifier {
     final ledger = root['ledger'];
     if (ledger is Map) {
       final L = Map<String, dynamic>.from(ledger);
+      CurrencyCode? importLedgerCurrency;
+      final rawLedgerCurrency = L['ledgerDisplayCurrency']?.toString().trim();
+      if (rawLedgerCurrency != null && rawLedgerCurrency.isNotEmpty) {
+        for (final c in CurrencyCode.values) {
+          if (c.name == rawLedgerCurrency) {
+            importLedgerCurrency = c;
+            break;
+          }
+        }
+      }
       final assetsRaw = L['assets'];
       if (assetsRaw is List) {
         assets
@@ -4044,12 +4282,41 @@ class AppModel extends ChangeNotifier {
               if (app_state.decodeIncomeLine(e) != null) app_state.decodeIncomeLine(e)!,
           ]);
       }
+      CurrencyCode? importExpenseCurrency;
+      final rawExpenseCcy = L['expenseEstimateCurrency']?.toString().trim();
+      if (rawExpenseCcy != null && rawExpenseCcy.isNotEmpty) {
+        for (final c in CurrencyCode.values) {
+          if (c.name == rawExpenseCcy) {
+            importExpenseCurrency = c;
+            break;
+          }
+        }
+      }
       final eb = L['expenseBuckets'];
       if (eb is Map) {
         for (final k in expenseBucketKeys) {
           final v = eb[k];
           final d = v is num ? v.toDouble() : double.tryParse(v?.toString() ?? '');
           if (d != null) expenseBuckets[k] = d;
+        }
+        var bucketCurrency = importExpenseCurrency ?? importLedgerCurrency;
+        // Legacy exports without expenseEstimateCurrency.
+        if (bucketCurrency == null && displayCurrency == CurrencyCode.thb) {
+          var maxV = 0.0;
+          var anyPositive = false;
+          for (final k in expenseBucketKeys) {
+            final v = expenseBuckets[k] ?? 0;
+            if (v > 0.005) anyPositive = true;
+            if (v > maxV) maxV = v;
+          }
+          if (anyPositive && maxV > 0 && maxV < 10000) {
+            bucketCurrency = CurrencyCode.usd;
+          }
+        }
+        if (bucketCurrency != null) {
+          expenseEstimateCurrency = bucketCurrency;
+        } else if (importLedgerCurrency != null) {
+          expenseEstimateCurrency = importLedgerCurrency;
         }
       }
       final ectx = L['expenseBucketContextMarkdown'];
@@ -4137,6 +4404,44 @@ class AppModel extends ChangeNotifier {
           if (d != null && d > 0) _fxUsdPerUnitOverride[c] = d;
         }
       }
+
+      // Convert imported cashflow/allocation amounts (not expense buckets — those use [expenseEstimateCurrency]).
+      if (importLedgerCurrency != null && importLedgerCurrency != displayCurrency) {
+        final from = importLedgerCurrency;
+        final to = displayCurrency;
+        final resolvedFx = fxUsdPerUnitResolved;
+        for (final e in monthlyCashflowByMonth.values) {
+          e.openingBalance = convertCurrency(value: e.openingBalance, from: from, to: to, usdPerUnitOverrides: resolvedFx);
+          e.closingBalance = convertCurrency(value: e.closingBalance, from: from, to: to, usdPerUnitOverrides: resolvedFx);
+          e.monthlyEarned = convertCurrency(value: e.monthlyEarned, from: from, to: to, usdPerUnitOverrides: resolvedFx);
+          e.outflowToCashFd = convertCurrency(value: e.outflowToCashFd, from: from, to: to, usdPerUnitOverrides: resolvedFx);
+          e.outflowToInvested = convertCurrency(value: e.outflowToInvested, from: from, to: to, usdPerUnitOverrides: resolvedFx);
+          e.monthlySpending = convertCurrency(value: e.monthlySpending, from: from, to: to, usdPerUnitOverrides: resolvedFx);
+          for (final il in e.investmentLines) {
+            il.amount = convertCurrency(value: il.amount, from: from, to: to, usdPerUnitOverrides: resolvedFx);
+            il.amountAppliedToAssets = convertCurrency(
+              value: il.amountAppliedToAssets,
+              from: from,
+              to: to,
+              usdPerUnitOverrides: resolvedFx,
+            );
+          }
+          for (final sl in e.savingsLines) {
+            sl.amount = convertCurrency(value: sl.amount, from: from, to: to, usdPerUnitOverrides: resolvedFx);
+            sl.amountApplied = convertCurrency(
+              value: sl.amountApplied,
+              from: from,
+              to: to,
+              usdPerUnitOverrides: resolvedFx,
+            );
+          }
+        }
+        allocInvestmentsMonthly =
+            convertCurrency(value: allocInvestmentsMonthly, from: from, to: to, usdPerUnitOverrides: resolvedFx);
+        allocSavingsMonthly =
+            convertCurrency(value: allocSavingsMonthly, from: from, to: to, usdPerUnitOverrides: resolvedFx);
+      }
+
       app_state.decodeProjectionMap(projectionInvestReturnPctAnnual, L['projectionInvestReturnPctAnnual']);
       app_state.decodeProjectionMap(projectionSavingsReturnPctAnnual, L['projectionSavingsReturnPctAnnual']);
       app_state.decodeProjectionMap(projectionInflationPctAnnual, L['projectionInflationPctAnnual']);

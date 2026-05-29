@@ -262,17 +262,19 @@ class _CommandCenterTabState extends State<CommandCenterTab> with TickerProvider
                     ),
                   ),
                 ),
-                const SizedBox(width: 10),
                 SizedBox(
                   height: 44,
                   child: Builder(
                     builder: (ctx) {
                       final cs = Theme.of(ctx).colorScheme;
+                      final options = widget.model.homeDisplayCurrencyOptions;
                       return SegmentedButton<CurrencyCode>(
                         segments: [
-                          const ButtonSegment(value: CurrencyCode.usd, label: Text('USD')),
-                          ButtonSegment(value: widget.model.homeCurrencyQuickPick1, label: Text(widget.model.homeCurrencyQuickPick1.code)),
-                          ButtonSegment(value: widget.model.homeCurrencyQuickPick2, label: Text(widget.model.homeCurrencyQuickPick2.code)),
+                          for (final c in options)
+                            ButtonSegment(
+                              value: c,
+                              label: Text(c == CurrencyCode.usd ? 'USD' : c.code),
+                            ),
                         ],
                         selected: {widget.model.displayCurrency},
                         onSelectionChanged: (s) => widget.model.setDisplayCurrency(s.first),
@@ -301,39 +303,76 @@ class _CommandCenterTabState extends State<CommandCenterTab> with TickerProvider
           ),
         ),
         const SizedBox(height: 10),
-        if (widget.model.homeSummaryText.trim().isNotEmpty)
+        if (widget.model.homeSummaryText.trim().isNotEmpty ||
+            widget.model.homeSummaryHelperRunning)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Card(
-              child: Stack(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(14, 14, 44, 14),
-                    child: Text(
-                      widget.model.homeSummaryText.trim(),
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.onSurface,
-                        fontWeight: FontWeight.w400,
-                        fontSize: 15,
-                        height: 1.55,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 6, 6, 14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (widget.model.homeSummaryText.trim().isNotEmpty)
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: IconButton(
+                          tooltip: 'Dismiss',
+                          onPressed: () => widget.model.setHomeSummaryText(''),
+                          icon: const Icon(Icons.close, size: 16),
+                          iconSize: 16,
+                          visualDensity: VisualDensity.compact,
+                          padding: const EdgeInsets.all(4),
+                          constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                          style: IconButton.styleFrom(
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            foregroundColor: Theme.of(context).colorScheme.outline,
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                  Positioned(
-                    top: 2,
-                    right: 2,
-                    child: IconButton(
-                      tooltip: 'Dismiss',
-                      visualDensity: VisualDensity.compact,
-                      onPressed: () => widget.model.setHomeSummaryText(''),
-                      icon: const Icon(Icons.close, size: 22),
-                    ),
-                  ),
-                ],
+                    if (widget.model.homeSummaryHelperRunning &&
+                        widget.model.homeSummaryText.trim().isEmpty)
+                      Row(
+                        children: [
+                          SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: widget.model.accent,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Writing today\'s note…',
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                                fontSize: 15,
+                                height: 1.55,
+                              ),
+                            ),
+                          ),
+                        ],
+                      )
+                    else
+                      Text(
+                        widget.model.homeSummaryText.trim(),
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurface,
+                          fontWeight: FontWeight.w400,
+                          fontSize: 15,
+                          height: 1.55,
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
           ),
-        if (widget.model.homeSummaryText.trim().isNotEmpty) const SizedBox(height: 10),
+        if (widget.model.homeSummaryText.trim().isNotEmpty ||
+            widget.model.homeSummaryHelperRunning)
+          const SizedBox(height: 10),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Card(
@@ -880,13 +919,13 @@ class _SelectionCard extends StatelessWidget {
         break;
       case _SelectedKind.investments:
         title = 'Investments';
-        subtitle = 'Monthly invest vs savings split';
+        subtitle = 'Invest vs save';
         primaryLabel = 'Go to Goals';
         primaryAction = onGoToGoals ?? () => onGoToLedger('income');
         break;
       case _SelectedKind.savings:
         title = 'Savings';
-        subtitle = 'Cashflow cash + monthly split';
+        subtitle = 'Invest vs save';
         primaryLabel = 'Go to Goals';
         primaryAction = onGoToGoals ?? () => onGoToLedger('cashflow');
         break;

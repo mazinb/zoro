@@ -67,7 +67,9 @@ class AppleFoundationChannel {
     } on MissingPluginException {
       return AppleFoundationCapabilities.unsupported;
     } catch (e) {
-      debugPrint('[AppleFoundation] getCapabilities: $e');
+      if (kDebugMode) {
+        debugPrint('[AppleFoundation] getCapabilities: $e');
+      }
       return const AppleFoundationCapabilities(
         available: false,
         disabledReason: 'Could not check availability',
@@ -91,7 +93,9 @@ class AppleFoundationChannel {
     } on MissingPluginException {
       return (contextSize: 0, reservedForOutput: 2048);
     } catch (e) {
-      debugPrint('[AppleFoundation] getContextBudget: $e');
+      if (kDebugMode) {
+        debugPrint('[AppleFoundation] getContextBudget: $e');
+      }
     }
     return (contextSize: 0, reservedForOutput: 2048);
   }
@@ -114,10 +118,14 @@ class AppleFoundationChannel {
     } on PlatformException catch (e) {
       // Expected on iOS 26.0–26.3; Dart falls back to a character estimate.
       if (e.code != 'unsupported_os') {
-        debugPrint('[AppleFoundation] countTokens: $e');
+        if (kDebugMode) {
+          debugPrint('[AppleFoundation] countTokens: $e');
+        }
       }
     } catch (e) {
-      debugPrint('[AppleFoundation] countTokens: $e');
+      if (kDebugMode) {
+        debugPrint('[AppleFoundation] countTokens: $e');
+      }
     }
     return ((system.length + user.length) / 4).ceil();
   }

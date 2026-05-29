@@ -4,7 +4,7 @@ import 'package:flutter/services.dart';
 ///
 /// Important: Exchange rates are intentionally hard-coded for now.
 /// Currency conversion is currently hard-coded (UI-first build).
-enum CurrencyCode { thb, inr, usd, aed, sgd, aud, eur, jpy }
+enum CurrencyCode { thb, inr, usd, aed, sgd, aud, eur, jpy, hkd }
 
 /// Order for display-currency dropdowns (Home, Settings).
 const List<CurrencyCode> kDisplayCurrencyPickerOptions = [
@@ -16,6 +16,7 @@ const List<CurrencyCode> kDisplayCurrencyPickerOptions = [
   CurrencyCode.aud,
   CurrencyCode.eur,
   CurrencyCode.jpy,
+  CurrencyCode.hkd,
 ];
 
 extension CurrencyCodeUi on CurrencyCode {
@@ -28,6 +29,7 @@ extension CurrencyCodeUi on CurrencyCode {
     CurrencyCode.aud => '🇦🇺',
     CurrencyCode.eur => '🇪🇺',
     CurrencyCode.jpy => '🇯🇵',
+    CurrencyCode.hkd => '🇭🇰',
   };
 
   String get code => switch (this) {
@@ -39,6 +41,7 @@ extension CurrencyCodeUi on CurrencyCode {
     CurrencyCode.aud => 'AUD',
     CurrencyCode.eur => 'EUR',
     CurrencyCode.jpy => 'JPY',
+    CurrencyCode.hkd => 'HKD',
   };
 
   String get symbol => switch (this) {
@@ -53,6 +56,7 @@ extension CurrencyCodeUi on CurrencyCode {
     CurrencyCode.aud => '\$',
     CurrencyCode.eur => '€',
     CurrencyCode.jpy => '¥',
+    CurrencyCode.hkd => 'HK\$',
   };
 
   /// Hard-coded spot FX rate expressed as: 1 unit of this currency == X USD.
@@ -65,6 +69,7 @@ extension CurrencyCodeUi on CurrencyCode {
     CurrencyCode.aud => 0.649, // ~ 1.54 AUD/USD
     CurrencyCode.eur => 1.075, // ~ 0.93 EUR/USD
     CurrencyCode.jpy => 0.00671, // ~ 149 JPY/USD
+    CurrencyCode.hkd => 0.128, // ~ 7.8 HKD/USD
   };
 
   Color get chipColor => switch (this) {
@@ -76,6 +81,7 @@ extension CurrencyCodeUi on CurrencyCode {
     CurrencyCode.aud => const Color(0xFF14B8A6),
     CurrencyCode.eur => const Color(0xFF8B5CF6),
     CurrencyCode.jpy => const Color(0xFFF43F5E),
+    CurrencyCode.hkd => const Color(0xFF22C55E),
   };
 }
 
@@ -172,6 +178,7 @@ String formatCurrencyDisplay(double amount, {required CurrencyCode currency}) {
     case CurrencyCode.aud:
     case CurrencyCode.eur:
     case CurrencyCode.jpy:
+    case CurrencyCode.hkd:
       final sym = currency.symbol;
       if (a >= 1000000) {
         body = _formatMillionsCompact(a, sym);
@@ -216,6 +223,7 @@ String formatCurrencyCompactShort(
     case CurrencyCode.aud:
     case CurrencyCode.eur:
     case CurrencyCode.jpy:
+    case CurrencyCode.hkd:
       final sym = currency.symbol;
       if (a >= 1000000000) {
         return withSign('$sym${fmtUnit(a / 1000000000)}B');
@@ -239,7 +247,8 @@ String formatGroupedInteger(int value, {required CurrencyCode currency}) {
     CurrencyCode.sgd ||
     CurrencyCode.aud ||
     CurrencyCode.eur ||
-    CurrencyCode.jpy => _formatEnUsInteger(value),
+    CurrencyCode.jpy ||
+    CurrencyCode.hkd => _formatEnUsInteger(value),
   };
 }
 
@@ -269,17 +278,34 @@ class GroupedIntegerTextInputFormatter extends TextInputFormatter {
 
 /// Maps web assets row `currency` (country preset name) to a conversion bucket.
 /// Keep in sync with `countryPresets` names in `web_expenses_income.dart`.
-CurrencyCode currencyCodeForPresetCountry(String countryName) {
-  switch (countryName) {
-    case 'India':
-      return CurrencyCode.inr;
-    case 'Thailand':
-      return CurrencyCode.thb;
-    case 'US':
-      return CurrencyCode.usd;
-    default:
-      return CurrencyCode.usd;
+CurrencyCode? tryCurrencyCodeForPresetCountry(String countryNameRaw) {
+  final t = countryNameRaw.trim();
+  if (t.isEmpty) return null;
+  final u = t.toUpperCase();
+  if (u == 'INR' || _ciEq(t, 'India')) return CurrencyCode.inr;
+  if (u == 'THB' || _ciEq(t, 'Thailand')) return CurrencyCode.thb;
+  if (u == 'USD' || _ciEq(t, 'US') || _ciEq(t, 'United States')) {
+    return CurrencyCode.usd;
   }
+  if (u == 'AED' || _ciEq(t, 'UAE') || _ciEq(t, 'United Arab Emirates')) {
+    return CurrencyCode.aed;
+  }
+  if (u == 'SGD' || _ciEq(t, 'Singapore')) return CurrencyCode.sgd;
+  if (u == 'AUD' || _ciEq(t, 'Australia')) return CurrencyCode.aud;
+  if (u == 'EUR' || _ciEq(t, 'Euro')) return CurrencyCode.eur;
+  if (u == 'JPY' || _ciEq(t, 'Japan')) return CurrencyCode.jpy;
+  if (u == 'HKD' ||
+      _ciEq(t, 'Hong Kong') ||
+      _ciEq(t, 'HK') ||
+      _ciEq(t, 'HKSAR') ||
+      _ciEq(t, 'Hong Kong SAR')) {
+    return CurrencyCode.hkd;
+  }
+  return null;
+}
+
+CurrencyCode currencyCodeForPresetCountry(String countryName) {
+  return tryCurrencyCodeForPresetCountry(countryName) ?? CurrencyCode.usd;
 }
 
 bool _ciEq(String a, String b) =>
@@ -303,5 +329,12 @@ CurrencyCode currencyCodeForIncomeLineCurrency(String raw) {
   if (u == 'AUD' || _ciEq(t, 'Australia')) return CurrencyCode.aud;
   if (u == 'EUR' || _ciEq(t, 'Euro')) return CurrencyCode.eur;
   if (u == 'JPY' || _ciEq(t, 'Japan')) return CurrencyCode.jpy;
+  if (u == 'HKD' ||
+      _ciEq(t, 'Hong Kong') ||
+      _ciEq(t, 'HK') ||
+      _ciEq(t, 'HKSAR') ||
+      _ciEq(t, 'Hong Kong SAR')) {
+    return CurrencyCode.hkd;
+  }
   return CurrencyCode.usd;
 }
