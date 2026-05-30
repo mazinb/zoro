@@ -1334,7 +1334,7 @@ class _SankeyModel {
 
   static _SankeyModel fromApp(AppModel model) {
     final sources = <String>[];
-    final middle = <String>['All income', 'Net income', 'Taxes'];
+    final middle = <String>['All income', 'Net income'];
 
     // Always keep Expenses grouped in the chart (details are shown as rows below).
     final expenseSinks = <String>['Expenses'];
@@ -1348,6 +1348,8 @@ class _SankeyModel {
     final totalIncomeMonthly = model.totalIncomeAnnualDisplay / 12.0;
     final taxesMonthly = (model.effectiveTaxRatePct ?? 0).clamp(0, 100) / 100.0 * totalIncomeMonthly;
     final netMonthly = (totalIncomeMonthly - taxesMonthly).clamp(0, double.infinity);
+    final showTaxes = taxesMonthly > 0;
+    if (showTaxes) middle.add('Taxes');
 
     _Flow incomeLink(String from, double v, Color c) {
       final f = _Flow._(from, 'All income', v, c, stage: _FlowStage.sourceToMiddle);
@@ -1378,9 +1380,11 @@ class _SankeyModel {
     links.add(
       _Flow._('All income', 'Net income', netMonthly.toDouble(), const Color(0xFF93C5FD), stage: _FlowStage.middleToMiddle2),
     );
-    links.add(
-      _Flow._('All income', 'Taxes', taxesMonthly.toDouble(), const Color(0xFF1D4ED8), stage: _FlowStage.middleToMiddle2),
-    );
+    if (showTaxes) {
+      links.add(
+        _Flow._('All income', 'Taxes', taxesMonthly.toDouble(), const Color(0xFF1D4ED8), stage: _FlowStage.middleToMiddle2),
+      );
+    }
 
     // Expenses (grouped).
     final expenses = _Flow._(

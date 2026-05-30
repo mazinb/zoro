@@ -312,7 +312,7 @@ class _LedgerTabState extends State<LedgerTab> {
           sizesToContent: true,
           builder: (ctx) => _AssetEditorSheet(
             draft: draft,
-            allowCurrencyEdit: isNew,
+            isNew: isNew,
             canDelete: !isNew && m.assets.length > 1,
             model: m,
             parentContext: context,
@@ -351,7 +351,7 @@ class _LedgerTabState extends State<LedgerTab> {
           sizesToContent: true,
           builder: (ctx) => _LiabilityEditorSheet(
             draft: draft,
-            allowCurrencyEdit: isNew,
+            isNew: isNew,
             canDelete: !isNew,
             model: m,
             parentContext: context,
@@ -1481,14 +1481,14 @@ class _AddLedgerRowCard extends StatelessWidget {
 class _AssetEditorSheet extends StatefulWidget {
   const _AssetEditorSheet({
     required this.draft,
-    required this.allowCurrencyEdit,
+    required this.isNew,
     required this.canDelete,
     required this.model,
     required this.parentContext,
   });
 
   final LedgerAssetRow draft;
-  final bool allowCurrencyEdit;
+  final bool isNew;
   final bool canDelete;
   final AppModel model;
   final BuildContext parentContext;
@@ -1566,7 +1566,7 @@ class _AssetEditorSheetState extends State<_AssetEditorSheet> {
               children: [
                 Expanded(
                   child: Text(
-                    widget.allowCurrencyEdit ? 'New asset' : 'Edit asset',
+                    widget.isNew ? 'New asset' : 'Edit asset',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.w900,
                         ),
@@ -1611,55 +1611,39 @@ class _AssetEditorSheetState extends State<_AssetEditorSheet> {
               ),
             ),
             const SizedBox(height: 12),
-            if (widget.allowCurrencyEdit)
-              DropdownButtonFormField<String>(
-                initialValue: ledgerCurrencyPickerValue(_row.currencyCountry),
-                decoration: const InputDecoration(
-                  labelText: 'Currency',
-                  border: OutlineInputBorder(),
-                ),
-                items: [
-                  for (final c in kLedgerCurrencyPickerOptions)
-                    DropdownMenuItem(
-                      value: c.code,
-                      child: Text(ledgerCurrencyPickerLabel(c)),
-                    ),
-                ],
-                onChanged: widget.model.primaryCashBalanceIsMirrored(_row)
-                    ? null
-                    : (v) {
-                        if (v == null) return;
-                        setState(() {
-                          _row.currencyCountry = v;
-                          final cc = ledgerCurrencyCodeFromRaw(v);
-                          final digits = _totalCtrl.text.replaceAll(
-                            RegExp(r'[^0-9]'),
-                            '',
-                          );
-                          if (digits.isNotEmpty) {
-                            _totalCtrl.text = formatGroupedInteger(
-                              int.parse(digits),
-                              currency: cc,
-                            );
-                          }
-                        });
-                      },
-              )
-            else
-              InputDecorator(
-                decoration: const InputDecoration(
-                  labelText: 'Currency (locked after save)',
-                  border: OutlineInputBorder(),
-                  helperText: 'Add a new row to pick a different currency.',
-                ),
-                child: Row(
-                  children: [
-                    Text(ledgerCurrencyFlag(_row.currencyCountry)),
-                    const SizedBox(width: 8),
-                    Text(ledgerCurrencyDisplayLabel(_row.currencyCountry)),
-                  ],
-                ),
+            DropdownButtonFormField<String>(
+              initialValue: ledgerCurrencyPickerValue(_row.currencyCountry),
+              decoration: const InputDecoration(
+                labelText: 'Currency',
+                border: OutlineInputBorder(),
               ),
+              items: [
+                for (final c in kLedgerCurrencyPickerOptions)
+                  DropdownMenuItem(
+                    value: c.code,
+                    child: Text(ledgerCurrencyPickerLabel(c)),
+                  ),
+              ],
+              onChanged: widget.model.primaryCashBalanceIsMirrored(_row)
+                  ? null
+                  : (v) {
+                      if (v == null) return;
+                      setState(() {
+                        _row.currencyCountry = v;
+                        final cc = ledgerCurrencyCodeFromRaw(v);
+                        final digits = _totalCtrl.text.replaceAll(
+                          RegExp(r'[^0-9]'),
+                          '',
+                        );
+                        if (digits.isNotEmpty) {
+                          _totalCtrl.text = formatGroupedInteger(
+                            int.parse(digits),
+                            currency: cc,
+                          );
+                        }
+                      });
+                    },
+            ),
             if (_row.type == LedgerAssetType.other) ...[
               const SizedBox(height: 12),
               TextField(
@@ -1731,8 +1715,7 @@ class _AssetEditorSheetState extends State<_AssetEditorSheet> {
                       builder: (ctx) => LedgerImportPage(
                         model: widget.model,
                         kind: LedgerImportKind.asset,
-                        editAssetId:
-                            widget.allowCurrencyEdit ? null : widget.draft.id,
+                        editAssetId: widget.isNew ? null : widget.draft.id,
                       ),
                     ),
                   );
@@ -1756,14 +1739,14 @@ class _AssetEditorSheetState extends State<_AssetEditorSheet> {
 class _LiabilityEditorSheet extends StatefulWidget {
   const _LiabilityEditorSheet({
     required this.draft,
-    required this.allowCurrencyEdit,
+    required this.isNew,
     required this.canDelete,
     required this.model,
     required this.parentContext,
   });
 
   final LedgerLiabilityRow draft;
-  final bool allowCurrencyEdit;
+  final bool isNew;
   final bool canDelete;
   final AppModel model;
   final BuildContext parentContext;
@@ -1831,7 +1814,7 @@ class _LiabilityEditorSheetState extends State<_LiabilityEditorSheet> {
               children: [
                 Expanded(
                   child: Text(
-                    widget.allowCurrencyEdit ? 'New liability' : 'Edit liability',
+                    widget.isNew ? 'New liability' : 'Edit liability',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                           fontWeight: FontWeight.w900,
                         ),
@@ -1869,53 +1852,37 @@ class _LiabilityEditorSheetState extends State<_LiabilityEditorSheet> {
               ),
             ),
             const SizedBox(height: 12),
-            if (widget.allowCurrencyEdit)
-              DropdownButtonFormField<String>(
-                initialValue: ledgerCurrencyPickerValue(_row.currencyCountry),
-                decoration: const InputDecoration(
-                  labelText: 'Currency',
-                  border: OutlineInputBorder(),
-                ),
-                items: [
-                  for (final c in kLedgerCurrencyPickerOptions)
-                    DropdownMenuItem(
-                      value: c.code,
-                      child: Text(ledgerCurrencyPickerLabel(c)),
-                    ),
-                ],
-                onChanged: (v) {
-                  if (v == null) return;
-                  setState(() {
-                    _row.currencyCountry = v;
-                    final cc = ledgerCurrencyCodeFromRaw(v);
-                    final digits = _totalCtrl.text.replaceAll(
-                      RegExp(r'[^0-9]'),
-                      '',
-                    );
-                    if (digits.isNotEmpty) {
-                      _totalCtrl.text = formatGroupedInteger(
-                        int.parse(digits),
-                        currency: cc,
-                      );
-                    }
-                  });
-                },
-              )
-            else
-              InputDecorator(
-                decoration: const InputDecoration(
-                  labelText: 'Currency (locked after save)',
-                  border: OutlineInputBorder(),
-                  helperText: 'Add a new row to pick a different currency.',
-                ),
-                child: Row(
-                  children: [
-                    Text(ledgerCurrencyFlag(_row.currencyCountry)),
-                    const SizedBox(width: 8),
-                    Text(ledgerCurrencyDisplayLabel(_row.currencyCountry)),
-                  ],
-                ),
+            DropdownButtonFormField<String>(
+              initialValue: ledgerCurrencyPickerValue(_row.currencyCountry),
+              decoration: const InputDecoration(
+                labelText: 'Currency',
+                border: OutlineInputBorder(),
               ),
+              items: [
+                for (final c in kLedgerCurrencyPickerOptions)
+                  DropdownMenuItem(
+                    value: c.code,
+                    child: Text(ledgerCurrencyPickerLabel(c)),
+                  ),
+              ],
+              onChanged: (v) {
+                if (v == null) return;
+                setState(() {
+                  _row.currencyCountry = v;
+                  final cc = ledgerCurrencyCodeFromRaw(v);
+                  final digits = _totalCtrl.text.replaceAll(
+                    RegExp(r'[^0-9]'),
+                    '',
+                  );
+                  if (digits.isNotEmpty) {
+                    _totalCtrl.text = formatGroupedInteger(
+                      int.parse(digits),
+                      currency: cc,
+                    );
+                  }
+                });
+              },
+            ),
             const SizedBox(height: 12),
             _ledgerTotalAndPercentRow(
               totalCtrl: _totalCtrl,
@@ -1943,8 +1910,7 @@ class _LiabilityEditorSheetState extends State<_LiabilityEditorSheet> {
                     builder: (ctx) => LedgerImportPage(
                       model: widget.model,
                       kind: LedgerImportKind.liability,
-                      editLiabilityId:
-                          widget.allowCurrencyEdit ? null : widget.draft.id,
+                      editLiabilityId: widget.isNew ? null : widget.draft.id,
                     ),
                   ),
                 );
@@ -4287,7 +4253,7 @@ Future<void> openLedgerLiabilityEditor({
     sizesToContent: true,
     builder: (ctx) => _LiabilityEditorSheet(
       draft: model.liabilities[index].clone(),
-      allowCurrencyEdit: false,
+      isNew: false,
       canDelete: true,
       model: model,
       parentContext: context,

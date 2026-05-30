@@ -38,11 +38,6 @@ String ledgerCurrencyPickerLabel(CurrencyCode c) {
   return '${c.flag} ${c.code} ($sym)';
 }
 
-String ledgerCurrencyDisplayLabel(String raw) =>
-    ledgerCurrencyPickerLabel(ledgerCurrencyCodeFromRaw(raw));
-
-String ledgerCurrencyFlag(String raw) => ledgerCurrencyCodeFromRaw(raw).flag;
-
 extension CurrencyCodeUi on CurrencyCode {
   String get flag => switch (this) {
     CurrencyCode.usd => '🇺🇸',
