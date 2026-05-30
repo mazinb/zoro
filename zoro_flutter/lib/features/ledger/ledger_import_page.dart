@@ -522,11 +522,12 @@ Infer **monthKey** from the document or statement period; use this hint only if 
         ],
       ].join('\n').trim();
 
+      final modelName = m.modelFor(provider);
       Future<String> runComplete(String system, String user, {bool? preferJson}) async {
-        return LlmClient().complete(
+        final result = await LlmClient().complete(
           provider: provider,
           apiKey: key,
-          model: m.modelFor(provider),
+          model: modelName,
           system: system,
           user: user,
           attachments: bundle.attachments,
@@ -534,6 +535,11 @@ Infer **monthKey** from the document or statement period; use this hint only if 
           preferJsonObjectOutput:
               preferJson ?? (provider == LlmProvider.openai || provider == LlmProvider.gemini),
         );
+        m.setPendingLlmCompletionMetadata(
+          model: '${provider.name}:$modelName',
+          tokensUsed: result.tokensUsed,
+        );
+        return result.text;
       }
 
       final raw = await runComplete(_systemPrompt(), userPrompt);

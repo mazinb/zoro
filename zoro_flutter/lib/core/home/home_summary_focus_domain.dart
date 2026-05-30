@@ -54,3 +54,36 @@ HomeSummaryFocusDomain homeSummaryDomainAtRotationIndex(
   assert(enabled.isNotEmpty);
   return enabled[rotationIndex % enabled.length];
 }
+
+/// Stable checkbox / rotation order (enum declaration order).
+List<HomeSummaryFocusDomain> homeSummaryDomainsInCanonicalOrder(
+  Iterable<HomeSummaryFocusDomain> domains,
+) {
+  final selected = domains is Set<HomeSummaryFocusDomain> ? domains : domains.toSet();
+  return [
+    for (final d in HomeSummaryFocusDomain.values)
+      if (selected.contains(d)) d,
+  ];
+}
+
+/// Keeps "next up" on the same topic when toggling focus checkboxes.
+int remapHomeSummaryRotationIndex({
+  required List<HomeSummaryFocusDomain> oldEnabled,
+  required List<HomeSummaryFocusDomain> newEnabled,
+  required int rotationIndex,
+}) {
+  if (newEnabled.isEmpty) return 0;
+  if (oldEnabled.isEmpty) return rotationIndex % newEnabled.length;
+
+  final upcoming = homeSummaryDomainAtRotationIndex(oldEnabled, rotationIndex);
+  final kept = newEnabled.indexOf(upcoming);
+  if (kept >= 0) return kept;
+
+  final oldSlot = rotationIndex % oldEnabled.length;
+  for (var step = 1; step < oldEnabled.length; step++) {
+    final candidate = oldEnabled[(oldSlot + step) % oldEnabled.length];
+    final idx = newEnabled.indexOf(candidate);
+    if (idx >= 0) return idx;
+  }
+  return rotationIndex % newEnabled.length;
+}

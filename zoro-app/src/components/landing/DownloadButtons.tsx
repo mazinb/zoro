@@ -78,7 +78,7 @@ function StoreBadge({
     return (
       <span
         className={`${baseBadge} ${sizes[size]} ${colorClass}`}
-        aria-label={`${label} — coming soon`}
+        aria-label={`${label}, coming soon`}
         title="Set NEXT_PUBLIC_IOS_APP_URL or NEXT_PUBLIC_ANDROID_APP_URL"
       >
         {content}

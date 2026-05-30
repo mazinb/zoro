@@ -322,7 +322,7 @@ class _AgentChatThreadPageState extends State<AgentChatThreadPage> {
       );
       if (!mounted) return;
       final processed = processAgentActions(
-        rawReply: reply,
+        rawReply: reply.text,
         agent: agent,
         model: widget.model,
         enabledToolIds: enabledTools,

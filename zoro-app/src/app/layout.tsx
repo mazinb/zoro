@@ -19,7 +19,7 @@ export const metadata: Metadata = {
     default: "Zoro | Your AI Financial Advisor",
     template: "%s | Zoro"
   },
-  description: "Download Zoro for iOS and Android. Privacy-first personal finance—no bank sync, data on your phone, and AI assistants with your own API keys.",
+  description: "Download Zoro for iOS and Android. Privacy-first personal finance. No bank sync, data on your phone, and AI assistants with your own API keys.",
   keywords: ["personal finance app", "privacy finance", "net worth tracker", "no bank sync", "AI financial planner", "Zoro app"],
   authors: [{ name: "Zoro" }],
   creator: "Zoro",

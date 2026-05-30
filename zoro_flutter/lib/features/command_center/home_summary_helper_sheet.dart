@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/home/home_summary_focus_domain.dart';
@@ -25,6 +26,21 @@ class _HomeSummaryHelperSheet extends StatefulWidget {
 class _HomeSummaryHelperSheetState extends State<_HomeSummaryHelperSheet> {
   late Set<HomeSummaryFocusDomain> _selected;
 
+  List<HomeSummaryFocusDomain> get _orderedSelected =>
+      homeSummaryDomainsInCanonicalOrder(_selected);
+
+  int get _previewRotationIndex {
+    final saved = widget.model.homeSummaryHelperIncludedDomains;
+    if (listEquals(_orderedSelected, saved)) {
+      return widget.model.homeSummaryHelperRotationIndex;
+    }
+    return remapHomeSummaryRotationIndex(
+      oldEnabled: saved,
+      newEnabled: _orderedSelected,
+      rotationIndex: widget.model.homeSummaryHelperRotationIndex,
+    );
+  }
+
   @override
   void initState() {
     super.initState();
@@ -43,8 +59,8 @@ class _HomeSummaryHelperSheetState extends State<_HomeSummaryHelperSheet> {
   }
 
   void _save() {
-    if (_selected.isEmpty) return;
-    widget.model.setHomeSummaryHelperIncludedDomains(_selected);
+    if (_orderedSelected.isEmpty) return;
+    widget.model.setHomeSummaryHelperIncludedDomains(_orderedSelected);
     Navigator.of(context).pop();
   }
 
@@ -52,10 +68,9 @@ class _HomeSummaryHelperSheetState extends State<_HomeSummaryHelperSheet> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final now = DateTime.now();
-    final enabled = widget.model.homeSummaryHelperIncludedDomains;
-    final nextFocus = enabled.isEmpty
+    final nextFocus = _orderedSelected.isEmpty
         ? null
-        : homeSummaryDomainAtRotationIndex(enabled, widget.model.homeSummaryHelperRotationIndex);
+        : homeSummaryDomainAtRotationIndex(_orderedSelected, _previewRotationIndex);
 
     return SafeArea(
       child: Padding(

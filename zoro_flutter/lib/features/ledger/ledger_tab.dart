@@ -19,6 +19,7 @@ import '../../core/finance/ledger_row_display_status.dart';
 import '../../core/finance/row_review_result.dart';
 import '../../shared/widgets/ledger_card_subtitle.dart';
 import '../../shared/widgets/row_review_leading.dart';
+import '../../shared/widgets/keyboard_done_bar.dart';
 import 'ledger_expense_helper_page.dart';
 import 'ledger_import_page.dart';
 import 'ledger_row_review_service.dart';
@@ -412,10 +413,20 @@ class _LedgerTabState extends State<LedgerTab> {
   Widget build(BuildContext context) {
     return ListenableBuilder(
       listenable: widget.model,
-      builder: (context, _) => ListView(
-      controller: _scroll,
-      padding: const EdgeInsets.all(20),
-      children: [
+      builder: (context, _) {
+        final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
+        final incomeEditing =
+            _mode == LedgerMode.cashflow && _cashflowTabIndex == 0;
+        final bottomPad = 20.0 +
+            (incomeEditing && keyboardInset > 0 ? keyboardInset + 52 : 0);
+
+        return Stack(
+          children: [
+            ListView(
+              controller: _scroll,
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+              padding: EdgeInsets.fromLTRB(20, 20, 20, bottomPad),
+              children: [
         Row(
           children: [
             Text(
@@ -566,8 +577,12 @@ class _LedgerTabState extends State<LedgerTab> {
             },
           ),
         ],
-      ],
-    ),
+              ],
+            ),
+            KeyboardDoneBarOverlay(visible: incomeEditing),
+          ],
+        );
+      },
     );
   }
 
@@ -1598,16 +1613,16 @@ class _AssetEditorSheetState extends State<_AssetEditorSheet> {
             const SizedBox(height: 12),
             if (widget.allowCurrencyEdit)
               DropdownButtonFormField<String>(
-                initialValue: _row.currencyCountry,
+                initialValue: ledgerCurrencyPickerValue(_row.currencyCountry),
                 decoration: const InputDecoration(
-                  labelText: 'Currency (country)',
+                  labelText: 'Currency',
                   border: OutlineInputBorder(),
                 ),
                 items: [
-                  for (final c in countryPresets)
+                  for (final c in kLedgerCurrencyPickerOptions)
                     DropdownMenuItem(
-                      value: c.name,
-                      child: Text('${c.flag} ${c.name} (${c.currencySymbol})'),
+                      value: c.code,
+                      child: Text(ledgerCurrencyPickerLabel(c)),
                     ),
                 ],
                 onChanged: widget.model.primaryCashBalanceIsMirrored(_row)
@@ -1616,7 +1631,7 @@ class _AssetEditorSheetState extends State<_AssetEditorSheet> {
                         if (v == null) return;
                         setState(() {
                           _row.currencyCountry = v;
-                          final cc = currencyCodeForPresetCountry(v);
+                          final cc = ledgerCurrencyCodeFromRaw(v);
                           final digits = _totalCtrl.text.replaceAll(
                             RegExp(r'[^0-9]'),
                             '',
@@ -1639,11 +1654,9 @@ class _AssetEditorSheetState extends State<_AssetEditorSheet> {
                 ),
                 child: Row(
                   children: [
-                    Text(presetForCountry(_row.currencyCountry).flag),
+                    Text(ledgerCurrencyFlag(_row.currencyCountry)),
                     const SizedBox(width: 8),
-                    Text(
-                      '${_row.currencyCountry} (${presetForCountry(_row.currencyCountry).currencySymbol})',
-                    ),
+                    Text(ledgerCurrencyDisplayLabel(_row.currencyCountry)),
                   ],
                 ),
               ),
@@ -1858,23 +1871,23 @@ class _LiabilityEditorSheetState extends State<_LiabilityEditorSheet> {
             const SizedBox(height: 12),
             if (widget.allowCurrencyEdit)
               DropdownButtonFormField<String>(
-                initialValue: _row.currencyCountry,
+                initialValue: ledgerCurrencyPickerValue(_row.currencyCountry),
                 decoration: const InputDecoration(
-                  labelText: 'Currency (country)',
+                  labelText: 'Currency',
                   border: OutlineInputBorder(),
                 ),
                 items: [
-                  for (final c in countryPresets)
+                  for (final c in kLedgerCurrencyPickerOptions)
                     DropdownMenuItem(
-                      value: c.name,
-                      child: Text('${c.flag} ${c.name} (${c.currencySymbol})'),
+                      value: c.code,
+                      child: Text(ledgerCurrencyPickerLabel(c)),
                     ),
                 ],
                 onChanged: (v) {
                   if (v == null) return;
                   setState(() {
                     _row.currencyCountry = v;
-                    final cc = currencyCodeForPresetCountry(v);
+                    final cc = ledgerCurrencyCodeFromRaw(v);
                     final digits = _totalCtrl.text.replaceAll(
                       RegExp(r'[^0-9]'),
                       '',
@@ -1897,11 +1910,9 @@ class _LiabilityEditorSheetState extends State<_LiabilityEditorSheet> {
                 ),
                 child: Row(
                   children: [
-                    Text(presetForCountry(_row.currencyCountry).flag),
+                    Text(ledgerCurrencyFlag(_row.currencyCountry)),
                     const SizedBox(width: 8),
-                    Text(
-                      '${_row.currencyCountry} (${presetForCountry(_row.currencyCountry).currencySymbol})',
-                    ),
+                    Text(ledgerCurrencyDisplayLabel(_row.currencyCountry)),
                   ],
                 ),
               ),
@@ -2168,6 +2179,7 @@ class _IncomeSection extends StatelessWidget {
                       child: TextFormField(
                         key: ValueKey('inc-label-${line.id}'),
                         initialValue: line.label,
+                        textInputAction: TextInputAction.next,
                         onChanged: (v) {
                           line.label = v;
                           model.notifyIncomeChanged();
@@ -2237,7 +2249,12 @@ class _IncomeSection extends StatelessWidget {
         const SizedBox(height: 8),
         TextFormField(
           initialValue: model.effectiveTaxRatePct?.toStringAsFixed(0) ?? '',
-          keyboardType: TextInputType.number,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          textInputAction: TextInputAction.done,
+          onEditingComplete: () =>
+              FocusManager.instance.primaryFocus?.unfocus(),
+          onFieldSubmitted: (_) =>
+              FocusManager.instance.primaryFocus?.unfocus(),
           onChanged: (raw) =>
               model.setEffectiveTaxRatePct(double.tryParse(raw)),
           decoration: const InputDecoration(

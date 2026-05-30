@@ -1,6 +1,5 @@
 import 'dart:convert';
 
-import 'agent_json.dart';
 import 'app_state_codec.dart';
 import '../constants/web_expenses_income.dart';
 import '../finance/historical_returns.dart';
@@ -14,25 +13,21 @@ abstract final class DataExportKind {
   static const goals = 'goals';
   static const settings = 'settings';
   static const context = 'context';
-  static const agent = 'agent';
-  static const chats = 'chats';
   static const historicalReturns = 'historicalReturns';
 
-  static const all = [ledger, goals, settings, context, agent, chats, historicalReturns];
+  static const all = [ledger, goals, settings, context, historicalReturns];
 
   static String label(String kind) => switch (kind) {
         ledger => 'Ledger',
         goals => 'Goals',
         settings => 'Settings',
         context => 'Context note',
-        agent => 'Agent',
-        chats => 'Chats',
         historicalReturns => 'Historical returns',
         _ => kind,
       };
 }
 
-/// User-facing pick for a context or agent export.
+/// User-facing pick for a context export item.
 class DataExportPick {
   const DataExportPick({required this.id, required this.label, this.subtitle});
 
@@ -305,16 +300,6 @@ class AppStateTransfer {
     return _envelope(DataExportKind.settings, {'settings': settings});
   }
 
-  static Map<String, dynamic> buildChatsExportMap(AppModel model) =>
-      _envelope(DataExportKind.chats, {'chats': model.buildPersistedSnapshot()['chats']});
-
-  static Map<String, dynamic> buildAgentExportMap(AppModel model, String agentId) {
-    final ix = model.agents.indexWhere((a) => a.id == agentId);
-    if (ix < 0) throw ArgumentError('Unknown agent id: $agentId');
-    final agent = model.agents[ix];
-    return _envelope(DataExportKind.agent, {'agent': appAgentToJson(agent)});
-  }
-
   static Map<String, dynamic> buildContextExportMap(AppModel model, String storageKey) {
     final markdown = _contextMarkdownForKey(model, storageKey);
     final savedAt = model.contextNoteSavedAtUtc[storageKey];
@@ -407,13 +392,6 @@ class AppStateTransfer {
     };
   }
 
-  static List<DataExportPick> listAgentExportPicks(AppModel model) {
-    return [
-      for (final a in model.agents)
-        DataExportPick(id: a.id, label: a.name, subtitle: a.kind.name),
-    ];
-  }
-
   static Map<String, dynamic> buildExportMap(
     AppModel model, {
     required String exportKind,
@@ -431,9 +409,7 @@ class AppStateTransfer {
         ),
       DataExportKind.goals => buildGoalsExportMap(model),
       DataExportKind.settings => buildSettingsExportMap(model),
-      DataExportKind.chats => buildChatsExportMap(model),
       DataExportKind.historicalReturns => buildHistoricalReturnsExportMap(model),
-      DataExportKind.agent => buildAgentExportMap(model, pickId ?? ''),
       DataExportKind.context => buildContextExportMap(model, pickId ?? ''),
       _ => throw ArgumentError('Unknown export kind: $exportKind'),
     };
@@ -494,10 +470,6 @@ class AppStateTransfer {
         root['settings'] is Map ? null : 'Missing "settings" object.',
       DataExportKind.context =>
         root['context'] is Map ? null : 'Missing "context" object.',
-      DataExportKind.agent =>
-        root['agent'] is Map ? null : 'Missing "agent" object.',
-      DataExportKind.chats =>
-        root['chats'] is Map ? null : 'Missing "chats" object.',
       DataExportKind.historicalReturns =>
         root['historicalReturns'] is Map ? null : 'Missing "historicalReturns" object.',
       _ => 'Unknown exportKind.',
@@ -589,48 +561,6 @@ class AppStateTransfer {
           lines: lines,
           root: root,
           supportsMerge: true,
-          supportsReplace: true,
-        );
-      case DataExportKind.agent:
-        final agentMap = Map<String, dynamic>.from(root['agent'] as Map);
-        final id = agentMap['id']?.toString() ?? '';
-        final name = agentMap['name']?.toString() ?? id;
-        final exists = model.agents.any((a) => a.id == id);
-        lines.add(
-          ImportSummaryLine(
-            label: exists ? 'Update agent: $name' : 'Add agent: $name',
-            action: exists ? ImportSummaryAction.update : ImportSummaryAction.add,
-          ),
-        );
-        return ImportAnalysis(
-          exportKind: kind,
-          title: title,
-          lines: lines,
-          root: root,
-          supportsMerge: true,
-          supportsReplace: true,
-        );
-      case DataExportKind.chats:
-        final chats = root['chats'];
-        var threads = 0;
-        var msgs = 0;
-        if (chats is Map) {
-          final t = chats['threads'];
-          if (t is List) threads = t.length;
-          final m = chats['messages'];
-          if (m is Map) {
-            for (final e in m.values) {
-              if (e is List) msgs += e.length;
-            }
-          }
-        }
-        lines.add(ImportSummaryLine(label: '$threads chat(s), $msgs message(s)', action: ImportSummaryAction.replace));
-        return ImportAnalysis(
-          exportKind: kind,
-          title: title,
-          lines: lines,
-          root: root,
-          supportsMerge: false,
           supportsReplace: true,
         );
       case DataExportKind.historicalReturns:
@@ -765,12 +695,6 @@ class AppStateTransfer {
       case DataExportKind.context:
         await _applyContextImport(model, root);
         return;
-      case DataExportKind.agent:
-        await _applyAgentImport(model, root, mode);
-        return;
-      case DataExportKind.chats:
-        await model.applyImportedChats(Map<String, dynamic>.from(root['chats'] as Map));
-        return;
       case DataExportKind.historicalReturns:
         await _applyHistoricalReturnsImport(model, root, mode);
         return;
@@ -859,16 +783,6 @@ class AppStateTransfer {
       model.contextNoteSavedAtUtc[key] = DateTime.fromMillisecondsSinceEpoch(savedMs, isUtc: true);
       await model.persistAppStateToDisk();
     }
-  }
-
-  static Future<void> _applyAgentImport(
-    AppModel model,
-    Map<String, dynamic> root,
-    ImportApplyMode mode,
-  ) async {
-    final agent = appAgentFromJson(root['agent']);
-    if (agent == null) throw FormatException('Invalid agent object.');
-    await model.applyImportedAgent(agent, replace: mode == ImportApplyMode.replace);
   }
 
   static String suggestedExportFileName({String exportKind = ledgerExportKind, String? pickLabel}) {

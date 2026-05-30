@@ -231,13 +231,10 @@ export function FeatureCarousel({
       </div>
 
       <div
-        className="mt-8 h-[10.5rem] sm:h-[11rem] text-center px-4 flex flex-col items-center"
+        className="mt-8 h-[8.75rem] sm:h-[9.25rem] text-center px-4 flex flex-col items-center"
         aria-live="polite"
         aria-atomic="true"
       >
-        <span className="block h-5 text-xs font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 mb-2 line-clamp-1">
-          {active.num} · {active.title}
-        </span>
         <h3
           className={`h-8 sm:h-9 flex items-center justify-center text-xl sm:text-2xl font-bold ${textClass} mb-2 line-clamp-1 w-full max-w-lg`}
         >

@@ -76,28 +76,39 @@ class _InternalAgentPromptEditorPageState extends State<InternalAgentPromptEdito
       context: context,
       showDragHandle: true,
       isScrollControlled: true,
+      sizesToContent: true,
       builder: (ctx) {
         final bottom = MediaQuery.viewInsetsOf(ctx).bottom;
         return Padding(
-          padding: EdgeInsets.fromLTRB(20, 6, 20, 20 + bottom),
-          child: SingleChildScrollView(
-            child: ListenableBuilder(
-              listenable: widget.model,
-              builder: (context, _) {
-                final lastAt = widget.model.internalAgentLastRunById[def.id];
+          padding: EdgeInsets.fromLTRB(20, 0, 20, 20 + bottom),
+          child: ListenableBuilder(
+            listenable: widget.model,
+            builder: (context, _) {
+              final m = widget.model;
+              final lastAt = m.internalAgentLastRunById[def.id];
+              final lastModel = m.internalAgentLastModelById[def.id];
+              final lastTokens = m.internalAgentLastTokensById[def.id];
 
-                String lastRunLine() {
-                  if (lastAt == null) return 'No run recorded yet.';
-                  final ago = DateTime.now().difference(lastAt);
-                  if (ago.inMinutes < 2) return 'Last run: just now';
-                  if (ago.inHours < 1) return 'Last run: ${ago.inMinutes} min ago';
-                  if (ago.inHours < 48) return 'Last run: ${ago.inHours} h ago';
-                  return 'Last run: ${lastAt.toLocal().toString().split('.').first}';
-                }
+              String? lastRunWhenLine() {
+                if (lastAt == null) return null;
+                final ago = DateTime.now().difference(lastAt);
+                if (ago.inMinutes < 2) return 'just now';
+                if (ago.inHours < 1) return '${ago.inMinutes} min ago';
+                if (ago.inHours < 48) return '${ago.inHours} h ago';
+                return lastAt.toLocal().toString().split('.').first;
+              }
 
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
+              final muted = TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.85),
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                height: 1.4,
+              );
+
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
                     Row(
                       children: [
                         Icon(def.icon, color: Theme.of(context).colorScheme.primary),
@@ -134,18 +145,22 @@ class _InternalAgentPromptEditorPageState extends State<InternalAgentPromptEdito
                     const SizedBox(height: 20),
                     Text('Last run', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900)),
                     const SizedBox(height: 6),
-                    Text(
-                      lastRunLine(),
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant.withValues(alpha: 0.85),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                    if (lastAt == null)
+                      Text('No run recorded yet.', style: muted)
+                    else ...[
+                      Text('When: ${lastRunWhenLine()}', style: muted),
+                      if (lastModel != null) ...[
+                        const SizedBox(height: 4),
+                        Text('Model: $lastModel', style: muted),
+                      ],
+                      if (lastTokens != null) ...[
+                        const SizedBox(height: 4),
+                        Text('Tokens: $lastTokens', style: muted),
+                      ],
+                    ],
                   ],
                 );
-              },
-            ),
+            },
           ),
         );
       },

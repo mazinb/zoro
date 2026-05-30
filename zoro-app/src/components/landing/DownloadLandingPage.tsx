@@ -20,20 +20,17 @@ const privacyPillars = [
   {
     icon: Ban,
     title: 'No bank sync',
-    description:
-      'Your accounts never connect to Zoro. You enter what you choose—nothing is pulled from banks or brokers.',
+    description: 'You enter what you choose. Nothing is pulled from banks or brokers.',
   },
   {
     icon: Smartphone,
     title: 'Data on your phone',
-    description:
-      'Balances, context, and chat history stay on device. Zoro is built for people who want control, not cloud copies of everything.',
+    description: 'Balances, context, and chat stay on your device.',
   },
   {
     icon: KeyRound,
     title: 'Your API keys',
-    description:
-      'AI runs through keys you provide—OpenAI, Anthropic, or Gemini. No bundled model bill from us.',
+    description: 'Use your own OpenAI, Anthropic, or Gemini keys.',
   },
 ];
 
@@ -42,50 +39,43 @@ const features: FeatureSlide[] = [
     num: 1,
     image: '/images/app/feature-private-by-design.png',
     title: 'Private by design',
-    description:
-      'Mask balances with a tap. No sign-in to a finance aggregator—just your numbers, your rules.',
+    description: 'Mask balances with a tap. Your numbers, your rules.',
   },
   {
     num: 2,
     image: '/images/app/feature-data-on-device.png',
     title: 'Data saved on your phone',
-    description:
-      'Multi-currency home with Sankey cash-flow views. Everything you track lives locally unless you choose to share.',
+    description: 'Multi-currency home with Sankey cash-flow views.',
   },
   {
     num: 3,
     image: '/images/app/feature-track-assets.png',
     title: 'Track assets and liabilities',
-    description:
-      'Condos, brokerage, cash across countries—manual entries you control, with clear net-worth picture.',
+    description: 'Manual entries you control. Clear net-worth picture.',
   },
   {
     num: 4,
     image: '/images/app/feature-expense-monitoring.png',
     title: 'Quick expense monitoring',
-    description:
-      'Ledger splits income, expenses, and cashflow. Donut charts and month-by-month estimates at a glance.',
+    description: 'Income, expenses, and cashflow at a glance.',
   },
   {
     num: 5,
     image: '/images/app/feature-remember-decisions.png',
     title: 'Remember key decisions',
-    description:
-      'Context holds assets, liabilities, and estimates—the background your AI assistants actually use.',
+    description: 'Assets, liabilities, and estimates for your AI assistants.',
   },
   {
     num: 6,
     image: '/images/app/feature-ai-assistants.png',
     title: 'Custom AI assistants',
-    description:
-      'Retirement planner, FIRE strategist, expense analyzer, and more—each tuned for a specific money question.',
+    description: 'Specialists for retirement, FIRE, expenses, and more.',
   },
   {
     num: 7,
     image: '/images/app/feature-api-keys.png',
     title: 'Bring your own API keys',
-    description:
-      'Pick models per provider in Settings. Your keys, your spend, no middleman markup on inference.',
+    description: 'Your keys, your spend. Pick models in Settings.',
   },
 ];
 
@@ -145,8 +135,8 @@ export const DownloadLandingPage: React.FC<DownloadLandingPageProps> = ({
           <p
             className={`text-lg sm:text-xl ${theme.textSecondaryClass} mb-8 max-w-xl mx-auto leading-relaxed`}
           >
-            Zoro on iOS and Android: track net worth, cash flow, and context—then chat with
-            specialists that know your numbers. No bank connections. Data stays on your phone.
+            Track net worth, cash flow, and context. Makes sure you know your numbers.
+            Data stays on your phone.
           </p>
 
           <DownloadButtons darkMode={darkMode} className="justify-center" />
@@ -165,8 +155,7 @@ export const DownloadLandingPage: React.FC<DownloadLandingPageProps> = ({
               Built for privacy
             </h2>
             <p className={`${theme.textSecondaryClass} max-w-2xl mx-auto`}>
-              We skipped the bank-login playbook. Zoro is for people who want a clear financial
-              picture without handing credentials to another aggregator.
+              A clear financial picture without bank credentials.
             </p>
           </div>
           <div className="grid md:grid-cols-3 gap-8">
@@ -196,8 +185,7 @@ export const DownloadLandingPage: React.FC<DownloadLandingPageProps> = ({
               See it in action
             </h2>
             <p className={`${theme.textSecondaryClass} mb-6 max-w-md mx-auto lg:mx-0 leading-relaxed`}>
-              Command center, ledger, context, and chat—one app for the full picture. Browse
-              Sankey flows, update your ledger, and ask a specialist in seconds.
+              Command center, ledger, context, and chat in one app.
             </p>
             <DownloadButtons darkMode={darkMode} size="md" className="justify-center lg:justify-start" />
           </div>
@@ -215,7 +203,7 @@ export const DownloadLandingPage: React.FC<DownloadLandingPageProps> = ({
               Everything in one app
             </h2>
             <p className={`${theme.textSecondaryClass} max-w-xl mx-auto`}>
-              Swipe through seven ways Zoro helps you plan—no bank sync required.
+              Swipe to explore. No bank sync required.
             </p>
           </div>
 
@@ -239,8 +227,7 @@ export const DownloadLandingPage: React.FC<DownloadLandingPageProps> = ({
             Download Zoro
           </h2>
           <p className={`${theme.textSecondaryClass} mb-8 max-w-lg mx-auto`}>
-            Available on iPhone and Android. No bank sync, no surprise cloud copies—just your
-            finances, organized.
+            Available on iPhone and Android. Your finances, organized on your phone.
           </p>
           <DownloadButtons darkMode={darkMode} />
         </div>

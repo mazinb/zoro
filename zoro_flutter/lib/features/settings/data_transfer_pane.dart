@@ -52,7 +52,6 @@ class _DataTransferPaneState extends State<DataTransferPane> {
   bool get _isLedger => _exportKind == DataExportKind.ledger;
   bool get _ledgerPart => _isLedger && _ledgerScope == LedgerExportScope.part;
   bool get _needsContextPick => _exportKind == DataExportKind.context;
-  bool get _needsAgentPick => _exportKind == DataExportKind.agent;
 
   List<DataExportPick> get _ledgerPartItems =>
       AppStateTransfer.listLedgerPartPicksForGroup(_m, _ledgerPartGroup);
@@ -60,16 +59,13 @@ class _DataTransferPaneState extends State<DataTransferPane> {
   List<DataExportPick> get _contextItems =>
       AppStateTransfer.listContextExportPicksForGroup(_m, _contextGroup);
 
-  List<DataExportPick> get _agentItems => AppStateTransfer.listAgentExportPicks(_m);
-
   List<DataExportPick> get _activePicks => switch (_exportKind) {
         DataExportKind.ledger when _ledgerPart => _ledgerPartItems,
         DataExportKind.context => _contextItems,
-        DataExportKind.agent => _agentItems,
         _ => const [],
       };
 
-  bool get _needsItemPick => _ledgerPart || _needsContextPick || _needsAgentPick;
+  bool get _needsItemPick => _ledgerPart || _needsContextPick;
 
   bool get _canExport {
     if (!_needsItemPick) return true;
@@ -104,8 +100,6 @@ class _DataTransferPaneState extends State<DataTransferPane> {
       } else if (kind == DataExportKind.context) {
         _contextGroup = ContextExportGroup.assets;
         _syncContextPick();
-      } else if (kind == DataExportKind.agent) {
-        _syncAgentPick();
       }
     });
   }
@@ -142,7 +136,6 @@ class _DataTransferPaneState extends State<DataTransferPane> {
 
   void _syncLedgerPartPick() => _syncPickIn(_ledgerPartItems);
   void _syncContextPick() => _syncPickIn(_contextItems);
-  void _syncAgentPick() => _syncPickIn(_agentItems);
 
   void _syncPickIn(List<DataExportPick> items) {
     if (items.isEmpty) {
@@ -595,7 +588,6 @@ class _DataTransferPaneState extends State<DataTransferPane> {
     final cs = Theme.of(context).colorScheme;
     if (_ledgerPart) _syncLedgerPartPick();
     if (_needsContextPick) _syncContextPick();
-    if (_needsAgentPick) _syncAgentPick();
 
     final canSave = _hasImport && (_importAnalysis?.supportsMerge ?? false);
     final canReplace = _hasImport && (_importAnalysis?.supportsReplace ?? false);
@@ -628,10 +620,6 @@ class _DataTransferPaneState extends State<DataTransferPane> {
               items: _contextItems,
               sheetTitle: ContextExportGroup.label(_contextGroup),
             ),
-          ],
-          if (_needsAgentPick) ...[
-            const SizedBox(height: 12),
-            _itemPickerField(label: 'Agent', items: _agentItems, sheetTitle: 'Agents'),
           ],
           const SizedBox(height: 12),
           _redactRow(),

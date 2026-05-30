@@ -173,7 +173,7 @@ Future<Map<String, double>?> appleOnboardingExpenseBuckets({
   };
 
   try {
-    final raw = await LlmClient().complete(
+    final result = await LlmClient().complete(
       provider: LlmProvider.appleFoundation,
       apiKey: AppModel.appleOnDeviceApiKeySentinel,
       model: 'default',
@@ -181,7 +181,7 @@ Future<Map<String, double>?> appleOnboardingExpenseBuckets({
       user: jsonEncode(payload),
       maxOutputTokens: 1200,
     );
-    final obj = decodeLlmJsonObject(raw);
+    final obj = decodeLlmJsonObject(result.text);
     final bucketsRaw = obj['expenseBuckets'];
     if (bucketsRaw is! Map) return null;
     final out = <String, double>{};

@@ -235,7 +235,7 @@ Future<bool> synthesizeDummyLedgerWithApple(
     'templateLiabilities': OnboardingDummyTemplates.liabilityTemplates(primaryCurrency),
   };
   try {
-    final raw = await LlmClient().complete(
+    final result = await LlmClient().complete(
       provider: LlmProvider.appleFoundation,
       apiKey: AppModel.appleOnDeviceApiKeySentinel,
       model: 'default',
@@ -244,7 +244,7 @@ Future<bool> synthesizeDummyLedgerWithApple(
       maxOutputTokens: 2500,
     );
     model.recordLlmRequest(provider: LlmProvider.appleFoundation, model: 'default');
-    final obj = decodeLlmJsonObject(raw);
+    final obj = decodeLlmJsonObject(result.text);
     final assetsRaw = obj['assets'];
     final liabsRaw = obj['liabilities'];
     if (assetsRaw is! List || liabsRaw is! List) return false;

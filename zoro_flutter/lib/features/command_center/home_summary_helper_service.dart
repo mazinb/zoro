@@ -21,6 +21,7 @@ class HomeSummaryHelperService {
 Reply with plain text only: 2–3 short sentences, under 280 characters total.
 No markdown, bullets, JSON, or headings. Calm and specific.
 Do not invent numbers that are not in the user JSON.
+For liabilities, use totalDisplay (already in displayCurrency) — not ledgerTotal in accountCurrency.
 If privacyHideAmounts is true, avoid dollar amounts and speak in general terms.
 ''';
 
@@ -76,17 +77,22 @@ If privacyHideAmounts is true, avoid dollar amounts and speak in general terms.
       final user = jsonEncode(_shrinkPayload(_payload(model, focus, now: now)));
 
       final apiKey = model.apiKeyFor(provider)!;
-      final raw = await _llm.complete(
+      final modelName = model.modelFor(provider);
+      final result = await _llm.complete(
         provider: provider,
         apiKey: apiKey,
-        model: model.modelFor(provider),
+        model: modelName,
         system: system,
         user: user,
         maxOutputTokens: _maxOutputTokens,
       );
-      model.recordLlmRequest(provider: provider, model: model.modelFor(provider));
+      model.recordLlmRequest(provider: provider, model: modelName);
+      model.setPendingLlmCompletionMetadata(
+        model: '${provider.name}:$modelName',
+        tokensUsed: result.tokensUsed,
+      );
 
-      final text = _extractPlainSummary(raw);
+      final text = _extractPlainSummary(result.text);
       if (text.isEmpty) return false;
 
       model.setHomeSummaryText(text);
@@ -163,12 +169,7 @@ If privacyHideAmounts is true, avoid dollar amounts and speak in general terms.
           'reviewOverdue': model.liabilitiesReviewOverdueAt(now),
           'rows': [
             for (final l in model.liabilities.take(6))
-              {
-                'name': l.name,
-                'type': l.type.apiValue,
-                'total': l.total,
-                'hasContext': (l.contextMarkdown ?? '').trim().isNotEmpty,
-              },
+              _liabilityRowPayload(model, l),
           ],
           'liabilityCount': model.liabilities.length,
         };
@@ -232,6 +233,23 @@ If privacyHideAmounts is true, avoid dollar amounts and speak in general terms.
           'goalsReviewOverdue': model.goalsReviewOverdueAt(now),
         };
     }
+  }
+
+  Map<String, Object?> _liabilityRowPayload(AppModel model, LedgerLiabilityRow row) {
+    final accountCurrency = currencyCodeForPresetCountry(row.currencyCountry);
+    final totalDisplay = model.moneyInDisplayCurrency(row.total, accountCurrency);
+    return {
+      'name': row.name,
+      'type': row.type.apiValue,
+      'accountCurrency': accountCurrency.code,
+      'ledgerTotal': row.total,
+      'totalDisplay': totalDisplay,
+      if (!model.privacyHideAmounts) ...{
+        'ledgerTotalFormatted': formatCurrencyDisplay(row.total, currency: accountCurrency),
+        'totalDisplayFormatted': formatCurrencyDisplay(totalDisplay, currency: model.displayCurrency),
+      },
+      'hasContext': (row.contextMarkdown ?? '').trim().isNotEmpty,
+    };
   }
 
   Map<String, Object?> _shrinkPayload(Map<String, Object?> payload) {

@@ -26,7 +26,11 @@ Future<String> completeForActiveProvider(
     preferJsonObjectOutput: preferJsonObjectOutput && provider == LlmProvider.openai,
   );
   model.recordLlmRequest(provider: provider, model: modelName);
-  return out;
+  model.setPendingLlmCompletionMetadata(
+    model: '${provider.name}:$modelName',
+    tokensUsed: out.tokensUsed,
+  );
+  return out.text;
 }
 
 /// Parses model JSON; on failure runs one repair pass via the active provider.

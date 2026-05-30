@@ -54,7 +54,7 @@ const countryPresets = <CountryPreset>[
   CountryPreset(
     name: 'Hong Kong',
     flag: '🇭🇰',
-    currencySymbol: r'HK$',
+    currencySymbol: r'H$',
     buckets: {
       // Conservative defaults; mostly used for label/symbol + slider bounds.
       'housing': ExpenseBucketPreset(label: 'Housing & Utilities', value: 16000, min: 7000, max: 40000, step: 500),

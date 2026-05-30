@@ -115,7 +115,7 @@ export const PhilosophyPage: React.FC<PhilosophyPageProps> = ({
             </p>
             <ul className={`text-lg ${theme.textSecondaryClass} space-y-3 list-disc pl-6`}>
               <li><strong className={theme.textClass}>Intent Mapping:</strong> When you email Zoro, the agent analyses the text to understand your specific financial intent (e.g., &quot;I just got a bonus,&quot; &quot;I need to update my insurance,&quot; or &quot;Review my portfolio&quot;).</li>
-              <li><strong className={theme.textClass}>Contextual Analysis:</strong> Zoro reviews your saved structured data — income, expenses, and net worth to ensure advice is personalised to your situation.</li>
+              <li><strong className={theme.textClass}>Contextual Analysis:</strong> Zoro reviews your saved structured data: income, expenses, and net worth.</li>
               <li><strong className={theme.textClass}>Actionable Drafting:</strong> Zoro drafts a response that isn&apos;t just advice, but a next step. This reply often includes a customised link to: securely update a specific data point; review a curated summary of your last 90 days; adjust your priority goals.</li>
               <li><strong className={theme.textClass}>Data Integration (coming soon):</strong> With your permission, Zoro scans your inbox to automatically update your tracking sheet, turning manual data entry into a passive process.</li>
             </ul>

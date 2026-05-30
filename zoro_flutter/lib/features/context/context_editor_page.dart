@@ -471,17 +471,23 @@ class _ContextEditorPageState extends State<ContextEditorPage> {
         bundle.promptText,
       ].join('\n');
 
-      final raw = await LlmClient().complete(
-        provider: m.activeLlmProvider,
+      final provider = m.activeLlmProvider;
+      final modelName = m.modelFor(provider);
+      final completion = await LlmClient().complete(
+        provider: provider,
         apiKey: key,
-        model: m.modelFor(m.activeLlmProvider),
+        model: modelName,
         system: system,
         user: user,
         attachments: bundle.attachments,
         maxOutputTokens: 1800,
-        preferJsonObjectOutput: m.activeLlmProvider == LlmProvider.openai,
+        preferJsonObjectOutput: provider == LlmProvider.openai,
       );
-      final obj = await decodeActiveProviderJsonWithRepair(m, raw);
+      m.setPendingLlmCompletionMetadata(
+        model: '${provider.name}:$modelName',
+        tokensUsed: completion.tokensUsed,
+      );
+      final obj = await decodeActiveProviderJsonWithRepair(m, completion.text);
       final md = obj['contextMarkdown']?.toString().trim();
       if (md == null || md.isEmpty) {
         throw const FormatException(

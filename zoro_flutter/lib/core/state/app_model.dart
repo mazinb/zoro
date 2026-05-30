@@ -168,14 +168,17 @@ class AppModel extends ChangeNotifier {
       homeSummaryParseIncludedIds(homeSummaryHelperIncludedDomainIds);
 
   void setHomeSummaryHelperIncludedDomains(Iterable<HomeSummaryFocusDomain> domains) {
-    final ids = [
-      for (final d in domains) d.id,
-    ];
-    if (ids.isEmpty) return;
-    final next = List<String>.from(ids);
+    final ordered = homeSummaryDomainsInCanonicalOrder(domains);
+    if (ordered.isEmpty) return;
+    final next = [for (final d in ordered) d.id];
+    final oldEnabled = homeSummaryHelperIncludedDomains;
     if (listEquals(homeSummaryHelperIncludedDomainIds, next)) return;
     homeSummaryHelperIncludedDomainIds = next;
-    homeSummaryHelperRotationIndex = homeSummaryHelperRotationIndex % next.length;
+    homeSummaryHelperRotationIndex = remapHomeSummaryRotationIndex(
+      oldEnabled: oldEnabled,
+      newEnabled: ordered,
+      rotationIndex: homeSummaryHelperRotationIndex,
+    );
     _scheduleAppStatePersist();
     notifyListeners();
   }
@@ -391,16 +394,6 @@ class AppModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Replace chats from a portable export `chats` block.
-  Future<void> applyImportedChats(Map<String, dynamic> chats) async {
-    _applyAppStateMap({
-      'formatVersion': app_state.kAppStateFormatVersion,
-      'chats': chats,
-    });
-    await persistAppStateToDisk();
-    notifyListeners();
-  }
-
   Future<void> replaceAllGoalsFromImport(List<FinancialGoal> incoming) async {
     financialGoals
       ..clear()
@@ -420,21 +413,6 @@ class AppModel extends ChangeNotifier {
       snap['settings'] = current;
     }
     applyPersistedSnapshot(snap);
-    await persistAppStateToDisk();
-    notifyListeners();
-  }
-
-  Future<void> applyImportedAgent(AppAgent agent, {required bool replace}) async {
-    if (replace) {
-      final idx = agents.indexWhere((a) => a.id == agent.id);
-      if (idx >= 0) {
-        agents[idx] = agent;
-      } else {
-        agents.add(agent);
-      }
-    } else {
-      upsertAgentFromTool(agent);
-    }
     await persistAppStateToDisk();
     notifyListeners();
   }
@@ -465,10 +443,35 @@ class AppModel extends ChangeNotifier {
   final Map<String, Map<String, Object?>> internalAgentLastStructuredById = {};
 
   final Map<String, DateTime> internalAgentLastRunById = {};
+  final Map<String, String> internalAgentLastModelById = {};
+  final Map<String, int> internalAgentLastTokensById = {};
 
-  void recordInternalAgentRun(String agentId, Map<String, Object?> structured) {
+  String? _pendingLlmCompletionModel;
+  int? _pendingLlmCompletionTokens;
+
+  void setPendingLlmCompletionMetadata({required String model, int? tokensUsed}) {
+    _pendingLlmCompletionModel = model;
+    _pendingLlmCompletionTokens = tokensUsed;
+  }
+
+  void recordInternalAgentRun(
+    String agentId,
+    Map<String, Object?> structured, {
+    String? model,
+    int? tokensUsed,
+  }) {
     internalAgentLastStructuredById[agentId] = Map<String, Object?>.from(structured);
     internalAgentLastRunById[agentId] = DateTime.now().toUtc();
+    final resolvedModel = model ?? _pendingLlmCompletionModel;
+    final resolvedTokens = tokensUsed ?? _pendingLlmCompletionTokens;
+    if (resolvedModel != null && resolvedModel.trim().isNotEmpty) {
+      internalAgentLastModelById[agentId] = resolvedModel.trim();
+    }
+    if (resolvedTokens != null && resolvedTokens > 0) {
+      internalAgentLastTokensById[agentId] = resolvedTokens;
+    }
+    _pendingLlmCompletionModel = null;
+    _pendingLlmCompletionTokens = null;
     _scheduleAppStatePersist();
     notifyListeners();
     // Flush soon so last-run survives app kill and Settings → (i) always sees
@@ -4052,6 +4055,10 @@ class AppModel extends ChangeNotifier {
         'lastRunById': {
           for (final e in internalAgentLastRunById.entries) e.key: e.value.toUtc().millisecondsSinceEpoch,
         },
+        'lastModelById': Map<String, String>.from(internalAgentLastModelById),
+        'lastTokensById': {
+          for (final e in internalAgentLastTokensById.entries) e.key: e.value,
+        },
       },
       'chats': {
         'version': 2,
@@ -4480,6 +4487,8 @@ class AppModel extends ChangeNotifier {
       _internalAgentSystemPromptById.clear();
       internalAgentLastStructuredById.clear();
       internalAgentLastRunById.clear();
+      internalAgentLastModelById.clear();
+      internalAgentLastTokensById.clear();
       final sp = im['systemPromptById'];
       if (sp is Map) {
         for (final e in sp.entries) {
@@ -4505,6 +4514,26 @@ class AppModel extends ChangeNotifier {
             internalAgentLastRunById[e.key.toString()] = DateTime.fromMillisecondsSinceEpoch(ms, isUtc: true);
           } else if (ms is num) {
             internalAgentLastRunById[e.key.toString()] = DateTime.fromMillisecondsSinceEpoch(ms.round(), isUtc: true);
+          }
+        }
+      }
+      final lm = im['lastModelById'];
+      if (lm is Map) {
+        for (final e in lm.entries) {
+          final v = e.value?.toString().trim();
+          if (v != null && v.isNotEmpty) {
+            internalAgentLastModelById[e.key.toString()] = v;
+          }
+        }
+      }
+      final lt = im['lastTokensById'];
+      if (lt is Map) {
+        for (final e in lt.entries) {
+          final n = e.value;
+          if (n is int && n > 0) {
+            internalAgentLastTokensById[e.key.toString()] = n;
+          } else if (n is num && n.round() > 0) {
+            internalAgentLastTokensById[e.key.toString()] = n.round();
           }
         }
       }

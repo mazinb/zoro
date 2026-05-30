@@ -20,6 +20,13 @@ class LlmAttachment {
   bool get isPdf => mimeType == 'application/pdf';
 }
 
+class LlmCompleteResult {
+  const LlmCompleteResult({required this.text, this.tokensUsed});
+
+  final String text;
+  final int? tokensUsed;
+}
+
 class LlmClient {
   LlmClient({
     http.Client? httpClient,
@@ -30,7 +37,7 @@ class LlmClient {
   final http.Client _http;
   final AppleFoundationChannel _apple;
 
-  Future<String> complete({
+  Future<LlmCompleteResult> complete({
     required LlmProvider provider,
     required String apiKey,
     required String model,
@@ -46,11 +53,14 @@ class LlmClient {
           throw const LlmException('Attachments are not supported with Apple on-device model yet.');
         }
         try {
-          return await _apple.complete(
+          final text = await _apple.complete(
             system: system,
             user: user,
             maxOutputTokens: maxOutputTokens,
           );
+          final inputTokens = await _apple.countTokens(system: system, user: user);
+          final outputEstimate = (text.length / 4).ceil();
+          return LlmCompleteResult(text: text, tokensUsed: inputTokens + outputEstimate);
         } on AppleFoundationChannelException catch (e) {
           throw LlmException(e.message);
         }
@@ -86,7 +96,7 @@ class LlmClient {
     }
   }
 
-  Future<String> _openAiChatCompletions({
+  Future<LlmCompleteResult> _openAiChatCompletions({
     required String apiKey,
     required String model,
     required String system,
@@ -156,7 +166,18 @@ class LlmClient {
     }
   }
 
-  Future<String> _postOpenAiChatCompletionWithTokenFallback({
+  static int? _totalTokensFromUsage(Object? usage) {
+    if (usage is! Map) return null;
+    final m = Map<String, dynamic>.from(usage);
+    final total = m['total_tokens'];
+    if (total is num) return total.round();
+    final prompt = m['prompt_tokens'];
+    final completion = m['completion_tokens'];
+    if (prompt is num && completion is num) return prompt.round() + completion.round();
+    return null;
+  }
+
+  Future<LlmCompleteResult> _postOpenAiChatCompletionWithTokenFallback({
     required String apiKey,
     required Map<String, dynamic> requestBody,
   }) async {
@@ -186,7 +207,12 @@ class LlmClient {
     final choices = body['choices'];
     if (choices is List && choices.isNotEmpty) {
       final content = choices.first?['message']?['content']?.toString();
-      if (content != null && content.trim().isNotEmpty) return content.trim();
+      if (content != null && content.trim().isNotEmpty) {
+        return LlmCompleteResult(
+          text: content.trim(),
+          tokensUsed: _totalTokensFromUsage(body['usage']),
+        );
+      }
     }
     throw const LlmException('OpenAI returned no content');
   }
@@ -208,7 +234,7 @@ class LlmClient {
     return false;
   }
 
-  Future<String> _anthropicMessages({
+  Future<LlmCompleteResult> _anthropicMessages({
     required String apiKey,
     required String model,
     required String system,
@@ -263,12 +289,24 @@ class LlmClient {
     final content = body['content'];
     if (content is List && content.isNotEmpty) {
       final text = content.first?['text']?.toString();
-      if (text != null && text.trim().isNotEmpty) return text.trim();
+      if (text != null && text.trim().isNotEmpty) {
+        final usage = body['usage'];
+        int? tokens;
+        if (usage is Map) {
+          final u = Map<String, dynamic>.from(usage);
+          final input = u['input_tokens'];
+          final output = u['output_tokens'];
+          if (input is num && output is num) {
+            tokens = input.round() + output.round();
+          }
+        }
+        return LlmCompleteResult(text: text.trim(), tokensUsed: tokens);
+      }
     }
     throw const LlmException('Anthropic returned no content');
   }
 
-  Future<String> _geminiGenerateContent({
+  Future<LlmCompleteResult> _geminiGenerateContent({
     required String apiKey,
     required String model,
     required String system,
@@ -320,7 +358,24 @@ class LlmClient {
       final parts = candidates.first?['content']?['parts'];
       if (parts is List && parts.isNotEmpty) {
         final text = parts.first?['text']?.toString();
-        if (text != null && text.trim().isNotEmpty) return text.trim();
+        if (text != null && text.trim().isNotEmpty) {
+          final meta = body['usageMetadata'];
+          int? tokens;
+          if (meta is Map) {
+            final m = Map<String, dynamic>.from(meta);
+            final total = m['totalTokenCount'];
+            if (total is num) {
+              tokens = total.round();
+            } else {
+              final prompt = m['promptTokenCount'];
+              final candidates = m['candidatesTokenCount'];
+              if (prompt is num && candidates is num) {
+                tokens = prompt.round() + candidates.round();
+              }
+            }
+          }
+          return LlmCompleteResult(text: text.trim(), tokensUsed: tokens);
+        }
       }
     }
     throw const LlmException('Gemini returned no content');

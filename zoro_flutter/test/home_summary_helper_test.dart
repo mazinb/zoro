@@ -46,5 +46,61 @@ void main() {
       expect(model.homeSummaryHelperLastRunDayKey, '2026-05-29');
       expect(model.homeSummaryHelperRotationIndex, 1);
     });
+
+    test('removing a focus domain keeps the upcoming topic', () {
+      const all = HomeSummaryFocusDomain.values;
+      expect(
+        remapHomeSummaryRotationIndex(
+          oldEnabled: all,
+          newEnabled: [
+            HomeSummaryFocusDomain.assets,
+            HomeSummaryFocusDomain.liabilities,
+            HomeSummaryFocusDomain.context,
+            HomeSummaryFocusDomain.goals,
+          ],
+          rotationIndex: 4,
+        ),
+        3,
+      );
+      expect(
+        homeSummaryDomainAtRotationIndex(
+          [
+            HomeSummaryFocusDomain.assets,
+            HomeSummaryFocusDomain.liabilities,
+            HomeSummaryFocusDomain.context,
+            HomeSummaryFocusDomain.goals,
+          ],
+          remapHomeSummaryRotationIndex(
+            oldEnabled: all,
+            newEnabled: [
+              HomeSummaryFocusDomain.assets,
+              HomeSummaryFocusDomain.liabilities,
+              HomeSummaryFocusDomain.context,
+              HomeSummaryFocusDomain.goals,
+            ],
+            rotationIndex: 4,
+          ),
+        ),
+        HomeSummaryFocusDomain.goals,
+      );
+    });
+
+    test('setHomeSummaryHelperIncludedDomains preserves goals as next up', () {
+      final model = AppModel();
+      model.homeSummaryHelperRotationIndex = 4;
+      model.setHomeSummaryHelperIncludedDomains([
+        HomeSummaryFocusDomain.assets,
+        HomeSummaryFocusDomain.liabilities,
+        HomeSummaryFocusDomain.context,
+        HomeSummaryFocusDomain.goals,
+      ]);
+      expect(
+        homeSummaryDomainAtRotationIndex(
+          model.homeSummaryHelperIncludedDomains,
+          model.homeSummaryHelperRotationIndex,
+        ),
+        HomeSummaryFocusDomain.goals,
+      );
+    });
   });
 }

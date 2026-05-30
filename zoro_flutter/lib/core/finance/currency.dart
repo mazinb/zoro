@@ -19,6 +19,30 @@ const List<CurrencyCode> kDisplayCurrencyPickerOptions = [
   CurrencyCode.hkd,
 ];
 
+/// Ledger asset/liability currency dropdown (all supported codes).
+const List<CurrencyCode> kLedgerCurrencyPickerOptions = kDisplayCurrencyPickerOptions;
+
+/// Resolves stored ledger `currencyCountry` (ISO code or legacy country name).
+CurrencyCode ledgerCurrencyCodeFromRaw(String raw) =>
+    tryCurrencyCodeForPresetCountry(raw) ?? CurrencyCode.usd;
+
+/// Canonical ISO code stored on new/edited ledger rows.
+String ledgerCurrencyStorageValue(CurrencyCode c) => c.code;
+
+/// Picker value for a stored ledger currency (normalizes legacy country names).
+String ledgerCurrencyPickerValue(String raw) => ledgerCurrencyCodeFromRaw(raw).code;
+
+/// Compact dropdown label, e.g. "🇭🇰 HKD (H$)".
+String ledgerCurrencyPickerLabel(CurrencyCode c) {
+  final sym = c.symbol.trim();
+  return '${c.flag} ${c.code} ($sym)';
+}
+
+String ledgerCurrencyDisplayLabel(String raw) =>
+    ledgerCurrencyPickerLabel(ledgerCurrencyCodeFromRaw(raw));
+
+String ledgerCurrencyFlag(String raw) => ledgerCurrencyCodeFromRaw(raw).flag;
+
 extension CurrencyCodeUi on CurrencyCode {
   String get flag => switch (this) {
     CurrencyCode.usd => '🇺🇸',
@@ -52,11 +76,11 @@ extension CurrencyCodeUi on CurrencyCode {
     // String contexts use the ISO code prefix "AED " so labels read
     // "AED 1,234"; UI fields render the proper symbol via DirhamIcon.
     CurrencyCode.aed => 'AED ',
-    CurrencyCode.sgd => '\$',
-    CurrencyCode.aud => '\$',
+    CurrencyCode.sgd => 'S\$',
+    CurrencyCode.aud => 'A\$',
     CurrencyCode.eur => '€',
     CurrencyCode.jpy => '¥',
-    CurrencyCode.hkd => 'HK\$',
+    CurrencyCode.hkd => 'H\$',
   };
 
   /// Hard-coded spot FX rate expressed as: 1 unit of this currency == X USD.
