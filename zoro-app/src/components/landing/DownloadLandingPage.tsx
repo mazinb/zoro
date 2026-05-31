@@ -2,12 +2,11 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Moon, Sun, Shield, Smartphone, KeyRound, Ban } from 'lucide-react';
+import { Moon, Sun, Shield, Smartphone, Ban, Sparkles } from 'lucide-react';
 import { ZoroLogo } from '@/components/ZoroLogo';
 import { useThemeClasses } from '@/hooks/useThemeClasses';
 import { DownloadButtons } from '@/components/landing/DownloadButtons';
-import { PhoneFrame } from '@/components/landing/PhoneFrame';
-import { APP_DEMO_VIDEO_URL } from '@/lib/app-download';
+import { RedditCta } from '@/components/landing/RedditCta';
 import { FeatureCarousel, type FeatureSlide } from '@/components/landing/FeatureCarousel';
 
 interface DownloadLandingPageProps {
@@ -20,17 +19,17 @@ const privacyPillars = [
   {
     icon: Ban,
     title: 'No bank sync',
-    description: 'You enter what you choose. Nothing is pulled from banks or brokers.',
+    description: 'You enter what you choose.',
   },
   {
     icon: Smartphone,
-    title: 'Data on your phone',
-    description: 'Balances, context, and chat stay on your device.',
+    title: 'On your phone',
+    description: 'Data stays on your device.',
   },
   {
-    icon: KeyRound,
-    title: 'Your API keys',
-    description: 'Use your own OpenAI, Anthropic, or Gemini keys.',
+    icon: Sparkles,
+    title: 'One-click import',
+    description: 'AI imports PDFs and images.',
   },
 ];
 
@@ -39,43 +38,55 @@ const features: FeatureSlide[] = [
     num: 1,
     image: '/images/app/feature-private-by-design.png',
     title: 'Private by design',
-    description: 'Mask balances with a tap. Your numbers, your rules.',
+    description: '',
   },
   {
     num: 2,
     image: '/images/app/feature-data-on-device.png',
     title: 'Data saved on your phone',
-    description: 'Multi-currency home with Sankey cash-flow views.',
+    description: '',
   },
   {
     num: 3,
-    image: '/images/app/feature-track-assets.png',
-    title: 'Track assets and liabilities',
-    description: 'Manual entries you control. Clear net-worth picture.',
+    image: '/images/app/feature-multi-currency.png',
+    title: 'Multi currency support',
+    description: '',
   },
   {
     num: 4,
-    image: '/images/app/feature-expense-monitoring.png',
-    title: 'Quick expense monitoring',
-    description: 'Income, expenses, and cashflow at a glance.',
+    image: '/images/app/feature-track-assets.png',
+    title: 'Track assets and liabilities',
+    description: '',
   },
   {
     num: 5,
-    image: '/images/app/feature-remember-decisions.png',
-    title: 'Remember key decisions',
-    description: 'Assets, liabilities, and estimates for your AI assistants.',
+    image: '/images/app/feature-expense-monitoring.png',
+    title: 'Quick expense monitoring',
+    description: '',
   },
   {
     num: 6,
-    image: '/images/app/feature-ai-assistants.png',
-    title: 'Custom AI assistants',
-    description: 'Specialists for retirement, FIRE, expenses, and more.',
+    image: '/images/app/feature-remember-decisions.png',
+    title: 'Remember key decisions',
+    description: '',
   },
   {
     num: 7,
+    image: '/images/app/feature-import-data.png',
+    title: 'Import PDFs or images',
+    description: '',
+  },
+  {
+    num: 8,
+    image: '/images/app/feature-plan-retirement.png',
+    title: 'Plan for retirement',
+    description: '',
+  },
+  {
+    num: 9,
     image: '/images/app/feature-api-keys.png',
     title: 'Bring your own API keys',
-    description: 'Your keys, your spend. Pick models in Settings.',
+    description: '',
   },
 ];
 
@@ -113,14 +124,14 @@ export const DownloadLandingPage: React.FC<DownloadLandingPageProps> = ({
       </nav>
 
       {/* Hero */}
-      <section className="max-w-6xl mx-auto px-6 pt-16 pb-20 lg:pt-24 lg:pb-28">
+      <section className="max-w-6xl mx-auto px-6 pt-16 pb-16 lg:pt-20 lg:pb-20">
         <div className="max-w-2xl mx-auto text-center">
           <div
             className={`inline-flex items-center gap-2 ${theme.accentBgClass} border ${theme.cardBorderClass} rounded-full px-4 py-2 mb-6`}
           >
             <Shield className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
             <span className={`text-sm font-medium ${theme.textSecondaryClass}`}>
-              Privacy-first · No bank sync
+              Privacy first · No bank sync
             </span>
           </div>
 
@@ -135,75 +146,51 @@ export const DownloadLandingPage: React.FC<DownloadLandingPageProps> = ({
           <p
             className={`text-lg sm:text-xl ${theme.textSecondaryClass} mb-8 max-w-xl mx-auto leading-relaxed`}
           >
-            Track net worth, cash flow, and context. Makes sure you know your numbers.
-            Data stays on your phone.
+            Track net worth, cash flow and remember major decisions. Data stays on your phone.
           </p>
 
           <DownloadButtons darkMode={darkMode} className="justify-center" />
 
           <p className={`text-sm ${theme.textSecondaryClass} mt-4`}>
-            Free to download · You bring your own AI keys
+            iOS beta on TestFlight
           </p>
         </div>
       </section>
 
       {/* Privacy pillars */}
-      <section className={`${theme.accentBgClass} border-y ${theme.borderClass} py-16 lg:py-20`}>
+      <section className={`${theme.accentBgClass} border-y ${theme.borderClass} py-12 lg:py-14`}>
         <div className="max-w-6xl mx-auto px-6">
-          <div className="text-center mb-12">
-            <h2 className={`text-3xl font-bold ${headerTextClass} mb-3`}>
+          <div className="text-center mb-8">
+            <h2 className={`text-2xl sm:text-3xl font-bold ${headerTextClass} mb-2`}>
               Built for privacy
             </h2>
-            <p className={`${theme.textSecondaryClass} max-w-2xl mx-auto`}>
-              A clear financial picture without bank credentials.
-            </p>
           </div>
-          <div className="grid md:grid-cols-3 gap-8">
+          <div className="grid sm:grid-cols-3 gap-4 sm:gap-6 items-stretch">
             {privacyPillars.map((pillar) => (
               <div
                 key={pillar.title}
-                className={`rounded-2xl border ${theme.borderClass} p-6 ${
+                className={`flex h-full flex-col rounded-xl border ${theme.borderClass} p-5 ${
                   darkMode ? 'bg-slate-800/50' : 'bg-white'
                 }`}
               >
-                <pillar.icon className="w-8 h-8 text-blue-600 dark:text-blue-400 mb-4" />
-                <h3 className={`text-lg font-bold ${theme.textClass} mb-2`}>{pillar.title}</h3>
-                <p className={`text-sm ${theme.textSecondaryClass} leading-relaxed`}>
-                  {pillar.description}
-                </p>
+                <pillar.icon className="w-6 h-6 text-blue-600 dark:text-blue-400 mb-3 shrink-0" />
+                <h3 className={`text-base font-bold ${theme.textClass} mb-1`}>{pillar.title}</h3>
+                <p className={`text-sm ${theme.textSecondaryClass} flex-1`}>{pillar.description}</p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Video + frame */}
-      <section className="max-w-6xl mx-auto px-6 py-20 lg:py-28">
-        <div className="grid lg:grid-cols-2 gap-12 items-center">
-          <div className="order-2 lg:order-1 text-center lg:text-left">
-            <h2 className={`text-3xl font-bold ${headerTextClass} mb-4`}>
-              See it in action
-            </h2>
-            <p className={`${theme.textSecondaryClass} mb-6 max-w-md mx-auto lg:mx-0 leading-relaxed`}>
-              Command center, ledger, context, and chat in one app.
-            </p>
-            <DownloadButtons darkMode={darkMode} size="md" className="justify-center lg:justify-start" />
-          </div>
-          <div className="order-1 lg:order-2 flex justify-center">
-            <PhoneFrame videoSrc={APP_DEMO_VIDEO_URL} posterSrc="/images/app/hero.png" />
-          </div>
-        </div>
-      </section>
-
       {/* Feature carousel */}
-      <section className={`${theme.accentBgClass} py-16 lg:py-20`}>
+      <section className="py-14 lg:py-16">
         <div className="max-w-6xl mx-auto px-6">
-          <div className="text-center mb-10">
-            <h2 className={`text-3xl font-bold ${headerTextClass} mb-4`}>
+          <div className="text-center mb-8">
+            <h2 className={`text-2xl sm:text-3xl font-bold ${headerTextClass} mb-2`}>
               Everything in one app
             </h2>
-            <p className={`${theme.textSecondaryClass} max-w-xl mx-auto`}>
-              Swipe to explore. No bank sync required.
+            <p className={`${theme.textSecondaryClass}`}>
+              Swipe to explore.
             </p>
           </div>
 
@@ -213,23 +200,24 @@ export const DownloadLandingPage: React.FC<DownloadLandingPageProps> = ({
             textClass={theme.textClass}
             textSecondaryClass={theme.textSecondaryClass}
             borderClass={theme.borderClass}
+            showCaptions={false}
           />
         </div>
       </section>
 
       {/* Bottom CTA */}
       <section
-        id="download"
-        className={`border-t ${theme.borderClass} py-20`}
+        id="community"
+        className={`${theme.accentBgClass} border-t ${theme.borderClass} py-16`}
       >
         <div className="max-w-4xl mx-auto px-6 text-center">
-          <h2 className={`text-3xl font-bold ${headerTextClass} mb-4`}>
-            Download Zoro
+          <h2 className={`text-2xl sm:text-3xl font-bold ${headerTextClass} mb-3`}>
+            Join the beta community
           </h2>
-          <p className={`${theme.textSecondaryClass} mb-8 max-w-lg mx-auto`}>
-            Available on iPhone and Android. Your finances, organized on your phone.
+          <p className={`${theme.textSecondaryClass} mb-8 max-w-md mx-auto`}>
+            Share feedback, ask questions, and follow updates on Reddit.
           </p>
-          <DownloadButtons darkMode={darkMode} />
+          <RedditCta />
         </div>
       </section>
 

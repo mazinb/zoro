@@ -1,16 +1,15 @@
 'use client';
 
+import React, { useEffect, useState } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
-import {
-  ANDROID_APP_URL,
-  hasAndroidDownload,
-  hasIosDownload,
-  IOS_APP_URL,
-} from '@/lib/app-download';
+import { X } from 'lucide-react';
+import { TESTFLIGHT_URL } from '@/lib/app-download';
 
 interface DownloadButtonsProps {
   className?: string;
   size?: 'md' | 'lg';
+  darkMode?: boolean;
 }
 
 const baseBadge =
@@ -29,97 +28,177 @@ function AppleIcon({ className }: { className?: string }) {
   );
 }
 
-function StoreBadge({
-  href,
-  enabled,
-  platform,
+function TestFlightBadge({
   size,
   darkMode,
+  onDesktopClick,
 }: {
-  href: string;
-  enabled: boolean;
-  platform: 'ios' | 'android';
   size: 'md' | 'lg';
   darkMode: boolean;
+  onDesktopClick: () => void;
 }) {
-  const label = platform === 'ios' ? 'Download on the App Store' : 'Get it on Google Play';
-  const sub = platform === 'ios' ? 'App Store' : 'Google Play';
-  const colorClass = enabled
-    ? darkMode
-      ? 'bg-white text-slate-900 hover:bg-slate-100 shadow-lg shadow-blue-500/10'
-      : 'bg-slate-900 text-white hover:bg-slate-800 shadow-lg shadow-blue-500/20'
-    : darkMode
-      ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
-      : 'bg-slate-200 text-slate-500 cursor-not-allowed';
+  const [useDirectLink, setUseDirectLink] = useState(true);
+
+  useEffect(() => {
+    const touch = window.matchMedia('(hover: none) and (pointer: coarse)');
+    const narrow = window.matchMedia('(max-width: 767px)');
+
+    const update = () => {
+      setUseDirectLink(touch.matches || narrow.matches);
+    };
+
+    update();
+    touch.addEventListener('change', update);
+    narrow.addEventListener('change', update);
+    return () => {
+      touch.removeEventListener('change', update);
+      narrow.removeEventListener('change', update);
+    };
+  }, []);
+
+  const colorClass = darkMode
+    ? 'bg-white text-slate-900 hover:bg-slate-100 shadow-lg shadow-blue-500/10'
+    : 'bg-slate-900 text-white hover:bg-slate-800 shadow-lg shadow-blue-500/20';
 
   const content = (
     <>
-      {platform === 'ios' ? (
-        <AppleIcon className="w-7 h-7 shrink-0" />
-      ) : (
-        <img
-          src="/images/google-play.png"
-          alt=""
-          width={28}
-          height={28}
-          className={`w-7 h-7 shrink-0 object-contain ${enabled ? '' : 'opacity-50'}`}
-        />
-      )}
+      <AppleIcon className="w-7 h-7 shrink-0" />
       <span className="text-left leading-tight">
         <span className="block text-[10px] font-medium uppercase tracking-wide opacity-80">
-          {enabled ? (platform === 'ios' ? 'Download on the' : 'Get it on') : 'Coming soon on'}
+          Join the beta on
         </span>
-        <span className="block text-base font-bold">{sub}</span>
+        <span className="block text-base font-bold">TestFlight</span>
       </span>
     </>
   );
 
-  if (!enabled) {
+  if (useDirectLink) {
     return (
-      <span
+      <Link
+        href={TESTFLIGHT_URL}
+        target="_blank"
+        rel="noopener noreferrer"
         className={`${baseBadge} ${sizes[size]} ${colorClass}`}
-        aria-label={`${label}, coming soon`}
-        title="Set NEXT_PUBLIC_IOS_APP_URL or NEXT_PUBLIC_ANDROID_APP_URL"
+        aria-label="Join the Zoro beta on TestFlight"
       >
         {content}
-      </span>
+      </Link>
     );
   }
 
   return (
-    <Link
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
+    <button
+      type="button"
+      onClick={onDesktopClick}
       className={`${baseBadge} ${sizes[size]} ${colorClass}`}
-      aria-label={label}
+      aria-label="Show TestFlight QR code for iOS beta"
     >
       {content}
-    </Link>
+    </button>
   );
 }
+
+function TestFlightQrModal({
+  open,
+  onClose,
+  darkMode,
+}: {
+  open: boolean;
+  onClose: () => void;
+  darkMode: boolean;
+}) {
+  if (!open) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+      onClick={onClose}
+      role="presentation"
+    >
+      <div
+        className={`relative w-full max-w-sm rounded-2xl p-6 shadow-2xl ${
+          darkMode ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'
+        }`}
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-labelledby="testflight-qr-title"
+        aria-modal="true"
+      >
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute right-4 top-4 rounded-lg p-1 opacity-70 hover:opacity-100"
+          aria-label="Close"
+        >
+          <X className="w-5 h-5" />
+        </button>
+
+        <h3 id="testflight-qr-title" className="text-lg font-bold mb-1 pr-8">
+          Join the iOS beta
+        </h3>
+        <p className={`text-sm mb-5 ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>
+          Scan with your iPhone camera to open TestFlight.
+        </p>
+
+        <div className="flex justify-center mb-5">
+          <Image
+            src="/images/testflight-qr.png"
+            alt="QR code for TestFlight beta"
+            width={240}
+            height={240}
+            className="rounded-lg border border-slate-200"
+          />
+        </div>
+
+        <Link
+          href={TESTFLIGHT_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="block text-center text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline"
+        >
+          Or open the TestFlight link
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+/*
+function StoreBadge Android — hidden until Play Store launch
+function StoreBadge({ href, enabled, platform, size, darkMode }: ...) { ... }
+*/
 
 export function DownloadButtons({
   className = '',
   size = 'lg',
   darkMode = false,
-}: DownloadButtonsProps & { darkMode?: boolean }) {
+}: DownloadButtonsProps) {
+  const [qrOpen, setQrOpen] = useState(false);
+
   return (
-    <div className={`flex flex-wrap items-center justify-center gap-4 ${className}`}>
-      <StoreBadge
-        href={IOS_APP_URL}
-        enabled={hasIosDownload}
-        platform="ios"
-        size={size}
+    <>
+      <div className={`flex flex-wrap items-center justify-center gap-4 ${className}`}>
+        <TestFlightBadge
+          size={size}
+          darkMode={darkMode}
+          onDesktopClick={() => setQrOpen(true)}
+        />
+        {/*
+        import { ANDROID_APP_URL, hasAndroidDownload } from '@/lib/app-download';
+        <StoreBadge
+          href={ANDROID_APP_URL}
+          enabled={hasAndroidDownload}
+          platform="android"
+          size={size}
+          darkMode={darkMode}
+        />
+        */}
+      </div>
+      <TestFlightQrModal
+        open={qrOpen}
+        onClose={() => setQrOpen(false)}
         darkMode={darkMode}
       />
-      <StoreBadge
-        href={ANDROID_APP_URL}
-        enabled={hasAndroidDownload}
-        platform="android"
-        size={size}
-        darkMode={darkMode}
-      />
-    </div>
+    </>
   );
 }

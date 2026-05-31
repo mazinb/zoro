@@ -17,6 +17,7 @@ interface FeatureCarouselProps {
   textClass: string;
   textSecondaryClass: string;
   borderClass: string;
+  showCaptions?: boolean;
 }
 
 type ExtendedSlide = FeatureSlide & { domIndex: number; isClone: boolean };
@@ -36,6 +37,7 @@ export function FeatureCarousel({
   textClass,
   textSecondaryClass,
   borderClass,
+  showCaptions = true,
 }: FeatureCarouselProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const jumpingRef = useRef(false);
@@ -167,11 +169,17 @@ export function FeatureCarousel({
   }, [slideCount, settleLoop, getClosestDom]);
 
   const active = features[activeIndex];
-  const slideImageHeight = 'h-[min(48vh,380px)] sm:h-[400px]';
+  const slideImageHeight = showCaptions
+    ? 'h-[min(48vh,380px)] sm:h-[400px]'
+    : 'aspect-[473/1024] w-full';
 
   return (
     <div className="relative">
-      <div className="relative h-[min(52vh,460px)] sm:h-[480px] overflow-hidden">
+      <div
+        className={`relative overflow-hidden ${
+          showCaptions ? 'h-[min(52vh,460px)] sm:h-[480px]' : 'h-[min(68vh,560px)] sm:h-[600px]'
+        }`}
+      >
         <div
           ref={scrollRef}
           className="flex h-full items-center gap-4 sm:gap-6 overflow-x-auto snap-x snap-mandatory scroll-smooth px-[max(1rem,calc(50%-160px))] sm:px-[max(1.5rem,calc(50%-150px))] [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
@@ -186,23 +194,23 @@ export function FeatureCarousel({
             <article
               key={`${feature.domIndex}-${feature.isClone ? 'clone' : 'real'}-${feature.num}`}
               data-dom-slide={feature.domIndex}
-              className="snap-center shrink-0 w-[min(100%,280px)] sm:w-[300px] md:w-[320px] flex items-center justify-center"
+              className="snap-center shrink-0 w-[min(100%,220px)] sm:w-[240px] md:w-[260px] flex items-center justify-center"
               aria-hidden={!isActive}
             >
               <div
-                className={`w-full origin-center rounded-2xl overflow-hidden bg-black transition-all duration-300 ease-out ${
+                className={`w-full origin-center rounded-2xl overflow-hidden transition-all duration-300 ease-out ${
                   isActive
-                    ? 'z-10 scale-110 sm:scale-[1.08] shadow-2xl shadow-blue-500/25'
-                    : 'z-0 scale-[0.82] sm:scale-[0.85] brightness-[0.85] shadow-md'
+                    ? 'z-10 scale-105 sm:scale-[1.03] shadow-2xl shadow-blue-500/25'
+                    : 'z-0 scale-[0.88] sm:scale-[0.9] brightness-[0.85] shadow-md'
                 }`}
               >
-                <div className={`relative bg-black ${slideImageHeight}`}>
+                <div className={`relative ${slideImageHeight}`}>
                   <Image
                     src={feature.image}
                     alt={feature.title}
                     fill
-                    className="object-cover object-top"
-                    sizes="(max-width: 640px) 280px, 320px"
+                    className="object-contain"
+                    sizes="(max-width: 640px) 220px, 260px"
                     draggable={false}
                   />
                 </div>
@@ -230,24 +238,26 @@ export function FeatureCarousel({
         </button>
       </div>
 
-      <div
-        className="mt-8 h-[8.75rem] sm:h-[9.25rem] text-center px-4 flex flex-col items-center"
-        aria-live="polite"
-        aria-atomic="true"
-      >
-        <h3
-          className={`h-8 sm:h-9 flex items-center justify-center text-xl sm:text-2xl font-bold ${textClass} mb-2 line-clamp-1 w-full max-w-lg`}
+      {showCaptions ? (
+        <div
+          className="mt-8 h-[8.75rem] sm:h-[9.25rem] text-center px-4 flex flex-col items-center"
+          aria-live="polite"
+          aria-atomic="true"
         >
-          {active.title}
-        </h3>
-        <p
-          className={`flex-1 text-sm sm:text-base ${textSecondaryClass} max-w-lg mx-auto leading-relaxed line-clamp-3`}
-        >
-          {active.description}
-        </p>
-      </div>
+          <h3
+            className={`h-8 sm:h-9 flex items-center justify-center text-xl sm:text-2xl font-bold ${textClass} mb-2 line-clamp-1 w-full max-w-lg`}
+          >
+            {active.title}
+          </h3>
+          <p
+            className={`flex-1 text-sm sm:text-base ${textSecondaryClass} max-w-lg mx-auto leading-relaxed line-clamp-3`}
+          >
+            {active.description}
+          </p>
+        </div>
+      ) : null}
 
-      <div className="flex justify-center gap-2 mt-6 flex-wrap">
+      <div className={`flex justify-center gap-2 flex-wrap ${showCaptions ? 'mt-6' : 'mt-4'}`}>
         {features.map((feature, index) => (
           <button
             key={feature.num}

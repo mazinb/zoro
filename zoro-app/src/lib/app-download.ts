@@ -5,6 +5,10 @@ export const IOS_APP_URL =
 export const ANDROID_APP_URL =
   (process.env.NEXT_PUBLIC_ANDROID_APP_URL || '').trim();
 
+export const TESTFLIGHT_URL = 'https://testflight.apple.com/join/87U5ckxQ';
+
+export const REDDIT_URL = 'https://www.reddit.com/r/getzoro/';
+
 export const APP_DEMO_VIDEO_URL =
   (process.env.NEXT_PUBLIC_APP_DEMO_VIDEO || '/videos/demo.mp4').trim();
 
