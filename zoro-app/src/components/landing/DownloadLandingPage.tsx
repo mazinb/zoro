@@ -6,6 +6,8 @@ import { Moon, Sun, Shield, Smartphone, Ban, Sparkles } from 'lucide-react';
 import { ZoroLogo } from '@/components/ZoroLogo';
 import { useThemeClasses } from '@/hooks/useThemeClasses';
 import { DownloadButtons } from '@/components/landing/DownloadButtons';
+import { PhoneFrame } from '@/components/landing/PhoneFrame';
+import { APP_DEMO_VIDEO_URL } from '@/lib/app-download';
 import { RedditCta } from '@/components/landing/RedditCta';
 import { FeatureCarousel, type FeatureSlide } from '@/components/landing/FeatureCarousel';
 
@@ -124,7 +126,7 @@ export const DownloadLandingPage: React.FC<DownloadLandingPageProps> = ({
       </nav>
 
       {/* Hero */}
-      <section className="max-w-6xl mx-auto px-6 pt-16 pb-16 lg:pt-20 lg:pb-20">
+      <section className="max-w-6xl mx-auto px-6 pt-16 pb-20 lg:pt-24 lg:pb-28">
         <div className="max-w-2xl mx-auto text-center">
           <div
             className={`inline-flex items-center gap-2 ${theme.accentBgClass} border ${theme.cardBorderClass} rounded-full px-4 py-2 mb-6`}
@@ -158,35 +160,72 @@ export const DownloadLandingPage: React.FC<DownloadLandingPageProps> = ({
       </section>
 
       {/* Privacy pillars */}
-      <section className={`${theme.accentBgClass} border-y ${theme.borderClass} py-12 lg:py-14`}>
+      <section className={`${theme.accentBgClass} border-y ${theme.borderClass} py-20 lg:py-24`}>
         <div className="max-w-6xl mx-auto px-6">
-          <div className="text-center mb-8">
-            <h2 className={`text-2xl sm:text-3xl font-bold ${headerTextClass} mb-2`}>
+          <div className="text-center mb-12 lg:mb-16">
+            <h2 className={`text-2xl sm:text-3xl font-bold ${headerTextClass}`}>
               Built for privacy
             </h2>
           </div>
-          <div className="grid sm:grid-cols-3 gap-4 sm:gap-6 items-stretch">
+
+          {/* Mobile: centered stack with breathing room */}
+          <div className="flex flex-col gap-12 sm:hidden">
+            {privacyPillars.map((pillar) => (
+              <div key={pillar.title} className="text-center max-w-sm mx-auto">
+                <pillar.icon className="w-8 h-8 text-blue-600 dark:text-blue-400 mx-auto mb-4" />
+                <h3 className={`text-lg font-bold ${theme.textClass} mb-2`}>{pillar.title}</h3>
+                <p className={`text-sm ${theme.textSecondaryClass} leading-relaxed`}>
+                  {pillar.description}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          {/* Desktop: card grid */}
+          <div className="hidden sm:grid sm:grid-cols-3 gap-6 items-stretch">
             {privacyPillars.map((pillar) => (
               <div
                 key={pillar.title}
-                className={`flex h-full flex-col rounded-xl border ${theme.borderClass} p-5 ${
+                className={`flex h-full flex-col rounded-xl border ${theme.borderClass} p-6 ${
                   darkMode ? 'bg-slate-800/50' : 'bg-white'
                 }`}
               >
-                <pillar.icon className="w-6 h-6 text-blue-600 dark:text-blue-400 mb-3 shrink-0" />
-                <h3 className={`text-base font-bold ${theme.textClass} mb-1`}>{pillar.title}</h3>
-                <p className={`text-sm ${theme.textSecondaryClass} flex-1`}>{pillar.description}</p>
+                <pillar.icon className="w-7 h-7 text-blue-600 dark:text-blue-400 mb-4 shrink-0" />
+                <h3 className={`text-base font-bold ${theme.textClass} mb-2`}>{pillar.title}</h3>
+                <p className={`text-sm ${theme.textSecondaryClass} flex-1 leading-relaxed`}>
+                  {pillar.description}
+                </p>
               </div>
             ))}
           </div>
         </div>
       </section>
 
+      {/* Video */}
+      <section className="max-w-6xl mx-auto px-6 py-20 lg:py-28">
+        <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+          <div className="order-2 lg:order-1 text-center lg:text-left">
+            <h2 className={`text-2xl sm:text-3xl font-bold ${headerTextClass} mb-4`}>
+              See it in action
+            </h2>
+            <p
+              className={`${theme.textSecondaryClass} mb-8 max-w-md mx-auto lg:mx-0 leading-relaxed`}
+            >
+              Command center, ledger, and context in one app.
+            </p>
+            <DownloadButtons darkMode={darkMode} size="md" className="justify-center lg:justify-start" />
+          </div>
+          <div className="order-1 lg:order-2 flex justify-center">
+            <PhoneFrame videoSrc={APP_DEMO_VIDEO_URL} posterSrc="/images/app/hero.png" />
+          </div>
+        </div>
+      </section>
+
       {/* Feature carousel */}
-      <section className="py-14 lg:py-16">
+      <section className={`${theme.accentBgClass} py-20 lg:py-24`}>
         <div className="max-w-6xl mx-auto px-6">
-          <div className="text-center mb-8">
-            <h2 className={`text-2xl sm:text-3xl font-bold ${headerTextClass} mb-2`}>
+          <div className="text-center mb-10 lg:mb-12">
+            <h2 className={`text-2xl sm:text-3xl font-bold ${headerTextClass} mb-3`}>
               Everything in one app
             </h2>
             <p className={`${theme.textSecondaryClass}`}>
@@ -208,7 +247,7 @@ export const DownloadLandingPage: React.FC<DownloadLandingPageProps> = ({
       {/* Bottom CTA */}
       <section
         id="community"
-        className={`${theme.accentBgClass} border-t ${theme.borderClass} py-16`}
+        className={`border-t ${theme.borderClass} py-20 lg:py-24`}
       >
         <div className="max-w-4xl mx-auto px-6 text-center">
           <h2 className={`text-2xl sm:text-3xl font-bold ${headerTextClass} mb-3`}>
