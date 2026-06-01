@@ -151,9 +151,9 @@ export const DownloadLandingPage: React.FC<DownloadLandingPageProps> = ({
             Track net worth, cash flow and remember major decisions. Data stays on your phone.
           </p>
 
-          <DownloadButtons darkMode={darkMode} className="justify-center" />
+          <DownloadButtons darkMode={darkMode} size="md" className="justify-center" />
 
-          <p className={`text-sm ${theme.textSecondaryClass} mt-4`}>
+          <p className={`text-xs ${theme.textSecondaryClass} mt-3`}>
             iOS beta on TestFlight
           </p>
         </div>
@@ -213,7 +213,7 @@ export const DownloadLandingPage: React.FC<DownloadLandingPageProps> = ({
             >
               Command center, ledger, and context in one app.
             </p>
-            <DownloadButtons darkMode={darkMode} size="md" className="justify-center lg:justify-start" />
+            <DownloadButtons darkMode={darkMode} size="sm" className="justify-center lg:justify-start" />
           </div>
           <div className="order-1 lg:order-2 flex justify-center">
             <PhoneFrame videoSrc={APP_DEMO_VIDEO_URL} posterSrc="/images/app/hero.png" />

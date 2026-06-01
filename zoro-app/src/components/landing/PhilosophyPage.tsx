@@ -111,23 +111,54 @@ export const PhilosophyPage: React.FC<PhilosophyPageProps> = ({
           <div className="space-y-4">
             <h3 className={`text-2xl font-bold ${theme.textClass}`}>How Zoro works</h3>
             <p className={`text-lg ${theme.textSecondaryClass}`}>
-              Zoro is designed to bridge the gap between financial intention and daily action through a simple, email-based interface. Here is the process:
+              Zoro is a privacy-first mobile app for iOS (Android coming later). There is no bank
+              sync. You enter what you choose, or import PDFs and images with one tap so AI can
+              help fill your ledger.
             </p>
             <ul className={`text-lg ${theme.textSecondaryClass} space-y-3 list-disc pl-6`}>
-              <li><strong className={theme.textClass}>Intent Mapping:</strong> When you email Zoro, the agent analyses the text to understand your specific financial intent (e.g., &quot;I just got a bonus,&quot; &quot;I need to update my insurance,&quot; or &quot;Review my portfolio&quot;).</li>
-              <li><strong className={theme.textClass}>Contextual Analysis:</strong> Zoro reviews your saved structured data: income, expenses, and net worth.</li>
-              <li><strong className={theme.textClass}>Actionable Drafting:</strong> Zoro drafts a response that isn&apos;t just advice, but a next step. This reply often includes a customised link to: securely update a specific data point; review a curated summary of your last 90 days; adjust your priority goals.</li>
-              <li><strong className={theme.textClass}>Data Integration (coming soon):</strong> With your permission, Zoro scans your inbox to automatically update your tracking sheet, turning manual data entry into a passive process.</li>
+              <li>
+                <strong className={theme.textClass}>Home:</strong> Net worth, cash-flow Sankey,
+                and a clear picture across currencies.
+              </li>
+              <li>
+                <strong className={theme.textClass}>Ledger:</strong> Assets, liabilities, income,
+                expenses, and cashflow you control.
+              </li>
+              <li>
+                <strong className={theme.textClass}>Context:</strong> Major decisions, notes, and
+                background your assistants can use.
+              </li>
+              <li>
+                <strong className={theme.textClass}>Goals:</strong> Targets such as retirement, with
+                progress tied to your numbers.
+              </li>
+              <li>
+                <strong className={theme.textClass}>Optional AI:</strong> Bring your own API keys
+                (OpenAI, Anthropic, Gemini, or on-device Apple). Your ledger stays on your phone;
+                only what you send in a request goes to the provider you choose.
+              </li>
+              <li>
+                <strong className={theme.textClass}>Reminders:</strong> Local notifications on your
+                device. No push service required for core use.
+              </li>
             </ul>
+            <p className={`text-lg ${theme.textSecondaryClass}`}>
+              Zoro is a tool for clarity and consistency. It does not provide regulated financial,
+              tax, or investment advice.
+            </p>
           </div>
 
           <div className="space-y-4">
             <h3 className={`text-2xl font-bold ${theme.textClass}`}>Where Zoro fits</h3>
             <p className={`text-lg ${theme.textSecondaryClass}`}>
-              Zoro isn&apos;t another app to check stock prices. It&apos;s a behavioural interface designed to turn &quot;I should do this&quot; into &quot;I have done this.&quot; Think of Zoro as your system for consistency. We don&apos;t sell products or take commissions. We simply provide the framework to keep you on track.
+              Zoro is not another app to check stock prices, sell products, or earn commissions. It
+              helps you see what you earn, spend, and keep, remember why you made big decisions, and
+              stay on track with a few goals you care about.
             </p>
             <p className={`text-lg ${theme.textSecondaryClass}`}>
-              <strong className={theme.textClass}>Privacy First:</strong> You will only hear from us if you email us first or if you specifically ask for a reminder or follow-up. We never spam and you are always in control of your data.
+              <strong className={theme.textClass}>Privacy first:</strong> Your financial data lives
+              on your phone by default. We do not connect to your bank. Optional AI uses your keys
+              and your chosen providers. We do not sell your data.
             </p>
           </div>
         </div>
@@ -135,10 +166,11 @@ export const PhilosophyPage: React.FC<PhilosophyPageProps> = ({
         {/* Why This Matters */}
           <div className={`${darkMode ? 'bg-white' : 'bg-slate-800'} ${darkMode ? 'text-blue-600' : 'text-white'} rounded-2xl p-12 border ${theme.borderClass}`}>
           <h3 className={`text-3xl font-bold mb-4 text-center ${darkMode ? 'text-blue-600' : 'text-white'}`}>
-            Get your retirement number
+            Plan with your own numbers
           </h3>
           <p className={`text-lg ${darkMode ? 'text-slate-700' : 'text-slate-200'} max-w-3xl mx-auto mb-8 text-center`}>
-            Build a retirement plan in minutes and get a clear target based on your lifestyle, location, and savings.
+            Use Goals in the app to set targets such as retirement and see how you are tracking
+            against the ledger you control.
           </p>
           <div className="text-center mb-8">
             <Button
@@ -151,7 +183,7 @@ export const PhilosophyPage: React.FC<PhilosophyPageProps> = ({
             </Button>
           </div>
           <p className={`text-sm ${darkMode ? 'text-slate-600' : 'text-slate-400'} text-center italic`}>
-            Zoro is your money cat. It stays calm, pays attention, and nudges you toward consistent progress.
+            Not financial advice. For education and planning only.
           </p>
         </div>
       </div>

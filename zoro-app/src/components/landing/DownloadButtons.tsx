@@ -8,16 +8,29 @@ import { TESTFLIGHT_URL } from '@/lib/app-download';
 
 interface DownloadButtonsProps {
   className?: string;
-  size?: 'md' | 'lg';
+  size?: 'sm' | 'md' | 'lg';
   darkMode?: boolean;
 }
 
 const baseBadge =
-  'inline-flex items-center gap-3 rounded-xl font-semibold transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500';
+  'inline-flex items-center gap-2 rounded-lg font-semibold transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-500';
 
 const sizes = {
-  md: 'px-5 py-3 text-sm',
-  lg: 'px-6 py-3.5 text-base',
+  sm: 'px-3 py-1.5',
+  md: 'px-4 py-2',
+  lg: 'px-4 py-2.5',
+};
+
+const iconSizes = {
+  sm: 'w-4 h-4',
+  md: 'w-5 h-5',
+  lg: 'w-5 h-5',
+};
+
+const labelSizes = {
+  sm: { sub: 'text-[9px]', main: 'text-xs' },
+  md: { sub: 'text-[9px]', main: 'text-sm' },
+  lg: { sub: 'text-[10px]', main: 'text-sm' },
 };
 
 function AppleIcon({ className }: { className?: string }) {
@@ -33,7 +46,7 @@ function TestFlightBadge({
   darkMode,
   onDesktopClick,
 }: {
-  size: 'md' | 'lg';
+  size: 'sm' | 'md' | 'lg';
   darkMode: boolean;
   onDesktopClick: () => void;
 }) {
@@ -57,17 +70,19 @@ function TestFlightBadge({
   }, []);
 
   const colorClass = darkMode
-    ? 'bg-white text-slate-900 hover:bg-slate-100 shadow-lg shadow-blue-500/10'
-    : 'bg-slate-900 text-white hover:bg-slate-800 shadow-lg shadow-blue-500/20';
+    ? 'bg-white text-slate-900 hover:bg-slate-100 shadow-md shadow-blue-500/10'
+    : 'bg-slate-900 text-white hover:bg-slate-800 shadow-md shadow-blue-500/15';
+
+  const labels = labelSizes[size];
 
   const content = (
     <>
-      <AppleIcon className="w-7 h-7 shrink-0" />
-      <span className="text-left leading-tight">
-        <span className="block text-[10px] font-medium uppercase tracking-wide opacity-80">
+      <AppleIcon className={`${iconSizes[size]} shrink-0`} />
+      <span className="text-left leading-none">
+        <span className={`block font-medium uppercase tracking-wide opacity-80 ${labels.sub}`}>
           Join the beta on
         </span>
-        <span className="block text-base font-bold">TestFlight</span>
+        <span className={`block font-bold ${labels.main}`}>TestFlight</span>
       </span>
     </>
   );
@@ -170,7 +185,7 @@ function StoreBadge({ href, enabled, platform, size, darkMode }: ...) { ... }
 
 export function DownloadButtons({
   className = '',
-  size = 'lg',
+  size = 'md',
   darkMode = false,
 }: DownloadButtonsProps) {
   const [qrOpen, setQrOpen] = useState(false);
