@@ -104,6 +104,12 @@ class AppModel extends ChangeNotifier {
   bool helperEnabledGoals = true;
   bool helperEnabledSettings = true;
 
+  /// When false, the ? how-it-works control is hidden on that tab (Settings tab always shows it).
+  bool guideEnabledLedger = true;
+  bool guideEnabledContext = true;
+  bool guideEnabledGoals = true;
+  bool guideEnabledSettings = true;
+
   bool _bootstrapped = false;
   bool get bootstrapped => _bootstrapped;
 
@@ -198,6 +204,34 @@ class AppModel extends ChangeNotifier {
   void setHelperEnabledSettings(bool v) {
     if (helperEnabledSettings == v) return;
     helperEnabledSettings = v;
+    _scheduleAppStatePersist();
+    notifyListeners();
+  }
+
+  void setGuideEnabledLedger(bool v) {
+    if (guideEnabledLedger == v) return;
+    guideEnabledLedger = v;
+    _scheduleAppStatePersist();
+    notifyListeners();
+  }
+
+  void setGuideEnabledContext(bool v) {
+    if (guideEnabledContext == v) return;
+    guideEnabledContext = v;
+    _scheduleAppStatePersist();
+    notifyListeners();
+  }
+
+  void setGuideEnabledGoals(bool v) {
+    if (guideEnabledGoals == v) return;
+    guideEnabledGoals = v;
+    _scheduleAppStatePersist();
+    notifyListeners();
+  }
+
+  void setGuideEnabledSettings(bool v) {
+    if (guideEnabledSettings == v) return;
+    guideEnabledSettings = v;
     _scheduleAppStatePersist();
     notifyListeners();
   }
@@ -4056,6 +4090,10 @@ class AppModel extends ChangeNotifier {
         'helperEnabledContext': helperEnabledContext,
         'helperEnabledGoals': helperEnabledGoals,
         'helperEnabledSettings': helperEnabledSettings,
+        'guideEnabledLedger': guideEnabledLedger,
+        'guideEnabledContext': guideEnabledContext,
+        'guideEnabledGoals': guideEnabledGoals,
+        'guideEnabledSettings': guideEnabledSettings,
       },
       'ledger': {
         // Currency for all ledger money fields that are stored in display units
@@ -4184,6 +4222,26 @@ class AppModel extends ChangeNotifier {
       }
       if (s.containsKey('helperEnabledSettings')) {
         helperEnabledSettings = s['helperEnabledSettings'] == true;
+      }
+      if (s.containsKey('guideEnabledLedger')) {
+        guideEnabledLedger = s['guideEnabledLedger'] == true;
+      } else {
+        guideEnabledLedger = helperEnabledLedger;
+      }
+      if (s.containsKey('guideEnabledContext')) {
+        guideEnabledContext = s['guideEnabledContext'] == true;
+      } else {
+        guideEnabledContext = helperEnabledContext;
+      }
+      if (s.containsKey('guideEnabledGoals')) {
+        guideEnabledGoals = s['guideEnabledGoals'] == true;
+      } else {
+        guideEnabledGoals = helperEnabledGoals;
+      }
+      if (s.containsKey('guideEnabledSettings')) {
+        guideEnabledSettings = s['guideEnabledSettings'] == true;
+      } else {
+        guideEnabledSettings = helperEnabledSettings;
       }
       final h = s['homeSummaryText']?.toString();
       if (h != null) homeSummaryText = h;

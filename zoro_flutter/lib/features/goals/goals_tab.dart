@@ -228,6 +228,7 @@ class _GoalsBodyState extends State<_GoalsBody> {
             const Spacer(),
             TabHeaderActions(
               model: m,
+              guideEnabled: m.guideEnabledGoals,
               help: TabHelpContent.goals,
               assistantTooltip: 'Goals helper',
               assistantEnabled: m.helperEnabledGoals,

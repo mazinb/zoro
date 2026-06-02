@@ -12,23 +12,31 @@ class TabHeaderActions extends StatelessWidget {
     required this.model,
     this.help,
     this.onAssistant,
+    this.guideEnabled = true,
     this.assistantEnabled = true,
     this.assistantRunning = false,
     this.assistantTooltip = 'Assistant',
+    this.howItWorksExtras,
+    this.howItWorksShowBullets = true,
   });
 
   final AppModel model;
   final HowItWorksContent? help;
   final VoidCallback? onAssistant;
+  final bool guideEnabled;
   final bool assistantEnabled;
+  /// When set, the ? sheet includes per-tab guide toggles (Settings always passes this).
+  final AppModel? howItWorksExtras;
+  /// When false, the ? sheet hides explanatory bullets but keeps guide toggles.
+  final bool howItWorksShowBullets;
   final bool assistantRunning;
   final String assistantTooltip;
 
   @override
   Widget build(BuildContext context) {
     final accent = model.accent;
-    final showHelp = help != null;
-    final showAssistant = onAssistant != null;
+    final showHelp = help != null && guideEnabled;
+    final showAssistant = onAssistant != null && assistantEnabled;
     final showDummy = showAssistant && model.dummyDataActive && model.dummyDataPristine;
 
     if (!showHelp && !showAssistant) return const SizedBox.shrink();
@@ -38,7 +46,12 @@ class TabHeaderActions extends StatelessWidget {
       children: [
         if (showHelp)
           IconButton.filledTonal(
-            onPressed: () => openHowItWorksPage(context, help!),
+            onPressed: () => openHowItWorksPage(
+                  context,
+                  help!,
+                  model: howItWorksExtras,
+                  showBullets: howItWorksShowBullets,
+                ),
             icon: const Icon(Icons.help_outline),
             tooltip: 'How it works',
             style: IconButton.styleFrom(
@@ -49,7 +62,7 @@ class TabHeaderActions extends StatelessWidget {
         if (showHelp && showAssistant) const SizedBox(width: 10),
         if (showAssistant)
           IconButton.filledTonal(
-            onPressed: (!assistantEnabled || assistantRunning)
+            onPressed: assistantRunning
                 ? null
                 : (showDummy
                     ? () => _openDummyDataSheet(context, model: model)
@@ -61,7 +74,7 @@ class TabHeaderActions extends StatelessWidget {
                     child: CircularProgressIndicator(strokeWidth: 2, color: accent),
                   )
                 : Icon(showDummy ? Icons.bolt_outlined : Icons.auto_awesome),
-            tooltip: !assistantEnabled ? 'Disabled' : (showDummy ? 'Demo data' : assistantTooltip),
+            tooltip: showDummy ? 'Demo data' : assistantTooltip,
             style: IconButton.styleFrom(
               backgroundColor: model.accentSoft,
               foregroundColor: accent,

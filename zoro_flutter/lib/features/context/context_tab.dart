@@ -64,12 +64,6 @@ class _ContextTabState extends State<ContextTab> {
   Future<void> _runContextHelper() async {
     if (_contextReviewRunning) return;
     final m = widget.model;
-    if (!m.helperEnabledContext) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Context helper is off in Settings.'), behavior: SnackBarBehavior.floating),
-      );
-      return;
-    }
     final ready = await m.prepareLlmForAssistant();
     if (!mounted) return;
     if (!ready) {
@@ -128,6 +122,7 @@ class _ContextTabState extends State<ContextTab> {
             const Spacer(),
             TabHeaderActions(
               model: model,
+              guideEnabled: model.guideEnabledContext,
               help: TabHelpContent.context,
               assistantRunning: _contextReviewRunning,
               assistantTooltip: 'Context assistant',

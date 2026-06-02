@@ -46,6 +46,7 @@ abstract final class TabHelpContent {
     title: 'How Settings works',
     bullets: [
       'General: theme, privacy mask, display currency, FX rates, and projection assumptions.',
+      'Open ? to choose which tabs show the how-it-works button (Settings always keeps ? here).',
       'Helpers: tune built-in agent prompts used by ✨ actions across the app.',
       'Usage: Free vs Pro, credits, and restores purchases.',
       'Export / import is in Helpers → Data (Pro only).',

@@ -8,6 +8,7 @@ import 'package:in_app_purchase/in_app_purchase.dart';
 
 import '../../core/finance/currency.dart';
 import '../../shared/help/tab_help_content.dart';
+import '../../shared/settings/home_messages_settings_card.dart';
 import '../../shared/widgets/tab_header_actions.dart';
 import '../../core/notifications/notification_service.dart';
 import '../../core/state/app_model.dart';
@@ -85,6 +86,14 @@ class _SettingsTabState extends State<SettingsTab> with SingleTickerProviderStat
     _tabs.animateTo(target);
   }
 
+  void openHelpersSection(AgentSettingsSection section) {
+    _tabs.animateTo(1);
+    final s = widget.agentSectionListenable;
+    if (s is ValueNotifier<AgentSettingsSection>) {
+      s.value = section;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -100,10 +109,16 @@ class _SettingsTabState extends State<SettingsTab> with SingleTickerProviderStat
                     ),
               ),
               const Spacer(),
-              TabHeaderActions(
-                model: widget.model,
-                help: TabHelpContent.settings,
-                assistantEnabled: widget.model.helperEnabledSettings,
+              ListenableBuilder(
+                listenable: widget.model,
+                builder: (context, _) => TabHeaderActions(
+                  model: widget.model,
+                  help: TabHelpContent.settings,
+                  guideEnabled: true,
+                  assistantEnabled: true,
+                  howItWorksExtras: widget.model,
+                  howItWorksShowBullets: widget.model.guideEnabledSettings,
+                ),
               ),
             ],
           ),
@@ -497,13 +512,7 @@ class _GeneralPaneState extends State<_GeneralPane> {
   }
 
   void _openAgentSettingsSection(AgentSettingsSection section) {
-    final root = context.findAncestorStateOfType<_SettingsTabState>();
-    if (root == null) return;
-    root._tabs.animateTo(1);
-    final s = root.widget.agentSectionListenable;
-    if (s is ValueNotifier<AgentSettingsSection>) {
-      s.value = section;
-    }
+    context.findAncestorStateOfType<_SettingsTabState>()?.openHelpersSection(section);
   }
 
   Future<void> _openExportPage() async {
@@ -606,14 +615,16 @@ class _GeneralPaneState extends State<_GeneralPane> {
             const SizedBox(height: 12),
             _currencyAssumptionsCard(),
             const SizedBox(height: 12),
-            _HomeMessagesCard(
+            const Text('Home messages', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+            const SizedBox(height: 8),
+            HomeMessagesSettingsCard(
               model: model,
+              onOpenHomeSettings: () => _openAgentSettingsSection(AgentSettingsSection.home),
             ),
             const SizedBox(height: 12),
-        _NotificationsCard(
-          model: model,
-          onOpenHomeSettings: () => _openAgentSettingsSection(AgentSettingsSection.home),
-        ),
+            const Text('Notifications', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+            const SizedBox(height: 8),
+            _NotificationsCard(model: model),
         if (model.notificationsEnabled) ...[
           const SizedBox(height: 12),
           _settingsCard(
@@ -799,63 +810,6 @@ class _AgentsPaneState extends State<_AgentsPane> {
           ),
           const SizedBox(height: 12),
         ],
-        Material(
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(18),
-          clipBehavior: Clip.antiAlias,
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                const Text('Helpers', style: TextStyle(fontWeight: FontWeight.w900)),
-                const SizedBox(height: 8),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Ledger', style: TextStyle(fontWeight: FontWeight.w800)),
-                  value: model.helperEnabledLedger,
-                  onChanged: model.setHelperEnabledLedger,
-                ),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Context', style: TextStyle(fontWeight: FontWeight.w800)),
-                  value: model.helperEnabledContext,
-                  onChanged: model.setHelperEnabledContext,
-                ),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Goals', style: TextStyle(fontWeight: FontWeight.w800)),
-                  value: model.helperEnabledGoals,
-                  onChanged: model.setHelperEnabledGoals,
-                ),
-                SwitchListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Settings', style: TextStyle(fontWeight: FontWeight.w800)),
-                  subtitle: const Text('Disabling removes the helper entry point.', style: TextStyle(fontSize: 12)),
-                  value: model.helperEnabledSettings,
-                  onChanged: (v) async {
-                    if (!v) {
-                      final ok = await showDialog<bool>(
-                        context: context,
-                        builder: (ctx) => AlertDialog(
-                          title: const Text('Disable Settings helper?'),
-                          content: const Text('If you disable this, it will be gone forever.'),
-                          actions: [
-                            TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
-                            FilledButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Disable')),
-                          ],
-                        ),
-                      );
-                      if (ok != true) return;
-                    }
-                    model.setHelperEnabledSettings(v);
-                  },
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
         Row(
           children: [
             Text(
@@ -1161,24 +1115,19 @@ class _UsagePane extends StatelessWidget {
               const SizedBox(height: 6),
               Text(
                 isPro
-                    ? 'Unlimited access. Imports, export/download, and helper edits are enabled.'
-                    : 'Limited onboarding. Import uses 1 free/month or credits. Export and helper edits are locked.',
+                    ? 'Unlimited imports, export, and helper edits.'
+                    : 'Export and helper edits need Pro.',
                 style: TextStyle(color: cs.onSurfaceVariant, height: 1.35),
               ),
-              const SizedBox(height: 12),
               if (!isPro) ...[
+                const SizedBox(height: 12),
                 Text('Credits: $credits', style: const TextStyle(fontWeight: FontWeight.w900)),
-                const SizedBox(height: 6),
+                const SizedBox(height: 4),
                 Text(
-                  'Imports use credits. Assets: 2, Liabilities: 1, Cash flow: 1.',
+                  '1 free import/month · then 1 credit each',
                   style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12, height: 1.35),
                 ),
-                const SizedBox(height: 10),
               ],
-              Text(
-                'Helpers run on-device. Imports may use cloud AI.',
-                style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12),
-              ),
             ],
           ),
         ),
@@ -1265,106 +1214,12 @@ class _CadenceRow extends StatelessWidget {
 }
 
 class _NotificationsCard extends StatefulWidget {
-  const _NotificationsCard({
-    required this.model,
-    required this.onOpenHomeSettings,
-  });
+  const _NotificationsCard({required this.model});
 
   final AppModel model;
-  final VoidCallback onOpenHomeSettings;
 
   @override
   State<_NotificationsCard> createState() => _NotificationsCardState();
-}
-
-class _HomeMessagesCard extends StatefulWidget {
-  const _HomeMessagesCard({
-    required this.model,
-  });
-
-  final AppModel model;
-
-  @override
-  State<_HomeMessagesCard> createState() => _HomeMessagesCardState();
-}
-
-class _HomeMessagesCardState extends State<_HomeMessagesCard> {
-  bool _busy = false;
-
-  Future<void> _ensureNotificationsAuthorizedAndEnableHomeMessages(bool enabled) async {
-    final model = widget.model;
-    if (!enabled) {
-      model.setHomeMessagesNotifications(false);
-      return;
-    }
-
-    setState(() => _busy = true);
-    try {
-      final svc = NotificationService.instance;
-      if (await svc.isAuthorized()) {
-        model.setNotificationsEnabled(true);
-        model.setHomeMessagesNotifications(true);
-        return;
-      }
-      final granted = await svc.requestPermission();
-      if (!granted) return;
-      model.setNotificationsEnabled(true);
-      model.setHomeMessagesNotifications(true);
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final model = widget.model;
-
-    return Material(
-      color: scheme.surfaceContainerHighest,
-      borderRadius: BorderRadius.circular(18),
-      clipBehavior: Clip.antiAlias,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Enable', style: TextStyle(fontWeight: FontWeight.w900)),
-              subtitle: model.homeMessagesNotifications
-                  ? const Text('Configure in Helpers → Home')
-                  : null,
-              value: model.homeMessagesNotifications,
-              onChanged: _busy ? null : _ensureNotificationsAuthorizedAndEnableHomeMessages,
-            ),
-            if (model.homeMessagesNotifications) ...[
-              const Divider(height: 20),
-              DropdownButtonFormField<HomeMessageCadence>(
-                initialValue: model.homeMessagesCadence,
-                decoration: const InputDecoration(
-                  labelText: 'Cadence',
-                  isDense: true,
-                  border: OutlineInputBorder(),
-                ),
-                items: [
-                  for (final v in HomeMessageCadence.values)
-                    DropdownMenuItem<HomeMessageCadence>(
-                      value: v,
-                      child: Text(v.label),
-                    ),
-                ],
-                onChanged: (v) {
-                  if (v == null) return;
-                  model.setHomeMessagesCadence(v);
-                },
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 class _NotificationsCardState extends State<_NotificationsCard> {
