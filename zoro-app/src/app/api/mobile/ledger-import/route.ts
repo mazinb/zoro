@@ -16,6 +16,10 @@ async function openAiJsonCompletion(params: {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error('Server missing OPENAI_API_KEY');
   const model = params.model || process.env.OPENAI_LEDGER_IMPORT_MODEL || 'gpt-4o-mini';
+  // OpenAI rejects json_object unless some message contains the word "json".
+  const system = params.system.toLowerCase().includes('json')
+    ? params.system
+    : `${params.system}\n\nReturn a JSON object only (valid json).`;
 
   const res = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
@@ -27,7 +31,7 @@ async function openAiJsonCompletion(params: {
       model,
       response_format: { type: 'json_object' },
       messages: [
-        { role: 'system', content: params.system.slice(0, 60_000) },
+        { role: 'system', content: system.slice(0, 60_000) },
         { role: 'user', content: params.user.slice(0, 120_000) },
       ],
       temperature: 0.2,
