@@ -2,6 +2,44 @@ import 'dart:convert';
 
 import 'llm_client.dart';
 
+String _stripInvalidJsonEscapes(String s) {
+  // Fix common model bug: escaping punctuation inside JSON strings, e.g. "\\-".
+  // JSON only permits escapes: \" \\ \/ \b \f \n \r \t \uXXXX
+  final out = StringBuffer();
+  var inString = false;
+  var escaped = false;
+  for (var i = 0; i < s.length; i++) {
+    final ch = s[i];
+    if (!inString) {
+      if (ch == '"') inString = true;
+      out.write(ch);
+      continue;
+    }
+    if (escaped) {
+      // If previous char was backslash, only keep it if the escape is valid.
+      const valid = {'"', '\\', '/', 'b', 'f', 'n', 'r', 't', 'u'};
+      if (valid.contains(ch)) {
+        out.write('\\');
+        out.write(ch);
+      } else {
+        // Drop the backslash and keep the character.
+        out.write(ch);
+      }
+      escaped = false;
+      continue;
+    }
+    if (ch == '\\') {
+      escaped = true;
+      continue;
+    }
+    if (ch == '"') inString = false;
+    out.write(ch);
+  }
+  // If the string ended right after a backslash, keep it (best effort).
+  if (escaped) out.write('\\');
+  return out.toString();
+}
+
 /// Strips optional ``` fences and parses a single JSON object.
 Map<String, dynamic> decodeLlmJsonObject(String raw) {
   var s = raw.trim();
@@ -20,6 +58,10 @@ Map<String, dynamic> decodeLlmJsonObject(String raw) {
     decoded = jsonDecode(s);
   } on FormatException catch (e) {
     final msg = e.message;
+    if (msg.contains('Unrecognized string escape')) {
+      final fixed = _stripInvalidJsonEscapes(s);
+      decoded = jsonDecode(fixed);
+    } else
     if (msg.contains('Unterminated') || msg.contains('Unexpected end')) {
       throw FormatException(
         'Model JSON looks truncated or invalid (try again or use fewer rows). Original: $msg',
