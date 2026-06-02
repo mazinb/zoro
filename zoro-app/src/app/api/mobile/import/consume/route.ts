@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({
     data: {
-      deviceId: row.device_id,
+      deviceId: row.device_id_out ?? deviceId,
       isPro: !!row.is_pro,
       proExpiresAt: row.pro_expires_at,
       creditsBalance: row.credits_balance ?? 0,
