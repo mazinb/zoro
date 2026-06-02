@@ -116,6 +116,24 @@ class ContextMarkdownSidecar {
           }
           m['investmentLines'] = linesRaw;
         }
+        final savingsRaw = m['savingsLines'];
+        if (savingsRaw is List) {
+          for (var j = 0; j < savingsRaw.length; j++) {
+            final line = savingsRaw[j];
+            if (line is! Map) continue;
+            final lm = Map<String, dynamic>.from(line);
+            final refL = lm['contextMarkdownRef']?.toString();
+            if (refL != null && refL.isNotEmpty) {
+              final body = await readRef(refL);
+              if (body != null && body.trim().isNotEmpty) {
+                lm['contextMarkdown'] = body;
+              }
+              lm.remove('contextMarkdownRef');
+            }
+            savingsRaw[j] = lm;
+          }
+          m['savingsLines'] = savingsRaw;
+        }
         mc[e.key] = m;
       }
     }
@@ -202,6 +220,24 @@ class ContextMarkdownSidecar {
             linesRaw[j] = lm;
           }
           m['investmentLines'] = linesRaw;
+        }
+        final savingsRaw = m['savingsLines'];
+        if (savingsRaw is List) {
+          for (var j = 0; j < savingsRaw.length; j++) {
+            final line = savingsRaw[j];
+            if (line is! Map) continue;
+            final lm = Map<String, dynamic>.from(line);
+            final lid = lm['id']?.toString();
+            final lmd = lm['contextMarkdown']?.toString() ?? '';
+            if (lid != null && lmd.trim().isNotEmpty) {
+              final ref = 'savline:$lid';
+              await writeRef(ref, lmd);
+              lm.remove('contextMarkdown');
+              lm['contextMarkdownRef'] = ref;
+            }
+            savingsRaw[j] = lm;
+          }
+          m['savingsLines'] = savingsRaw;
         }
         mc[e.key] = m;
       }

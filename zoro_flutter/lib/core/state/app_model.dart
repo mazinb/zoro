@@ -23,11 +23,14 @@ import '../persistence/agent_json.dart';
 import '../persistence/app_state_codec.dart' as app_state;
 import '../persistence/app_state_store.dart';
 import '../home/home_summary_focus_domain.dart';
+import 'app_model_persistence_controller.dart';
 import 'cashflow_income_line.dart';
 import 'financial_goals.dart';
 import 'internal_app_agent_definition.dart';
 import 'ledger_rows.dart';
 import 'monthly_cashflow_entry.dart';
+
+part 'app_model_notifications.dart';
 
 /// Parts of projected net worth for one year (matches [AppModel.netWorthProjection11Y] totals).
 ///
@@ -87,6 +90,10 @@ class AppModel extends ChangeNotifier {
 
   bool _bootstrapped = false;
   bool get bootstrapped => _bootstrapped;
+
+  /// Public wrapper so notification/persistence helpers outside the class body
+  /// can trigger UI updates without relying on protected `notifyListeners`.
+  void notifyUi() => notifyListeners();
 
   Future<void> bootstrap() async {
     if (_bootstrapped) return;
@@ -211,25 +218,15 @@ class AppModel extends ChangeNotifier {
   /// Agents (UI-only). Seeded in constructor; replaced when persisted settings load.
   final List<AppAgent> agents = [];
 
-  int _appStatePersistRevision = 0;
+  late final AppModelPersistenceController _persistence =
+      AppModelPersistenceController(buildSnapshot: buildPersistedSnapshot);
 
   void _scheduleAppStatePersist() {
-    _appStatePersistRevision++;
-    final rev = _appStatePersistRevision;
-    Future<void> run() async {
-      if (rev != _appStatePersistRevision) return;
-      try {
-        await AppStateStore.save(buildPersistedSnapshot());
-      } catch (_) {}
-    }
-
-    Future.microtask(run);
+    _persistence.schedulePersist();
   }
 
   Future<void> persistAppStateToDisk() async {
-    try {
-      await AppStateStore.save(buildPersistedSnapshot());
-    } catch (_) {}
+    await _persistence.persistNow();
   }
 
   /// Restores state from [AppStateStore] JSON (e.g. after load or in tests).
@@ -2978,146 +2975,7 @@ class AppModel extends ChangeNotifier {
   /// and a microtask-only persist can lose the "fired today" flag).
   ///
   /// Returns the domain that fired, or `null` when nothing was posted.
-  Future<ReminderDomain?> maybePostDailyReminder({DateTime? now}) async {
-    final n = now ?? DateTime.now();
-    if (!canFireDailyReminderNow(now: n)) return null;
-    final pending = remindersPendingDomain;
-    final domain = (pending != null && isReminderNotifiable(pending, now: n))
-        ? pending
-        : nextRotationDomain(now: n);
-    if (domain == null) return null;
-    try {
-      await NotificationService.instance.postReminderForDomain(domain);
-    } catch (_) {
-      return null;
-    }
-    recordDailyReminderFired(domain, at: n);
-    await persistAppStateToDisk();
-    try {
-      await _scheduleNextReminderSlot();
-    } catch (_) {}
-    notifyListeners();
-    return domain;
-  }
-
-  /// Pushes the current notification configuration to the OS:
-  /// - cancels everything when [notificationsEnabled] is false,
-  /// - commits any past-scheduled reminder push and (re)schedules the next
-  ///   one-shot reminder for the upcoming notify slot with the next rotation
-  ///   domain's content. iOS local notifications fire on time without Dart
-  ///   running, so this is the primary delivery path; [maybePostDailyReminder]
-  ///   is only a fallback for when scheduling fails.
-  ///
-  /// Best-effort; failures (plugin unsupported on web, missing permission) are
-  /// swallowed so UI flows stay responsive.
-  Future<void> syncNotifications() async {
-    try {
-      final svc = NotificationService.instance;
-      if (!notificationsEnabled) {
-        await svc.cancelAll();
-        remindersScheduledFireOn = null;
-        remindersPendingDomain = null;
-        return;
-      }
-      await _scheduleNextReminderSlot();
-    } catch (e, st) {
-      developer.log(
-        'sync failed',
-        name: 'ZoroNotif',
-        error: e,
-        stackTrace: st,
-        level: 1000,
-      );
-    }
-  }
-
-  /// Re-syncs OS alarms from persisted prefs, then runs the Dart fallback when
-  /// today's slot has passed. Call after bootstrap and on resume — never before
-  /// disk state is loaded (doing so cancels all alarms with defaults).
-  Future<void> reconcileNotifications() async {
-    try {
-      await NotificationService.instance.init();
-    } catch (e, st) {
-      developer.log(
-        'reconcile init failed',
-        name: 'ZoroNotif',
-        error: e,
-        stackTrace: st,
-        level: 1000,
-      );
-      return;
-    }
-    await syncNotifications();
-    await maybePostDailyReminder();
-    _maybeFireGoalTimeMilestones();
-  }
-
-  /// Cancels any current reminder schedule, commits past pending fires into
-  /// the rotation cursor, and schedules a new OS one-shot for the upcoming
-  /// notify slot with the next rotation domain's content. Idempotent: calling
-  /// multiple times before the slot fires reschedules the same domain without
-  /// advancing rotation. Persists to disk before returning.
-  Future<void> _scheduleNextReminderSlot() async {
-    final svc = NotificationService.instance;
-    final now = DateTime.now();
-
-    // A past OS slot with no "fired today" record means delivery may have failed.
-    // Clear the schedule marker so Dart fallback can post, but keep
-    // [remindersPendingDomain] so catch-up targets the right domain.
-    final pending = remindersScheduledFireOn;
-    if (pending != null) {
-      final fireMoment = DateTime(
-        pending.year,
-        pending.month,
-        pending.day,
-        reminderNotifyHour,
-        reminderNotifyMinute,
-      );
-      if (!now.isBefore(fireMoment)) {
-        final alreadyFiredToday =
-            remindersLastFiredOn != null && _isSameLocalDay(remindersLastFiredOn!, now);
-        remindersScheduledFireOn = null;
-        if (alreadyFiredToday) {
-          remindersPendingDomain = null;
-        }
-        // else: keep [remindersPendingDomain] for [maybePostDailyReminder] catch-up
-        // and fall through to schedule the next OS slot (do not return early).
-      }
-    }
-
-    final todaySlot = DateTime(
-      now.year,
-      now.month,
-      now.day,
-      reminderNotifyHour,
-      reminderNotifyMinute,
-    );
-    final nextSlot =
-        now.isBefore(todaySlot) ? todaySlot : todaySlot.add(const Duration(days: 1));
-
-    // Prefer overdue domains for copy + rotation; fall back to any schedulable
-    // domain so the user's notify time always registers an OS alarm (like the
-    // Settings test button). Immediate [maybePostDailyReminder] stays overdue-only.
-    final overdueDomain = nextRotationDomain(now: nextSlot);
-    final schedulableDomain = nextSchedulableRotationDomain();
-    final domain = overdueDomain ?? schedulableDomain;
-
-    await svc.cancelReminderSlot();
-
-    if (domain == null) {
-      // New users (onboarding false) and caught-up users still get an OS alarm.
-      await svc.scheduleDailyCheckInAt(when: nextSlot);
-      remindersScheduledFireOn = DateTime(nextSlot.year, nextSlot.month, nextSlot.day);
-      remindersPendingDomain = null;
-      await persistAppStateToDisk();
-      return;
-    }
-
-    await svc.scheduleReminderForDomainAt(domain: domain, when: nextSlot);
-    remindersScheduledFireOn = DateTime(nextSlot.year, nextSlot.month, nextSlot.day);
-    remindersPendingDomain = domain;
-    await persistAppStateToDisk();
-  }
+  // (moved to `app_model_notifications.dart`)
 
   CurrencyCode get expenseCurrencyResolved => expenseEstimateCurrency ?? displayCurrency;
 
