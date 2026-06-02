@@ -104,7 +104,10 @@ If privacyHideAmounts is true, avoid dollar amounts and speak in general terms.
         'dayKey': dayKey,
         'text': text,
       });
-      if (model.notificationsEnabled && model.homeMessagesNotifications) {
+      if (model.notificationsEnabled &&
+          model.homeMessagesNotifications &&
+          model.shouldNotifyHomeMessageNow(now)) {
+        model.markHomeMessageNotified(now);
         unawaited(
           NotificationService.instance.showHomeMessageReady(
             taskId: InternalAppAgentIds.homeSummaryHelper,

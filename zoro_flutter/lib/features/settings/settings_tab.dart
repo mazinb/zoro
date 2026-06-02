@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -605,16 +604,17 @@ class _GeneralPaneState extends State<_GeneralPane> {
             _fxCard(context),
             const SizedBox(height: 12),
             _currencyAssumptionsCard(),
-        const Text('Notifications', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
-        const SizedBox(height: 8),
+            const SizedBox(height: 12),
+            _HomeMessagesCard(
+              model: model,
+            ),
+            const SizedBox(height: 12),
         _NotificationsCard(
           model: model,
           onOpenHomeSettings: () => _openAgentSettingsSection(AgentSettingsSection.home),
         ),
         if (model.notificationsEnabled) ...[
           const SizedBox(height: 12),
-          const Text('Reminders', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
-          const SizedBox(height: 8),
           _settingsCard(
             padding: const EdgeInsets.all(16),
             child: Column(
@@ -1541,27 +1541,111 @@ class _NotificationsCard extends StatefulWidget {
   State<_NotificationsCard> createState() => _NotificationsCardState();
 }
 
+class _HomeMessagesCard extends StatefulWidget {
+  const _HomeMessagesCard({
+    required this.model,
+  });
+
+  final AppModel model;
+
+  @override
+  State<_HomeMessagesCard> createState() => _HomeMessagesCardState();
+}
+
+class _HomeMessagesCardState extends State<_HomeMessagesCard> {
+  bool _busy = false;
+
+  Future<void> _ensureNotificationsAuthorizedAndEnableHomeMessages(bool enabled) async {
+    final model = widget.model;
+    if (!enabled) {
+      model.setHomeMessagesNotifications(false);
+      return;
+    }
+
+    setState(() => _busy = true);
+    try {
+      final svc = NotificationService.instance;
+      if (await svc.isAuthorized()) {
+        model.setNotificationsEnabled(true);
+        model.setHomeMessagesNotifications(true);
+        return;
+      }
+      final granted = await svc.requestPermission();
+      if (!granted) return;
+      model.setNotificationsEnabled(true);
+      model.setHomeMessagesNotifications(true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final model = widget.model;
+
+    return Material(
+      color: scheme.surfaceContainerHighest,
+      borderRadius: BorderRadius.circular(18),
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Enable', style: TextStyle(fontWeight: FontWeight.w900)),
+              subtitle: model.homeMessagesNotifications
+                  ? const Text('Configure in Helpers → Home')
+                  : null,
+              value: model.homeMessagesNotifications,
+              onChanged: _busy ? null : _ensureNotificationsAuthorizedAndEnableHomeMessages,
+            ),
+            if (model.homeMessagesNotifications) ...[
+              const Divider(height: 20),
+              DropdownButtonFormField<HomeMessageCadence>(
+                initialValue: model.homeMessagesCadence,
+                decoration: const InputDecoration(
+                  labelText: 'Cadence',
+                  isDense: true,
+                  border: OutlineInputBorder(),
+                ),
+                items: [
+                  for (final v in HomeMessageCadence.values)
+                    DropdownMenuItem<HomeMessageCadence>(
+                      value: v,
+                      child: Text(v.label),
+                    ),
+                ],
+                onChanged: (v) {
+                  if (v == null) return;
+                  model.setHomeMessagesCadence(v);
+                },
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _NotificationsCardState extends State<_NotificationsCard> {
   bool _busy = false;
-  late final TapGestureRecognizer _homeSettingsLinkRecognizer;
 
   @override
   void initState() {
     super.initState();
-    _homeSettingsLinkRecognizer = TapGestureRecognizer()..onTap = widget.onOpenHomeSettings;
   }
 
   @override
   void didUpdateWidget(covariant _NotificationsCard oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.onOpenHomeSettings != widget.onOpenHomeSettings) {
-      _homeSettingsLinkRecognizer.onTap = widget.onOpenHomeSettings;
-    }
   }
 
   @override
   void dispose() {
-    _homeSettingsLinkRecognizer.dispose();
     super.dispose();
   }
 
@@ -1639,41 +1723,6 @@ class _NotificationsCardState extends State<_NotificationsCard> {
               onChanged: _busy ? null : _onMasterChanged,
             ),
             if (model.notificationsEnabled) ...[
-              const Divider(height: 20),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Home messages', style: TextStyle(fontWeight: FontWeight.w800)),
-                subtitle: model.homeMessagesNotifications
-                    ? Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: Text.rich(
-                          TextSpan(
-                            style: TextStyle(
-                              color: scheme.onSurfaceVariant,
-                              fontSize: 13,
-                              height: 1.35,
-                            ),
-                            children: [
-                              const TextSpan(text: 'Daily Home note from your helper. '),
-                              TextSpan(
-                                text: 'Configure in Home settings',
-                                style: TextStyle(
-                                  color: scheme.primary,
-                                  fontWeight: FontWeight.w800,
-                                  decoration: TextDecoration.underline,
-                                  decorationColor: scheme.primary,
-                                ),
-                                recognizer: _homeSettingsLinkRecognizer,
-                              ),
-                              const TextSpan(text: '.'),
-                            ],
-                          ),
-                        ),
-                      )
-                    : const Text('Daily Home note when your helper runs'),
-                value: model.homeMessagesNotifications,
-                onChanged: _busy ? null : model.setHomeMessagesNotifications,
-              ),
               const Divider(height: 20),
               InkWell(
                 onTap: _pickTime,

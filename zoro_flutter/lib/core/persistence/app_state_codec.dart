@@ -400,6 +400,8 @@ Map<String, dynamic> encodeNotificationsBlock(AppModel m) {
   return {
     'enabled': m.notificationsEnabled,
     'homeMessages': m.homeMessagesNotifications,
+    'homeMessagesCadence': m.homeMessagesCadence.name,
+    if (toMs(m.homeMessagesLastNotifiedOn) != null) 'homeMessagesLastNotifiedOnMs': toMs(m.homeMessagesLastNotifiedOn),
     'reminderHour': m.reminderNotifyHour,
     'reminderMinute': m.reminderNotifyMinute,
     if (toMs(m.remindersLastFiredOn) != null) 'lastFiredOnMs': toMs(m.remindersLastFiredOn),
@@ -420,6 +422,9 @@ void decodeNotificationsBlock(AppModel m, Object? raw) {
   if (n.containsKey('homeMessages')) {
     m.homeMessagesNotifications = n['homeMessages'] == true;
   }
+  final cadRaw = n['homeMessagesCadence']?.toString();
+  m.homeMessagesCadence = HomeMessageCadenceUi.tryParse(cadRaw) ?? HomeMessageCadence.daily;
+  m.homeMessagesLastNotifiedOn = dateTimeFromJsonField(n['homeMessagesLastNotifiedOnMs']);
   final rh = n['reminderHour'];
   final rm = n['reminderMinute'];
   if (rh is int) m.reminderNotifyHour = rh.clamp(0, 23);

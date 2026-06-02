@@ -742,6 +742,12 @@ class AppModel extends ChangeNotifier {
   /// Ping when the daily Home summary helper posts a new note (Helpers → Home).
   bool homeMessagesNotifications = false;
 
+  /// How often we should ping about new Home messages (independent from helper runs).
+  HomeMessageCadence homeMessagesCadence = HomeMessageCadence.daily;
+
+  /// Last local date on which a Home-message notification was posted.
+  DateTime? homeMessagesLastNotifiedOn;
+
   /// Local time-of-day used by the reminder-check background job to decide when to
   /// post an "X items need attention" notification. Defaults to 09:00.
   int reminderNotifyHour = 9;
@@ -2762,6 +2768,37 @@ class AppModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setHomeMessagesCadence(HomeMessageCadence v) {
+    if (homeMessagesCadence == v) return;
+    homeMessagesCadence = v;
+    _scheduleAppStatePersist();
+    notifyListeners();
+  }
+
+  bool shouldNotifyHomeMessageNow(DateTime now) {
+    DateTime dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
+    final today = dateOnly(now);
+    final last = homeMessagesLastNotifiedOn == null ? null : dateOnly(homeMessagesLastNotifiedOn!);
+    if (last == null) return true;
+
+    switch (homeMessagesCadence) {
+      case HomeMessageCadence.daily:
+        return today.isAfter(last);
+      case HomeMessageCadence.weekly:
+        final thisWeekStart = today.subtract(Duration(days: today.weekday - DateTime.monday));
+        final lastWeekStart = last.subtract(Duration(days: last.weekday - DateTime.monday));
+        return thisWeekStart.isAfter(lastWeekStart);
+      case HomeMessageCadence.monthly:
+        return today.year != last.year || today.month != last.month;
+    }
+  }
+
+  void markHomeMessageNotified(DateTime now) {
+    homeMessagesLastNotifiedOn = DateTime(now.year, now.month, now.day);
+    _scheduleAppStatePersist();
+    notifyListeners();
+  }
+
   /// Clears today's rotation dispatch cursor so a new notify slot can fire.
   /// Called when the user changes reminder time — the once-per-day cap applies
   /// per configured slot, not across time edits on the same calendar day.
@@ -4679,6 +4716,23 @@ String relativeLastUpdatedLabel({required DateTime lastCalendarDay, required Dat
 }
 
 enum ReminderCadence { off, monthly, quarterly, yearly }
+
+enum HomeMessageCadence { daily, weekly, monthly }
+
+extension HomeMessageCadenceUi on HomeMessageCadence {
+  String get label => switch (this) {
+        HomeMessageCadence.daily => 'Daily',
+        HomeMessageCadence.weekly => 'Weekly',
+        HomeMessageCadence.monthly => 'Monthly',
+      };
+
+  static HomeMessageCadence? tryParse(String? raw) => switch (raw?.trim().toLowerCase()) {
+        'daily' => HomeMessageCadence.daily,
+        'weekly' => HomeMessageCadence.weekly,
+        'monthly' => HomeMessageCadence.monthly,
+        _ => null,
+      };
+}
 
 /// Reminder targets surfaced to the user (Command Center + Notifications).
 /// Order matches the Settings reminder block.
