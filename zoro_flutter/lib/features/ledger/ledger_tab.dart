@@ -218,6 +218,12 @@ class _LedgerTabState extends State<LedgerTab> {
   Future<void> _onLedgerHelperPressed() async {
     if (_ledgerReviewRunning) return;
     final m = widget.model;
+    if (!m.helperEnabledLedger) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Ledger helper is off in Settings.'), behavior: SnackBarBehavior.floating),
+      );
+      return;
+    }
     if (m.privacyHideAmounts) {
       _privacyDenied();
       return;
@@ -443,6 +449,7 @@ class _LedgerTabState extends State<LedgerTab> {
               assistantTooltip: _mode == LedgerMode.cashflow
                   ? 'Expense estimates'
                   : (_mode == LedgerMode.assets ? 'Review assets' : 'Review liabilities'),
+              assistantEnabled: widget.model.helperEnabledLedger,
               onAssistant: _onLedgerHelperPressed,
             ),
             const SizedBox(width: 10),

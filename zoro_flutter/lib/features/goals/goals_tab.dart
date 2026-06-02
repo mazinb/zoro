@@ -230,6 +230,7 @@ class _GoalsBodyState extends State<_GoalsBody> {
               model: m,
               help: TabHelpContent.goals,
               assistantTooltip: 'Goals helper',
+              assistantEnabled: m.helperEnabledGoals,
               onAssistant: () => openGoalsAiAssistant(
                 context: context,
                 model: m,

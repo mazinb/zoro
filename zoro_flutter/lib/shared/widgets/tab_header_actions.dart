@@ -12,6 +12,7 @@ class TabHeaderActions extends StatelessWidget {
     required this.model,
     this.help,
     this.onAssistant,
+    this.assistantEnabled = true,
     this.assistantRunning = false,
     this.assistantTooltip = 'Assistant',
   });
@@ -19,6 +20,7 @@ class TabHeaderActions extends StatelessWidget {
   final AppModel model;
   final HowItWorksContent? help;
   final VoidCallback? onAssistant;
+  final bool assistantEnabled;
   final bool assistantRunning;
   final String assistantTooltip;
 
@@ -47,7 +49,7 @@ class TabHeaderActions extends StatelessWidget {
         if (showHelp && showAssistant) const SizedBox(width: 10),
         if (showAssistant)
           IconButton.filledTonal(
-            onPressed: assistantRunning
+            onPressed: (!assistantEnabled || assistantRunning)
                 ? null
                 : (showDummy
                     ? () => _openDummyDataSheet(context, model: model)
@@ -59,7 +61,7 @@ class TabHeaderActions extends StatelessWidget {
                     child: CircularProgressIndicator(strokeWidth: 2, color: accent),
                   )
                 : Icon(showDummy ? Icons.bolt_outlined : Icons.auto_awesome),
-            tooltip: showDummy ? 'Demo data' : assistantTooltip,
+            tooltip: !assistantEnabled ? 'Disabled' : (showDummy ? 'Demo data' : assistantTooltip),
             style: IconButton.styleFrom(
               backgroundColor: model.accentSoft,
               foregroundColor: accent,

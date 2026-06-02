@@ -10,6 +10,137 @@ class ZoroApi {
 
   final http.Client _client;
 
+  /// Mobile entitlements (device-based).
+  ///
+  /// POST /api/mobile/entitlements { deviceId, platform?, appVersion?, buildNumber? }
+  Future<Map<String, dynamic>> syncMobileEntitlements({
+    required String deviceId,
+    String platform = 'ios',
+    String? appVersion,
+    String? buildNumber,
+  }) async {
+    final uri = AppEnv.apiUri('/api/mobile/entitlements');
+    final res = await _client.post(
+      uri,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'deviceId': deviceId,
+        'platform': platform,
+        if (appVersion?.trim().isNotEmpty == true) 'appVersion': appVersion!.trim(),
+        if (buildNumber?.trim().isNotEmpty == true) 'buildNumber': buildNumber!.trim(),
+      }),
+    );
+    final body = _decodeJson(res.body);
+    if (res.statusCode != 200) {
+      throw ApiException(
+        body['error']?.toString() ?? 'Failed to load entitlements',
+        statusCode: res.statusCode,
+      );
+    }
+    return body;
+  }
+
+  Future<void> recordMobileIap({
+    required String deviceId,
+    required String productId,
+    required String? transactionId,
+    required String verificationData,
+    required String source,
+  }) async {
+    final uri = AppEnv.apiUri('/api/mobile/iap/record');
+    final res = await _client.post(
+      uri,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'deviceId': deviceId,
+        'productId': productId,
+        'transactionId': transactionId,
+        'verificationData': verificationData,
+        'source': source,
+      }),
+    );
+    final body = _decodeJson(res.body);
+    if (res.statusCode != 200) {
+      throw ApiException(
+        body['error']?.toString() ?? 'Failed to record purchase',
+        statusCode: res.statusCode,
+      );
+    }
+  }
+
+  Future<Map<String, dynamic>> applyMobileIapEntitlement({
+    required String deviceId,
+    required String productId,
+  }) async {
+    final uri = AppEnv.apiUri('/api/mobile/iap/apply');
+    final res = await _client.post(
+      uri,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'deviceId': deviceId,
+        'productId': productId,
+      }),
+    );
+    final body = _decodeJson(res.body);
+    if (res.statusCode != 200) {
+      throw ApiException(
+        body['error']?.toString() ?? 'Failed to apply purchase',
+        statusCode: res.statusCode,
+      );
+    }
+    return body;
+  }
+
+  Future<Map<String, dynamic>> consumeImportAllowance({
+    required String deviceId,
+    required String kind, // asset|liability|cashflow
+  }) async {
+    final uri = AppEnv.apiUri('/api/mobile/import/consume');
+    final res = await _client.post(
+      uri,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'deviceId': deviceId,
+        'kind': kind,
+      }),
+    );
+    final body = _decodeJson(res.body);
+    if (res.statusCode != 200) {
+      throw ApiException(
+        body['error']?.toString() ?? 'Not allowed',
+        statusCode: res.statusCode,
+      );
+    }
+    return body;
+  }
+
+  Future<Map<String, dynamic>> ledgerImport({
+    required String deviceId,
+    required String kind, // asset|liability|cashflow
+    required String system,
+    required String user,
+  }) async {
+    final uri = AppEnv.apiUri('/api/mobile/ledger-import');
+    final res = await _client.post(
+      uri,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'deviceId': deviceId,
+        'kind': kind,
+        'system': system,
+        'user': user,
+      }),
+    );
+    final body = _decodeJson(res.body);
+    if (res.statusCode != 200) {
+      throw ApiException(
+        body['error']?.toString() ?? 'Import failed',
+        statusCode: res.statusCode,
+      );
+    }
+    return body;
+  }
+
   /// Load profile by [token] (users.verification_token) or [email] (registered users).
   Future<Map<String, dynamic>> getUserData({
     String? token,

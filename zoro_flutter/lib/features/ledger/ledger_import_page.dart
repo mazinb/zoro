@@ -6,11 +6,10 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../../core/import/document_ingest.dart';
-import '../../core/llm/llm_error_helpers.dart';
-import '../../core/llm/llm_json.dart';
-import '../../core/llm/llm_client.dart';
 import '../../core/finance/currency.dart';
 import '../../core/state/app_model.dart';
+import '../../core/api/zoro_api.dart';
+import '../../core/entitlements/mobile_entitlements.dart';
 import '../../shared/widgets/liquid_glass.dart';
 import '../../core/state/internal_app_agent_definition.dart';
 import '../../core/state/ledger_rows.dart';
@@ -60,8 +59,7 @@ class _LedgerImportPageState extends State<LedgerImportPage> {
   bool _pdfPasswordDialogOpen = false;
   String? _error;
 
-  /// When null, use [AppModel.activeLlmProvider].
-  LlmProvider? _importProviderOverride;
+  // Import provider selection removed (imports run via server).
 
   List<PlatformFile> _pickedFiles = const [];
 
@@ -88,6 +86,12 @@ class _LedgerImportPageState extends State<LedgerImportPage> {
 
   bool get _isRowEditMode => _editingAsset || _editingLiability;
 
+  String get _kindApiValue => switch (widget.kind) {
+        LedgerImportKind.asset => 'asset',
+        LedgerImportKind.liability => 'liability',
+        LedgerImportKind.cashflow => 'cashflow',
+      };
+
   String get _title => switch (widget.kind) {
     LedgerImportKind.asset => _editingAsset
         ? 'Update asset from import'
@@ -97,9 +101,6 @@ class _LedgerImportPageState extends State<LedgerImportPage> {
         : 'Import liability(s)',
     LedgerImportKind.cashflow => 'Import cashflow',
   };
-
-  LlmProvider get _effectiveImportProvider =>
-      _importProviderOverride ?? widget.model.activeLlmProvider;
 
   String get _internalAgentId => switch (widget.kind) {
     LedgerImportKind.asset => InternalAppAgentIds.ledgerAddAssets,
@@ -481,22 +482,9 @@ Infer **monthKey** from the document or statement period; use this hint only if 
     }
 
     final m = widget.model;
-    final provider = _effectiveImportProvider;
-    final key = m.apiKeyFor(provider);
-    if (key == null) {
-      setState(() => _error = 'Add an API key in Settings → API keys first.');
-      return;
-    }
-
-    if (provider == LlmProvider.appleFoundation && bundle.attachments.isNotEmpty) {
-      setState(() {
-        _error = _importErrorWithSuggestions(
-          m,
-          provider,
-          'Apple on-device cannot use images or raw PDF bytes for this import. '
-          'Pick OpenAI or Gemini (or turn off Apple and use Anthropic text-only after local PDF extract).',
-        );
-      });
+    final deviceId = m.deviceId?.trim();
+    if (deviceId == null || deviceId.isEmpty) {
+      setState(() => _error = 'Missing device id. Restart the app.');
       return;
     }
 
@@ -507,6 +495,14 @@ Infer **monthKey** from the document or statement period; use this hint only if 
     });
 
     try {
+      // Consume monthly free import or credits (server is source of truth).
+      final entBody = await ZoroApi().consumeImportAllowance(deviceId: deviceId, kind: _kindApiValue);
+      final nextEnt = MobileEntitlements.tryFromApi(entBody);
+      if (nextEnt != null) {
+        m.mobileEntitlements = nextEnt;
+        m.notifyUi();
+      }
+
       final userPrompt = [
         'Files: ${_pickedFiles.map((f) => f.name).join(', ')}',
         '',
@@ -523,37 +519,15 @@ Infer **monthKey** from the document or statement period; use this hint only if 
         ],
       ].join('\n').trim();
 
-      final modelName = m.modelFor(provider);
-      Future<String> runComplete(String system, String user, {bool? preferJson}) async {
-        final result = await LlmClient().complete(
-          provider: provider,
-          apiKey: key,
-          model: modelName,
-          system: system,
-          user: user,
-          attachments: bundle.attachments,
-          maxOutputTokens: 8192,
-          preferJsonObjectOutput:
-              preferJson ?? (provider == LlmProvider.openai || provider == LlmProvider.gemini),
-        );
-        m.recordLlmRequest(provider: provider, model: modelName);
-        m.setPendingLlmCompletionMetadata(
-          model: '${provider.name}:$modelName',
-          tokensUsed: result.tokensUsed,
-        );
-        return result.text;
-      }
-
-      final raw = await runComplete(_systemPrompt(), userPrompt);
-      final obj = await decodeLlmJsonObjectWithRepair(
-        raw,
-        repairWith: (broken) => runComplete(
-          'You fix JSON only. Return a single valid JSON object with the same schema and meaning as the broken output. '
-              'No markdown fences, no commentary, no prose outside the JSON.',
-          broken,
-          preferJson: provider == LlmProvider.openai || provider == LlmProvider.gemini,
-        ),
+      final body = await ZoroApi().ledgerImport(
+        deviceId: deviceId,
+        kind: _kindApiValue,
+        system: _systemPrompt(),
+        user: userPrompt,
       );
+      final data = body['data'];
+      if (data is! Map) throw const FormatException('Import returned invalid JSON');
+      final obj = Map<String, dynamic>.from(data);
 
       if (widget.kind == LedgerImportKind.asset) {
         final list = obj['assets'];
@@ -718,7 +692,7 @@ Infer **monthKey** from the document or statement period; use this hint only if 
     } catch (e) {
       if (mounted) {
         setState(() {
-          _error = _importErrorWithSuggestions(m, _effectiveImportProvider, e.toString());
+          _error = e.toString();
         });
       }
     } finally {
@@ -1098,8 +1072,18 @@ Infer **monthKey** from the document or statement period; use this hint only if 
           }
         }
       } else {
+        if (!m.isPro && (m.assets.length + m.liabilities.length + rows.length) > 10) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Free plan limit: 10 total assets + liabilities. Upgrade to add more.'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+          return;
+        }
         for (final a in rows) {
-          m.addAsset(a);
+          final ok = m.addAsset(a);
+          if (!ok) return;
           final md = (a.contextMarkdown ?? '').trim();
           if (md.isNotEmpty) {
             m.setAssetContextMarkdown(assetId: a.id, markdown: md);
@@ -1121,8 +1105,18 @@ Infer **monthKey** from the document or statement period; use this hint only if 
           }
         }
       } else {
+        if (!m.isPro && (m.assets.length + m.liabilities.length + rows.length) > 10) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Free plan limit: 10 total assets + liabilities. Upgrade to add more.'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+          return;
+        }
         for (final l in rows) {
-          m.addLiability(l);
+          final ok = m.addLiability(l);
+          if (!ok) return;
           final md = (l.contextMarkdown ?? '').trim();
           if (md.isNotEmpty) {
             m.setLiabilityContextMarkdown(liabilityId: l.id, markdown: md);
@@ -1132,6 +1126,18 @@ Infer **monthKey** from the document or statement period; use this hint only if 
     } else {
       final entry = _cashflowPreview;
       if (entry == null) return;
+      if (!m.isPro) {
+        final allowed = AppModel.recentMonthKeys(count: 6);
+        if (!allowed.contains(entry.monthKey)) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Free plan limit: last 6 months of cash flow. Upgrade to import older months.'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+          return;
+        }
+      }
       m.upsertMonthlyCashflow(entry);
       if ((entry.contextMarkdown ?? '').trim().isNotEmpty) {
         m.markContextNoteSaved(AppModel.contextKeyMonth(entry.monthKey));
@@ -1188,78 +1194,7 @@ Infer **monthKey** from the document or statement period; use this hint only if 
     ];
   }
 
-  /// Short labels for the import model row (fits one line; differs from [shortLlmLabel] in settings).
-  String _importModelChipLabel(LlmProvider p) => switch (p) {
-        LlmProvider.appleFoundation => 'Apple',
-        LlmProvider.openai => 'OpenAI',
-        LlmProvider.anthropic => 'Claude',
-        LlmProvider.gemini => 'Gemini',
-      };
-
-  String _importErrorWithSuggestions(AppModel m, LlmProvider current, String base) {
-    final hint = otherLlmSuggestionLine(m, current: current);
-    final ctx = messageLooksLikeContextOrTokenLimit(base)
-        ? 'Large PDFs / long extracts need a bigger on-device or cloud context. Try Gemini or OpenAI if you have a key.'
-        : '';
-    if (ctx.isEmpty && hint == null) return base;
-    return '$base${ctx.isEmpty ? '' : '\n\n$ctx'}${hint == null ? '' : '\n\n$hint'}';
-  }
-
-  Widget _buildImportModelSwitcher(BuildContext context) {
-    return ListenableBuilder(
-      listenable: widget.model,
-      builder: (context, _) {
-        final m = widget.model;
-        final ready = llmProvidersReady(m);
-        if (ready.isEmpty) return const SizedBox.shrink();
-        final cs = Theme.of(context).colorScheme;
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              'Model',
-              style: TextStyle(
-                fontWeight: FontWeight.w800,
-                color: cs.onSurfaceVariant,
-                fontSize: 12,
-              ),
-            ),
-            const SizedBox(height: 8),
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  ChoiceChip(
-                    label: const Text('Default'),
-                    visualDensity: VisualDensity.compact,
-                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    selected: _importProviderOverride == null,
-                    onSelected: (v) {
-                      if (v) setState(() => _importProviderOverride = null);
-                    },
-                  ),
-                  const SizedBox(width: 6),
-                  for (final p in ready) ...[
-                    ChoiceChip(
-                      label: Text(_importModelChipLabel(p)),
-                      visualDensity: VisualDensity.compact,
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      selected: _importProviderOverride == p,
-                      onSelected: (v) {
-                        if (v) setState(() => _importProviderOverride = p);
-                      },
-                    ),
-                    const SizedBox(width: 6),
-                  ],
-                ],
-              ),
-            ),
-            const SizedBox(height: 12),
-          ],
-        );
-      },
-    );
-  }
+  // Import model selection removed (paid imports run via server).
 
   Future<void> _openExtractedTextViewer() async {
     var full = _ingestBundle?.promptText ?? '';
@@ -1403,6 +1338,7 @@ Infer **monthKey** from the document or statement period; use this hint only if 
 
   @override
   Widget build(BuildContext context) {
+    // Free users can import with monthly free import or credits (enforced server-side on Run AI).
     final muted = Theme.of(context).colorScheme.onSurfaceVariant;
     final fileName = _pickedFiles.isEmpty
         ? ''
@@ -1449,8 +1385,6 @@ Infer **monthKey** from the document or statement period; use this hint only if 
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            _buildImportModelSwitcher(context),
             const SizedBox(height: 12),
             _buildImportStepsCard(context),
             const SizedBox(height: 12),

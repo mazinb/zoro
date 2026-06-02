@@ -10,6 +10,7 @@ import '../../core/state/app_model.dart';
 import '../../core/state/internal_app_agent_definition.dart';
 import 'data_json_viewer.dart';
 import 'internal_agent_prompt_editor_page.dart';
+import 'settings_tab.dart';
 
 /// Settings → Agents → Data: export / import.
 class DataTransferPane extends StatefulWidget {
@@ -586,6 +587,45 @@ class _DataTransferPaneState extends State<DataTransferPane> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    if (!_m.isPro) {
+      return ListView(
+        padding: EdgeInsets.zero,
+        children: [
+          Material(
+            color: cs.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(18),
+            clipBehavior: Clip.antiAlias,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text('Export / import', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Locked on Free. Upgrade to Pro to upload/download and import/export your data.',
+                    style: TextStyle(color: cs.onSurfaceVariant, height: 1.35),
+                  ),
+                  const SizedBox(height: 12),
+                  FilledButton(
+                    onPressed: () {
+                      // Nudge users to Settings → Usage tab.
+                      final tab = context.findAncestorWidgetOfExactType<SettingsTab>();
+                      if (tab == null) return;
+                      final l = tab.tabIndexListenable;
+                      if (l is ValueNotifier<int>) {
+                        l.value = SettingsTabIndex.usage;
+                      }
+                    },
+                    child: const Text('View plans'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
+    }
     if (_ledgerPart) _syncLedgerPartPick();
     if (_needsContextPick) _syncContextPick();
 

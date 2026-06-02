@@ -13,6 +13,7 @@ dependencies:
   cupertino_icons: ^1.0.8
   http: ^1.6.0
   flutter_secure_storage: ^9.2.4
+  in_app_purchase: ^3.2.3
   flutter_svg: ^2.2.3
   sankey_flutter: ^0.0.3
   url_launcher: ^6.3.2

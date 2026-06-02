@@ -23,6 +23,11 @@ import '../persistence/agent_json.dart';
 import '../persistence/app_state_codec.dart' as app_state;
 import '../persistence/app_state_store.dart';
 import '../home/home_summary_focus_domain.dart';
+import '../api/zoro_api.dart';
+import '../entitlements/device_id_store.dart';
+import '../entitlements/mobile_entitlements.dart';
+import '../iap/iap_product_ids.dart';
+import '../iap/iap_service.dart';
 import 'app_model_persistence_controller.dart';
 import 'cashflow_income_line.dart';
 import 'financial_goals.dart';
@@ -87,6 +92,17 @@ class AppModel extends ChangeNotifier {
   static const String morningBriefingAgentId = 'agent-morning-briefing';
 
   final LlmKeyStore _llmKeyStore = LlmKeyStore();
+  final DeviceIdStore _deviceIdStore = DeviceIdStore();
+  final ZoroApi _api = ZoroApi();
+  late final IapService iap = IapService(api: _api);
+
+  String? deviceId;
+  MobileEntitlements? mobileEntitlements;
+
+  bool helperEnabledLedger = true;
+  bool helperEnabledContext = true;
+  bool helperEnabledGoals = true;
+  bool helperEnabledSettings = true;
 
   bool _bootstrapped = false;
   bool get bootstrapped => _bootstrapped;
@@ -98,6 +114,9 @@ class AppModel extends ChangeNotifier {
   Future<void> bootstrap() async {
     if (_bootstrapped) return;
     try {
+      deviceId = await _deviceIdStore.getOrCreate();
+      iap.setDeviceId(deviceId ?? '');
+
       final keys = await _llmKeyStore.readAll();
       openAiApiKey = keys[LlmProvider.openai];
       anthropicApiKey = keys[LlmProvider.anthropic];
@@ -121,13 +140,66 @@ class AppModel extends ChangeNotifier {
       if (disk != null) {
         applyPersistedSnapshot(disk);
       }
+
+      // Always refresh entitlements on app open (best-effort).
+      await refreshMobileEntitlements();
+      // Best-effort: init IAP catalog (does not block app startup).
+      await iap.init(productIds: IapProductIds.all);
+
       await refreshAppleFoundationCapabilities();
+      // For App Store builds, always prefer Apple on-device for helpers.
+      if (appleFoundationRuntimeAvailable) {
+        setAppleFoundationEnabled(true);
+        activeLlmProvider = LlmProvider.appleFoundation;
+      }
       _syncActiveProviderIfKeyRemoved();
       await reconcileNotifications();
     } finally {
       _bootstrapped = true;
       notifyListeners();
     }
+  }
+
+  Future<void> refreshMobileEntitlements() async {
+    final id = deviceId?.trim();
+    if (id == null || id.isEmpty) return;
+    try {
+      final body = await _api.syncMobileEntitlements(deviceId: id);
+      mobileEntitlements = MobileEntitlements.tryFromApi(body);
+    } catch (_) {
+      // Best-effort: keep last known entitlements (or null).
+    }
+  }
+
+  bool get isPro => mobileEntitlements?.isPro == true;
+  int get creditsBalance => mobileEntitlements?.creditsBalance ?? 0;
+
+  void setHelperEnabledLedger(bool v) {
+    if (helperEnabledLedger == v) return;
+    helperEnabledLedger = v;
+    _scheduleAppStatePersist();
+    notifyListeners();
+  }
+
+  void setHelperEnabledContext(bool v) {
+    if (helperEnabledContext == v) return;
+    helperEnabledContext = v;
+    _scheduleAppStatePersist();
+    notifyListeners();
+  }
+
+  void setHelperEnabledGoals(bool v) {
+    if (helperEnabledGoals == v) return;
+    helperEnabledGoals = v;
+    _scheduleAppStatePersist();
+    notifyListeners();
+  }
+
+  void setHelperEnabledSettings(bool v) {
+    if (helperEnabledSettings == v) return;
+    helperEnabledSettings = v;
+    _scheduleAppStatePersist();
+    notifyListeners();
   }
 
   Color get accent => AppTheme.primaryBlue;
@@ -2631,16 +2703,16 @@ class AppModel extends ChangeNotifier {
 
   String get llmAssistantUnavailableMessage {
     if (appleFoundationRuntimeAvailable && !appleFoundationEnabled) {
-      return 'Turn on Apple on-device model in Settings → API keys.';
+      return 'Turn on Apple on-device model in Settings → Usage.';
     }
     final reason = appleFoundationDisabledReason?.trim();
     if (!hasAnyApiKey && reason != null && reason.isNotEmpty) {
       return reason;
     }
     if (!hasAnyApiKey && !appleFoundationRuntimeAvailable) {
-      return 'Add an API key in Settings, or use a device with Apple on-device models (iOS 26+).';
+      return 'Apple on-device model is not available on this device.';
     }
-    return 'No language model available. Check Settings → API keys.';
+    return 'No language model available. Check Settings → Usage.';
   }
 
   String? apiKeyFor(LlmProvider provider) => switch (provider) {
@@ -3053,7 +3125,10 @@ class AppModel extends ChangeNotifier {
   String get defaultLedgerCurrencyCountry =>
       incomeLines.isEmpty ? expensePresetCountry : incomeLines.first.currencyCountry;
 
-  void addAsset(LedgerAssetRow row) {
+  bool addAsset(LedgerAssetRow row) {
+    if (!isPro && (assets.length + liabilities.length) >= 10) {
+      return false;
+    }
     final toAdd = assets.any((a) => a.id == row.id)
         ? LedgerAssetRow(
             id: newLedgerRowId('a'),
@@ -3073,6 +3148,7 @@ class AppModel extends ChangeNotifier {
     userTouchedAssets = true;
     _scheduleAppStatePersist();
     notifyListeners();
+    return true;
   }
 
   void replaceAsset(int index, LedgerAssetRow row) {
@@ -3098,12 +3174,16 @@ class AppModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  void addLiability(LedgerLiabilityRow row) {
+  bool addLiability(LedgerLiabilityRow row) {
+    if (!isPro && (assets.length + liabilities.length) >= 10) {
+      return false;
+    }
     liabilities.add(row);
     liabilitiesLastReviewed = DateTime.now();
     userTouchedLiabilities = true;
     _scheduleAppStatePersist();
     notifyListeners();
+    return true;
   }
 
   void replaceLiability(int index, LedgerLiabilityRow row) {
@@ -3346,6 +3426,12 @@ class AppModel extends ChangeNotifier {
   MonthlyCashflowEntry? monthlyEntryFor(String monthKey) => monthlyCashflowByMonth[monthKey];
 
   void upsertMonthlyCashflow(MonthlyCashflowEntry entry) {
+    if (!isPro) {
+      final allowed = AppModel.recentMonthKeys(count: 6);
+      if (!allowed.contains(entry.monthKey)) {
+        return;
+      }
+    }
     monthlyCashflowByMonth[entry.monthKey] = entry;
     _scheduleAppStatePersist();
     notifyListeners();
@@ -3966,6 +4052,10 @@ class AppModel extends ChangeNotifier {
         'remindersQuarterDay': remindersQuarterDay,
         'remindersYearlyMonth': remindersYearlyMonth,
         'remindersYearlyDay': remindersYearlyDay,
+        'helperEnabledLedger': helperEnabledLedger,
+        'helperEnabledContext': helperEnabledContext,
+        'helperEnabledGoals': helperEnabledGoals,
+        'helperEnabledSettings': helperEnabledSettings,
       },
       'ledger': {
         // Currency for all ledger money fields that are stored in display units
@@ -4082,6 +4172,18 @@ class AppModel extends ChangeNotifier {
         llmRequestsByModelKey = {
           for (final e in usage.entries) e.key.toString(): (e.value is num ? (e.value as num).round() : int.tryParse(e.value.toString()) ?? 0),
         };
+      }
+      if (s.containsKey('helperEnabledLedger')) {
+        helperEnabledLedger = s['helperEnabledLedger'] == true;
+      }
+      if (s.containsKey('helperEnabledContext')) {
+        helperEnabledContext = s['helperEnabledContext'] == true;
+      }
+      if (s.containsKey('helperEnabledGoals')) {
+        helperEnabledGoals = s['helperEnabledGoals'] == true;
+      }
+      if (s.containsKey('helperEnabledSettings')) {
+        helperEnabledSettings = s['helperEnabledSettings'] == true;
       }
       final h = s['homeSummaryText']?.toString();
       if (h != null) homeSummaryText = h;

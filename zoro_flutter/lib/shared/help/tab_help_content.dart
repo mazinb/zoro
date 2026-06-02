@@ -17,8 +17,8 @@ abstract final class TabHelpContent {
       'Income lines are annual amounts per source; tax % is an approx effective tax rate for calculations.',
       'Expense estimates are planned monthly buckets separate from actual spending in Cash.',
       'AI asset import can auto-populate context notes with extracted details.',
-      'Recommended: use Import with AI on an image or PDF (requires cloud API keys).',
-      'The ✨ action runs an on-device or cloud assistant depending on your Settings keys.',
+      'Import with AI uses credits (or Pro) to extract assets, liabilities, and cash flow.',
+      'The ✨ action runs on-device helpers when available.',
     ],
   );
 
@@ -47,8 +47,8 @@ abstract final class TabHelpContent {
     bullets: [
       'General: theme, privacy mask, display currency, FX rates, and projection assumptions.',
       'Helpers: tune built-in agent prompts used by ✨ actions across the app.',
-      'API keys: optional cloud models; Apple on-device works without keys when available.',
-      'Export / import lives in Helpers → Data.',
+      'Usage: Free vs Pro, credits, and restores purchases.',
+      'Export / import is in Helpers → Data (Pro only).',
     ],
   );
 }

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:in_app_purchase/in_app_purchase.dart';
 
 import '../../core/finance/currency.dart';
 import '../../shared/help/tab_help_content.dart';
@@ -11,7 +12,6 @@ import '../../shared/widgets/tab_header_actions.dart';
 import '../../core/notifications/notification_service.dart';
 import '../../core/state/app_model.dart';
 import '../../core/state/internal_app_agent_definition.dart';
-import '../../dev/compile_time_api_keys.dart';
 import 'data_transfer_pane.dart';
 import '../command_center/home_summary_helper_sheet.dart';
 import 'internal_agent_prompt_editor_page.dart';
@@ -19,9 +19,9 @@ import 'internal_agent_prompt_editor_page.dart';
 abstract class SettingsTabIndex {
   static const int reminders = 0;
   static const int agents = 1;
-  static const int apiKeys = 2;
+  static const int usage = 2;
   // Back-compat for older callers.
-  static const int permissions = apiKeys;
+  static const int permissions = usage;
 }
 
 class SettingsTab extends StatefulWidget {
@@ -103,6 +103,7 @@ class _SettingsTabState extends State<SettingsTab> with SingleTickerProviderStat
               TabHeaderActions(
                 model: widget.model,
                 help: TabHelpContent.settings,
+                assistantEnabled: widget.model.helperEnabledSettings,
               ),
             ],
           ),
@@ -116,7 +117,7 @@ class _SettingsTabState extends State<SettingsTab> with SingleTickerProviderStat
             tabs: const [
               Tab(text: 'General'),
               Tab(text: 'Helpers'),
-              Tab(text: 'API keys'),
+              Tab(text: 'Usage'),
             ],
           ),
         ),
@@ -130,7 +131,7 @@ class _SettingsTabState extends State<SettingsTab> with SingleTickerProviderStat
                 model: widget.model,
                 sectionListenable: widget.agentSectionListenable,
               ),
-              _ApiKeysPane(model: widget.model),
+              _UsagePane(model: widget.model),
             ],
           ),
         ),
@@ -798,6 +799,63 @@ class _AgentsPaneState extends State<_AgentsPane> {
           ),
           const SizedBox(height: 12),
         ],
+        Material(
+          color: Theme.of(context).colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(18),
+          clipBehavior: Clip.antiAlias,
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text('Helpers', style: TextStyle(fontWeight: FontWeight.w900)),
+                const SizedBox(height: 8),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Ledger', style: TextStyle(fontWeight: FontWeight.w800)),
+                  value: model.helperEnabledLedger,
+                  onChanged: model.setHelperEnabledLedger,
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Context', style: TextStyle(fontWeight: FontWeight.w800)),
+                  value: model.helperEnabledContext,
+                  onChanged: model.setHelperEnabledContext,
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Goals', style: TextStyle(fontWeight: FontWeight.w800)),
+                  value: model.helperEnabledGoals,
+                  onChanged: model.setHelperEnabledGoals,
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Settings', style: TextStyle(fontWeight: FontWeight.w800)),
+                  subtitle: const Text('Disabling removes the helper entry point.', style: TextStyle(fontSize: 12)),
+                  value: model.helperEnabledSettings,
+                  onChanged: (v) async {
+                    if (!v) {
+                      final ok = await showDialog<bool>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          title: const Text('Disable Settings helper?'),
+                          content: const Text('If you disable this, it will be gone forever.'),
+                          actions: [
+                            TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
+                            FilledButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('Disable')),
+                          ],
+                        ),
+                      );
+                      if (ok != true) return;
+                    }
+                    model.setHelperEnabledSettings(v);
+                  },
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
         Row(
           children: [
             Text(
@@ -1039,442 +1097,120 @@ class _AgentsPaneState extends State<_AgentsPane> {
 
 enum AgentSettingsSection { home, ledger, context, goals, data }
 
-class _ApiKeysPane extends StatefulWidget {
-  const _ApiKeysPane({required this.model});
+class _UsagePane extends StatelessWidget {
+  const _UsagePane({required this.model});
 
   final AppModel model;
 
   @override
-  State<_ApiKeysPane> createState() => _ApiKeysPaneState();
-}
-
-class _ApiKeysPaneState extends State<_ApiKeysPane> {
-  late final TextEditingController _openAiCtrl;
-  late final TextEditingController _anthropicCtrl;
-  late final TextEditingController _geminiCtrl;
-  bool _didAutofill = false;
-  bool _revealOpenAi = false;
-  bool _revealAnthropic = false;
-  bool _revealGemini = false;
-
-  late final TextEditingController _openAiModelCtrl;
-  late final TextEditingController _anthropicModelCtrl;
-  late final TextEditingController _geminiModelCtrl;
-
-  static const _openAiModelOptions = <String>[
-    'gpt-4.1-mini',
-    'gpt-4.1',
-    'gpt-4.1-nano',
-    'gpt-4o-mini',
-    'gpt-4o',
-    'gpt-5.5',
-    'gpt-5.4-mini',
-    'gpt-5.4-nano',
-  ];
-
-  static const _anthropicModelOptions = <String>[
-    'claude-sonnet-4-6',
-    'claude-haiku-4-5',
-    'claude-opus-4-7',
-    'claude-sonnet-4-5',
-  ];
-
-  static const _geminiModelOptions = <String>[
-    'gemini-2.5-flash',
-    'gemini-2.5-pro',
-    'gemini-2.5-flash-lite',
-    'gemini-2.0-flash',
-  ];
-
-  @override
-  void initState() {
-    super.initState();
-    final m = widget.model;
-
-    final openAi = (m.openAiApiKey ?? '').trim();
-    final anthropic = (m.anthropicApiKey ?? '').trim();
-    final gemini = (m.geminiApiKey ?? '').trim();
-
-    final shouldPrefill = kDebugMode || CompileTimeApiKeys.allowLocalKeyAutofill;
-    final looksLikeOpenAiKey = openAi.startsWith('sk-');
-    final nextOpenAi = ((!looksLikeOpenAiKey || openAi.isEmpty) && shouldPrefill) ? CompileTimeApiKeys.openAiApiKey : openAi;
-    final nextGemini = (gemini.isEmpty && shouldPrefill) ? CompileTimeApiKeys.geminiApiKey : gemini;
-
-    _openAiCtrl = TextEditingController(text: nextOpenAi);
-    _anthropicCtrl = TextEditingController(text: anthropic);
-    _geminiCtrl = TextEditingController(text: nextGemini);
-
-    _openAiModelCtrl = TextEditingController(text: m.openAiModel);
-    _anthropicModelCtrl = TextEditingController(text: m.anthropicModel);
-    _geminiModelCtrl = TextEditingController(text: m.geminiModel);
-
-    _maybeAutofill();
-
-    // Normalize model selections to dropdown options in debug builds.
-    if (kDebugMode) {
-      if (!_openAiModelOptions.contains(_openAiModelCtrl.text.trim())) {
-        final next = _openAiModelOptions.first;
-        _openAiModelCtrl.text = next;
-        m.setModelFor(LlmProvider.openai, next);
-      }
-      if (!_anthropicModelOptions.contains(_anthropicModelCtrl.text.trim())) {
-        final next = _anthropicModelOptions.first;
-        _anthropicModelCtrl.text = next;
-        m.setModelFor(LlmProvider.anthropic, next);
-      }
-      if (!_geminiModelOptions.contains(_geminiModelCtrl.text.trim())) {
-        final next = _geminiModelOptions.first;
-        _geminiModelCtrl.text = next;
-        m.setModelFor(LlmProvider.gemini, next);
-      }
-    }
-  }
-
-  void _maybeAutofill() {
-    if (_didAutofill) return;
-    if (!(kDebugMode || CompileTimeApiKeys.allowLocalKeyAutofill)) return;
-
-    final m = widget.model;
-    final openAiExisting = (m.openAiApiKey ?? '').trim();
-    final geminiExisting = (m.geminiApiKey ?? '').trim();
-
-    final openAiKey = CompileTimeApiKeys.openAiApiKey.trim();
-    final geminiKey = CompileTimeApiKeys.geminiApiKey.trim();
-
-    var changed = false;
-    final openAiLooksValid = openAiExisting.startsWith('sk-');
-    if ((!openAiLooksValid || _openAiCtrl.text.trim().isEmpty) && openAiKey.isNotEmpty) {
-      _openAiCtrl.text = openAiKey;
-      _openAiCtrl.selection = TextSelection.collapsed(offset: _openAiCtrl.text.length);
-      changed = true;
-    }
-    if (_geminiCtrl.text.trim().isEmpty && geminiKey.isNotEmpty) {
-      _geminiCtrl.text = geminiKey;
-      _geminiCtrl.selection = TextSelection.collapsed(offset: _geminiCtrl.text.length);
-      changed = true;
-    }
-
-    // Persist the prefill so other screens can use it immediately.
-    if ((!openAiLooksValid || openAiExisting.isEmpty) && _openAiCtrl.text.trim().isNotEmpty) {
-      m.setApiKey(provider: LlmProvider.openai, key: _openAiCtrl.text.trim());
-    }
-    if (geminiExisting.isEmpty && _geminiCtrl.text.trim().isNotEmpty) {
-      m.setApiKey(provider: LlmProvider.gemini, key: _geminiCtrl.text.trim());
-    }
-
-    _didAutofill = true;
-    if (changed && mounted) setState(() {});
-  }
-
-  @override
-  void reassemble() {
-    super.reassemble();
-    // Hot reload keeps State; reapply debug autofill.
-    _didAutofill = false;
-    _maybeAutofill();
-  }
-
-  @override
-  void dispose() {
-    _openAiCtrl.dispose();
-    _anthropicCtrl.dispose();
-    _geminiCtrl.dispose();
-    _openAiModelCtrl.dispose();
-    _anthropicModelCtrl.dispose();
-    _geminiModelCtrl.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final m = widget.model;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      _maybeAutofill();
-    });
+    final cs = Theme.of(context).colorScheme;
+    final iap = model.iap;
+    final catalog = iap.catalog;
+    final isPro = model.isPro;
+    final credits = model.creditsBalance;
 
-    Future<void> openExternal(String url) async {
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Opening…'), behavior: SnackBarBehavior.floating, duration: Duration(milliseconds: 900)),
-      );
-      try {
-        final uri = Uri.parse(url);
-        final ok = await launchUrl(uri, mode: LaunchMode.platformDefault);
-        if (!ok && context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Could not open $url'), behavior: SnackBarBehavior.floating),
-          );
-        }
-      } catch (e) {
-        if (!context.mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Open failed: $e'), behavior: SnackBarBehavior.floating),
-        );
+    Future<void> buy(ProductDetails? p) async {
+      if (p == null) return;
+      await iap.buyProduct(p);
+      final next = iap.takeLatestEntitlements();
+      if (next != null) {
+        model.mobileEntitlements = next;
+        model.notifyUi();
+      } else {
+        await model.refreshMobileEntitlements();
+        model.notifyUi();
       }
     }
 
-    Future<void> pasteKey({
-      required TextEditingController controller,
-      required LlmProvider provider,
-    }) async {
-      final data = await Clipboard.getData(Clipboard.kTextPlain);
-      final text = data?.text?.trim();
-      if (text == null || text.isEmpty) {
-        if (!context.mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Clipboard is empty'), behavior: SnackBarBehavior.floating),
-        );
-        return;
+    Future<void> restore() async {
+      await iap.restore();
+      final next = iap.takeLatestEntitlements();
+      if (next != null) {
+        model.mobileEntitlements = next;
+        model.notifyUi();
+      } else {
+        await model.refreshMobileEntitlements();
+        model.notifyUi();
       }
-      controller.text = text;
-      controller.selection = TextSelection.collapsed(offset: controller.text.length);
-      m.setApiKey(provider: provider, key: text);
-      if (!context.mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Pasted'), behavior: SnackBarBehavior.floating, duration: Duration(milliseconds: 800)),
+    }
+
+    Widget card({required Widget child}) {
+      return Material(
+        color: cs.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(18),
+        clipBehavior: Clip.antiAlias,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: child,
+        ),
       );
     }
 
-    return ListenableBuilder(
-      listenable: m,
-      builder: (context, _) {
-        int usageFor(LlmProvider p, String model) => m.llmRequestCount(p, model);
-        return ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Apple on-device'),
-              value: m.appleFoundationEnabled && m.appleFoundationRuntimeAvailable,
-              onChanged: m.appleFoundationRuntimeAvailable ? m.setAppleFoundationEnabled : null,
-              subtitle: (!m.appleFoundationRuntimeAvailable &&
-                      (m.appleFoundationDisabledReason ?? '').trim().isNotEmpty)
-                  ? Text(
-                      m.appleFoundationDisabledReason!.trim(),
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        fontSize: 12,
-                      ),
-                    )
-                  : null,
-            ),
-            if (m.appleFoundationRuntimeAvailable) ...[
+    return ListView(
+      padding: const EdgeInsets.all(20),
+      children: [
+        card(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                isPro ? 'Pro' : 'Free',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+              ),
               const SizedBox(height: 6),
               Text(
-                'Requests: ${usageFor(LlmProvider.appleFoundation, m.modelFor(LlmProvider.appleFoundation))}',
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
+                isPro
+                    ? 'Unlimited access. Imports, export/download, and helper edits are enabled.'
+                    : 'Limited onboarding. Import uses 1 free/month or credits. Export and helper edits are locked.',
+                style: TextStyle(color: cs.onSurfaceVariant, height: 1.35),
+              ),
+              const SizedBox(height: 12),
+              if (!isPro) ...[
+                Text('Credits: $credits', style: const TextStyle(fontWeight: FontWeight.w900)),
+                const SizedBox(height: 6),
+                Text(
+                  'Imports use credits. Assets: 2, Liabilities: 1, Cash flow: 1.',
+                  style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12, height: 1.35),
                 ),
+                const SizedBox(height: 10),
+              ],
+              Text(
+                'Helpers run on-device. Imports may use cloud AI.',
+                style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12),
               ),
             ],
-            const SizedBox(height: 12),
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                TextField(
-                  controller: _openAiCtrl,
-                  obscureText: !_revealOpenAi,
-                  keyboardType: TextInputType.visiblePassword,
-                  autocorrect: false,
-                  enableSuggestions: false,
-                  smartDashesType: SmartDashesType.disabled,
-                  smartQuotesType: SmartQuotesType.disabled,
-                  onChanged: (v) => m.setApiKey(provider: LlmProvider.openai, key: v),
-                  decoration: InputDecoration(
-                    labelText: 'OpenAI API key',
-                    border: const OutlineInputBorder(),
-                    suffixIcon: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          tooltip: _revealOpenAi ? 'Hide' : 'Reveal',
-                          onPressed: () => setState(() => _revealOpenAi = !_revealOpenAi),
-                          icon: Icon(_revealOpenAi ? Icons.visibility_off_outlined : Icons.visibility_outlined),
-                        ),
-                        IconButton(
-                          tooltip: 'Paste',
-                          onPressed: () => pasteKey(controller: _openAiCtrl, provider: LlmProvider.openai),
-                          icon: const Icon(Icons.content_paste_outlined),
-                        ),
-                        IconButton(
-                          tooltip: 'Get key',
-                          onPressed: () => openExternal('https://platform.openai.com/api-keys'),
-                          icon: const Icon(Icons.open_in_new),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                _ModelPicker(
-                  label: 'OpenAI model',
-                  controller: _openAiModelCtrl,
-                  options: _openAiModelOptions,
-                  onChanged: (v) => m.setModelFor(LlmProvider.openai, v),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Requests: ${usageFor(LlmProvider.openai, _openAiModelCtrl.text.trim())}',
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _anthropicCtrl,
-                  obscureText: !_revealAnthropic,
-                  keyboardType: TextInputType.visiblePassword,
-                  autocorrect: false,
-                  enableSuggestions: false,
-                  smartDashesType: SmartDashesType.disabled,
-                  smartQuotesType: SmartQuotesType.disabled,
-                  onChanged: (v) => m.setApiKey(provider: LlmProvider.anthropic, key: v),
-                  decoration: InputDecoration(
-                    labelText: 'Anthropic API key',
-                    border: const OutlineInputBorder(),
-                    suffixIcon: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          tooltip: _revealAnthropic ? 'Hide' : 'Reveal',
-                          onPressed: () => setState(() => _revealAnthropic = !_revealAnthropic),
-                          icon: Icon(_revealAnthropic ? Icons.visibility_off_outlined : Icons.visibility_outlined),
-                        ),
-                        IconButton(
-                          tooltip: 'Paste',
-                          onPressed: () => pasteKey(controller: _anthropicCtrl, provider: LlmProvider.anthropic),
-                          icon: const Icon(Icons.content_paste_outlined),
-                        ),
-                        IconButton(
-                          tooltip: 'Get key',
-                          onPressed: () => openExternal('https://console.anthropic.com/settings/keys'),
-                          icon: const Icon(Icons.open_in_new),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                _ModelPicker(
-                  label: 'Anthropic model',
-                  controller: _anthropicModelCtrl,
-                  options: _anthropicModelOptions,
-                  onChanged: (v) => m.setModelFor(LlmProvider.anthropic, v),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Requests: ${usageFor(LlmProvider.anthropic, _anthropicModelCtrl.text.trim())}',
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _geminiCtrl,
-                  obscureText: !_revealGemini,
-                  keyboardType: TextInputType.visiblePassword,
-                  autocorrect: false,
-                  enableSuggestions: false,
-                  smartDashesType: SmartDashesType.disabled,
-                  smartQuotesType: SmartQuotesType.disabled,
-                  onChanged: (v) => m.setApiKey(provider: LlmProvider.gemini, key: v),
-                  decoration: InputDecoration(
-                    labelText: 'Gemini API key',
-                    border: const OutlineInputBorder(),
-                    suffixIcon: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          tooltip: _revealGemini ? 'Hide' : 'Reveal',
-                          onPressed: () => setState(() => _revealGemini = !_revealGemini),
-                          icon: Icon(_revealGemini ? Icons.visibility_off_outlined : Icons.visibility_outlined),
-                        ),
-                        IconButton(
-                          tooltip: 'Paste',
-                          onPressed: () => pasteKey(controller: _geminiCtrl, provider: LlmProvider.gemini),
-                          icon: const Icon(Icons.content_paste_outlined),
-                        ),
-                        IconButton(
-                          tooltip: 'Get key',
-                          onPressed: () => openExternal('https://aistudio.google.com/app/apikey'),
-                          icon: const Icon(Icons.open_in_new),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 10),
-                _ModelPicker(
-                  label: 'Gemini model',
-                  controller: _geminiModelCtrl,
-                  options: _geminiModelOptions,
-                  onChanged: (v) => m.setModelFor(LlmProvider.gemini, v),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  'Requests: ${usageFor(LlmProvider.gemini, _geminiModelCtrl.text.trim())}',
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                  ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        if (iap.lastError != null && iap.lastError!.trim().isNotEmpty) ...[
+          Text(iap.lastError!, style: TextStyle(color: cs.error, fontWeight: FontWeight.w700)),
+          const SizedBox(height: 12),
+        ],
+        card(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              FilledButton(
+                onPressed: iap.available && !iap.busy ? () => buy(catalog?.proMonthly) : null,
+                child: Text(
+                  catalog?.proMonthly == null ? 'Upgrade (loading…) ' : 'Upgrade (${catalog!.proMonthly!.price}/mo)',
                 ),
               ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-}
-
-class _ModelPicker extends StatelessWidget {
-  const _ModelPicker({
-    required this.label,
-    required this.controller,
-    required this.options,
-    required this.onChanged,
-  });
-
-  final String label;
-  final TextEditingController controller;
-  final List<String> options;
-  final ValueChanged<String> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final current = controller.text.trim();
-    final normalizedOptions = options.toSet().toList();
-    final selected = normalizedOptions.contains(current) ? current : normalizedOptions.first;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        DropdownButtonFormField<String>(
-          key: ValueKey('$label:$selected'),
-          initialValue: selected,
-          decoration: InputDecoration(labelText: label, border: const OutlineInputBorder()),
-          items: [
-            for (final m in normalizedOptions) DropdownMenuItem(value: m, child: Text(m)),
-          ],
-          onChanged: (v) {
-            if (v == null) return;
-            controller.text = v;
-            controller.selection = TextSelection.collapsed(offset: controller.text.length);
-            onChanged(v);
-          },
+              const SizedBox(height: 10),
+              OutlinedButton(
+                onPressed: iap.available && !iap.busy ? () => buy(catalog?.credit1) : null,
+                child: Text(
+                  catalog?.credit1 == null ? 'Buy 1 credit (loading…) ' : 'Buy 1 credit (${catalog!.credit1!.price})',
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextButton(
+                onPressed: iap.available && !iap.busy ? restore : null,
+                child: const Text('Restore purchases'),
+              ),
+            ],
+          ),
         ),
       ],
     );

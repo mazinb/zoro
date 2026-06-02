@@ -64,6 +64,12 @@ class _InternalAgentPromptEditorPageState extends State<InternalAgentPromptEdito
   }
 
   void _save() {
+    if (!widget.model.isPro) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Upgrade to Pro to edit prompts.'), behavior: SnackBarBehavior.floating),
+      );
+      return;
+    }
     widget.model.setInternalAgentSystemPrompt(widget.definition.id, _ctrl.text);
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Saved'), behavior: SnackBarBehavior.floating),
@@ -183,7 +189,7 @@ class _InternalAgentPromptEditorPageState extends State<InternalAgentPromptEdito
                 onPressed: _showInfoSheet,
               ),
               TextButton(
-                onPressed: _save,
+                onPressed: widget.model.isPro ? _save : null,
                 child: const Text('Save'),
               ),
             ],
