@@ -94,7 +94,7 @@ class GoalsTabState extends State<GoalsTab> {
   }
 }
 
-class _GoalsBody extends StatelessWidget {
+class _GoalsBody extends StatefulWidget {
   const _GoalsBody({
     required this.model,
     this.onGoToLedger,
@@ -104,6 +104,15 @@ class _GoalsBody extends StatelessWidget {
   final AppModel model;
   final void Function(String section)? onGoToLedger;
   final VoidCallback? onGoToSettingsPermissions;
+
+  @override
+  State<_GoalsBody> createState() => _GoalsBodyState();
+}
+
+class _GoalsBodyState extends State<_GoalsBody> {
+  bool _savingsCorpusEdit = false;
+
+  AppModel get model => widget.model;
 
   Widget _allocationSlider(BuildContext context) {
     final m = model;
@@ -207,6 +216,8 @@ class _GoalsBody extends StatelessWidget {
     );
     final savingsRows = savingsPoolAssets(m.assets, policy).toList()
       ..sort((a, b) => m.assetDisplayValue(b).compareTo(m.assetDisplayValue(a)));
+    final allSavingsAssets = m.assets.where((a) => a.type == LedgerAssetType.savings).toList()
+      ..sort((a, b) => m.assetDisplayValue(b).compareTo(m.assetDisplayValue(a)));
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
@@ -222,7 +233,7 @@ class _GoalsBody extends StatelessWidget {
               onAssistant: () => openGoalsAiAssistant(
                 context: context,
                 model: m,
-                onOpenSettings: onGoToSettingsPermissions,
+                onOpenSettings: widget.onGoToSettingsPermissions,
               ),
             ),
           ],
@@ -253,14 +264,42 @@ class _GoalsBody extends StatelessWidget {
         const SizedBox(height: 10),
         _GoalsSection(
           title: 'Savings',
+          titleSuffix: allSavingsAssets.isEmpty
+              ? null
+              : TextButton(
+                  onPressed: () => setState(() => _savingsCorpusEdit = !_savingsCorpusEdit),
+                  style: TextButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.only(left: 4, right: 6),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                  child: Text(
+                    _savingsCorpusEdit ? 'Done' : 'Edit',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: accent,
+                    ),
+                  ),
+                ),
           headerTrailing: _SavingsSalaryPctBox(model: m),
           subtitle: savingsTotal > 0 || m.allocSavingsMonthly > 0
               ? '${goalMoney(m, savingsTotal, hide: hide)} · ${goalMoney(m, m.allocSavingsMonthly, hide: hide)}/mo'
               : '—',
           children: [
-            if (savingsRows.isEmpty)
+            if (_savingsCorpusEdit && allSavingsAssets.isNotEmpty) ...[
               Text(
-                'Add savings accounts in Ledger, or link cash in Ledger → Cash.',
+                'Uncheck to add to retirement corpus.',
+                style: _GoalsType.rowMeta.copyWith(color: cs.onSurfaceVariant),
+              ),
+              const SizedBox(height: 4),
+              ...allSavingsAssets.map(
+                (a) => _SavingsAssetEditRow(model: m, asset: a, hide: hide),
+              ),
+            ] else if (savingsRows.isEmpty)
+              Text(
+                'Add savings in Ledger.',
                 style: _GoalsType.rowMeta.copyWith(color: cs.onSurfaceVariant),
               )
             else
@@ -521,6 +560,7 @@ class _GoalsSection extends StatelessWidget {
     required this.subtitle,
     required this.children,
     this.showSubtitle = true,
+    this.titleSuffix,
     this.headerTrailing,
   });
 
@@ -528,6 +568,7 @@ class _GoalsSection extends StatelessWidget {
   final String subtitle;
   final List<Widget> children;
   final bool showSubtitle;
+  final Widget? titleSuffix;
   final Widget? headerTrailing;
 
   @override
@@ -542,7 +583,14 @@ class _GoalsSection extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Expanded(child: Text(title, style: _GoalsType.sectionTitle)),
+              Expanded(
+                child: Row(
+                  children: [
+                    Text(title, style: _GoalsType.sectionTitle),
+                    ?titleSuffix,
+                  ],
+                ),
+              ),
               ?headerTrailing,
             ],
           ),
@@ -587,6 +635,67 @@ class _SavingsAssetRow extends StatelessWidget {
           Icon(asset.type.icon, size: 20, color: cs.onSurfaceVariant),
           const SizedBox(width: 10),
           Expanded(child: Text(name, style: _GoalsType.rowTitle)),
+          Text(
+            goalMoney(model, balance, hide: hide),
+            style: _GoalsType.tileBody,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SavingsAssetEditRow extends StatelessWidget {
+  const _SavingsAssetEditRow({
+    required this.model,
+    required this.asset,
+    required this.hide,
+  });
+
+  final AppModel model;
+  final LedgerAssetRow asset;
+  final bool hide;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final name = asset.name.trim().isEmpty ? asset.type.label : asset.name.trim();
+    final balance = model.assetDisplayValue(asset);
+    final inPool = !model.isRetirementExtraAsset(asset.id);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          SizedBox(
+            width: 40,
+            height: 40,
+            child: Checkbox(
+              value: inPool,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              visualDensity: VisualDensity.compact,
+              onChanged: (on) {
+                if (on == null) return;
+                model.setSavingsAssetInGoalsPool(asset.id, on);
+              },
+            ),
+          ),
+          Icon(asset.type.icon, size: 20, color: cs.onSurfaceVariant),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(name, style: _GoalsType.rowTitle),
+                if (!inPool)
+                  Text(
+                    'Retirement corpus',
+                    style: _GoalsType.rowMeta.copyWith(color: model.accent),
+                  ),
+              ],
+            ),
+          ),
           Text(
             goalMoney(model, balance, hide: hide),
             style: _GoalsType.tileBody,

@@ -235,15 +235,17 @@ Future<bool> synthesizeDummyLedgerWithApple(
     'templateLiabilities': OnboardingDummyTemplates.liabilityTemplates(primaryCurrency),
   };
   try {
+    const provider = LlmProvider.appleFoundation;
+    final modelName = model.modelFor(provider);
     final result = await LlmClient().complete(
-      provider: LlmProvider.appleFoundation,
+      provider: provider,
       apiKey: AppModel.appleOnDeviceApiKeySentinel,
-      model: 'default',
+      model: modelName,
       system: _dummyLedgerAppleSystem,
       user: jsonEncode(payload),
       maxOutputTokens: 2500,
     );
-    model.recordLlmRequest(provider: LlmProvider.appleFoundation, model: 'default');
+    model.recordLlmRequest(provider: provider, model: modelName);
     final obj = decodeLlmJsonObject(result.text);
     final assetsRaw = obj['assets'];
     final liabsRaw = obj['liabilities'];
@@ -255,6 +257,7 @@ Future<bool> synthesizeDummyLedgerWithApple(
     _removeSeededDemoRows(model);
     model.assets.addAll(_assetsFromMaps(assetMaps));
     model.liabilities.addAll(_liabilitiesFromMaps(liabMaps));
+    _finishDemoLedgerSetup(model);
     return true;
   } catch (_) {
     return false;
@@ -277,6 +280,7 @@ void applyFallbackDummyLedger(
       OnboardingDummyTemplates.liabilityTemplates(primaryCurrency).cast<Map<String, dynamic>>(),
     ),
   );
+  _finishDemoLedgerSetup(model);
 }
 
 void _removeSeededDemoRows(AppModel model) {
@@ -286,4 +290,45 @@ void _removeSeededDemoRows(AppModel model) {
   };
   model.assets.removeWhere((a) => ids.contains(a.id));
   model.liabilities.removeWhere((l) => ids.contains(l.id));
+}
+
+/// Placeholder demo rows shown while Apple on-device customizes amounts.
+void stageDemoLedgerPlaceholders(
+  AppModel model, {
+  required CurrencyCode primaryCurrency,
+}) {
+  _removeSeededDemoRows(model);
+  for (final t in OnboardingDummyTemplates.assetTemplates(primaryCurrency)) {
+    model.assets.add(
+      LedgerAssetRow(
+        id: t['id']! as String,
+        type: LedgerAssetTypeUi.fromApi(t['type']?.toString()),
+        currencyCountry: t['currencyCountry']?.toString() ?? 'US',
+        name: t['name']?.toString() ?? '',
+        total: 0,
+        label: '',
+        comment: '',
+        contextMarkdown: null,
+      ),
+    );
+  }
+  for (final t in OnboardingDummyTemplates.liabilityTemplates(primaryCurrency)) {
+    model.liabilities.add(
+      LedgerLiabilityRow(
+        id: t['id']! as String,
+        type: LedgerLiabilityTypeUi.fromApi(t['type']?.toString()),
+        name: t['name']?.toString() ?? '',
+        currencyCountry: t['currencyCountry']?.toString() ?? 'US',
+        total: 0,
+        interestRatePct: 0,
+        comment: '',
+        contextMarkdown: null,
+      ),
+    );
+  }
+  model.setDemoLedgerSetupInProgress(true);
+}
+
+void _finishDemoLedgerSetup(AppModel model) {
+  model.clearDemoLedgerSetupInProgress();
 }

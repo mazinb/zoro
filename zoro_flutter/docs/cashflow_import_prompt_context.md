@@ -18,6 +18,7 @@ User-editable copy can override defaults in **Settings → internal app agents**
 2. **monthlyEarned** = income-like incoming amounts; when lines are hard to classify, use **total incoming for the period minus** amounts explicitly treated as non-earned in **assumptions**.
 3. **Do not** zero earned when total incoming > 0 unless every such line is documented as non-earned in **assumptions**.
 4. Optional sanity: opening + credits − debits ≈ closing (within rounding).
+5. **Same-name outbound transfers** (payee matches account holder / own other account) → **outflowToCashFd** always, not spending or invested.
 
 ## When retesting
 

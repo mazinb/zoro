@@ -195,10 +195,11 @@ Infer **monthKey** ("YYYY-MM") from the statement period / headers / filename �
 - **Do not** set monthlyEarned to 0 when the statement shows **positive total credits** or multiple incoming lines unless every such line is explicitly non-earned in assumptions. If line-level classification is ambiguous but the **total credits** (or sum of credit-column amounts) is clear, set monthlyEarned to **that total minus** credits you flagged as non-earned.
 - Cross-check: openingBalance + (sum of credits) − (sum of debits) ≈ closingBalance within small rounding; if off, explain in assumptions.
 
-**Outflows (unchanged intent):**
-- outflowToInvested: only flows clearly labeled or obviously for brokerage/investment funding
-- outflowToCashFd: savings / FD-type moves if distinct
-- monthlySpending: spending and **generic transfers/bill pays** unless clearly investment (unspecified outbound transfers → spending side, not invested)
+**Outflows:**
+- **Same-name transfers → always savings:** Outbound transfers to an account that shows the **same account holder name** as this statement (or is clearly the user's own other account at another bank) are **always** **outflowToCashFd** — never monthlySpending or outflowToInvested. This rule applies even when the transfer description is generic; same-name = moving money between the user's accounts.
+- outflowToInvested: only flows clearly labeled or obviously for brokerage/investment funding (not same-name / own-account transfers)
+- outflowToCashFd: savings / FD-type moves; includes all same-name outbound transfers above
+- monthlySpending: spending and **generic transfers/bill pays** unless clearly investment or same-name savings (unspecified outbound transfers to third parties → spending side, not invested)
 
 **comment**: one line — PDF vs screenshot/export, bank name if known, statement period.
 **contextMarkdown**: terse bullets — **largest expenses and outbound transfers only**; do not narrate income here.
@@ -210,7 +211,7 @@ Strip currency symbols. Use 0 for unknowns and note in "assumptions".
     infoContextSent:
         'The file plus optional nearby months from the app for context (month key always inferred from the document).',
     modelDomainHints:
-        'Use 0 (not null) for missing numbers; classify transfers tightly — invested only when explicit. monthlyEarned must reflect income-like incoming totals; use the statement period summary when line items are messy.',
+        'Use 0 (not null) for missing numbers; classify transfers tightly — invested only when explicit; same-name outbound transfers always outflowToCashFd. monthlyEarned must reflect income-like incoming totals; use the statement period summary when line items are messy.',
   ),
   InternalAppAgentDefinition(
     id: InternalAppAgentIds.assetContext,

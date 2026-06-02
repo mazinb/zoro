@@ -9,14 +9,14 @@ bool assetCountsTowardRetirement(LedgerAssetRow asset, AssetsGoalsPolicy policy)
     case AssetGoalsBucket.both:
       return policy.retirementExtraAssetIds.contains(asset.id);
     case AssetGoalsBucket.savings:
-      return false;
+      return policy.retirementExtraAssetIds.contains(asset.id);
   }
 }
 
 bool assetCountsTowardSavings(LedgerAssetRow asset, AssetsGoalsPolicy policy) {
   switch (asset.type.defaultGoalsBucket) {
     case AssetGoalsBucket.savings:
-      return true;
+      return !policy.retirementExtraAssetIds.contains(asset.id);
     case AssetGoalsBucket.property:
     case AssetGoalsBucket.both:
     case AssetGoalsBucket.retirement:

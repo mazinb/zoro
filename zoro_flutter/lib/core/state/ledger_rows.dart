@@ -32,7 +32,7 @@ enum LedgerAssetType {
 enum AssetGoalsBucket {
   /// Investment accounts — retirement corpus only.
   retirement,
-  /// Cash / savings — target goals and debt paydown.
+  /// Cash / savings — target goals unless id is in [AssetsGoalsPolicy.retirementExtraAssetIds].
   savings,
   /// Real estate — retirement only when id is in [AssetsGoalsPolicy.retirementExtraAssetIds].
   property,

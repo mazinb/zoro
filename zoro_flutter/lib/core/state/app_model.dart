@@ -739,6 +739,9 @@ class AppModel extends ChangeNotifier {
   /// When false, no notification of any kind is posted.
   bool notificationsEnabled = false;
 
+  /// Ping when the daily Home summary helper posts a new note (Helpers → Home).
+  bool homeMessagesNotifications = false;
+
   /// Local time-of-day used by the reminder-check background job to decide when to
   /// post an "X items need attention" notification. Defaults to 09:00.
   int reminderNotifyHour = 9;
@@ -777,6 +780,9 @@ class AppModel extends ChangeNotifier {
 
   /// Optional demo data (seeded from onboarding).
   bool dummyDataActive = false;
+
+  /// True while onboarding replaces demo ledger rows (show placeholders in Ledger).
+  bool demoLedgerSetupInProgress = false;
 
   /// Snapshot of only the demo assets/liabilities we seeded. Used to remove only untouched entries.
   /// Shape: { "assets": [ ... ], "liabilities": [ ... ] }
@@ -1421,7 +1427,7 @@ class AppModel extends ChangeNotifier {
   double allocInvestmentsMonthly = 0;
   double allocSavingsMonthly = 0;
 
-  /// Property/other asset ids included in retirement corpus (unlisted → savings pool).
+  /// Property/other/savings asset ids counted in retirement corpus instead of savings pool.
   final Set<String> retirementExtraAssetIds = {};
 
   /// Historical return datasets for corpus backtest (built-ins + imported).
@@ -1431,7 +1437,7 @@ class AppModel extends ChangeNotifier {
   double corpusBacktestEquityPct = 60;
 
   String corpusBacktestEquitySeriesId = kDefaultUsSp500SeriesId;
-  String corpusBacktestDebtSeriesId = kDefaultUsAggBondSeriesId;
+  String corpusBacktestDebtSeriesId = kDefaultCashFdSeriesId;
   int? corpusBacktestStartYear;
 
   AssetsGoalsPolicy get assetsGoalsPolicy => AssetsGoalsPolicy(
@@ -1455,6 +1461,20 @@ class AppModel extends ChangeNotifier {
         ? retirementExtraAssetIds.add(assetId)
         : retirementExtraAssetIds.remove(assetId);
     if (!changed) return;
+    absorbRetirementHoldingsIntoSurplus(notify: false);
+    _scheduleAppStatePersist();
+    notifyListeners();
+  }
+
+  /// When [inSavingsPool] is false, balance counts toward retirement corpus.
+  void setSavingsAssetInGoalsPool(String assetId, bool inSavingsPool) {
+    final a = assetById(assetId);
+    if (a == null || a.type != LedgerAssetType.savings) return;
+    final changed = inSavingsPool
+        ? retirementExtraAssetIds.remove(assetId)
+        : retirementExtraAssetIds.add(assetId);
+    if (!changed) return;
+    absorbRetirementHoldingsIntoSurplus(notify: false);
     _scheduleAppStatePersist();
     notifyListeners();
   }
@@ -2193,6 +2213,9 @@ class AppModel extends ChangeNotifier {
         ..clear()
         ..addAll(merged);
     }
+    if (corpusBacktestDebtSeriesId == kDefaultUsAggBondSeriesId) {
+      corpusBacktestDebtSeriesId = kDefaultCashFdSeriesId;
+    }
   }
 
   HistoricalReturnSeries? historicalSeriesById(String id) =>
@@ -2258,7 +2281,7 @@ class AppModel extends ChangeNotifier {
     final equity = historicalSeriesById(corpusBacktestEquitySeriesId) ??
         historicalSeriesById(kDefaultUsSp500SeriesId);
     final debt = historicalSeriesById(corpusBacktestDebtSeriesId) ??
-        historicalSeriesById(kDefaultUsAggBondSeriesId);
+        historicalSeriesById(kDefaultCashFdSeriesId);
     if (equity == null || debt == null) return null;
     final swr = safeWithdrawalRatePct ?? r.safeWithdrawalRatePct;
     final initial = r.corpusAutoFromExpenses
@@ -2729,6 +2752,13 @@ class AppModel extends ChangeNotifier {
     notificationsEnabled = v;
     _scheduleAppStatePersist();
     unawaited(reconcileNotifications());
+    notifyListeners();
+  }
+
+  void setHomeMessagesNotifications(bool v) {
+    if (homeMessagesNotifications == v) return;
+    homeMessagesNotifications = v;
+    _scheduleAppStatePersist();
     notifyListeners();
   }
 
@@ -3286,6 +3316,14 @@ class AppModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  bool isDemoLedgerSeedId(String id) =>
+      SeedLedgerIds.assetCondo == id ||
+      SeedLedgerIds.assetUsBrokerage == id ||
+      SeedLedgerIds.assetIndiaIndex == id ||
+      SeedLedgerIds.assetThaiCash == id ||
+      id == 'l-seed-condo' ||
+      id == 'l-seed-car';
+
   /// Applies first-run onboarding: USD home currency, two FX picks, income lines, buckets.
   void applyOnboardingSetup({
     required CurrencyCode homeQuickPick1,
@@ -3301,6 +3339,7 @@ class AppModel extends ChangeNotifier {
     required Map<String, double> expenseBucketsMonthly,
     required CurrencyCode expenseCurrency,
     String? expenseContextNote,
+    bool markOnboardingComplete = true,
   }) {
     for (final e in unitsPerUsdByCurrency.entries) {
       if (e.value > 0) {
@@ -3358,11 +3397,28 @@ class AppModel extends ChangeNotifier {
       setExpenseBucketContextMarkdown(bucketKey: 'other', markdown: expenseContextNote.trim());
     }
     markExpenseEstimatesUpdated();
-    onboardingComplete = true;
+    if (markOnboardingComplete) {
+      onboardingComplete = true;
+    }
     syncAllocationsFromFraction();
     _scheduleAppStatePersist();
     notifyListeners();
   }
+
+  void markOnboardingFinished() {
+    if (onboardingComplete) return;
+    onboardingComplete = true;
+    _scheduleAppStatePersist();
+    notifyListeners();
+  }
+
+  void setDemoLedgerSetupInProgress(bool value) {
+    if (demoLedgerSetupInProgress == value) return;
+    demoLedgerSetupInProgress = value;
+    notifyListeners();
+  }
+
+  void clearDemoLedgerSetupInProgress() => setDemoLedgerSetupInProgress(false);
 
   void setExpenseBucketContextMarkdown({required String bucketKey, required String markdown}) {
     expenseBucketContextMarkdown = {...expenseBucketContextMarkdown, bucketKey: markdown};
@@ -3729,6 +3785,17 @@ class AppModel extends ChangeNotifier {
     final key = '${provider.name}:$model';
     llmRequestsByModelKey[key] = (llmRequestsByModelKey[key] ?? 0) + 1;
     _scheduleAppStatePersist();
+    notifyListeners();
+  }
+
+  /// Request count for Settings → API keys (includes legacy Apple `default` model key).
+  int llmRequestCount(LlmProvider provider, String model) {
+    final key = '${provider.name}:$model';
+    var n = llmRequestsByModelKey[key] ?? 0;
+    if (provider == LlmProvider.appleFoundation && model == modelFor(LlmProvider.appleFoundation)) {
+      n += llmRequestsByModelKey['${provider.name}:default'] ?? 0;
+    }
+    return n;
   }
 
   Future<void> resetAllUserDataAndRestartOnboarding() async {

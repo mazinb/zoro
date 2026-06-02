@@ -483,6 +483,7 @@ class _ContextEditorPageState extends State<ContextEditorPage> {
         maxOutputTokens: 1800,
         preferJsonObjectOutput: provider == LlmProvider.openai,
       );
+      m.recordLlmRequest(provider: provider, model: modelName);
       m.setPendingLlmCompletionMetadata(
         model: '${provider.name}:$modelName',
         tokensUsed: completion.tokensUsed,

@@ -119,8 +119,21 @@ class _OnboardingFlowPageState extends State<OnboardingFlowPage> {
     return out;
   }
 
-  List<StructuredGuideStep> get _expenseSteps =>
-      onboardingExpenseMcqSteps(netMonthlyIncomeDisplay: _netMonthlyIncomeUsd);
+  Map<CurrencyCode, double> get _fxUsdPerUnitOverrides {
+    final fx = <CurrencyCode, double>{};
+    for (final c in [_pick1, _pick2]) {
+      if (c == null) continue;
+      final perUsd = double.tryParse(_fxController(c).text.trim().replaceAll(',', ''));
+      if (perUsd != null && perUsd > 0) fx[c] = 1 / perUsd;
+    }
+    return fx;
+  }
+
+  List<StructuredGuideStep> get _expenseSteps => onboardingExpenseMcqSteps(
+        netMonthlyIncomeUsd: _netMonthlyIncomeUsd,
+        hintCurrency: _salaryCcy,
+        usdPerUnitOverrides: _fxUsdPerUnitOverrides,
+      );
 
   StructuredGuideStep? get _currentExpenseStep =>
       _expenseSubStep < _expenseSteps.length ? _expenseSteps[_expenseSubStep] : null;
@@ -179,6 +192,22 @@ class _OnboardingFlowPageState extends State<OnboardingFlowPage> {
     if (_mainStep > 0) {
       setState(() => _mainStep--);
     }
+  }
+
+  Map<String, double> _deterministicExpenseBuckets() {
+    return deterministicOnboardingExpenseBuckets(
+      displayCurrency: _expenseCcy,
+      mcq: StructuredGuideResult(
+        answers: List<StructuredGuideAnswer>.from(_expenseAnswers),
+        optionalNote: '',
+      ),
+      netMonthlyIncomeUsd: _netMonthlyIncomeUsd,
+      usdPerUnitOverrides: _fxUsdPerUnitOverrides,
+    );
+  }
+
+  double _manualBucketInitial(String key) {
+    return _deterministicExpenseBuckets()[key] ?? 0;
   }
 
   TextEditingController _bucketCtrl(String key, double initial) {
@@ -247,6 +276,13 @@ class _OnboardingFlowPageState extends State<OnboardingFlowPage> {
     if (_finishing || _pick1 == null) return;
     setState(() => _finishing = true);
 
+    if (addDummyData) {
+      stageDemoLedgerPlaceholders(
+        widget.model,
+        primaryCurrency: _salaryCcy,
+      );
+    }
+
     final mcq = StructuredGuideResult(
       answers: List<StructuredGuideAnswer>.from(_expenseAnswers),
       optionalNote: _expenseNoteCtrl.text.trim(),
@@ -259,15 +295,14 @@ class _OnboardingFlowPageState extends State<OnboardingFlowPage> {
     }
 
     Map<String, double> buckets;
-    final fxOverrides = {for (final e in fx.entries) e.key: 1 / e.value};
     if (_expenseManual) {
       buckets = {for (final k in recurringExpenseBucketKeys) k: _parseBucketCtrl(k)};
     } else {
       buckets = deterministicOnboardingExpenseBuckets(
         displayCurrency: _expenseCcy,
         mcq: mcq,
-        netMonthlyIncomeDisplay: _netMonthlyIncomeUsd,
-        usdPerUnitOverrides: fxOverrides,
+        netMonthlyIncomeUsd: _netMonthlyIncomeUsd,
+        usdPerUnitOverrides: _fxUsdPerUnitOverrides,
       );
     }
 
@@ -277,7 +312,7 @@ class _OnboardingFlowPageState extends State<OnboardingFlowPage> {
         model: widget.model,
         note: note,
         mcq: mcq,
-        netMonthlyIncomeDisplay: _netMonthlyIncomeUsd,
+        netMonthlyIncomeUsd: _netMonthlyIncomeUsd,
         expenseCurrency: _expenseCcy,
         baselineBuckets: buckets,
       );
@@ -285,6 +320,7 @@ class _OnboardingFlowPageState extends State<OnboardingFlowPage> {
     }
 
     widget.model.applyOnboardingSetup(
+      markOnboardingComplete: false,
       homeQuickPick1: _pick1!,
       homeQuickPick2: _pick2,
       unitsPerUsdByCurrency: fx,
@@ -299,23 +335,29 @@ class _OnboardingFlowPageState extends State<OnboardingFlowPage> {
       expenseCurrency: _expenseCcy,
       expenseContextNote: note.isEmpty ? null : note,
     );
-    if (addDummyData) {
-      final ok = await synthesizeDummyLedgerWithApple(
-        widget.model,
-        primaryCurrency: _salaryCcy,
-        secondaryCurrency: _pick2,
-      );
-      if (!ok) {
-        applyFallbackDummyLedger(
+    try {
+      if (addDummyData) {
+        final ok = await synthesizeDummyLedgerWithApple(
           widget.model,
           primaryCurrency: _salaryCcy,
           secondaryCurrency: _pick2,
         );
+        if (!ok) {
+          applyFallbackDummyLedger(
+            widget.model,
+            primaryCurrency: _salaryCcy,
+            secondaryCurrency: _pick2,
+          );
+        }
+        widget.model.finalizeOnboardingDummyLedger();
+      } else {
+        widget.model.clearDummyDataIfUntouched();
       }
-      widget.model.finalizeOnboardingDummyLedger();
-    } else {
-      widget.model.clearDummyDataIfUntouched();
+    } finally {
+      widget.model.clearDemoLedgerSetupInProgress();
     }
+
+    widget.model.markOnboardingFinished();
 
     if (!mounted) return;
     setState(() => _finishing = false);
@@ -384,12 +426,16 @@ class _OnboardingFlowPageState extends State<OnboardingFlowPage> {
                         onRsuCcy: (c) => setState(() => _rsuCcy = c),
                         onFieldChanged: () => setState(() {}),
                       ),
-                    _ => _onExpenseDummyStep
-                        ? _DummyDataStep(
-                            value: _addDummyData,
-                            onChanged: (v) => setState(() => _addDummyData = v),
+                    _ => _finishing && _addDummyData == true
+                        ? _DemoLedgerSetupStep(
+                            primaryCurrency: _salaryCcy,
                           )
-                        : _onExpenseNoteStep
+                        : _onExpenseDummyStep
+                            ? _DummyDataStep(
+                                value: _addDummyData,
+                                onChanged: (v) => setState(() => _addDummyData = v),
+                              )
+                            : _onExpenseNoteStep
                             ? _ExpenseNoteStep(controller: _expenseNoteCtrl, finishing: _finishing)
                             : _onExpenseManualStep
                                 ? _ExpenseManualStep(
@@ -397,6 +443,7 @@ class _OnboardingFlowPageState extends State<OnboardingFlowPage> {
                                     currencyOptions: _expenseCurrencyOptions,
                                     onExpenseCurrency: (c) => setState(() => _expenseCcy = c),
                                     bucketCtrl: _bucketCtrl,
+                                    bucketInitial: _manualBucketInitial,
                                     onSwitchToMcq: () => setState(() {
                                       _expenseManual = false;
                                       _expenseSubStep = 0;
@@ -928,6 +975,7 @@ class _ExpenseManualStep extends StatelessWidget {
     required this.currencyOptions,
     required this.onExpenseCurrency,
     required this.bucketCtrl,
+    required this.bucketInitial,
     required this.onSwitchToMcq,
   });
 
@@ -935,6 +983,7 @@ class _ExpenseManualStep extends StatelessWidget {
   final List<CurrencyCode> currencyOptions;
   final ValueChanged<CurrencyCode> onExpenseCurrency;
   final TextEditingController Function(String key, double initial) bucketCtrl;
+  final double Function(String key) bucketInitial;
   final VoidCallback onSwitchToMcq;
 
   @override
@@ -968,7 +1017,7 @@ class _ExpenseManualStep extends StatelessWidget {
         ),
         for (final k in recurringExpenseBucketKeys) ...[
           TextField(
-            controller: bucketCtrl(k, preset.buckets[k]!.value),
+            controller: bucketCtrl(k, bucketInitial(k)),
             keyboardType: TextInputType.number,
             inputFormatters: [GroupedIntegerTextInputFormatter(currency: expenseCurrency)],
             decoration: InputDecoration(
@@ -980,6 +1029,70 @@ class _ExpenseManualStep extends StatelessWidget {
           ),
           const SizedBox(height: 10),
         ],
+      ],
+    );
+  }
+}
+
+class _DemoLedgerSetupStep extends StatelessWidget {
+  const _DemoLedgerSetupStep({required this.primaryCurrency});
+
+  final CurrencyCode primaryCurrency;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final assetNames = OnboardingDummyTemplates.assetTemplates(primaryCurrency)
+        .map((t) => t['name']?.toString() ?? 'Asset')
+        .toList();
+    final liabilityNames = OnboardingDummyTemplates.liabilityTemplates(primaryCurrency)
+        .map((t) => t['name']?.toString() ?? 'Liability')
+        .toList();
+
+    Widget row(String label) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: LiquidGlassPanel(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(strokeWidth: 2, color: cs.primary),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(fontWeight: FontWeight.w800, color: cs.onSurface.withValues(alpha: 0.55)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return ListView(
+      children: [
+        Text(
+          'Building your demo ledger',
+          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17, color: cs.onSurface),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'Tailoring sample assets and loans to your currencies…',
+          style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13, height: 1.35),
+        ),
+        const SizedBox(height: 16),
+        Text('Assets', style: TextStyle(fontWeight: FontWeight.w800, color: cs.onSurfaceVariant, fontSize: 12)),
+        const SizedBox(height: 8),
+        for (final n in assetNames) row(n),
+        const SizedBox(height: 12),
+        Text('Liabilities', style: TextStyle(fontWeight: FontWeight.w800, color: cs.onSurfaceVariant, fontSize: 12)),
+        const SizedBox(height: 8),
+        for (final n in liabilityNames) row(n),
       ],
     );
   }

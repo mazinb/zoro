@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -495,16 +496,21 @@ class _GeneralPaneState extends State<_GeneralPane> {
     );
   }
 
+  void _openAgentSettingsSection(AgentSettingsSection section) {
+    final root = context.findAncestorStateOfType<_SettingsTabState>();
+    if (root == null) return;
+    root._tabs.animateTo(1);
+    final s = root.widget.agentSectionListenable;
+    if (s is ValueNotifier<AgentSettingsSection>) {
+      s.value = section;
+    }
+  }
+
   Future<void> _openExportPage() async {
     if (!mounted) return;
     // Prefer navigating within Settings → Helpers → Data.
-    final root = context.findAncestorStateOfType<_SettingsTabState>();
-    if (root != null) {
-      root._tabs.animateTo(1);
-      final s = root.widget.agentSectionListenable;
-      if (s is ValueNotifier<AgentSettingsSection>) {
-        s.value = AgentSettingsSection.data;
-      }
+    if (context.findAncestorStateOfType<_SettingsTabState>() != null) {
+      _openAgentSettingsSection(AgentSettingsSection.data);
       return;
     }
     // Fallback (should be rare): open a dedicated page.
@@ -601,15 +607,19 @@ class _GeneralPaneState extends State<_GeneralPane> {
             _currencyAssumptionsCard(),
         const Text('Notifications', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
         const SizedBox(height: 8),
-        _NotificationsCard(model: model),
-        const SizedBox(height: 12),
-        const Text('Reminders', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
-        const SizedBox(height: 8),
-        _settingsCard(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
+        _NotificationsCard(
+          model: model,
+          onOpenHomeSettings: () => _openAgentSettingsSection(AgentSettingsSection.home),
+        ),
+        if (model.notificationsEnabled) ...[
+          const SizedBox(height: 12),
+          const Text('Reminders', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+          const SizedBox(height: 8),
+          _settingsCard(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
                 _CadenceRow(
                   label: 'Goals',
                   value: model.remindersGoalsCadence,
@@ -641,7 +651,8 @@ class _GeneralPaneState extends State<_GeneralPane> {
                 ),
               ],
             ),
-        ),
+          ),
+        ],
         const SizedBox(height: 12),
         Align(
           alignment: Alignment.centerLeft,
@@ -1228,7 +1239,7 @@ class _ApiKeysPaneState extends State<_ApiKeysPane> {
     return ListenableBuilder(
       listenable: m,
       builder: (context, _) {
-        int usageFor(LlmProvider p, String model) => m.llmRequestsByModelKey['${p.name}:$model'] ?? 0;
+        int usageFor(LlmProvider p, String model) => m.llmRequestCount(p, model);
         return ListView(
           padding: const EdgeInsets.all(20),
           children: [
@@ -1248,6 +1259,17 @@ class _ApiKeysPaneState extends State<_ApiKeysPane> {
                     )
                   : null,
             ),
+            if (m.appleFoundationRuntimeAvailable) ...[
+              const SizedBox(height: 6),
+              Text(
+                'Requests: ${usageFor(LlmProvider.appleFoundation, m.modelFor(LlmProvider.appleFoundation))}',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
             const SizedBox(height: 12),
             Card(
               child: Padding(
@@ -1507,9 +1529,13 @@ class _CadenceRow extends StatelessWidget {
 }
 
 class _NotificationsCard extends StatefulWidget {
-  const _NotificationsCard({required this.model});
+  const _NotificationsCard({
+    required this.model,
+    required this.onOpenHomeSettings,
+  });
 
   final AppModel model;
+  final VoidCallback onOpenHomeSettings;
 
   @override
   State<_NotificationsCard> createState() => _NotificationsCardState();
@@ -1517,6 +1543,27 @@ class _NotificationsCard extends StatefulWidget {
 
 class _NotificationsCardState extends State<_NotificationsCard> {
   bool _busy = false;
+  late final TapGestureRecognizer _homeSettingsLinkRecognizer;
+
+  @override
+  void initState() {
+    super.initState();
+    _homeSettingsLinkRecognizer = TapGestureRecognizer()..onTap = widget.onOpenHomeSettings;
+  }
+
+  @override
+  void didUpdateWidget(covariant _NotificationsCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.onOpenHomeSettings != widget.onOpenHomeSettings) {
+      _homeSettingsLinkRecognizer.onTap = widget.onOpenHomeSettings;
+    }
+  }
+
+  @override
+  void dispose() {
+    _homeSettingsLinkRecognizer.dispose();
+    super.dispose();
+  }
 
   Future<void> _onMasterChanged(bool v) async {
     if (_busy) return;
@@ -1592,6 +1639,41 @@ class _NotificationsCardState extends State<_NotificationsCard> {
               onChanged: _busy ? null : _onMasterChanged,
             ),
             if (model.notificationsEnabled) ...[
+              const Divider(height: 20),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Home messages', style: TextStyle(fontWeight: FontWeight.w800)),
+                subtitle: model.homeMessagesNotifications
+                    ? Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text.rich(
+                          TextSpan(
+                            style: TextStyle(
+                              color: scheme.onSurfaceVariant,
+                              fontSize: 13,
+                              height: 1.35,
+                            ),
+                            children: [
+                              const TextSpan(text: 'Daily Home note from your helper. '),
+                              TextSpan(
+                                text: 'Configure in Home settings',
+                                style: TextStyle(
+                                  color: scheme.primary,
+                                  fontWeight: FontWeight.w800,
+                                  decoration: TextDecoration.underline,
+                                  decorationColor: scheme.primary,
+                                ),
+                                recognizer: _homeSettingsLinkRecognizer,
+                              ),
+                              const TextSpan(text: '.'),
+                            ],
+                          ),
+                        ),
+                      )
+                    : const Text('Daily Home note when your helper runs'),
+                value: model.homeMessagesNotifications,
+                onChanged: _busy ? null : model.setHomeMessagesNotifications,
+              ),
               const Divider(height: 20),
               InkWell(
                 onTap: _pickTime,

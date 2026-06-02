@@ -100,15 +100,30 @@ void main() {
   });
 
   group('defaultHistoricalReturnSeries', () {
-    test('includes 30 years of US equity and bond data', () {
+    test('includes equity, FD, and optional bond builtins', () {
       final series = defaultHistoricalReturnSeries();
-      expect(series.length, 2);
+      expect(series.length, greaterThanOrEqualTo(4));
       final sp = series.firstWhere((s) => s.id == kDefaultUsSp500SeriesId);
+      final fd = series.firstWhere((s) => s.id == kDefaultCashFdSeriesId);
       final bond = series.firstWhere((s) => s.id == kDefaultUsAggBondSeriesId);
       expect(sp.years.length, 30);
+      expect(fd.years.length, 30);
       expect(bond.years.length, 30);
       expect(sp.years.first, 1995);
       expect(sp.years.last, 2024);
+      expect(fd.returnPctFor(2022), greaterThan(0));
+      expect(bond.returnPctFor(2022)!, lessThan(0));
+    });
+
+    test('decode migrates legacy bond default to FD series', () {
+      var debtId = kDefaultUsAggBondSeriesId;
+      decodeCorpusBacktestPrefs(
+        {'debtSeriesId': kDefaultUsAggBondSeriesId},
+        onEquityPct: (_) {},
+        onEquitySeriesId: (_) {},
+        onDebtSeriesId: (v) => debtId = v,
+      );
+      expect(debtId, kDefaultCashFdSeriesId);
     });
   });
 }

@@ -312,14 +312,16 @@ class _AgentChatThreadPageState extends State<AgentChatThreadPage> {
     );
 
     try {
+      final modelName = widget.model.modelFor(provider);
       final reply = await LlmClient().complete(
         provider: provider,
         apiKey: key,
-        model: widget.model.modelFor(provider),
+        model: modelName,
         system: system,
         user: userMessageForLlm,
         preferJsonObjectOutput: provider == LlmProvider.openai,
       );
+      widget.model.recordLlmRequest(provider: provider, model: modelName);
       if (!mounted) return;
       final processed = processAgentActions(
         rawReply: reply.text,

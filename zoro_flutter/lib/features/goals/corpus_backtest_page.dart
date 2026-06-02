@@ -79,7 +79,7 @@ class _CorpusBacktestPageState extends State<CorpusBacktestPage> {
         final hide = m.privacyHideAmounts;
         final result = _result;
         final equityPct = m.corpusBacktestEquityPct.round();
-        final debtPct = 100 - equityPct;
+        final cashFdPct = 100 - equityPct;
         final equityOptions = m.historicalSeriesForClass(HistoricalAssetClass.equity);
         final debtOptions = m.historicalSeriesForClass(HistoricalAssetClass.debt);
         final inflation = (m.projectionInflationPctAnnual[m.displayCurrency] ?? 0).toStringAsFixed(1);
@@ -87,7 +87,7 @@ class _CorpusBacktestPageState extends State<CorpusBacktestPage> {
         final eq = m.historicalSeriesById(m.corpusBacktestEquitySeriesId) ??
             m.historicalSeriesById(kDefaultUsSp500SeriesId);
         final de = m.historicalSeriesById(m.corpusBacktestDebtSeriesId) ??
-            m.historicalSeriesById(kDefaultUsAggBondSeriesId);
+            m.historicalSeriesById(kDefaultCashFdSeriesId);
         final overlapYears = (eq == null || de == null)
             ? const <int>[]
             : (eq.years.toSet().intersection(de.years.toSet()).toList()..sort());
@@ -217,7 +217,7 @@ class _CorpusBacktestPageState extends State<CorpusBacktestPage> {
                       children: [
                         Center(
                           child: Text(
-                            '$equityPct% equity · $debtPct% debt',
+                            '$equityPct% equity · $cashFdPct% cash/FD',
                             style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: cs.onSurface),
                           ),
                         ),
@@ -238,7 +238,7 @@ class _CorpusBacktestPageState extends State<CorpusBacktestPage> {
                         ),
                         const SizedBox(height: 8),
                         _SeriesDropdown(
-                          label: 'Debt dataset',
+                          label: 'Cash / FD dataset',
                           valueId: m.corpusBacktestDebtSeriesId,
                           options: debtOptions,
                           onChanged: (id) => m.setCorpusBacktestSeriesIds(debtId: id),
@@ -277,21 +277,17 @@ class _CorpusBacktestPageState extends State<CorpusBacktestPage> {
                             ),
                           ),
                           const SizedBox(height: 8),
-                          SingleChildScrollView(
-                            scrollDirection: Axis.horizontal,
-                            child: DataTable(
+                          DataTable(
                               headingRowHeight: 36,
                               dataRowMinHeight: 32,
                               dataRowMaxHeight: 40,
-                              columnSpacing: 16,
-                              horizontalMargin: 8,
+                              columnSpacing: 10,
+                              horizontalMargin: 6,
                               columns: const [
                                 DataColumn(label: Text('Year', style: TextStyle(fontWeight: FontWeight.w800))),
                                 DataColumn(label: Text('Expense/yr', style: TextStyle(fontWeight: FontWeight.w800))),
-                                DataColumn(label: Text('Corpus start', style: TextStyle(fontWeight: FontWeight.w800))),
+                                DataColumn(label: Text('Corpus', style: TextStyle(fontWeight: FontWeight.w800))),
                                 DataColumn(label: Text('Returns', style: TextStyle(fontWeight: FontWeight.w800))),
-                                DataColumn(label: Text('Corpus end', style: TextStyle(fontWeight: FontWeight.w800))),
-                                DataColumn(label: Text('Monthly', style: TextStyle(fontWeight: FontWeight.w800))),
                               ],
                               rows: [
                                 for (final row in result.years)
@@ -304,12 +300,9 @@ class _CorpusBacktestPageState extends State<CorpusBacktestPage> {
                                       DataCell(Text(goalMoney(m, row.expenseAnnual, hide: hide))),
                                       DataCell(Text(goalMoney(m, row.corpusStart, hide: hide))),
                                       DataCell(Text('${row.blendedReturnPct >= 0 ? "+" : ""}${row.blendedReturnPct.toStringAsFixed(1)}%')),
-                                      DataCell(Text(goalMoney(m, row.corpusEnd, hide: hide))),
-                                      DataCell(Text(goalMoney(m, row.monthlyExpense, hide: hide))),
                                     ],
                                   ),
                               ],
-                            ),
                           ),
                         ],
                       ),

@@ -16,7 +16,7 @@ Privacy-first finance on device. Production API: **getzoro.com**. On-device stor
 ## Shipped (Corpus backtest)
 
 - **Corpus backtest** replaces Goals helper “Withdrawal & corpus” MCQ: year-by-year table (expense, corpus start/end, blended returns, monthly draw) against historical equity/debt datasets.
-- Default **S&P 500** + **US Aggregate Bond** (1995–2024, 30 calendar years). Debt/equity split slider; withdrawal rate tap + slider (same 1–10% ladder as retirement editor).
+- Default **S&P 500** + **US 1Y CD/FD** (1995–2024); also **UAE FD proxy** and **India 1Y FD** builtins. Bond index kept optional. Cash/FD leg uses coupon-style rates, not bond total return. Debt/equity split slider; withdrawal rate tap + slider (same 1–10% ladder as retirement editor).
 - **Settings → Data → Historical returns** export/import for custom return series (merge or replace).
 
 ---

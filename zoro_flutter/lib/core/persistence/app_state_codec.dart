@@ -399,6 +399,7 @@ Map<String, dynamic> encodeNotificationsBlock(AppModel m) {
   int? toMs(DateTime? d) => d?.toUtc().millisecondsSinceEpoch;
   return {
     'enabled': m.notificationsEnabled,
+    'homeMessages': m.homeMessagesNotifications,
     'reminderHour': m.reminderNotifyHour,
     'reminderMinute': m.reminderNotifyMinute,
     if (toMs(m.remindersLastFiredOn) != null) 'lastFiredOnMs': toMs(m.remindersLastFiredOn),
@@ -416,6 +417,9 @@ void decodeNotificationsBlock(AppModel m, Object? raw) {
   if (raw is! Map) return;
   final n = Map<String, dynamic>.from(raw);
   m.notificationsEnabled = n['enabled'] == true;
+  if (n.containsKey('homeMessages')) {
+    m.homeMessagesNotifications = n['homeMessages'] == true;
+  }
   final rh = n['reminderHour'];
   final rm = n['reminderMinute'];
   if (rh is int) m.reminderNotifyHour = rh.clamp(0, 23);

@@ -15,17 +15,18 @@ String presetCountryForDisplayCurrency(CurrencyCode c) => switch (c) {
       _ => 'US',
     };
 
-/// Monthly bucket amounts in [displayCurrency] from MCQ answers and income.
-Map<String, double> deterministicOnboardingExpenseBuckets({
-  required CurrencyCode displayCurrency,
-  required StructuredGuideResult mcq,
-  required double netMonthlyIncomeDisplay,
-  Map<CurrencyCode, double>? usdPerUnitOverrides,
-}) {
-  final presetCountry = presetCountryForDisplayCurrency(displayCurrency);
-  final preset = presetForCountry(presetCountry);
-  final presetCurrency = currencyCodeForPresetCountry(presetCountry);
+/// Annual expense budget baseline: max(\$30k, 30% of net income), capped at 80% of net income.
+double onboardingTargetAnnualExpenseUsd(double netAnnualIncomeUsd) {
+  if (netAnnualIncomeUsd <= 0) return 30000;
+  final thirtyPct = netAnnualIncomeUsd * 0.30;
+  const floorUsd = 30000.0;
+  var annual = thirtyPct > floorUsd ? thirtyPct : floorUsd;
+  final cap = netAnnualIncomeUsd * 0.80;
+  if (annual > cap) annual = cap;
+  return annual;
+}
 
+double _bucketMultiplierForMcq(String bucketKey, StructuredGuideResult mcq) {
   final housing = mcq.singleFor('housing') ?? 'rent';
   final lifestyle = mcq.singleFor('lifestyle') ?? 'balanced';
   final household = mcq.singleFor('household') ?? 'solo';
@@ -60,35 +61,78 @@ Map<String, double> deterministicOnboardingExpenseBuckets({
     _ => 1.0,
   };
 
-  final incomeScale = (netMonthlyIncomeDisplay / 6000).clamp(0.55, 2.4);
+  return switch (bucketKey) {
+    'housing' => housingMul,
+    'food' => lifestyleMul * householdMul,
+    'transportation' => transportMul,
+    'healthcare' => householdMul,
+    'entertainment' => lifestyleMul,
+    'other' => (housingMul + lifestyleMul + householdMul + transportMul) / 4,
+    _ => 1.0,
+  };
+}
+
+/// Monthly bucket amounts in [displayCurrency] from MCQ answers and net income (USD).
+Map<String, double> deterministicOnboardingExpenseBuckets({
+  required CurrencyCode displayCurrency,
+  required StructuredGuideResult mcq,
+  required double netMonthlyIncomeUsd,
+  Map<CurrencyCode, double>? usdPerUnitOverrides,
+}) {
+  final presetCountry = presetCountryForDisplayCurrency(displayCurrency);
+  final preset = presetForCountry(presetCountry);
+
+  final netAnnualUsd = netMonthlyIncomeUsd * 12;
+  final targetAnnualUsd = onboardingTargetAnnualExpenseUsd(netAnnualUsd);
+  final monthlyTargetDisplay = convertCurrency(
+    value: targetAnnualUsd / 12,
+    from: CurrencyCode.usd,
+    to: displayCurrency,
+    usdPerUnitOverrides: usdPerUnitOverrides,
+  );
+
+  final weights = <String, double>{};
+  for (final k in recurringExpenseBucketKeys) {
+    final base = preset.buckets[k]!.value;
+    weights[k] = base * _bucketMultiplierForMcq(k, mcq);
+  }
+  final weightSum = weights.values.fold<double>(0, (a, b) => a + b);
+  if (weightSum <= 0) {
+    return {for (final k in recurringExpenseBucketKeys) k: 0.0};
+  }
 
   final out = <String, double>{};
-  for (final k in recurringExpenseBucketKeys) {
-    final b = preset.buckets[k]!;
-    var mul = incomeScale;
-    mul *= switch (k) {
-      'housing' => housingMul,
-      'food' => lifestyleMul * householdMul,
-      'transportation' => transportMul,
-      'healthcare' => householdMul,
-      'entertainment' => lifestyleMul,
-      'other' => (housingMul + lifestyleMul + householdMul + transportMul) / 4,
-      _ => 1.0,
-    };
-    final converted = convertCurrency(
-      value: b.value * mul,
-      from: presetCurrency,
-      to: displayCurrency,
-      usdPerUnitOverrides: usdPerUnitOverrides,
-    );
-    out[k] = converted.roundToDouble();
+  var assigned = 0.0;
+  final keys = List<String>.from(recurringExpenseBucketKeys);
+  for (var i = 0; i < keys.length; i++) {
+    final k = keys[i];
+    if (i == keys.length - 1) {
+      out[k] = (monthlyTargetDisplay - assigned).roundToDouble().clamp(0, double.infinity);
+    } else {
+      final share = monthlyTargetDisplay * weights[k]! / weightSum;
+      final rounded = share.roundToDouble();
+      out[k] = rounded;
+      assigned += rounded;
+    }
   }
   return out;
 }
 
-List<StructuredGuideStep> onboardingExpenseMcqSteps({required double netMonthlyIncomeDisplay}) {
-  final incomeHint = netMonthlyIncomeDisplay > 0
-      ? 'Based on ~${formatCurrencyDisplay(netMonthlyIncomeDisplay, currency: CurrencyCode.usd)}/mo after tax'
+List<StructuredGuideStep> onboardingExpenseMcqSteps({
+  required double netMonthlyIncomeUsd,
+  CurrencyCode hintCurrency = CurrencyCode.usd,
+  Map<CurrencyCode, double>? usdPerUnitOverrides,
+}) {
+  final monthlyHint = netMonthlyIncomeUsd > 0
+      ? convertCurrency(
+          value: netMonthlyIncomeUsd,
+          from: CurrencyCode.usd,
+          to: hintCurrency,
+          usdPerUnitOverrides: usdPerUnitOverrides,
+        )
+      : 0.0;
+  final incomeHint = monthlyHint > 0
+      ? 'Based on ~${formatCurrencyDisplay(monthlyHint, currency: hintCurrency)}/mo after tax'
       : null;
 
   return [
@@ -142,8 +186,8 @@ You tune monthly expense bucket estimates for a new user. Reply with ONE JSON ob
   "expenseBuckets": { "housing": 0, "food": 0, "transportation": 0, "healthcare": 0, "entertainment": 0, "other": 0 },
   "summary": "one short sentence"
 }
-Amounts are monthly in display currency. Use payload.mcqAnswers, payload.netMonthlyIncome, and payload.userNote.
-Only include keys from payload.bucketKeys. Scale totals sensibly vs income.
+Amounts are monthly in display currency. Use payload.mcqAnswers, payload.netMonthlyIncomeUsd, payload.baselineAnnualExpenseUsd, and payload.userNote.
+Only include keys from payload.bucketKeys. Keep total near baselineAnnualExpenseUsd/12 unless userNote clearly shifts a category; never exceed ~80% of net annual income.
 ''';
 
 /// Uses Apple on-device model when [note] is non-empty; returns null → caller uses deterministic buckets.
@@ -151,15 +195,17 @@ Future<Map<String, double>?> appleOnboardingExpenseBuckets({
   required AppModel model,
   required String note,
   required StructuredGuideResult mcq,
-  required double netMonthlyIncomeDisplay,
+  required double netMonthlyIncomeUsd,
   required CurrencyCode expenseCurrency,
   required Map<String, double> baselineBuckets,
 }) async {
   if (!model.appleFoundationRuntimeAvailable) return null;
 
+  final baselineAnnualUsd = onboardingTargetAnnualExpenseUsd(netMonthlyIncomeUsd * 12);
   final payload = {
     'displayCurrency': expenseCurrency.name,
-    'netMonthlyIncome': netMonthlyIncomeDisplay,
+    'netMonthlyIncomeUsd': netMonthlyIncomeUsd,
+    'baselineAnnualExpenseUsd': baselineAnnualUsd,
     'bucketKeys': recurringExpenseBucketKeys,
     'baselineBuckets': baselineBuckets,
     'mcqAnswers': [
@@ -173,14 +219,17 @@ Future<Map<String, double>?> appleOnboardingExpenseBuckets({
   };
 
   try {
+    const provider = LlmProvider.appleFoundation;
+    final modelName = model.modelFor(provider);
     final result = await LlmClient().complete(
-      provider: LlmProvider.appleFoundation,
+      provider: provider,
       apiKey: AppModel.appleOnDeviceApiKeySentinel,
-      model: 'default',
+      model: modelName,
       system: _onboardingExpenseSynthSystem,
       user: jsonEncode(payload),
       maxOutputTokens: 1200,
     );
+    model.recordLlmRequest(provider: provider, model: modelName);
     final obj = decodeLlmJsonObject(result.text);
     final bucketsRaw = obj['expenseBuckets'];
     if (bucketsRaw is! Map) return null;

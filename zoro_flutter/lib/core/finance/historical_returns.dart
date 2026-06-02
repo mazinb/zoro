@@ -6,7 +6,7 @@ enum HistoricalAssetClass {
 
   String get label => switch (this) {
         HistoricalAssetClass.equity => 'Equity',
-        HistoricalAssetClass.debt => 'Debt',
+        HistoricalAssetClass.debt => 'Cash / FD',
         HistoricalAssetClass.other => 'Other',
       };
 
@@ -77,13 +77,21 @@ class HistoricalReturnSeries {
 }
 
 const kDefaultUsSp500SeriesId = 'us-sp500-total-return';
+
+/// Default non-equity leg for corpus backtest (1-year FD / CD coupon, not bond total return).
+const kDefaultCashFdSeriesId = 'us-fd-1y-cd';
+
+/// Legacy default; migrated to [kDefaultCashFdSeriesId] on load.
 const kDefaultUsAggBondSeriesId = 'us-agg-bond-total-return';
+
+const kUaeFdPolicyProxySeriesId = 'uae-fd-policy-proxy';
+const kIndiaFd1yTypicalSeriesId = 'in-fd-1y-typical';
 
 List<HistoricalReturnYear> _years(Map<int, double> data) =>
     data.entries.map((e) => HistoricalReturnYear(year: e.key, returnPct: e.value)).toList()
       ..sort((a, b) => a.year.compareTo(b.year));
 
-/// Built-in US indices — calendar-year total returns, 1995–2024.
+/// Built-in historical series for corpus backtest (calendar years 1995–2024).
 List<HistoricalReturnSeries> defaultHistoricalReturnSeries() => [
       HistoricalReturnSeries(
         id: kDefaultUsSp500SeriesId,
@@ -126,12 +134,135 @@ List<HistoricalReturnSeries> defaultHistoricalReturnSeries() => [
         }),
       ),
       HistoricalReturnSeries(
-        id: kDefaultUsAggBondSeriesId,
-        name: 'US Aggregate Bond',
+        id: kDefaultCashFdSeriesId,
+        name: 'US 1Y CD / FD',
         assetClass: HistoricalAssetClass.debt,
         region: 'US',
         builtin: true,
-        notes: 'Bloomberg US Aggregate Bond Index total return, calendar years.',
+        notes:
+            'Approx. calendar-year return from national avg 1-year CD APY (Bankrate / FRED BRMCDS0101 style), not bond price moves.',
+        returnsByYear: _years(const {
+          1995: 5.57,
+          1996: 5.30,
+          1997: 5.46,
+          1998: 5.20,
+          1999: 5.00,
+          2000: 6.40,
+          2001: 3.50,
+          2002: 1.80,
+          2003: 1.20,
+          2004: 2.30,
+          2005: 3.90,
+          2006: 5.00,
+          2007: 5.30,
+          2008: 3.20,
+          2009: 1.50,
+          2010: 0.91,
+          2011: 0.52,
+          2012: 0.33,
+          2013: 0.23,
+          2014: 0.20,
+          2015: 0.20,
+          2016: 0.21,
+          2017: 0.22,
+          2018: 0.29,
+          2019: 0.61,
+          2020: 0.48,
+          2021: 0.15,
+          2022: 1.75,
+          2023: 4.75,
+          2024: 4.50,
+        }),
+      ),
+      HistoricalReturnSeries(
+        id: kUaeFdPolicyProxySeriesId,
+        name: 'UAE FD (policy proxy)',
+        assetClass: HistoricalAssetClass.debt,
+        region: 'UAE',
+        builtin: true,
+        notes:
+            'UAE central-bank policy / deposit-rate proxy for typical AED/USD FD coupons (2007+); earlier years from deposit-rate benchmarks.',
+        returnsByYear: _years(const {
+          1995: 7.00,
+          1996: 6.80,
+          1997: 6.50,
+          1998: 6.20,
+          1999: 6.00,
+          2000: 6.20,
+          2001: 3.60,
+          2002: 3.50,
+          2003: 3.20,
+          2004: 3.00,
+          2005: 3.50,
+          2006: 4.00,
+          2007: 4.75,
+          2008: 4.25,
+          2009: 1.25,
+          2010: 0.75,
+          2011: 1.00,
+          2012: 1.00,
+          2013: 1.00,
+          2014: 1.00,
+          2015: 1.00,
+          2016: 1.75,
+          2017: 2.00,
+          2018: 2.75,
+          2019: 2.50,
+          2020: 0.50,
+          2021: 0.15,
+          2022: 2.50,
+          2023: 5.00,
+          2024: 4.75,
+        }),
+      ),
+      HistoricalReturnSeries(
+        id: kIndiaFd1yTypicalSeriesId,
+        name: 'India 1Y FD (typical)',
+        assetClass: HistoricalAssetClass.debt,
+        region: 'IN',
+        builtin: true,
+        notes:
+            'Representative 1-year bank / post-office FD rates by calendar year (India), not bond index returns.',
+        returnsByYear: _years(const {
+          1995: 12.00,
+          1996: 11.00,
+          1997: 10.50,
+          1998: 10.00,
+          1999: 9.50,
+          2000: 10.50,
+          2001: 9.00,
+          2002: 7.50,
+          2003: 6.50,
+          2004: 6.00,
+          2005: 6.50,
+          2006: 8.00,
+          2007: 9.00,
+          2008: 9.00,
+          2009: 8.00,
+          2010: 8.00,
+          2011: 9.00,
+          2012: 8.50,
+          2013: 8.00,
+          2014: 8.50,
+          2015: 7.50,
+          2016: 7.00,
+          2017: 6.50,
+          2018: 7.00,
+          2019: 6.50,
+          2020: 5.50,
+          2021: 5.50,
+          2022: 5.80,
+          2023: 7.00,
+          2024: 7.20,
+        }),
+      ),
+      HistoricalReturnSeries(
+        id: kDefaultUsAggBondSeriesId,
+        name: 'US Aggregate Bond (legacy)',
+        assetClass: HistoricalAssetClass.debt,
+        region: 'US',
+        builtin: true,
+        notes: 'Bloomberg US Aggregate Bond Index total return — optional; FD series is usually a better cash leg.',
         returnsByYear: _years(const {
           1995: 18.46,
           1996: 3.93,
@@ -273,7 +404,9 @@ void decodeCorpusBacktestPrefs(
   final es = raw['equitySeriesId']?.toString();
   if (es != null && es.isNotEmpty) onEquitySeriesId(es);
   final ds = raw['debtSeriesId']?.toString();
-  if (ds != null && ds.isNotEmpty) onDebtSeriesId(ds);
+  if (ds != null && ds.isNotEmpty) {
+    onDebtSeriesId(ds == kDefaultUsAggBondSeriesId ? kDefaultCashFdSeriesId : ds);
+  }
   final sy = raw['startYear'];
   if (onStartYear != null && sy is num) onStartYear(sy.round());
 }

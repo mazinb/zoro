@@ -351,6 +351,21 @@ class NotificationService {
       };
 
   static const int _goalMilestoneNotificationId = 901;
+  static const int _homeMessageNotificationId = 902;
+
+  /// Fires when the daily Home summary helper has a new note ready.
+  Future<void> showHomeMessageReady({required String taskId}) async {
+    await init();
+    final payload = NotificationPayload.agentTask(taskId: taskId).encode();
+    await _plugin.show(
+      _homeMessageNotificationId,
+      'Zoro',
+      'Your Home note is ready.',
+      _defaultDetails(),
+      payload: payload,
+    );
+    _log('home message ready ($taskId)');
+  }
 
   /// One-shot milestone (50% / 75% timeline) — separate id from rotation reminders.
   Future<void> showGoalProgressMilestone({

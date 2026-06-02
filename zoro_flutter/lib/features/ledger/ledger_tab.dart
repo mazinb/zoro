@@ -1257,6 +1257,7 @@ class _LedgerAssetCard extends StatelessWidget {
         ? maskSensitiveNumberString(grouped)
         : grouped;
     final title = row.name.trim().isEmpty ? row.type.label : row.name;
+    final pendingSetup = model.demoLedgerSetupInProgress && model.isDemoLedgerSeedId(row.id);
     final reviewing = reviewSlot?.reviewing ?? false;
     final effective = effectiveLedgerAssetStatus(model, row, reviewSlot);
     final showStatus = reviewing || effective != null;
@@ -1302,7 +1303,12 @@ class _LedgerAssetCard extends StatelessWidget {
                   children: [
                     Text(
                       title,
-                      style: TextStyle(fontWeight: FontWeight.w800, color: cs.onSurface),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        color: pendingSetup
+                            ? cs.onSurface.withValues(alpha: 0.5)
+                            : cs.onSurface,
+                      ),
                     ),
                     LedgerCardSubtitle(
                       text: subtitle,
@@ -1312,14 +1318,21 @@ class _LedgerAssetCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 10),
-              Text(
-                amountText,
-                style: TextStyle(
-                  fontWeight: FontWeight.w900,
-                  fontSize: 16,
-                  color: cs.onSurface,
+              if (pendingSetup)
+                SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: accent),
+                )
+              else
+                Text(
+                  amountText,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 16,
+                    color: cs.onSurface,
+                  ),
                 ),
-              ),
               const SizedBox(width: 4),
               Icon(Icons.chevron_right, color: cs.outline),
             ],
@@ -1369,6 +1382,7 @@ class _LedgerLiabilityCard extends StatelessWidget {
         ? maskSensitiveNumberString(grouped)
         : grouped;
     final title = row.name.trim().isEmpty ? row.type.label : row.name;
+    final pendingSetup = model.demoLedgerSetupInProgress && model.isDemoLedgerSeedId(row.id);
     final reviewing = reviewSlot?.reviewing ?? false;
     final effective = effectiveLedgerLiabilityStatus(model, row, reviewSlot);
     final showStatus = reviewing || effective != null;
@@ -1414,7 +1428,12 @@ class _LedgerLiabilityCard extends StatelessWidget {
                   children: [
                     Text(
                       title,
-                      style: TextStyle(fontWeight: FontWeight.w800, color: cs.onSurface),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        color: pendingSetup
+                            ? cs.onSurface.withValues(alpha: 0.5)
+                            : cs.onSurface,
+                      ),
                     ),
                     LedgerCardSubtitle(
                       text: subtitle,
@@ -1424,14 +1443,21 @@ class _LedgerLiabilityCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 10),
-              Text(
-                amountText,
-                style: TextStyle(
-                  fontWeight: FontWeight.w900,
-                  fontSize: 16,
-                  color: cs.onSurface,
+              if (pendingSetup)
+                SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: accent),
+                )
+              else
+                Text(
+                  amountText,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 16,
+                    color: cs.onSurface,
+                  ),
                 ),
-              ),
               const SizedBox(width: 4),
               Icon(Icons.chevron_right, color: cs.outline),
             ],
@@ -2105,12 +2131,12 @@ class _IncomeSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Income sources',
+          'Income',
           style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: cs.onSurface),
         ),
         const SizedBox(height: 4),
         Text(
-          'Last updated ${_ledgerFmtDate(model.incomeLastUpdated)}',
+          'Updated ${_ledgerFmtDate(model.incomeLastUpdated)}',
           style: TextStyle(
             fontSize: 12,
             color: cs.outline,
@@ -2122,12 +2148,8 @@ class _IncomeSection extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: Text(
-              'No lines yet — add one per source (salary, bonus, rent, …). You can add as many as you need.',
-              style: TextStyle(
-                fontSize: 13,
-                color: cs.onSurfaceVariant,
-                height: 1.35,
-              ),
+              'No sources yet.',
+              style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant),
             ),
           ),
         ...model.incomeLines.asMap().entries.map((e) {
@@ -2179,7 +2201,7 @@ class _IncomeSection extends StatelessWidget {
                         currency: currencyCodeForIncomeLineCurrency(
                           line.currencyCountry,
                         ),
-                        labelText: 'Annual amount',
+                        labelText: 'Annual',
                         onChanged: (v) {
                           line.annualAmount = (v ?? 0).toDouble();
                           model.notifyIncomeChanged();
@@ -2209,7 +2231,7 @@ class _IncomeSection extends StatelessWidget {
           alignment: Alignment.centerLeft,
           child: TextButton(
             onPressed: () => model.addIncomeLine(),
-            child: const Text('Add income source'),
+            child: const Text('Add source'),
           ),
         ),
         const SizedBox(height: 8),
@@ -2224,7 +2246,7 @@ class _IncomeSection extends StatelessWidget {
           onChanged: (raw) =>
               model.setEffectiveTaxRatePct(double.tryParse(raw)),
           decoration: const InputDecoration(
-            labelText: 'Effective tax rate %',
+            labelText: 'Tax rate %',
             suffixText: '%',
             border: OutlineInputBorder(),
             isDense: true,
@@ -2356,7 +2378,7 @@ class _ExpensesSection extends StatelessWidget {
                 color: privacy ? cs.outline : null,
               ),
               label: Text(
-                'Edit estimates',
+                'Edit',
                 style: TextStyle(color: privacy ? cs.outline : null),
               ),
             ),
@@ -2365,7 +2387,7 @@ class _ExpensesSection extends StatelessWidget {
         if (monthKeysForTable != null) ...[
           const SizedBox(height: 20),
           const Text(
-            'Month by month',
+            'By month',
             style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
           ),
           const SizedBox(height: 12),
@@ -2373,12 +2395,8 @@ class _ExpensesSection extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
               child: Text(
-                'No months saved yet. Tap + to add any month (YYYY-MM or calendar).',
-                style: TextStyle(
-                  color: cs.onSurfaceVariant,
-                  fontSize: 13,
-                  height: 1.35,
-                ),
+                'No months yet — tap + to add.',
+                style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13),
               ),
             )
           else

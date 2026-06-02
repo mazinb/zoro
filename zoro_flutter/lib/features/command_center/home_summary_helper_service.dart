@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
 
 import '../../core/finance/currency.dart';
 import '../../core/home/home_summary_focus_domain.dart';
 import '../../core/llm/llm_client.dart';
+import '../../core/notifications/notification_service.dart';
 import '../../core/state/app_model.dart';
 import '../../core/state/internal_app_agent_definition.dart';
 import '../../core/state/ledger_rows.dart';
@@ -102,6 +104,13 @@ If privacyHideAmounts is true, avoid dollar amounts and speak in general terms.
         'dayKey': dayKey,
         'text': text,
       });
+      if (model.notificationsEnabled && model.homeMessagesNotifications) {
+        unawaited(
+          NotificationService.instance.showHomeMessageReady(
+            taskId: InternalAppAgentIds.homeSummaryHelper,
+          ),
+        );
+      }
       return true;
     } catch (_) {
       return false;
