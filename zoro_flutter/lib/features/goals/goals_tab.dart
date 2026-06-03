@@ -33,14 +33,12 @@ class GoalsTab extends StatefulWidget {
     super.key,
     required this.model,
     this.onGoToLedger,
-    this.onGoToSettingsPermissions,
     this.pendingOpenHelper = false,
     this.onPendingOpenHelperHandled,
   });
 
   final AppModel model;
   final void Function(String section)? onGoToLedger;
-  final VoidCallback? onGoToSettingsPermissions;
   final bool pendingOpenHelper;
   final VoidCallback? onPendingOpenHelperHandled;
 
@@ -53,7 +51,6 @@ class GoalsTabState extends State<GoalsTab> {
     openGoalsHelperHub(
       context: context,
       model: widget.model,
-      onOpenSettings: widget.onGoToSettingsPermissions,
     );
   }
 
@@ -88,7 +85,6 @@ class GoalsTabState extends State<GoalsTab> {
       builder: (context, _) => _GoalsBody(
         model: widget.model,
         onGoToLedger: widget.onGoToLedger,
-        onGoToSettingsPermissions: widget.onGoToSettingsPermissions,
       ),
     );
   }
@@ -98,12 +94,10 @@ class _GoalsBody extends StatefulWidget {
   const _GoalsBody({
     required this.model,
     this.onGoToLedger,
-    this.onGoToSettingsPermissions,
   });
 
   final AppModel model;
   final void Function(String section)? onGoToLedger;
-  final VoidCallback? onGoToSettingsPermissions;
 
   @override
   State<_GoalsBody> createState() => _GoalsBodyState();
@@ -235,7 +229,6 @@ class _GoalsBodyState extends State<_GoalsBody> {
               onAssistant: () => openGoalsAiAssistant(
                 context: context,
                 model: m,
-                onOpenSettings: widget.onGoToSettingsPermissions,
               ),
             ),
           ],

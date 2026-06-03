@@ -96,10 +96,12 @@ Rules:
 
   Future<void> _run() async {
     final m = widget.model;
-    if (m.apiKeyFor(m.activeLlmProvider) == null) {
+    final ready = await m.prepareLlmForAssistant();
+    if (!mounted) return;
+    if (!ready) {
       setState(() {
         _loading = false;
-        _error = 'Add an API key in Settings → Permissions';
+        _error = m.llmAssistantUnavailableMessage;
       });
       return;
     }

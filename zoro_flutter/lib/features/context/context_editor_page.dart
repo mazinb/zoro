@@ -420,11 +420,12 @@ class _ContextEditorPageState extends State<ContextEditorPage> {
 
   Future<void> _updateContextFromFiles(List<PlatformFile> files) async {
     final m = widget.model;
-    final key = m.apiKeyFor(m.activeLlmProvider);
-    if (key == null) {
+    final ready = await m.prepareLlmForAssistant();
+    if (!mounted) return;
+    if (!ready) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Add an API key in Settings → API keys first.'),
+        SnackBar(
+          content: Text(m.llmAssistantUnavailableMessage),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -473,6 +474,8 @@ class _ContextEditorPageState extends State<ContextEditorPage> {
 
       final provider = m.activeLlmProvider;
       final modelName = m.modelFor(provider);
+      final key = m.apiKeyFor(provider);
+      if (key == null) return;
       final completion = await LlmClient().complete(
         provider: provider,
         apiKey: key,

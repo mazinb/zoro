@@ -9,13 +9,54 @@ class MobileEntitlements {
     this.proExpiresAtIso,
   });
 
+  /// Days after [proExpiresAtIso] that Pro stays active when billing lapses.
+  static const int proGraceDays = 3;
+
   final String deviceId;
+  /// Server flag; use [effectiveIsPro] for gating features.
   final bool isPro;
   final String? proExpiresAtIso;
   final int creditsBalance;
   final String? freeAiMonthKey;
   final bool freeAiUsed;
   final String updatedAtIso;
+
+  /// Paid period end + [proGraceDays]; if no expiry, uses [isPro].
+  bool get effectiveIsPro => computeEffectiveIsPro(isPro: isPro, proExpiresAtIso: proExpiresAtIso);
+
+  static bool computeEffectiveIsPro({
+    required bool isPro,
+    String? proExpiresAtIso,
+    DateTime? now,
+  }) {
+    final raw = proExpiresAtIso?.trim();
+    if (raw == null || raw.isEmpty) return isPro;
+    final expires = DateTime.tryParse(raw);
+    if (expires == null) return isPro;
+    final graceEnd = expires.toUtc().add(const Duration(days: proGraceDays));
+    final t = (now ?? DateTime.now()).toUtc();
+    return t.isBefore(graceEnd);
+  }
+
+  /// True when the paid period ended but grace has not.
+  bool get isInProGracePeriod {
+    final raw = proExpiresAtIso?.trim();
+    if (raw == null || raw.isEmpty) return false;
+    final expires = DateTime.tryParse(raw);
+    if (expires == null) return false;
+    final t = DateTime.now().toUtc();
+    final end = expires.toUtc();
+    final graceEnd = end.add(const Duration(days: proGraceDays));
+    return !t.isBefore(end) && t.isBefore(graceEnd);
+  }
+
+  DateTime? get proGraceEndsAt {
+    final raw = proExpiresAtIso?.trim();
+    if (raw == null || raw.isEmpty) return null;
+    final expires = DateTime.tryParse(raw);
+    if (expires == null) return null;
+    return expires.toUtc().add(const Duration(days: proGraceDays));
+  }
 
   static MobileEntitlements? tryFromApi(Map<String, dynamic> body) {
     final data = body['data'];

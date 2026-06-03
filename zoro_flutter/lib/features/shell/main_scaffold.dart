@@ -212,7 +212,6 @@ class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver
           if (_pendingOpenGoalsHelper) setState(() => _pendingOpenGoalsHelper = false);
         },
         onGoToLedger: (section) => _selectShellTab(_ledgerIndex, andThen: () => _ledgerFocus = section),
-        onGoToSettingsPermissions: () => _goToSettingsTab(SettingsTabIndex.permissions),
       ),
       SettingsTab(
         model: widget.model,

@@ -8,8 +8,6 @@ import 'package:path_provider/path_provider.dart';
 import '../../core/import/document_ingest.dart';
 import '../../core/finance/currency.dart';
 import '../../core/state/app_model.dart';
-import '../../core/api/zoro_api.dart';
-import '../../core/entitlements/mobile_entitlements.dart';
 import '../../shared/widgets/liquid_glass.dart';
 import '../../core/state/internal_app_agent_definition.dart';
 import '../../core/state/ledger_rows.dart';
@@ -496,12 +494,8 @@ Infer **monthKey** from the document or statement period; use this hint only if 
 
     try {
       // Consume monthly free import or credits (server is source of truth).
-      final entBody = await ZoroApi().consumeImportAllowance(deviceId: deviceId, kind: _kindApiValue);
-      final nextEnt = MobileEntitlements.tryFromApi(entBody);
-      if (nextEnt != null) {
-        m.mobileEntitlements = nextEnt;
-        m.notifyUi();
-      }
+      final entBody = await m.api.consumeImportAllowance(deviceId: deviceId, kind: _kindApiValue);
+      m.applyMobileEntitlementsBody(entBody);
 
       final userPrompt = [
         'Files: ${_pickedFiles.map((f) => f.name).join(', ')}',
@@ -519,7 +513,7 @@ Infer **monthKey** from the document or statement period; use this hint only if 
         ],
       ].join('\n').trim();
 
-      final body = await ZoroApi().ledgerImport(
+      final body = await m.api.ledgerImport(
         deviceId: deviceId,
         kind: _kindApiValue,
         system: _systemPrompt(),

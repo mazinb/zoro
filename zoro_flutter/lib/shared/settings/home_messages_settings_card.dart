@@ -1,10 +1,9 @@
-import 'dart:async';
-
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import '../../core/notifications/notification_service.dart';
+
 import '../../core/state/app_model.dart';
 
-/// Home-message notification prefs on Settings → General.
+/// Home summary helper prefs on Settings → General.
 class HomeMessagesSettingsCard extends StatefulWidget {
   const HomeMessagesSettingsCard({
     super.key,
@@ -20,30 +19,26 @@ class HomeMessagesSettingsCard extends StatefulWidget {
 }
 
 class _HomeMessagesSettingsCardState extends State<HomeMessagesSettingsCard> {
-  bool _busy = false;
+  late final TapGestureRecognizer _homeLinkRecognizer;
 
-  Future<void> _onEnableChanged(bool enabled) async {
-    final model = widget.model;
-    if (!enabled) {
-      model.setHomeMessagesNotifications(false);
-      return;
-    }
+  @override
+  void initState() {
+    super.initState();
+    _homeLinkRecognizer = TapGestureRecognizer()..onTap = widget.onOpenHomeSettings;
+  }
 
-    setState(() => _busy = true);
-    try {
-      final svc = NotificationService.instance;
-      if (await svc.isAuthorized()) {
-        model.setNotificationsEnabled(true);
-        model.setHomeMessagesNotifications(true);
-        return;
-      }
-      final granted = await svc.requestPermission();
-      if (!granted) return;
-      model.setNotificationsEnabled(true);
-      model.setHomeMessagesNotifications(true);
-    } finally {
-      if (mounted) setState(() => _busy = false);
+  @override
+  void didUpdateWidget(covariant HomeMessagesSettingsCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.onOpenHomeSettings != widget.onOpenHomeSettings) {
+      _homeLinkRecognizer.onTap = widget.onOpenHomeSettings;
     }
+  }
+
+  @override
+  void dispose() {
+    _homeLinkRecognizer.dispose();
+    super.dispose();
   }
 
   @override
@@ -62,54 +57,85 @@ class _HomeMessagesSettingsCardState extends State<HomeMessagesSettingsCard> {
           children: [
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
-              title: const Text('New Home note alerts', style: TextStyle(fontWeight: FontWeight.w800)),
-              value: model.homeMessagesNotifications,
-              onChanged: _busy ? null : _onEnableChanged,
+              title: const Text('Home messages', style: TextStyle(fontWeight: FontWeight.w800)),
+              value: model.homeMessagesEnabled,
+              onChanged: model.setHomeMessagesEnabled,
             ),
-            if (model.homeMessagesNotifications) ...[
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton(
-                  onPressed: widget.onOpenHomeSettings,
-                  style: TextButton.styleFrom(
-                    padding: EdgeInsets.zero,
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                  child: Text(
-                    'Configure in Helpers → Home',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w800,
-                      decoration: TextDecoration.underline,
-                      decorationColor: scheme.primary,
-                    ),
-                  ),
-                ),
+            if (model.homeMessagesEnabled) ...[
+              const SizedBox(height: 6),
+              _HomeMessageCadenceRow(
+                value: model.homeMessagesCadence,
+                onChanged: model.setHomeMessagesCadence,
               ),
               const SizedBox(height: 8),
-              DropdownButtonFormField<HomeMessageCadence>(
-                initialValue: model.homeMessagesCadence,
-                decoration: const InputDecoration(
-                  labelText: 'Cadence',
-                  isDense: true,
-                  border: OutlineInputBorder(),
-                ),
-                items: [
-                  for (final v in HomeMessageCadence.values)
-                    DropdownMenuItem<HomeMessageCadence>(
-                      value: v,
-                      child: Text(v.label),
+              Text.rich(
+                TextSpan(
+                  style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13, height: 1.35),
+                  children: [
+                    const TextSpan(text: 'Configure in '),
+                    TextSpan(
+                      text: 'Helpers → Home',
+                      style: TextStyle(
+                        color: scheme.primary,
+                        fontWeight: FontWeight.w800,
+                        decoration: TextDecoration.underline,
+                        decorationColor: scheme.primary,
+                      ),
+                      recognizer: _homeLinkRecognizer,
                     ),
-                ],
-                onChanged: (v) {
-                  if (v == null) return;
-                  model.setHomeMessagesCadence(v);
-                },
+                    const TextSpan(text: '.'),
+                  ],
+                ),
               ),
+              if (model.notificationsEnabled) ...[
+                const SizedBox(height: 8),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Notify when ready', style: TextStyle(fontWeight: FontWeight.w800)),
+                  value: model.homeMessagesNotifications,
+                  onChanged: model.setHomeMessagesNotifications,
+                ),
+              ],
             ],
           ],
         ),
       ),
+    );
+  }
+}
+
+class _HomeMessageCadenceRow extends StatelessWidget {
+  const _HomeMessageCadenceRow({
+    required this.value,
+    required this.onChanged,
+  });
+
+  final HomeMessageCadence value;
+  final ValueChanged<HomeMessageCadence> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        const Expanded(
+          child: Text('Schedule', style: TextStyle(fontWeight: FontWeight.w800)),
+        ),
+        DropdownButton<HomeMessageCadence>(
+          value: value,
+          isDense: true,
+          items: [
+            for (final c in HomeMessageCadence.values)
+              DropdownMenuItem(
+                value: c,
+                child: Text(c.label),
+              ),
+          ],
+          onChanged: (v) {
+            if (v == null) return;
+            onChanged(v);
+          },
+        ),
+      ],
     );
   }
 }

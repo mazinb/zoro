@@ -7,12 +7,10 @@ import 'goals_helper_hub_page.dart';
 Future<void> openGoalsAiAssistant({
   required BuildContext context,
   required AppModel model,
-  VoidCallback? onOpenSettings,
 }) async {
   model.ensureRetirementGoal();
   await openGoalsHelperHub(
     context: context,
     model: model,
-    onOpenSettings: onOpenSettings,
   );
 }

@@ -399,8 +399,7 @@ Map<String, dynamic> encodeNotificationsBlock(AppModel m) {
   int? toMs(DateTime? d) => d?.toUtc().millisecondsSinceEpoch;
   return {
     'enabled': m.notificationsEnabled,
-    'homeMessages': m.homeMessagesNotifications,
-    'homeMessagesCadence': m.homeMessagesCadence.name,
+    if (m.homeMessagesNotifications) 'homeMessagesNotify': m.homeMessagesNotifications,
     if (toMs(m.homeMessagesLastNotifiedOn) != null) 'homeMessagesLastNotifiedOnMs': toMs(m.homeMessagesLastNotifiedOn),
     'reminderHour': m.reminderNotifyHour,
     'reminderMinute': m.reminderNotifyMinute,
@@ -420,10 +419,17 @@ void decodeNotificationsBlock(AppModel m, Object? raw) {
   final n = Map<String, dynamic>.from(raw);
   m.notificationsEnabled = n['enabled'] == true;
   if (n.containsKey('homeMessages')) {
-    m.homeMessagesNotifications = n['homeMessages'] == true;
+    final legacy = n['homeMessages'] == true;
+    m.homeMessagesEnabled = legacy;
+    m.homeMessagesNotifications = legacy;
+  }
+  if (n.containsKey('homeMessagesNotify')) {
+    m.homeMessagesNotifications = n['homeMessagesNotify'] == true;
   }
   final cadRaw = n['homeMessagesCadence']?.toString();
-  m.homeMessagesCadence = HomeMessageCadenceUi.tryParse(cadRaw) ?? HomeMessageCadence.daily;
+  if (cadRaw != null) {
+    m.homeMessagesCadence = HomeMessageCadenceUi.tryParse(cadRaw) ?? HomeMessageCadence.daily;
+  }
   m.homeMessagesLastNotifiedOn = dateTimeFromJsonField(n['homeMessagesLastNotifiedOnMs']);
   final rh = n['reminderHour'];
   final rm = n['reminderMinute'];

@@ -33,8 +33,9 @@ If privacyHideAmounts is true, avoid dollar amounts and speak in general terms.
     if (model.homeSummaryHelperRunning) return false;
 
     final n = now ?? DateTime.now();
+    if (!model.shouldRunHomeSummaryHelperNow(n)) return false;
+
     final dayKey = homeSummaryCalendarDayKey(n);
-    if (model.homeSummaryHelperLastRunDayKey == dayKey) return false;
 
     final enabled = model.homeSummaryHelperIncludedDomains;
     if (enabled.isEmpty) return false;
@@ -105,7 +106,6 @@ If privacyHideAmounts is true, avoid dollar amounts and speak in general terms.
         'text': text,
       });
       if (model.notificationsEnabled &&
-          model.homeMessagesNotifications &&
           model.shouldNotifyHomeMessageNow(now)) {
         model.markHomeMessageNotified(now);
         unawaited(

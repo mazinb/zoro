@@ -10,6 +10,7 @@ import '../../core/finance/currency.dart';
 import '../../shared/help/tab_help_content.dart';
 import '../../shared/settings/home_messages_settings_card.dart';
 import '../../shared/widgets/tab_header_actions.dart';
+import '../../core/entitlements/mobile_entitlements.dart';
 import '../../core/notifications/notification_service.dart';
 import '../../core/state/app_model.dart';
 import '../../core/state/internal_app_agent_definition.dart';
@@ -146,7 +147,10 @@ class _SettingsTabState extends State<SettingsTab> with SingleTickerProviderStat
                 model: widget.model,
                 sectionListenable: widget.agentSectionListenable,
               ),
-              _UsagePane(model: widget.model),
+              ListenableBuilder(
+                listenable: widget.model,
+                builder: (context, _) => _UsagePane(model: widget.model),
+              ),
             ],
           ),
         ),
@@ -615,15 +619,11 @@ class _GeneralPaneState extends State<_GeneralPane> {
             const SizedBox(height: 12),
             _currencyAssumptionsCard(),
             const SizedBox(height: 12),
-            const Text('Home messages', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
-            const SizedBox(height: 8),
             HomeMessagesSettingsCard(
               model: model,
               onOpenHomeSettings: () => _openAgentSettingsSection(AgentSettingsSection.home),
             ),
             const SizedBox(height: 12),
-            const Text('Notifications', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
-            const SizedBox(height: 8),
             _NotificationsCard(model: model),
         if (model.notificationsEnabled) ...[
           const SizedBox(height: 12),
@@ -1056,37 +1056,48 @@ class _UsagePane extends StatelessWidget {
 
   final AppModel model;
 
+  static String _formatLocalDate(DateTime d) {
+    final local = d.toLocal();
+    final m = local.month.toString().padLeft(2, '0');
+    final day = local.day.toString().padLeft(2, '0');
+    return '${local.year}-$m-$day';
+  }
+
+  static String _proGraceMessage(MobileEntitlements? ent) {
+    final graceEnd = ent?.proGraceEndsAt;
+    if (graceEnd == null) {
+      return 'Subscription ended — ${MobileEntitlements.proGraceDays}-day grace period active.';
+    }
+    return 'Subscription ended — Pro access until ${_formatLocalDate(graceEnd)} (${MobileEntitlements.proGraceDays}-day grace).';
+  }
+
+  static String _proRenewalMessage(MobileEntitlements ent) {
+    final raw = ent.proExpiresAtIso?.trim();
+    if (raw == null || raw.isEmpty) return '';
+    final expires = DateTime.tryParse(raw);
+    if (expires == null) return '';
+    return 'Renews through ${_formatLocalDate(expires)} (includes ${MobileEntitlements.proGraceDays}-day grace if billing lapses).';
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final iap = model.iap;
     final catalog = iap.catalog;
     final isPro = model.isPro;
+    final ent = model.mobileEntitlements;
+    final inGrace = ent?.isInProGracePeriod == true;
     final credits = model.creditsBalance;
 
     Future<void> buy(ProductDetails? p) async {
       if (p == null) return;
       await iap.buyProduct(p);
-      final next = iap.takeLatestEntitlements();
-      if (next != null) {
-        model.mobileEntitlements = next;
-        model.notifyUi();
-      } else {
-        await model.refreshMobileEntitlements();
-        model.notifyUi();
-      }
+      await model.applyEntitlementsFromIap(iap);
     }
 
     Future<void> restore() async {
       await iap.restore();
-      final next = iap.takeLatestEntitlements();
-      if (next != null) {
-        model.mobileEntitlements = next;
-        model.notifyUi();
-      } else {
-        await model.refreshMobileEntitlements();
-        model.notifyUi();
-      }
+      await model.applyEntitlementsFromIap(iap);
     }
 
     Widget card({required Widget child}) {
@@ -1119,6 +1130,19 @@ class _UsagePane extends StatelessWidget {
                     : 'Export and helper edits need Pro.',
                 style: TextStyle(color: cs.onSurfaceVariant, height: 1.35),
               ),
+              if (isPro && inGrace) ...[
+                const SizedBox(height: 8),
+                Text(
+                  _proGraceMessage(ent),
+                  style: TextStyle(color: cs.tertiary, fontSize: 12, height: 1.35, fontWeight: FontWeight.w700),
+                ),
+              ] else if (isPro && ent?.proExpiresAtIso != null) ...[
+                const SizedBox(height: 8),
+                Text(
+                  _proRenewalMessage(ent!),
+                  style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12, height: 1.35),
+                ),
+              ],
               if (!isPro) ...[
                 const SizedBox(height: 12),
                 Text('Credits: $credits', style: const TextStyle(fontWeight: FontWeight.w900)),
@@ -1136,28 +1160,175 @@ class _UsagePane extends StatelessWidget {
           Text(iap.lastError!, style: TextStyle(color: cs.error, fontWeight: FontWeight.w700)),
           const SizedBox(height: 12),
         ],
-        card(
+        if (isPro)
+          card(child: _ProLlmUsageSection(model: model))
+        else
+          card(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                FilledButton(
+                  onPressed: iap.available && !iap.busy ? () => buy(catalog?.proMonthly) : null,
+                  child: Text(
+                    catalog?.proMonthly == null
+                        ? 'Upgrade (loading…) '
+                        : 'Upgrade (${catalog!.proMonthly!.price}/mo)',
+                  ),
+                ),
+                const SizedBox(height: 10),
+                OutlinedButton(
+                  onPressed: iap.available && !iap.busy ? () => buy(catalog?.credit1) : null,
+                  child: Text(
+                    catalog?.credit1 == null
+                        ? 'Buy 1 credit (loading…) '
+                        : 'Buy 1 credit (${catalog!.credit1!.price})',
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextButton(
+                  onPressed: iap.available && !iap.busy ? restore : null,
+                  child: const Text('Restore purchases'),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _ProLlmUsageSection extends StatelessWidget {
+  const _ProLlmUsageSection({required this.model});
+
+  final AppModel model;
+
+  static const _providers = <LlmProvider>[
+    LlmProvider.appleFoundation,
+    LlmProvider.openai,
+    LlmProvider.gemini,
+    LlmProvider.anthropic,
+  ];
+
+  static String _title(LlmProvider p) => switch (p) {
+        LlmProvider.appleFoundation => 'On-device',
+        LlmProvider.openai => 'OpenAI',
+        LlmProvider.gemini => 'Gemini',
+        LlmProvider.anthropic => 'Anthropic',
+      };
+
+  static IconData _icon(LlmProvider p) => switch (p) {
+        LlmProvider.appleFoundation => Icons.memory_outlined,
+        LlmProvider.openai => Icons.smart_toy_outlined,
+        LlmProvider.gemini => Icons.auto_awesome_outlined,
+        LlmProvider.anthropic => Icons.psychology_outlined,
+      };
+
+  String _statusLine(LlmProvider p) {
+    if (p == LlmProvider.appleFoundation) {
+      if (!model.appleFoundationRuntimeAvailable) {
+        final reason = model.appleFoundationDisabledReason?.trim();
+        return reason != null && reason.isNotEmpty ? reason : 'Not available on this device';
+      }
+      if (!model.appleFoundationEnabled) return 'Off';
+      return 'Ready';
+    }
+    return model.apiKeyFor(p) != null ? 'API key set' : 'No API key';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'Model usage',
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Request counts are stored on this device.',
+          style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12, height: 1.35),
+        ),
+        const SizedBox(height: 14),
+        for (var i = 0; i < _providers.length; i++) ...[
+          if (i > 0) Divider(height: 20, color: cs.outlineVariant.withValues(alpha: 0.5)),
+          _ProLlmUsageRow(
+            provider: _providers[i],
+            model: model,
+            title: _title(_providers[i]),
+            icon: _icon(_providers[i]),
+            status: _statusLine(_providers[i]),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _ProLlmUsageRow extends StatelessWidget {
+  const _ProLlmUsageRow({
+    required this.provider,
+    required this.model,
+    required this.title,
+    required this.icon,
+    required this.status,
+  });
+
+  final LlmProvider provider;
+  final AppModel model;
+  final String title;
+  final IconData icon;
+  final String status;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final accent = model.accent;
+    final isActive = model.activeLlmProvider == provider;
+    final requests = model.llmRequestCountFor(provider);
+    final breakdown = model.llmRequestBreakdownFor(provider);
+    final configuredModel = model.modelFor(provider);
+    final modelLabel = breakdown.isEmpty
+        ? configuredModel
+        : breakdown.map((e) => '${e.model} (${e.count})').join(', ');
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 22, color: isActive ? accent : cs.onSurfaceVariant),
+        const SizedBox(width: 12),
+        Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              FilledButton(
-                onPressed: iap.available && !iap.busy ? () => buy(catalog?.proMonthly) : null,
-                child: Text(
-                  catalog?.proMonthly == null ? 'Upgrade (loading…) ' : 'Upgrade (${catalog!.proMonthly!.price}/mo)',
-                ),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(title, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
+                  ),
+                  if (isActive)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: accent.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: accent.withValues(alpha: 0.35)),
+                      ),
+                      child: Text(
+                        'Active',
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: accent),
+                      ),
+                    ),
+                ],
               ),
-              const SizedBox(height: 10),
-              OutlinedButton(
-                onPressed: iap.available && !iap.busy ? () => buy(catalog?.credit1) : null,
-                child: Text(
-                  catalog?.credit1 == null ? 'Buy 1 credit (loading…) ' : 'Buy 1 credit (${catalog!.credit1!.price})',
-                ),
+              const SizedBox(height: 4),
+              Text(
+                '$requests ${requests == 1 ? 'request' : 'requests'} · $modelLabel',
+                style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12, height: 1.35),
               ),
-              const SizedBox(height: 10),
-              TextButton(
-                onPressed: iap.available && !iap.busy ? restore : null,
-                child: const Text('Restore purchases'),
-              ),
+              const SizedBox(height: 2),
+              Text(status, style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12, height: 1.35)),
             ],
           ),
         ),
@@ -1224,21 +1395,6 @@ class _NotificationsCard extends StatefulWidget {
 
 class _NotificationsCardState extends State<_NotificationsCard> {
   bool _busy = false;
-
-  @override
-  void initState() {
-    super.initState();
-  }
-
-  @override
-  void didUpdateWidget(covariant _NotificationsCard oldWidget) {
-    super.didUpdateWidget(oldWidget);
-  }
-
-  @override
-  void dispose() {
-    super.dispose();
-  }
 
   Future<void> _onMasterChanged(bool v) async {
     if (_busy) return;

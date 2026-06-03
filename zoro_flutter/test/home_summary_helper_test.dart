@@ -39,6 +39,23 @@ void main() {
       expect(model.homeSummaryHelperIncludedDomains.length, 2);
     });
 
+    test('shouldRunHomeSummaryHelperNow respects enabled and cadence', () {
+      final model = AppModel();
+      expect(model.shouldRunHomeSummaryHelperNow(DateTime(2026, 6, 2)), isFalse);
+
+      model.homeMessagesEnabled = true;
+      expect(model.shouldRunHomeSummaryHelperNow(DateTime(2026, 6, 2)), isTrue);
+
+      model.markHomeSummaryHelperRan('2026-06-02');
+      expect(model.shouldRunHomeSummaryHelperNow(DateTime(2026, 6, 2)), isFalse);
+      expect(model.shouldRunHomeSummaryHelperNow(DateTime(2026, 6, 3)), isTrue);
+
+      model.homeMessagesCadence = HomeMessageCadence.weekly;
+      model.markHomeSummaryHelperRan('2026-06-03');
+      expect(model.shouldRunHomeSummaryHelperNow(DateTime(2026, 6, 4)), isFalse);
+      expect(model.shouldRunHomeSummaryHelperNow(DateTime(2026, 6, 9)), isTrue);
+    });
+
     test('markHomeSummaryHelperRan advances rotation', () {
       final model = AppModel();
       model.homeSummaryHelperRotationIndex = 0;

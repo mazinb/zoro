@@ -123,7 +123,10 @@ class IapService {
             deviceId: _apiDeviceId,
             productId: p.productID,
           );
-          _latestEntitlements = MobileEntitlements.tryFromApi(body);
+          final next = MobileEntitlements.tryFromApi(body);
+          if (next != null) {
+            _publishEntitlements(next);
+          }
         } catch (e) {
           _lastError = e.toString();
         }
@@ -142,10 +145,19 @@ class IapService {
   }
 
   MobileEntitlements? _latestEntitlements;
+
+  /// Called when a purchase/restore updates entitlements from the backend.
+  void Function(MobileEntitlements entitlements)? onEntitlementsUpdated;
+
   MobileEntitlements? takeLatestEntitlements() {
     final e = _latestEntitlements;
     _latestEntitlements = null;
     return e;
+  }
+
+  void _publishEntitlements(MobileEntitlements entitlements) {
+    _latestEntitlements = entitlements;
+    onEntitlementsUpdated?.call(entitlements);
   }
 }
 

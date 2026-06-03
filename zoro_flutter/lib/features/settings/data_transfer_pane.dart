@@ -586,6 +586,13 @@ class _DataTransferPaneState extends State<DataTransferPane> {
 
   @override
   Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: _m,
+      builder: (context, _) => _buildBody(context),
+    );
+  }
+
+  Widget _buildBody(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     if (!_m.isPro) {
       return ListView(

@@ -260,7 +260,7 @@ class _AgentChatThreadPageState extends State<AgentChatThreadPage> {
       if (agent.kind == AppAgentKind.researcher && provider == LlmProvider.gemini) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('Researcher needs a Gemini API key. Add it under Settings → API keys.'),
+            content: const Text('Researcher needs Gemini. Check Settings → Usage.'),
             behavior: SnackBarBehavior.floating,
             action: SnackBarAction(label: 'Open', onPressed: widget.onNoKey),
           ),
@@ -578,7 +578,7 @@ class _AgentChatThreadPageState extends State<AgentChatThreadPage> {
                   children: [
                     Expanded(
                       child: Text(
-                        'Add a Gemini API key in Settings → API keys to send messages with this researcher on Gemini.',
+                        'Researcher on Gemini requires an active model. Check Settings → Usage.',
                         style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13, height: 1.3),
                       ),
                     ),

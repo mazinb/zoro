@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+import { effectiveIsPro } from '@/lib/mobile-entitlements';
 import { getSupabaseServiceRole } from '@/lib/supabase-server';
 
 type EntitlementsRow = {
@@ -112,6 +113,8 @@ export async function POST(request: NextRequest) {
     if (seedErr) return NextResponse.json({ error: seedErr.message }, { status: 500 });
   }
 
+  await supabase.rpc('mobile_reconcile_pro_status');
+
   const { data, error } = await supabase
     .from('mobile_entitlements')
     .select('device_id,is_pro,pro_expires_at,credits_balance,free_ai_month_key,free_ai_used,updated_at')
@@ -125,10 +128,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Entitlements missing' }, { status: 500 });
   }
 
+  const proActive = effectiveIsPro(data);
+
   return NextResponse.json({
     data: {
       deviceId: data.device_id,
-      isPro: !!data.is_pro,
+      isPro: proActive,
       proExpiresAt: data.pro_expires_at,
       creditsBalance: clampInt(data.credits_balance, 0),
       freeAiMonthKey: data.free_ai_month_key,

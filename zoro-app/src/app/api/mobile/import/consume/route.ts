@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+import { effectiveIsPro } from '@/lib/mobile-entitlements';
 import { getSupabaseServiceRole } from '@/lib/supabase-server';
 
 function toNonEmptyString(v: unknown): string | null {
@@ -41,7 +42,10 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({
     data: {
       deviceId: row.device_id_out ?? deviceId,
-      isPro: !!row.is_pro,
+      isPro: effectiveIsPro({
+        is_pro: !!row.is_pro,
+        pro_expires_at: row.pro_expires_at,
+      }),
       proExpiresAt: row.pro_expires_at,
       creditsBalance: row.credits_balance ?? 0,
       freeAiMonthKey: row.free_ai_month_key,

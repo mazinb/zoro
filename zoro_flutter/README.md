@@ -1,6 +1,6 @@
 # Zoro Flutter
 
-iOS-first Flutter client for [Zoro](https://www.getzoro.com). Local-first finance on device; optional LLM calls use keys in Settings (never sent to Zoro’s server).
+iOS-first Flutter client for [Zoro](https://www.getzoro.com). Local-first finance on device; optional LLM calls go through Settings → Usage (Pro, credits, or Apple on-device).
 
 ## Tabs
 

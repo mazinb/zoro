@@ -276,10 +276,17 @@ class _OnboardingFlowPageState extends State<OnboardingFlowPage> {
     if (_finishing || _pick1 == null) return;
     setState(() => _finishing = true);
 
+    final dummyEnabledCurrencies = <CurrencyCode>{_salaryCcy, _pick1!, if (_pick2 != null) _pick2!};
+    final dummySecondary = OnboardingDummyTemplates.secondaryCurrencyIn(
+      dummyEnabledCurrencies,
+      primaryCurrency: _salaryCcy,
+    );
     if (addDummyData) {
       stageDemoLedgerPlaceholders(
         widget.model,
         primaryCurrency: _salaryCcy,
+        secondaryCurrency: dummySecondary,
+        enabledCurrencies: dummyEnabledCurrencies,
       );
     }
 
@@ -340,13 +347,15 @@ class _OnboardingFlowPageState extends State<OnboardingFlowPage> {
         final ok = await synthesizeDummyLedgerWithApple(
           widget.model,
           primaryCurrency: _salaryCcy,
-          secondaryCurrency: _pick2,
+          secondaryCurrency: dummySecondary,
+          enabledCurrencies: dummyEnabledCurrencies,
         );
         if (!ok) {
           applyFallbackDummyLedger(
             widget.model,
             primaryCurrency: _salaryCcy,
-            secondaryCurrency: _pick2,
+            secondaryCurrency: dummySecondary,
+            enabledCurrencies: dummyEnabledCurrencies,
           );
         }
         widget.model.finalizeOnboardingDummyLedger();
@@ -429,6 +438,11 @@ class _OnboardingFlowPageState extends State<OnboardingFlowPage> {
                     _ => _finishing && _addDummyData == true
                         ? _DemoLedgerSetupStep(
                             primaryCurrency: _salaryCcy,
+                            enabledCurrencies: {
+                              _salaryCcy,
+                              _pick1!,
+                              if (_pick2 != null) _pick2!,
+                            },
                           )
                         : _onExpenseDummyStep
                             ? _DummyDataStep(
@@ -1035,14 +1049,26 @@ class _ExpenseManualStep extends StatelessWidget {
 }
 
 class _DemoLedgerSetupStep extends StatelessWidget {
-  const _DemoLedgerSetupStep({required this.primaryCurrency});
+  const _DemoLedgerSetupStep({
+    required this.primaryCurrency,
+    required this.enabledCurrencies,
+  });
 
   final CurrencyCode primaryCurrency;
+  final Set<CurrencyCode> enabledCurrencies;
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final assetNames = OnboardingDummyTemplates.assetTemplates(primaryCurrency)
+    final secondary = OnboardingDummyTemplates.secondaryCurrencyIn(
+      enabledCurrencies,
+      primaryCurrency: primaryCurrency,
+    );
+    final assetNames = OnboardingDummyTemplates.assetTemplates(
+      primaryCurrency: primaryCurrency,
+      secondaryCurrency: secondary,
+      enabledCurrencies: enabledCurrencies,
+    )
         .map((t) => t['name']?.toString() ?? 'Asset')
         .toList();
     final liabilityNames = OnboardingDummyTemplates.liabilityTemplates(primaryCurrency)

@@ -94,7 +94,14 @@ class AppModel extends ChangeNotifier {
   final LlmKeyStore _llmKeyStore = LlmKeyStore();
   final DeviceIdStore _deviceIdStore = DeviceIdStore();
   final ZoroApi _api = ZoroApi();
-  late final IapService iap = IapService(api: _api);
+  ZoroApi get api => _api;
+  late final IapService iap = IapService(api: _api)
+    ..onEntitlementsUpdated = _applyEntitlementsFromIapStream;
+
+  void _applyEntitlementsFromIapStream(MobileEntitlements entitlements) {
+    mobileEntitlements = entitlements;
+    notifyUi();
+  }
 
   String? deviceId;
   MobileEntitlements? mobileEntitlements;
@@ -171,13 +178,43 @@ class AppModel extends ChangeNotifier {
     if (id == null || id.isEmpty) return;
     try {
       final body = await _api.syncMobileEntitlements(deviceId: id);
-      mobileEntitlements = MobileEntitlements.tryFromApi(body);
+      applyMobileEntitlementsBody(body);
     } catch (_) {
       // Best-effort: keep last known entitlements (or null).
     }
   }
 
-  bool get isPro => mobileEntitlements?.isPro == true;
+  /// Applies a server entitlements payload when present.
+  void applyMobileEntitlementsBody(Map<String, dynamic> body) {
+    final next = MobileEntitlements.tryFromApi(body);
+    if (next == null) return;
+    mobileEntitlements = next;
+    notifyUi();
+  }
+
+  /// After IAP purchase/restore, prefer the latest entitlements from [iap],
+  /// otherwise poll the server until the purchase is reflected (or timeout).
+  Future<void> applyEntitlementsFromIap(IapService iap, {Duration timeout = const Duration(seconds: 45)}) async {
+    final before = mobileEntitlements;
+    final deadline = DateTime.now().add(timeout);
+    while (DateTime.now().isBefore(deadline)) {
+      final next = iap.takeLatestEntitlements();
+      if (next != null) {
+        mobileEntitlements = next;
+        notifyUi();
+        return;
+      }
+      if (mobileEntitlements != before) {
+        notifyUi();
+        return;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+    }
+    await refreshMobileEntitlements();
+    notifyUi();
+  }
+
+  bool get isPro => mobileEntitlements?.effectiveIsPro == true;
   int get creditsBalance => mobileEntitlements?.creditsBalance ?? 0;
 
   void setHelperEnabledLedger(bool v) {
@@ -792,7 +829,7 @@ class AppModel extends ChangeNotifier {
   /// Optional tuning (kept simple for now).
   String openAiModel = 'gpt-4.1-mini';
   // NOTE: These defaults should track currently-supported model IDs.
-  // Users can override them in Settings → API keys.
+  // Users can override them via persisted settings when supported.
   String anthropicModel = 'claude-sonnet-4-6';
   String geminiModel = 'gemini-2.5-flash';
 
@@ -842,10 +879,13 @@ class AppModel extends ChangeNotifier {
   /// When false, no notification of any kind is posted.
   bool notificationsEnabled = false;
 
-  /// Ping when the daily Home summary helper posts a new note (Helpers → Home).
+  /// Daily Home summary helper (Helpers → Home). Off by default.
+  bool homeMessagesEnabled = false;
+
+  /// Push when a new Home note is ready (requires [notificationsEnabled]).
   bool homeMessagesNotifications = false;
 
-  /// How often we should ping about new Home messages (independent from helper runs).
+  /// How often the helper runs and how often push alerts may fire.
   HomeMessageCadence homeMessagesCadence = HomeMessageCadence.daily;
 
   /// Last local date on which a Home-message notification was posted.
@@ -2831,11 +2871,6 @@ class AppModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setRemindersUseQuarterEnds(bool v) {
-    // Deprecated (UI no longer exposes quarter-end toggle).
-    notifyListeners();
-  }
-
   void setRemindersQuarterlySchedule({required int monthInQuarter, required int day}) {
     final m = monthInQuarter.clamp(1, 3);
     final d = day.clamp(1, 31);
@@ -2864,6 +2899,14 @@ class AppModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setHomeMessagesEnabled(bool v) {
+    if (homeMessagesEnabled == v) return;
+    homeMessagesEnabled = v;
+    if (!v) homeMessagesNotifications = false;
+    _scheduleAppStatePersist();
+    notifyListeners();
+  }
+
   void setHomeMessagesNotifications(bool v) {
     if (homeMessagesNotifications == v) return;
     homeMessagesNotifications = v;
@@ -2878,21 +2921,43 @@ class AppModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  bool shouldRunHomeSummaryHelperNow(DateTime now) {
+    if (!homeMessagesEnabled) return false;
+    return _homeMessageCadenceDue(
+      now: now,
+      last: homeSummaryHelperLastRunAt,
+      cadence: homeMessagesCadence,
+    );
+  }
+
   bool shouldNotifyHomeMessageNow(DateTime now) {
+    if (!homeMessagesEnabled || !homeMessagesNotifications) return false;
+    return _homeMessageCadenceDue(
+      now: now,
+      last: homeMessagesLastNotifiedOn,
+      cadence: homeMessagesCadence,
+    );
+  }
+
+  static bool _homeMessageCadenceDue({
+    required DateTime now,
+    required DateTime? last,
+    required HomeMessageCadence cadence,
+  }) {
     DateTime dateOnly(DateTime d) => DateTime(d.year, d.month, d.day);
     final today = dateOnly(now);
-    final last = homeMessagesLastNotifiedOn == null ? null : dateOnly(homeMessagesLastNotifiedOn!);
     if (last == null) return true;
+    final lastDay = dateOnly(last);
 
-    switch (homeMessagesCadence) {
+    switch (cadence) {
       case HomeMessageCadence.daily:
-        return today.isAfter(last);
+        return today.isAfter(lastDay);
       case HomeMessageCadence.weekly:
         final thisWeekStart = today.subtract(Duration(days: today.weekday - DateTime.monday));
-        final lastWeekStart = last.subtract(Duration(days: last.weekday - DateTime.monday));
+        final lastWeekStart = lastDay.subtract(Duration(days: lastDay.weekday - DateTime.monday));
         return thisWeekStart.isAfter(lastWeekStart);
       case HomeMessageCadence.monthly:
-        return today.year != last.year || today.month != last.month;
+        return today.year != lastDay.year || today.month != lastDay.month;
     }
   }
 
@@ -3803,14 +3868,28 @@ class AppModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Request count for Settings → API keys (includes legacy Apple `default` model key).
-  int llmRequestCount(LlmProvider provider, String model) {
-    final key = '${provider.name}:$model';
-    var n = llmRequestsByModelKey[key] ?? 0;
-    if (provider == LlmProvider.appleFoundation && model == modelFor(LlmProvider.appleFoundation)) {
-      n += llmRequestsByModelKey['${provider.name}:default'] ?? 0;
+  /// Total helper/chat LLM calls recorded for [provider] (all models).
+  int llmRequestCountFor(LlmProvider provider) {
+    final prefix = '${provider.name}:';
+    var total = 0;
+    for (final e in llmRequestsByModelKey.entries) {
+      if (e.key.startsWith(prefix)) total += e.value;
     }
-    return n;
+    return total;
+  }
+
+  /// Per-model call counts for [provider], highest count first.
+  List<({String model, int count})> llmRequestBreakdownFor(LlmProvider provider) {
+    final prefix = '${provider.name}:';
+    final rows = <({String model, int count})>[];
+    for (final e in llmRequestsByModelKey.entries) {
+      if (!e.key.startsWith(prefix)) continue;
+      final model = e.key.substring(prefix.length);
+      if (model.isEmpty) continue;
+      rows.add((model: model, count: e.value));
+    }
+    rows.sort((a, b) => b.count.compareTo(a.count));
+    return rows;
   }
 
   Future<void> resetAllUserDataAndRestartOnboarding() async {
@@ -4062,6 +4141,9 @@ class AppModel extends ChangeNotifier {
         'homeSummaryHelperLastRunDayKey': homeSummaryHelperLastRunDayKey,
         'homeSummaryHelperRotationIndex': homeSummaryHelperRotationIndex,
         'homeSummaryHelperIncludedDomainIds': List<String>.from(homeSummaryHelperIncludedDomainIds),
+        'homeMessagesEnabled': homeMessagesEnabled,
+        'homeMessagesNotify': homeMessagesNotifications,
+        'homeMessagesCadence': homeMessagesCadence.name,
         'displayCurrency': displayCurrency.name,
         'homeCurrencyQuickPick1': homeCurrencyQuickPick1.name,
         if (homeCurrencyQuickPick2 != null)
@@ -4260,6 +4342,16 @@ class AppModel extends ChangeNotifier {
             for (final d in HomeSummaryFocusDomain.values) d.id,
           ];
         }
+      }
+      if (s.containsKey('homeMessagesEnabled')) {
+        homeMessagesEnabled = s['homeMessagesEnabled'] == true;
+      }
+      if (s.containsKey('homeMessagesNotify')) {
+        homeMessagesNotifications = s['homeMessagesNotify'] == true;
+      }
+      final hCad = s['homeMessagesCadence']?.toString();
+      if (hCad != null) {
+        homeMessagesCadence = HomeMessageCadenceUi.tryParse(hCad) ?? HomeMessageCadence.daily;
       }
       final dc = s['displayCurrency']?.toString();
       if (dc != null) {

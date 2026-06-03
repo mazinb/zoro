@@ -8,22 +8,20 @@ import 'goals_structured_sections.dart';
 Future<void> openGoalsHelperHub({
   required BuildContext context,
   required AppModel model,
-  VoidCallback? onOpenSettings,
 }) async {
   model.ensureRetirementGoal();
   await Navigator.of(context).push<void>(
     MaterialPageRoute(
       fullscreenDialog: true,
-      builder: (ctx) => GoalsHelperHubPage(model: model, onOpenSettings: onOpenSettings),
+      builder: (ctx) => GoalsHelperHubPage(model: model),
     ),
   );
 }
 
 class GoalsHelperHubPage extends StatelessWidget {
-  const GoalsHelperHubPage({super.key, required this.model, this.onOpenSettings});
+  const GoalsHelperHubPage({super.key, required this.model});
 
   final AppModel model;
-  final VoidCallback? onOpenSettings;
 
   @override
   Widget build(BuildContext context) {
@@ -70,7 +68,6 @@ class GoalsHelperHubPage extends StatelessWidget {
                 _ExpenseSetupCard(
                   model: m,
                   accent: accent,
-                  onOpenSettings: onOpenSettings,
                 ),
                 const SizedBox(height: 12),
               ],
@@ -94,11 +91,10 @@ class GoalsHelperHubPage extends StatelessWidget {
 }
 
 class _ExpenseSetupCard extends StatelessWidget {
-  const _ExpenseSetupCard({required this.model, required this.accent, this.onOpenSettings});
+  const _ExpenseSetupCard({required this.model, required this.accent});
 
   final AppModel model;
   final Color accent;
-  final VoidCallback? onOpenSettings;
 
   @override
   Widget build(BuildContext context) {
