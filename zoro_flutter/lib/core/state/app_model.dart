@@ -5,8 +5,9 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../legal/legal_urls.dart';
+
 import '../../shared/theme/app_theme.dart';
-import '../chat/chat_message.dart';
 import '../constants/web_expenses_income.dart';
 import '../finance/currency.dart';
 import '../finance/goal_allocation.dart';
@@ -19,7 +20,6 @@ import '../finance/row_review_result.dart';
 import '../llm/apple_foundation_channel.dart';
 import '../llm/llm_key_store.dart';
 import '../notifications/notification_service.dart';
-import '../persistence/agent_json.dart';
 import '../persistence/app_state_codec.dart' as app_state;
 import '../persistence/app_state_store.dart';
 import '../home/home_summary_focus_domain.dart';
@@ -70,7 +70,6 @@ class NetWorthProjectionYearBreakdown {
 
 class AppModel extends ChangeNotifier {
   AppModel() {
-    agents.addAll(_seedDefaultAgents());
     repairDuplicateAssetIds(notify: false);
     repairDuplicateLiabilityIds(notify: false);
     ensureRetirementGoal();
@@ -87,9 +86,6 @@ class AppModel extends ChangeNotifier {
   static const Color spendUnderColor = Color(0xFF10B981); // green
   static const Color spendInBandColor = AppTheme.slate600; // grey
   static const Color spendNoDataColor = AppTheme.slate500;
-
-  /// Seeded “Morning briefing” agent id (chat / Home summary).
-  static const String morningBriefingAgentId = 'agent-morning-briefing';
 
   final LlmKeyStore _llmKeyStore = LlmKeyStore();
   final DeviceIdStore _deviceIdStore = DeviceIdStore();
@@ -154,22 +150,26 @@ class AppModel extends ChangeNotifier {
         applyPersistedSnapshot(disk);
       }
 
-      // Always refresh entitlements on app open (best-effort).
-      await refreshMobileEntitlements();
-      // Best-effort: init IAP catalog (does not block app startup).
-      await iap.init(productIds: IapProductIds.all);
-
       await refreshAppleFoundationCapabilities();
-      // For App Store builds, always prefer Apple on-device for helpers.
-      if (appleFoundationRuntimeAvailable) {
+      if (appleFoundationRuntimeAvailable && !appleFoundationEnabled) {
         setAppleFoundationEnabled(true);
-        activeLlmProvider = LlmProvider.appleFoundation;
       }
       _syncActiveProviderIfKeyRemoved();
       await reconcileNotifications();
     } finally {
       _bootstrapped = true;
       notifyListeners();
+    }
+    // Entitlements + IAP catalog refresh in background — do not block the UI.
+    unawaited(_bootstrapEntitlementsInBackground());
+  }
+
+  Future<void> _bootstrapEntitlementsInBackground() async {
+    try {
+      await refreshMobileEntitlements();
+      await iap.init(productIds: IapProductIds.all);
+    } catch (_) {
+      // Best-effort; cached entitlements remain until next refresh.
     }
   }
 
@@ -357,9 +357,6 @@ class AppModel extends ChangeNotifier {
     homeSummaryHelperRunning = value;
     notifyListeners();
   }
-
-  /// Agents (UI-only). Seeded in constructor; replaced when persisted settings load.
-  final List<AppAgent> agents = [];
 
   late final AppModelPersistenceController _persistence =
       AppModelPersistenceController(buildSnapshot: buildPersistedSnapshot);
@@ -764,30 +761,7 @@ class AppModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Chats are always tied to an agent; threads and messages persist in [AppStateStore].
-  final List<AgentChatThread> chats = [];
-
-  final Map<String, List<ChatMessage>> _chatMessagesByThreadId = {};
-
-  List<ChatMessage> chatMessagesFor(String threadId) {
-    final list = _chatMessagesByThreadId[threadId];
-    if (list == null) return [];
-    return List<ChatMessage>.from(list);
-  }
-
-  void setChatMessagesFor(String threadId, List<ChatMessage> messages) {
-    _chatMessagesByThreadId[threadId] = List<ChatMessage>.from(messages);
-    _scheduleAppStatePersist();
-    notifyListeners();
-  }
-
-  void appendChatMessage(String threadId, ChatMessage message) {
-    _chatMessagesByThreadId.putIfAbsent(threadId, () => []).add(message);
-    _scheduleAppStatePersist();
-    notifyListeners();
-  }
-
-  /// Permissions / keys (UI-only). Used by Chat and (later) Agents.
+  /// Permissions / keys (UI-only). Used by LLM helpers across the app.
   LlmProvider activeLlmProvider = LlmProvider.openai;
   String? openAiApiKey;
   String? anthropicApiKey;
@@ -795,7 +769,107 @@ class AppModel extends ChangeNotifier {
 
   /// Apple on-device model (no API key). When [appleFoundationEnabled] and runtime says available, [apiKeyFor] uses a sentinel.
   bool appleFoundationEnabled = false;
-  bool _appleFoundationEnabledReadFromDisk = false;
+
+  /// In-app permission before sharing data with each AI provider (ISO-8601 UTC).
+  final Map<String, String> llmProviderConsents = {};
+
+  /// Zoro-hosted cloud AI for imports ([cloudImportConsentKey]).
+  static const cloudImportConsentKey = 'zoroCloud';
+  static const importRequestKeyCloud = 'zoroCloud:import';
+  static const importRequestKeyOnDevice = 'appleFoundation:import';
+
+  /// User toggle — opt out without clearing consent history.
+  bool cloudImportEnabled = true;
+
+  bool get hasCloudImportConsent =>
+      llmProviderConsents.containsKey(cloudImportConsentKey);
+
+  bool get canUseCloudImport => hasCloudImportConsent && cloudImportEnabled;
+
+  int get cloudImportRequestCount => llmRequestsByModelKey[importRequestKeyCloud] ?? 0;
+
+  int get onDeviceImportRequestCount =>
+      llmRequestsByModelKey[importRequestKeyOnDevice] ?? 0;
+
+  /// On-device helper calls (excludes import keys).
+  int get onDeviceHelperRequestCount {
+    final total = llmRequestCountFor(LlmProvider.appleFoundation);
+    return (total - onDeviceImportRequestCount).clamp(0, total);
+  }
+
+  /// Goals unlock after assets exist and six months of cashflow are imported.
+  bool get goalsImportRequirementsMet =>
+      assets.isNotEmpty && monthlyCashflowByMonth.length >= 6;
+
+  bool get goalsTabUnlocked => onboardingComplete && goalsImportRequirementsMet;
+
+  /// Still in the one-time setup import pool (server tracks eligibility).
+  bool get inSetupImportPhase =>
+      onboardingComplete &&
+      !goalsImportRequirementsMet &&
+      (mobileEntitlements?.onboardingImportsEligible ?? true);
+
+  Future<void> grantCloudImportConsent() async {
+    final at = DateTime.now().toUtc().toIso8601String();
+    llmProviderConsents[cloudImportConsentKey] = at;
+    cloudImportEnabled = true;
+    _scheduleAppStatePersist();
+    notifyListeners();
+    unawaited(_recordCloudConsentToServer(at));
+  }
+
+  Future<void> setCloudImportEnabled(bool value) async {
+    if (cloudImportEnabled == value) return;
+    cloudImportEnabled = value;
+    _scheduleAppStatePersist();
+    notifyListeners();
+    if (!value && hasCloudImportConsent) {
+      unawaited(_revokeCloudConsentOnServer());
+    }
+  }
+
+  Future<void> _recordCloudConsentToServer(String consentedAtIso) async {
+    final id = deviceId?.trim();
+    if (id == null || id.isEmpty) return;
+    try {
+      await _api.recordMobileAiConsent(
+        deviceId: id,
+        provider: cloudImportConsentKey,
+        consentedAtIso: consentedAtIso,
+        privacyPolicyVersion: LegalUrls.privacyPolicyVersion,
+      );
+    } catch (_) {}
+  }
+
+  Future<void> _revokeCloudConsentOnServer() async {
+    final id = deviceId?.trim();
+    if (id == null || id.isEmpty) return;
+    try {
+      await _api.revokeMobileAiConsent(deviceId: id, provider: cloudImportConsentKey);
+    } catch (_) {}
+    llmProviderConsents.remove(cloudImportConsentKey);
+    _scheduleAppStatePersist();
+    notifyListeners();
+  }
+
+  void recordImportRequest({required bool cloud}) {
+    final key = cloud ? importRequestKeyCloud : importRequestKeyOnDevice;
+    llmRequestsByModelKey[key] = (llmRequestsByModelKey[key] ?? 0) + 1;
+    _scheduleAppStatePersist();
+    notifyListeners();
+  }
+
+  Future<void> maybeFinishSetupImports() async {
+    if (!goalsImportRequirementsMet) return;
+    if (mobileEntitlements?.onboardingImportsEligible == false) return;
+    final id = deviceId?.trim();
+    if (id == null || id.isEmpty) return;
+    try {
+      await _api.finishSetupImports(deviceId: id);
+      await refreshMobileEntitlements();
+    } catch (_) {}
+  }
+
   AppleFoundationCapabilities _appleFoundationCaps = AppleFoundationCapabilities.unsupported;
   final AppleFoundationChannel _appleFoundationChannel = AppleFoundationChannel();
 
@@ -807,15 +881,62 @@ class AppModel extends ChangeNotifier {
 
   Future<void> refreshAppleFoundationCapabilities() async {
     _appleFoundationCaps = await _appleFoundationChannel.getCapabilities();
-    if (!_appleFoundationEnabledReadFromDisk && _appleFoundationCaps.available) {
-      appleFoundationEnabled = true;
-      _scheduleAppStatePersist();
-    }
     notifyListeners();
   }
 
+  bool hasLlmProviderConsent(LlmProvider provider) =>
+      llmProviderConsents.containsKey(provider.name);
+
+  bool isLlmProviderConfigured(LlmProvider provider) => switch (provider) {
+        LlmProvider.appleFoundation =>
+          appleFoundationRuntimeAvailable && appleFoundationEnabled,
+        LlmProvider.openai => (openAiApiKey ?? '').trim().isNotEmpty,
+        LlmProvider.anthropic => (anthropicApiKey ?? '').trim().isNotEmpty,
+        LlmProvider.gemini => (geminiApiKey ?? '').trim().isNotEmpty,
+      };
+
+  /// Provider can be chosen in UI (may still need first-use consent).
+  bool canSelectLlmProvider(LlmProvider provider) => switch (provider) {
+        LlmProvider.appleFoundation => appleFoundationRuntimeAvailable,
+        LlmProvider.openai => (openAiApiKey ?? '').trim().isNotEmpty,
+        LlmProvider.anthropic => (anthropicApiKey ?? '').trim().isNotEmpty,
+        LlmProvider.gemini => (geminiApiKey ?? '').trim().isNotEmpty,
+      };
+
+  bool isLlmProviderReady(LlmProvider provider) {
+    if (!isLlmProviderConfigured(provider)) return false;
+    if (provider == LlmProvider.appleFoundation) return true;
+    return hasLlmProviderConsent(provider);
+  }
+
+  Future<void> grantLlmProviderConsent(LlmProvider provider) async {
+    final at = DateTime.now().toUtc().toIso8601String();
+    llmProviderConsents[provider.name] = at;
+    if (provider == LlmProvider.appleFoundation && appleFoundationRuntimeAvailable) {
+      setAppleFoundationEnabled(true);
+      activeLlmProvider = LlmProvider.appleFoundation;
+    }
+    _scheduleAppStatePersist();
+    notifyListeners();
+    unawaited(_recordLlmConsentToServer(provider, at));
+  }
+
+  Future<void> _recordLlmConsentToServer(LlmProvider provider, String consentedAtIso) async {
+    final id = deviceId?.trim();
+    if (id == null || id.isEmpty) return;
+    try {
+      await _api.recordMobileAiConsent(
+        deviceId: id,
+        provider: provider.name,
+        consentedAtIso: consentedAtIso,
+        privacyPolicyVersion: LegalUrls.privacyPolicyVersion,
+      );
+    } catch (_) {
+      // Best-effort audit log; local consent still applies.
+    }
+  }
+
   void setAppleFoundationEnabled(bool value) {
-    _appleFoundationEnabledReadFromDisk = true;
     if (appleFoundationEnabled == value) {
       notifyListeners();
       return;
@@ -950,15 +1071,19 @@ class AppModel extends ChangeNotifier {
   CurrencyCode homeCurrencyQuickPick1 = CurrencyCode.thb;
   CurrencyCode? homeCurrencyQuickPick2;
 
-  /// Segments for Home's currency control (2 or 3 pills).
-  List<CurrencyCode> get homeDisplayCurrencyOptions => [
-        CurrencyCode.usd,
-        homeCurrencyQuickPick1,
-        ?homeCurrencyQuickPick2,
-      ];
+  /// Segments for Home's currency control. Empty when only USD is in use.
+  List<CurrencyCode> get homeDisplayCurrencyOptions {
+    final fxPicks = <CurrencyCode>[
+      if (homeCurrencyQuickPick1 != CurrencyCode.usd) homeCurrencyQuickPick1,
+      if (homeCurrencyQuickPick2 != null) homeCurrencyQuickPick2!,
+    ];
+    if (fxPicks.isEmpty) return const [];
+    return [CurrencyCode.usd, ...fxPicks];
+  }
+
+  bool get showHomeCurrencyToggle => homeDisplayCurrencyOptions.length > 1;
 
   void setHomeCurrencyQuickPick(int slot, CurrencyCode next) {
-    if (next == CurrencyCode.usd) return; // USD is always present as its own toggle.
     if (slot == 2) {
       setSecondHomeCurrency(next);
       return;
@@ -967,6 +1092,15 @@ class AppModel extends ChangeNotifier {
     final prev = homeCurrencyQuickPick1;
     if (homeCurrencyQuickPick1 == next) return;
     homeCurrencyQuickPick1 = next;
+    if (next == CurrencyCode.usd) {
+      _fxUsdPerUnitOverride.remove(prev);
+      if (displayCurrency == prev) {
+        setDisplayCurrency(CurrencyCode.usd);
+      }
+      _scheduleAppStatePersist();
+      notifyListeners();
+      return;
+    }
     if (homeCurrencyQuickPick2 == next) {
       homeCurrencyQuickPick2 = null;
       if (displayCurrency == next) {
@@ -1009,6 +1143,18 @@ class AppModel extends ChangeNotifier {
     }
     _scheduleAppStatePersist();
     notifyListeners();
+  }
+
+  void addHomeCurrency() {
+    if (homeCurrencyQuickPick1 == CurrencyCode.usd) {
+      final next = kDisplayCurrencyPickerOptions.firstWhere(
+        (c) => c != CurrencyCode.usd,
+        orElse: () => CurrencyCode.inr,
+      );
+      setHomeCurrencyQuickPick(1, next);
+      return;
+    }
+    addSecondHomeCurrency();
   }
 
   void addSecondHomeCurrency() {
@@ -2635,83 +2781,6 @@ class AppModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  void addAgent(AppAgent agent) {
-    agents.add(agent);
-    _scheduleAppStatePersist();
-    notifyListeners();
-  }
-
-  void updateAgent(int index, AppAgent agent) {
-    if (index < 0 || index >= agents.length) return;
-    agents[index] = agent;
-    _scheduleAppStatePersist();
-    notifyListeners();
-  }
-
-  void removeAgentAt(int index) {
-    if (index < 0 || index >= agents.length) return;
-    agents.removeAt(index);
-    _scheduleAppStatePersist();
-    notifyListeners();
-  }
-
-  void upsertAgentFromTool(AppAgent incoming) {
-    final idx = agents.indexWhere((a) => a.id == incoming.id);
-    if (idx >= 0) {
-      agents[idx] = incoming;
-    } else {
-      agents.add(incoming);
-    }
-    _scheduleAppStatePersist();
-    notifyListeners();
-  }
-
-  bool removeAgentByIdForTool(String id) {
-    final idx = agents.indexWhere((a) => a.id == id);
-    if (idx < 0) return false;
-    agents.removeAt(idx);
-    _scheduleAppStatePersist();
-    notifyListeners();
-    return true;
-  }
-
-  void addChat(AgentChatThread t) {
-    chats.add(t);
-    _chatMessagesByThreadId.putIfAbsent(t.id, () => []);
-    _scheduleAppStatePersist();
-    notifyListeners();
-  }
-
-  void removeChatById(String id) {
-    final idx = chats.indexWhere((t) => t.id == id);
-    if (idx < 0) return;
-    chats.removeAt(idx);
-    _chatMessagesByThreadId.remove(id);
-    _scheduleAppStatePersist();
-    notifyListeners();
-  }
-
-  void clearChatById(String id) {
-    final idx = chats.indexWhere((t) => t.id == id);
-    if (idx < 0) return;
-    final t = chats[idx].clone();
-    t.updatedAt = DateTime.now();
-    t.messageCount = 0;
-    t.tokensUsed = 0;
-    t.lastLine = '';
-    chats[idx] = t;
-    _chatMessagesByThreadId[id] = [];
-    _scheduleAppStatePersist();
-    notifyListeners();
-  }
-
-  void updateChat(int index, AgentChatThread t) {
-    if (index < 0 || index >= chats.length) return;
-    chats[index] = t;
-    _scheduleAppStatePersist();
-    notifyListeners();
-  }
-
   void setActiveLlmProvider(LlmProvider p) {
     if (activeLlmProvider == p) return;
     activeLlmProvider = p;
@@ -2761,18 +2830,46 @@ class AppModel extends ChangeNotifier {
   }
 
   /// Ensures [activeLlmProvider] can run assistants (cloud key or Apple on-device).
-  Future<bool> prepareLlmForAssistant() async {
+  /// Pass [requestConsent] to show the in-app disclosure before first use.
+  Future<bool> prepareLlmForAssistant({
+    Future<bool> Function(LlmProvider provider)? requestConsent,
+  }) async {
     await refreshAppleFoundationCapabilities();
     if (apiKeyFor(activeLlmProvider) == null) {
       _syncActiveProviderIfKeyRemoved();
     }
-    if (apiKeyFor(activeLlmProvider) == null && appleFoundationRuntimeAvailable) {
+    final provider = _resolveAssistantLlmProvider();
+    if (provider == null) return false;
+    if (provider == LlmProvider.appleFoundation &&
+        appleFoundationRuntimeAvailable &&
+        !appleFoundationEnabled) {
       setAppleFoundationEnabled(true);
-      activeLlmProvider = LlmProvider.appleFoundation;
+    }
+    if (provider != LlmProvider.appleFoundation && !hasLlmProviderConsent(provider)) {
+      if (requestConsent == null) return false;
+      if (!await requestConsent(provider)) return false;
+    }
+    if (activeLlmProvider != provider) {
+      activeLlmProvider = provider;
       _scheduleAppStatePersist();
       notifyListeners();
     }
     return apiKeyFor(activeLlmProvider) != null;
+  }
+
+  LlmProvider? _resolveAssistantLlmProvider() {
+    if (apiKeyFor(activeLlmProvider) != null) return activeLlmProvider;
+    const order = [
+      LlmProvider.appleFoundation,
+      LlmProvider.openai,
+      LlmProvider.anthropic,
+      LlmProvider.gemini,
+    ];
+    for (final p in order) {
+      if (apiKeyFor(p) != null) return p;
+    }
+    if (appleFoundationRuntimeAvailable) return LlmProvider.appleFoundation;
+    return null;
   }
 
   String get llmAssistantUnavailableMessage {
@@ -2825,10 +2922,6 @@ class AppModel extends ChangeNotifier {
   // Temperature removed: some models/providers reject non-default values.
 
   bool get hasAnyApiKey => openAiApiKey != null || anthropicApiKey != null || geminiApiKey != null;
-
-  /// Cloud API key or Apple on-device model when enabled and available.
-  bool get canUseAnyLlm =>
-      hasAnyApiKey || (appleFoundationEnabled && appleFoundationRuntimeAvailable);
 
   void _onReminderCadenceChanged() {
     _scheduleAppStatePersist();
@@ -3868,7 +3961,7 @@ class AppModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Total helper/chat LLM calls recorded for [provider] (all models).
+  /// Total helper LLM calls recorded for [provider] (all models).
   int llmRequestCountFor(LlmProvider provider) {
     final prefix = '${provider.name}:';
     var total = 0;
@@ -4126,9 +4219,10 @@ class AppModel extends ChangeNotifier {
       'formatVersion': app_state.kAppStateFormatVersion,
       'savedAtMs': DateTime.now().toUtc().millisecondsSinceEpoch,
       'settings': {
-        'agents': agents.map(appAgentToJson).toList(),
         'activeLlmProvider': activeLlmProvider.name,
         'appleFoundationEnabled': appleFoundationEnabled,
+        'llmProviderConsents': Map<String, String>.from(llmProviderConsents),
+        'cloudImportEnabled': cloudImportEnabled,
         'openAiModel': openAiModel,
         'anthropicModel': anthropicModel,
         'geminiModel': geminiModel,
@@ -4232,14 +4326,6 @@ class AppModel extends ChangeNotifier {
           for (final e in internalAgentLastTokensById.entries) e.key: e.value,
         },
       },
-      'chats': {
-        'version': 2,
-        'threads': chats.map(app_state.encodeChatThread).toList(),
-        'messages': {
-          for (final e in _chatMessagesByThreadId.entries)
-            e.key: e.value.map((m) => m.toJson()).toList(),
-        },
-      },
       'goals': financialGoals.map(app_state.encodeFinancialGoal).toList(),
     };
   }
@@ -4248,15 +4334,6 @@ class AppModel extends ChangeNotifier {
     final settings = root['settings'];
     if (settings is Map) {
       final s = Map<String, dynamic>.from(settings);
-      final agentsRaw = s['agents'];
-      if (agentsRaw is List) {
-        agents
-          ..clear()
-          ..addAll([
-            for (final e in agentsRaw)
-              if (appAgentFromJson(e) != null) appAgentFromJson(e)!,
-          ]);
-      }
       final llm = s['activeLlmProvider']?.toString();
       if (llm != null) {
         for (final p in LlmProvider.values) {
@@ -4267,8 +4344,19 @@ class AppModel extends ChangeNotifier {
         }
       }
       if (s.containsKey('appleFoundationEnabled')) {
-        _appleFoundationEnabledReadFromDisk = true;
         appleFoundationEnabled = s['appleFoundationEnabled'] == true;
+      }
+      if (s.containsKey('cloudImportEnabled')) {
+        cloudImportEnabled = s['cloudImportEnabled'] != false;
+      }
+      final consentsRaw = s['llmProviderConsents'];
+      if (consentsRaw is Map) {
+        llmProviderConsents
+          ..clear()
+          ..addAll({
+            for (final e in consentsRaw.entries)
+              if (e.value != null) e.key.toString(): e.value.toString(),
+          });
       }
       final oa = s['openAiModel']?.toString();
       if (oa != null && oa.trim().isNotEmpty) openAiModel = oa.trim();
@@ -4382,12 +4470,8 @@ class AppModel extends ChangeNotifier {
           }
         }
       }
-      // Home's SegmentedButton is USD + quick pick(s); every segment value must be unique.
+      // Home toggle is USD + non-USD quick pick(s); every segment value must be unique.
       var fixedHomeCurrencyQuickPicks = false;
-      if (homeCurrencyQuickPick1 == CurrencyCode.usd) {
-        homeCurrencyQuickPick1 = CurrencyCode.thb;
-        fixedHomeCurrencyQuickPicks = true;
-      }
       if (homeCurrencyQuickPick2 == CurrencyCode.usd) {
         homeCurrencyQuickPick2 = null;
         fixedHomeCurrencyQuickPicks = true;
@@ -4397,10 +4481,15 @@ class AppModel extends ChangeNotifier {
         homeCurrencyQuickPick2 = null;
         fixedHomeCurrencyQuickPicks = true;
       }
-      if (displayCurrency != CurrencyCode.usd &&
-          displayCurrency != homeCurrencyQuickPick1 &&
-          displayCurrency != homeCurrencyQuickPick2) {
-        displayCurrency = homeCurrencyQuickPick1;
+      final allowedDisplay = {
+        CurrencyCode.usd,
+        if (homeCurrencyQuickPick1 != CurrencyCode.usd) homeCurrencyQuickPick1,
+        if (homeCurrencyQuickPick2 != null) homeCurrencyQuickPick2!,
+      };
+      if (!allowedDisplay.contains(displayCurrency)) {
+        displayCurrency = homeCurrencyQuickPick1 == CurrencyCode.usd
+            ? CurrencyCode.usd
+            : homeCurrencyQuickPick1;
         fixedHomeCurrencyQuickPicks = true;
       }
       if (fixedHomeCurrencyQuickPicks) {
@@ -4753,37 +4842,6 @@ class AppModel extends ChangeNotifier {
       }
     }
 
-    final chatsRoot = root['chats'];
-    if (chatsRoot is Map) {
-      final ch = Map<String, dynamic>.from(chatsRoot);
-      chats.clear();
-      _chatMessagesByThreadId.clear();
-      final threadsRaw = ch['threads'];
-      if (threadsRaw is List) {
-        for (final e in threadsRaw) {
-          final t = app_state.decodeChatThread(e);
-          if (t != null) {
-            chats.add(t);
-            _chatMessagesByThreadId.putIfAbsent(t.id, () => []);
-          }
-        }
-      }
-      final msgRoot = ch['messages'];
-      if (msgRoot is Map) {
-        for (final e in msgRoot.entries) {
-          final id = e.key.toString();
-          final list = e.value;
-          if (list is! List) continue;
-          final out = <ChatMessage>[];
-          for (final row in list) {
-            final cm = ChatMessage.fromJson(row);
-            if (cm != null) out.add(cm);
-          }
-          _chatMessagesByThreadId[id] = out;
-        }
-      }
-    }
-
     final goalsRaw = root['goals'];
     financialGoals.clear();
     if (goalsRaw is List) {
@@ -4858,244 +4916,3 @@ String reminderDomainLabel(ReminderDomain d) => switch (d) {
     };
 
 enum LlmProvider { appleFoundation, openai, anthropic, gemini }
-
-enum AgentDomain { expenses, cashflow, income, assets, liabilities, projection }
-
-enum AgentAccess { read, write }
-
-/// Chat / schedule behavior for user-defined [AppAgent]s.
-enum AppAgentKind {
-  /// Suggests next steps across the app; minimize unsolicited ledger writes.
-  helper,
-  /// Reads/writes ledger domains and Home summary when tools are enabled.
-  analyst,
-  /// Uses Gemini for market/news context (requires Gemini API key).
-  researcher,
-}
-
-class AgentPermission {
-  const AgentPermission({required this.domain, required this.access});
-
-  final AgentDomain domain;
-  final AgentAccess access;
-
-  @override
-  bool operator ==(Object other) =>
-      other is AgentPermission && other.domain == domain && other.access == access;
-
-  @override
-  int get hashCode => Object.hash(domain, access);
-}
-
-class AppAgent {
-  AppAgent({
-    required this.id,
-    required this.name,
-    required this.description,
-    required this.systemPrompt,
-    required this.permissions,
-    required this.contextMarkdown,
-    this.kind = AppAgentKind.analyst,
-    this.toolHomeSummary = false,
-    this.toolWebResearch = false,
-    this.toolSettingsAdmin = false,
-    this.llmProviderOverride,
-  });
-
-  final String id;
-  String name;
-  String description;
-  String systemPrompt;
-  List<AgentPermission> permissions;
-  String contextMarkdown;
-  AppAgentKind kind;
-  bool toolHomeSummary;
-  bool toolWebResearch;
-  bool toolSettingsAdmin;
-  LlmProvider? llmProviderOverride;
-
-  AppAgent clone() => AppAgent(
-        id: id,
-        name: name,
-        description: description,
-        systemPrompt: systemPrompt,
-        permissions: [...permissions],
-        contextMarkdown: contextMarkdown,
-        kind: kind,
-        toolHomeSummary: toolHomeSummary,
-        toolWebResearch: toolWebResearch,
-        toolSettingsAdmin: toolSettingsAdmin,
-        llmProviderOverride: llmProviderOverride,
-      );
-}
-
-/// Playground override for which LLM route a thread uses (default = agent + global settings).
-enum AgentChatLlmOverride {
-  useDefault,
-  appleFoundation,
-  openai,
-  anthropic,
-  gemini,
-}
-
-class AgentChatThread {
-  AgentChatThread({
-    required this.id,
-    required this.agentId,
-    required this.title,
-    required this.createdAt,
-    required this.updatedAt,
-    required this.messageCount,
-    required this.tokensUsed,
-    this.lastLine = '',
-    this.llmOverride = AgentChatLlmOverride.useDefault,
-    this.modelOverride,
-    this.systemPromptSuffix,
-    this.enabledToolIds,
-  });
-
-  final String id;
-  String agentId;
-  String title;
-  final DateTime createdAt;
-  DateTime updatedAt;
-  int messageCount;
-  int tokensUsed;
-  String lastLine;
-  AgentChatLlmOverride llmOverride;
-  String? modelOverride;
-  String? systemPromptSuffix;
-  List<String>? enabledToolIds;
-
-  AgentChatThread clone() => AgentChatThread(
-        id: id,
-        agentId: agentId,
-        title: title,
-        createdAt: createdAt,
-        updatedAt: updatedAt,
-        messageCount: messageCount,
-        tokensUsed: tokensUsed,
-        lastLine: lastLine,
-        llmOverride: llmOverride,
-        modelOverride: modelOverride,
-        systemPromptSuffix: systemPromptSuffix,
-        enabledToolIds: enabledToolIds == null ? null : List<String>.from(enabledToolIds!),
-      );
-}
-
-List<AppAgent> _seedDefaultAgents() => [
-      AppAgent(
-        id: 'agent-1',
-        name: 'Retirement planner',
-        description: 'Plans retirement timeline, savings rate, and split targets.',
-        systemPrompt: 'You are a retirement planner. Ask only what you need. Propose clear next actions.',
-        permissions: const [
-          AgentPermission(domain: AgentDomain.expenses, access: AgentAccess.read),
-          AgentPermission(domain: AgentDomain.cashflow, access: AgentAccess.read),
-          AgentPermission(domain: AgentDomain.income, access: AgentAccess.read),
-          AgentPermission(domain: AgentDomain.assets, access: AgentAccess.read),
-          AgentPermission(domain: AgentDomain.liabilities, access: AgentAccess.read),
-        ],
-        contextMarkdown: '''## Assumptions
-- Target retire age: 55
-- Real return: 5%
-
-## Notes
-Keep recommendations concrete and testable.
-''',
-      ),
-      AppAgent(
-        id: 'agent-2',
-        name: 'RSU allocator',
-        description: 'Helps plan RSU vesting, taxes, and diversification.',
-        systemPrompt: 'You are an RSU allocation coach. Focus on diversification, tax timing, and risk.',
-        permissions: const [
-          AgentPermission(domain: AgentDomain.income, access: AgentAccess.read),
-          AgentPermission(domain: AgentDomain.assets, access: AgentAccess.read),
-          AgentPermission(domain: AgentDomain.expenses, access: AgentAccess.read),
-        ],
-        contextMarkdown: '''## RSU details
-- Currency: USD
-- Vesting cadence: quarterly
-
-## Goals
-- Diversify concentration risk
-- Keep a taxes-first checklist
-''',
-      ),
-      AppAgent(
-        id: 'agent-3',
-        name: 'FIRE strategist',
-        description: 'Optimizes savings rate and runway; spots bottlenecks.',
-        systemPrompt: 'You are a FIRE strategist. Be direct. Call out the one biggest leverage point.',
-        permissions: const [
-          AgentPermission(domain: AgentDomain.expenses, access: AgentAccess.read),
-          AgentPermission(domain: AgentDomain.cashflow, access: AgentAccess.read),
-          AgentPermission(domain: AgentDomain.income, access: AgentAccess.read),
-          AgentPermission(domain: AgentDomain.assets, access: AgentAccess.read),
-          AgentPermission(domain: AgentDomain.liabilities, access: AgentAccess.read),
-        ],
-        contextMarkdown: '''## Targets
-- FIRE multiple: 25x annual expenses
-
-## Style
-Blunt + prioritized actions.
-''',
-      ),
-      AppAgent(
-        id: 'agent-4',
-        name: 'Expense analyzer',
-        description: 'Finds bloated buckets and proposes cuts.',
-        systemPrompt: 'You are an expense analyst. Use buckets. Suggest experiments for 30 days.',
-        permissions: const [
-          AgentPermission(domain: AgentDomain.expenses, access: AgentAccess.read),
-          AgentPermission(domain: AgentDomain.cashflow, access: AgentAccess.read),
-        ],
-        contextMarkdown: '''## Rules
-- Flag top 2 buckets
-- Suggest 3 swaps with clear trade-offs
-''',
-      ),
-      AppAgent(
-        id: 'agent-5',
-        name: 'Home purchase planner',
-        description: 'Plans down payment vs mortgage; debt/equity mix.',
-        systemPrompt: 'You are a home purchase planner. Compare scenarios and keep risk constraints explicit.',
-        permissions: const [
-          AgentPermission(domain: AgentDomain.assets, access: AgentAccess.read),
-          AgentPermission(domain: AgentDomain.liabilities, access: AgentAccess.read),
-          AgentPermission(domain: AgentDomain.cashflow, access: AgentAccess.read),
-          AgentPermission(domain: AgentDomain.expenses, access: AgentAccess.read),
-        ],
-        contextMarkdown: '''## Scenario
-- Home price: 12,000,000
-- Down payment: 30%
-
-## Questions
-- What % debt vs equity?
-- Monthly payment safety margin?
-''',
-      ),
-      AppAgent(
-        id: AppModel.morningBriefingAgentId,
-        name: 'Morning briefing',
-        description: 'Daily portfolio touchpoint and market themes for Home (uses Gemini).',
-        kind: AppAgentKind.researcher,
-        toolHomeSummary: true,
-        toolWebResearch: true,
-        systemPrompt: '''
-You prepare a brief daily note for the Home screen.
-Blend the user's portfolio/context with high-level public-market themes. Do not invent specific headlines, firms, or dates.
-If recent news is uncertain, say so in one short clause. Calm, practical tone—no hype.
-When asked to deliver the briefing, finish by updating the Home summary via set_home_summary in zoro_actions.
-''',
-        permissions: const [
-          AgentPermission(domain: AgentDomain.expenses, access: AgentAccess.read),
-          AgentPermission(domain: AgentDomain.cashflow, access: AgentAccess.read),
-          AgentPermission(domain: AgentDomain.income, access: AgentAccess.read),
-          AgentPermission(domain: AgentDomain.assets, access: AgentAccess.read),
-          AgentPermission(domain: AgentDomain.liabilities, access: AgentAccess.read),
-        ],
-        contextMarkdown: '',
-      ),
-    ];

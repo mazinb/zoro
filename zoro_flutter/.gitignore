@@ -36,6 +36,10 @@ migrate_working_dir/
 # Legacy / optional local secrets file (use --dart-define-from-file with zoro-app/.env.local instead)
 lib/dev/local_api_keys.dart
 
+# Xcode user-specific state
+**/xcuserdata/
+*.xcuserstate
+
 # Symbolication related
 app.*.symbols
 

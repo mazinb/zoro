@@ -1,7 +1,10 @@
 import 'dart:convert';
 
+import 'package:flutter/material.dart';
+
 import '../../core/finance/currency.dart';
 import '../../core/llm/llm_client.dart';
+import '../../core/llm/llm_consent_gate.dart';
 import '../../core/llm/llm_json.dart';
 import '../../core/state/app_model.dart';
 import '../../core/state/ledger_rows.dart';
@@ -416,11 +419,15 @@ List<LedgerLiabilityRow> _liabilitiesFromMaps(List<Map<String, dynamic>> maps) {
 
 Future<bool> synthesizeDummyLedgerWithApple(
   AppModel model, {
+  required BuildContext context,
   required CurrencyCode primaryCurrency,
   CurrencyCode? secondaryCurrency,
   Iterable<CurrencyCode>? enabledCurrencies,
 }) async {
   if (!model.appleFoundationRuntimeAvailable) return false;
+  if (!await LlmConsentGate.ensure(context, model, LlmProvider.appleFoundation)) {
+    return false;
+  }
   final enabled = OnboardingDummyTemplates.enabledCurrencies(
     primaryCurrency: primaryCurrency,
     secondaryCurrency: secondaryCurrency,

@@ -7,6 +7,7 @@ import '../../core/constants/web_expenses_income.dart';
 import '../../core/import/document_ingest.dart';
 import '../../core/llm/active_llm_completion.dart';
 import '../../core/llm/llm_client.dart';
+import '../../core/llm/llm_consent_gate.dart';
 import '../../core/state/app_model.dart';
 import '../../core/state/internal_app_agent_definition.dart';
 import '../../core/state/ledger_rows.dart';
@@ -271,7 +272,9 @@ class _ContextEditorPageState extends State<ContextEditorPage> {
   Future<void> _runContextRefresh() async {
     if (_contextRefreshRunning || !widget._hasPlanner) return;
     final m = widget.model;
-    final ready = await m.prepareLlmForAssistant();
+    final ready = await m.prepareLlmForAssistant(
+      requestConsent: LlmConsentGate.requester(context, m),
+    );
     if (!mounted) return;
     if (!ready) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -420,7 +423,9 @@ class _ContextEditorPageState extends State<ContextEditorPage> {
 
   Future<void> _updateContextFromFiles(List<PlatformFile> files) async {
     final m = widget.model;
-    final ready = await m.prepareLlmForAssistant();
+    final ready = await m.prepareLlmForAssistant(
+      requestConsent: LlmConsentGate.requester(context, m),
+    );
     if (!mounted) return;
     if (!ready) {
       ScaffoldMessenger.of(context).showSnackBar(

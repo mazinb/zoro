@@ -24,11 +24,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'deviceId and kind are required' }, { status: 400 });
   }
 
+  const onboardingPhase = o.onboardingPhase === true;
+
   const supabase = getSupabaseServiceRole();
 
   const { data, error } = await supabase.rpc('mobile_consume_import', {
     device_id_in: deviceId,
     kind_in: kind,
+    onboarding_phase_in: onboardingPhase,
   });
 
   if (error) {
@@ -50,6 +53,8 @@ export async function POST(request: NextRequest) {
       creditsBalance: row.credits_balance ?? 0,
       freeAiMonthKey: row.free_ai_month_key,
       freeAiUsed: !!row.free_ai_used,
+      onboardingImportsUsed: row.onboarding_imports_used ?? 0,
+      onboardingImportsEligible: row.onboarding_imports_eligible !== false,
       updatedAt: row.updated_at,
     },
   });

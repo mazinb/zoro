@@ -12,17 +12,31 @@ class ZoroApp extends StatefulWidget {
   State<ZoroApp> createState() => _ZoroAppState();
 }
 
-class _ZoroAppState extends State<ZoroApp> {
+class _ZoroAppState extends State<ZoroApp> with WidgetsBindingObserver {
   final _model = AppModel();
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     // Run after the first frame so the shell paints and stays responsive while
     // disk + hydration work runs (large app_state.json was freezing taps on device).
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_model.bootstrap());
     });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_model.refreshMobileEntitlements());
+    }
   }
 
   @override

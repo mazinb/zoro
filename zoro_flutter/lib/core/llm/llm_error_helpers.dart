@@ -1,10 +1,10 @@
 import '../state/app_model.dart';
 
-/// Providers the user can run an LLM with right now (API key or Apple on-device when available).
+/// Providers the user can run an LLM with right now (on-device or cloud with consent).
 List<LlmProvider> llmProvidersReady(AppModel model) {
   return [
     for (final p in LlmProvider.values)
-      if (model.apiKeyFor(p) != null) p,
+      if (model.isLlmProviderReady(p)) p,
   ];
 }
 

@@ -8,10 +8,6 @@ abstract final class AppStatePaths {
   static const settingsFile = 'data/settings.json';
   static const contextFile = 'data/context.json';
   static const internalAgentsFile = 'data/internal_agents.json';
-  static const chatsFile = 'data/chats.json';
-
-  static const agentsDir = 'agents';
-  static const agentsIndexFile = 'agents/_index.json';
 
   static const contextMarkdownDir = 'context_markdown';
 }

@@ -5,7 +5,6 @@ import 'dart:isolate';
 import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
-import 'agents_store.dart';
 import 'app_state_codec.dart';
 import 'app_state_paths.dart';
 import 'context_markdown_sidecar.dart';
@@ -84,8 +83,6 @@ abstract final class AppStateSplitStore {
           'settings': AppStatePaths.settingsFile,
           'context': AppStatePaths.contextFile,
           'internalAgents': AppStatePaths.internalAgentsFile,
-          'chats': AppStatePaths.chatsFile,
-          'agents': AppStatePaths.agentsDir,
         },
       };
 
@@ -99,8 +96,6 @@ abstract final class AppStateSplitStore {
     Map<String, dynamic> settingsMap = {};
     if (settings is Map) {
       settingsMap = Map<String, dynamic>.from(settings);
-      final agentsRaw = settingsMap.remove('agents');
-      await AgentsStore.saveFromSettingsAgents(agentsRaw);
     }
 
     final ledger = working['ledger'];
@@ -125,11 +120,6 @@ abstract final class AppStateSplitStore {
       await _writeJsonAtomic(_file(sup, AppStatePaths.internalAgentsFile), internal);
     }
 
-    final chats = working['chats'];
-    if (chats is Map) {
-      await _writeJsonAtomic(_file(sup, AppStatePaths.chatsFile), chats);
-    }
-
     final manifest = _manifestFromPaths();
     manifest['savedAtMs'] = working['savedAtMs'] ?? manifest['savedAtMs'];
     await _writeJsonAtomic(_file(sup, AppStatePaths.manifestFile), manifest);
@@ -142,14 +132,12 @@ abstract final class AppStateSplitStore {
     final settingsDecoded = await _readJsonFile(_file(sup, AppStatePaths.settingsFile));
     final settingsMap =
         settingsDecoded is Map ? Map<String, dynamic>.from(settingsDecoded) : <String, dynamic>{};
-    settingsMap['agents'] = await AgentsStore.loadAsJsonList();
 
     final goalsWrap = await _readJsonFile(_file(sup, AppStatePaths.goalsFile));
     final goals = goalsWrap is Map ? goalsWrap['goals'] : goalsWrap;
 
     final contextDecoded = await _readJsonFile(_file(sup, AppStatePaths.contextFile));
     final internalDecoded = await _readJsonFile(_file(sup, AppStatePaths.internalAgentsFile));
-    final chatsDecoded = await _readJsonFile(_file(sup, AppStatePaths.chatsFile));
 
     final assembled = <String, dynamic>{
       'formatVersion': kAppStateFormatVersion,
@@ -158,7 +146,6 @@ abstract final class AppStateSplitStore {
       if (goals is List) 'goals': goals,
       if (contextDecoded is Map) 'context': Map<String, dynamic>.from(contextDecoded),
       if (internalDecoded is Map) 'internalAgents': Map<String, dynamic>.from(internalDecoded),
-      if (chatsDecoded is Map) 'chats': Map<String, dynamic>.from(chatsDecoded),
     };
 
     try {

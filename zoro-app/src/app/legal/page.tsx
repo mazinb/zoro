@@ -128,7 +128,7 @@ function TermsOfUse() {
   return (
     <>
       <h2>Terms of Use</h2>
-      <p><strong>Last updated:</strong> June 1, 2026</p>
+      <p><strong>Last updated:</strong> June 7, 2026</p>
 
       <p>
         These Terms of Use (&quot;Terms&quot;) govern your use of the Zoro mobile application,
@@ -151,8 +151,8 @@ function TermsOfUse() {
         login, brokerage services, portfolio management, or regulated financial advisory services.
       </p>
       <p>
-        Optional features may use artificial intelligence (AI) with API keys you provide. AI output
-        is generated automatically and may be incomplete or wrong.
+        Optional features may use artificial intelligence (AI) after you grant in-app permission.
+        AI output is generated automatically and may be incomplete or wrong.
       </p>
 
       <h3>3. Not financial advice</h3>
@@ -176,13 +176,37 @@ function TermsOfUse() {
       <h3>5. Your responsibilities</h3>
       <ul>
         <li>Provide accurate information you choose to enter</li>
-        <li>Keep your device and API keys secure</li>
+        <li>Keep your device secure</li>
         <li>Use the Services only for lawful purposes</li>
         <li>Not misuse, reverse engineer, or interfere with the Services</li>
-        <li>Comply with the terms of any third-party AI provider you connect</li>
+        <li>Comply with the terms of any third-party AI service you opt into</li>
       </ul>
 
-      <h3>6. Your data</h3>
+      <h3>6. Zoro Pro and in-app purchases</h3>
+      <p>
+        The Zoro iOS app offers an optional auto-renewing subscription, <strong>Zoro Pro</strong>,
+        and optional consumable <strong>import credits</strong>. Purchases are processed by Apple
+        through your App Store account. Payment is charged to your Apple ID at confirmation of
+        purchase.
+      </p>
+      <ul>
+        <li>
+          <strong>Zoro Pro</strong> is a monthly subscription that renews automatically unless
+          canceled at least 24 hours before the end of the current period. Manage or cancel in
+          iOS Settings → Apple ID → Subscriptions, or from Settings → Usage in the app.
+        </li>
+        <li>
+          <strong>Import credits</strong> are one-time consumable purchases that add import
+          capacity for free-tier users.
+        </li>
+      </ul>
+      <p>
+        Subscription price, length, and renewal terms are shown in the in-app purchase flow before
+        you confirm. Free-tier import limits (setup pool and monthly allowance) are described in
+        Settings → Usage in the app.
+      </p>
+
+      <h3>7. Your data</h3>
       <p>
         In the mobile app, your ledger and related data are stored locally on your device unless you
         export, back up, or use optional features that send data elsewhere. You control what you
@@ -190,21 +214,23 @@ function TermsOfUse() {
         website and optional online features.
       </p>
 
-      <h3>7. Third parties</h3>
+      <h3>8. Third parties and AI</h3>
       <p>
-        If you enable AI features, requests are sent to the provider you select (for example OpenAI,
-        Anthropic, Google, or Apple on-device models) under that provider&apos;s terms and privacy
-        policy. We are not responsible for third-party services.
+        If you enable AI features, Zoro shows an in-app disclosure before your data is sent for the
+        first time. Depending on the feature, data may be processed on your device (Apple
+        Intelligence) or sent to Google&apos;s cloud AI when you opt in to Cloud AI for imports.
+        Each provider&apos;s terms and privacy policy apply. We are not responsible for third-party
+        services.
       </p>
 
-      <h3>8. Intellectual property</h3>
+      <h3>9. Intellectual property</h3>
       <p>
         Zoro owns the Services, branding, and software. We grant you a limited, personal,
         non-transferable licence to use the Services. You may not copy, resell, or create derivative
         works without our written permission.
       </p>
 
-      <h3>9. Limitation of liability</h3>
+      <h3>10. Limitation of liability</h3>
       <p>
         To the fullest extent permitted by law, Zoro and its affiliates will not be liable for any
         indirect, incidental, special, consequential, or punitive damages, or for any loss of
@@ -213,26 +239,26 @@ function TermsOfUse() {
         in the twelve months before the claim, or (b) INR 1,000.
       </p>
 
-      <h3>10. Indemnity</h3>
+      <h3>11. Indemnity</h3>
       <p>
         You agree to indemnify and hold Zoro harmless from claims arising from your use of the
         Services, your content, or your violation of these Terms or applicable law.
       </p>
 
-      <h3>11. Changes and termination</h3>
+      <h3>12. Changes and termination</h3>
       <p>
         We may update these Terms or discontinue parts of the Services. Material changes will be
         posted on this page. Continued use after changes means you accept the updated Terms. We may
         suspend access if you breach these Terms.
       </p>
 
-      <h3>12. Governing law</h3>
+      <h3>13. Governing law</h3>
       <p>
         These Terms are governed by the laws of India. Courts in Mumbai, Maharashtra have exclusive
         jurisdiction, subject to mandatory consumer protections that apply where you live.
       </p>
 
-      <h3>13. Contact</h3>
+      <h3>14. Contact</h3>
       <p>
         <strong>Email:</strong>{' '}
         <a href="mailto:admin@getzoro.com" className="text-blue-600 dark:text-blue-400 hover:underline">
@@ -251,7 +277,7 @@ function PrivacyPolicy() {
   return (
     <>
       <h2>Privacy Policy</h2>
-      <p><strong>Last updated:</strong> June 1, 2026</p>
+      <p><strong>Last updated:</strong> June 7, 2026</p>
 
       <p>
         This Privacy Policy explains how Zoro (&quot;we&quot;, &quot;us&quot;) handles information
@@ -271,8 +297,8 @@ function PrivacyPolicy() {
           what is needed to run the site (basic logs, cookies).
         </li>
         <li>
-          <strong>AI (optional):</strong> If you add API keys in the app, requests go to the
-          provider you select under that provider&apos;s privacy policy.
+          <strong>AI (optional):</strong> On-device AI runs on your iPhone. Cloud AI for imports runs
+          only after you grant in-app permission and sends data to Google&apos;s servers.
         </li>
         <li>
           <strong>We do not sell your personal data.</strong>
@@ -287,12 +313,52 @@ function PrivacyPolicy() {
       <ul>
         <li>Local reminders (handled by your device, not our servers)</li>
         <li>Export/import of your ledger file for your own backup</li>
-        <li>AI-assisted import or chat when you enable it and supply API keys</li>
+        <li>AI-assisted import and helpers when you explicitly grant permission</li>
+      </ul>
+
+      <h3>2a. Third-party AI services (mobile app)</h3>
+      <p>
+        If you enable AI in the app, Zoro shows an in-app disclosure before your data is sent for
+        the first time with each service. The disclosure identifies what categories of data may be
+        sent and who receives them. We record your consent on your device and in our backend for
+        audit purposes (device identifier, provider name, consent timestamp, app version). You can
+        opt out of Cloud AI anytime in Settings → Usage.
+      </p>
+      <p>Depending on the feature you use, data may be sent to:</p>
+      <ul>
+        <li>
+          <strong>Apple Inc.</strong> — Apple Intelligence Foundation Models processed on your
+          iPhone (on-device). See{' '}
+          <a href="https://www.apple.com/legal/privacy/" className="text-blue-600 dark:text-blue-400 hover:underline">
+            Apple&apos;s Privacy Policy
+          </a>
+          .
+        </li>
+        <li>
+          <strong>Google LLC</strong> — when you opt in to Cloud AI for imports, Zoro sends your
+          import files and related context to Google&apos;s cloud AI service operated by Google. See{' '}
+          <a href="https://policies.google.com/privacy" className="text-blue-600 dark:text-blue-400 hover:underline">
+            Google&apos;s Privacy Policy
+          </a>{' '}
+          and{' '}
+          <a href="https://developers.google.com/terms" className="text-blue-600 dark:text-blue-400 hover:underline">
+            Google&apos;s Terms of Service
+          </a>
+          .
+        </li>
+      </ul>
+      <p>Categories of data that may be included in AI requests when you use helpers or imports:</p>
+      <ul>
+        <li>Text you type or paste</li>
+        <li>Summarized ledger information (names, balances, types of assets and liabilities)</li>
+        <li>Cash flow, expense estimates, goals context, and notes you wrote in the app</li>
+        <li>Text extracted from PDFs or images you choose to attach for import</li>
       </ul>
       <p>
-        When you use AI, the content you send (for example text, PDFs, or images you choose) is
-        transmitted to the model provider you configured. We do not store your API keys in our
-        cloud as part of normal app use; they are kept in your device&apos;s secure storage.
+        We do not use AI requests to build advertising profiles. Cloud AI providers process data under
+        their own terms and privacy policies; you should review them before enabling Cloud AI.
+        Zoro does not store the contents of your import files on our servers as part of normal
+        processing — files are forwarded for extraction and discarded after the request completes.
       </p>
 
       <h3>3. Website and optional online features</h3>
@@ -338,7 +404,8 @@ function PrivacyPolicy() {
           under confidentiality obligations
         </li>
         <li>
-          <strong>AI providers you choose</strong> when you enable AI in the app
+          <strong>AI providers you opt into</strong> when you grant in-app permission (Apple on-device
+          or Google Cloud AI for imports)
         </li>
         <li>
           <strong>Authorities</strong> when required by law or to protect rights and safety
@@ -356,8 +423,7 @@ function PrivacyPolicy() {
       <h3>7. Security</h3>
       <p>
         We use reasonable technical and organisational measures for information we process online.
-        No system is perfectly secure; you are responsible for securing your device, backups, and
-        API keys.
+        No system is perfectly secure; you are responsible for securing your device and backups.
       </p>
 
       <h3>8. Your rights</h3>

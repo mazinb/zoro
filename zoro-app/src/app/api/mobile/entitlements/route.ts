@@ -10,6 +10,8 @@ type EntitlementsRow = {
   credits_balance: number;
   free_ai_month_key: string | null;
   free_ai_used: boolean;
+  onboarding_imports_used: number | null;
+  onboarding_imports_eligible: boolean | null;
   updated_at: string;
 };
 
@@ -117,7 +119,7 @@ export async function POST(request: NextRequest) {
 
   const { data, error } = await supabase
     .from('mobile_entitlements')
-    .select('device_id,is_pro,pro_expires_at,credits_balance,free_ai_month_key,free_ai_used,updated_at')
+    .select('device_id,is_pro,pro_expires_at,credits_balance,free_ai_month_key,free_ai_used,onboarding_imports_used,onboarding_imports_eligible,updated_at')
     .eq('device_id', deviceId)
     .maybeSingle<EntitlementsRow>();
 
@@ -138,6 +140,8 @@ export async function POST(request: NextRequest) {
       creditsBalance: clampInt(data.credits_balance, 0),
       freeAiMonthKey: data.free_ai_month_key,
       freeAiUsed: !!data.free_ai_used,
+      onboardingImportsUsed: clampInt(data.onboarding_imports_used, 0),
+      onboardingImportsEligible: data.onboarding_imports_eligible !== false,
       updatedAt: data.updated_at,
     },
   });

@@ -1,9 +1,12 @@
 import 'dart:convert';
 
+import 'package:flutter/material.dart';
+
 import '../../core/constants/web_expenses_income.dart';
 import '../../core/finance/currency.dart';
 import '../../core/llm/apple_foundation_channel.dart';
 import '../../core/llm/llm_client.dart';
+import '../../core/llm/llm_consent_gate.dart';
 import '../../core/llm/llm_json.dart';
 import '../../core/state/app_model.dart';
 import '../../shared/guided_mcq/structured_guide_page.dart';
@@ -192,6 +195,7 @@ Only include keys from payload.bucketKeys. Keep total near baselineAnnualExpense
 
 /// Uses Apple on-device model when [note] is non-empty; returns null → caller uses deterministic buckets.
 Future<Map<String, double>?> appleOnboardingExpenseBuckets({
+  required BuildContext context,
   required AppModel model,
   required String note,
   required StructuredGuideResult mcq,
@@ -200,6 +204,9 @@ Future<Map<String, double>?> appleOnboardingExpenseBuckets({
   required Map<String, double> baselineBuckets,
 }) async {
   if (!model.appleFoundationRuntimeAvailable) return null;
+  if (!await LlmConsentGate.ensure(context, model, LlmProvider.appleFoundation)) {
+    return null;
+  }
 
   final baselineAnnualUsd = onboardingTargetAnnualExpenseUsd(netMonthlyIncomeUsd * 12);
   final payload = {

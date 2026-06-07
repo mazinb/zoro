@@ -897,7 +897,7 @@ List<StructuredGuideStep> assumptionsGuideSteps(AppModel model) {
       ),
   ];
   for (final c in [
-    model.homeCurrencyQuickPick1,
+    if (model.homeCurrencyQuickPick1 != CurrencyCode.usd) model.homeCurrencyQuickPick1,
     if (model.homeCurrencyQuickPick2 != null) model.homeCurrencyQuickPick2!,
   ]) {
     final usdPerUnit = model.usdPerUnitResolved(c);
@@ -1008,7 +1008,8 @@ Future<void> openAssumptionsStructuredGuide({
       'projectionSavingsReturnPctAnnual': model.projectionSavingsReturnPctAnnual.map((k, v) => MapEntry(k.name, v)),
       'projectionInflationPctAnnual': model.projectionInflationPctAnnual.map((k, v) => MapEntry(k.name, v)),
       'fxUsdPerUnit': {
-        model.homeCurrencyQuickPick1.name: model.usdPerUnitResolved(model.homeCurrencyQuickPick1),
+        if (model.homeCurrencyQuickPick1 != CurrencyCode.usd)
+          model.homeCurrencyQuickPick1.name: model.usdPerUnitResolved(model.homeCurrencyQuickPick1),
         if (model.homeCurrencyQuickPick2 != null)
           model.homeCurrencyQuickPick2!.name:
               model.usdPerUnitResolved(model.homeCurrencyQuickPick2!),
@@ -1062,6 +1063,7 @@ Future<void> _applyGoalsSection({
   }
 
   final llmStructured = await synthesizeGoalsSectionWithLlm(
+    context: context,
     model: model,
     agentId: agentId,
     optionalNote: result.optionalNote,

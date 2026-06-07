@@ -110,7 +110,7 @@ class LlmClient {
     if (preferJsonObjectOutput &&
         !'$system\n\n$user'.toLowerCase().contains('json')) {
       effectiveSystem =
-          '$system\n\nWhen you return zoro_actions or other structured output, reply as a JSON object (valid json).';
+          '$system\n\nWhen returning structured output, reply as a JSON object (valid json).';
     }
     final hasAttachments = attachments.isNotEmpty;
     final userContent = hasAttachments

@@ -7,10 +7,15 @@ class MobileEntitlements {
     required this.freeAiUsed,
     required this.updatedAtIso,
     this.proExpiresAtIso,
+    this.onboardingImportsUsed = 0,
+    this.onboardingImportsEligible = true,
   });
 
   /// Days after [proExpiresAtIso] that Pro stays active when billing lapses.
   static const int proGraceDays = 3;
+
+  /// One-time setup import pool (server-side cap).
+  static const int onboardingImportAllowance = 20;
 
   final String deviceId;
   /// Server flag; use [effectiveIsPro] for gating features.
@@ -19,10 +24,17 @@ class MobileEntitlements {
   final int creditsBalance;
   final String? freeAiMonthKey;
   final bool freeAiUsed;
+  final int onboardingImportsUsed;
+  final bool onboardingImportsEligible;
   final String updatedAtIso;
 
   /// Paid period end + [proGraceDays]; if no expiry, uses [isPro].
   bool get effectiveIsPro => computeEffectiveIsPro(isPro: isPro, proExpiresAtIso: proExpiresAtIso);
+
+  int get onboardingImportsRemaining =>
+      onboardingImportsEligible
+          ? (onboardingImportAllowance - onboardingImportsUsed).clamp(0, onboardingImportAllowance)
+          : 0;
 
   static bool computeEffectiveIsPro({
     required bool isPro,
@@ -69,6 +81,9 @@ class MobileEntitlements {
     final credits = int.tryParse((m['creditsBalance'] ?? '0').toString()) ?? 0;
     final freeAiMonthKey = m['freeAiMonthKey']?.toString();
     final freeAiUsed = m['freeAiUsed'] == true;
+    final onboardingImportsUsed =
+        int.tryParse((m['onboardingImportsUsed'] ?? '0').toString()) ?? 0;
+    final onboardingImportsEligible = m['onboardingImportsEligible'] != false;
     final updatedAt = (m['updatedAt'] ?? '').toString();
     if (updatedAt.trim().isEmpty) return null;
     return MobileEntitlements(
@@ -78,8 +93,9 @@ class MobileEntitlements {
       creditsBalance: credits < 0 ? 0 : credits,
       freeAiMonthKey: freeAiMonthKey,
       freeAiUsed: freeAiUsed,
+      onboardingImportsUsed: onboardingImportsUsed < 0 ? 0 : onboardingImportsUsed,
+      onboardingImportsEligible: onboardingImportsEligible,
       updatedAtIso: updatedAt,
     );
   }
 }
-

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/persistence/app_state_transfer.dart';
+import '../../core/llm/llm_consent_gate.dart';
 import '../../core/persistence/export_sanitizer.dart';
 import '../../core/state/app_model.dart';
 import '../../core/state/internal_app_agent_definition.dart';
@@ -184,6 +185,14 @@ class _DataTransferPaneState extends State<DataTransferPane> {
     try {
       var map = await _buildRawExportMap();
       if (_redact && (!_exportRedactionDone || forceRedact)) {
+        if (!mounted) return null;
+        final ready = await _m.prepareLlmForAssistant(
+          requestConsent: LlmConsentGate.requester(context, _m),
+        );
+        if (!ready) {
+          if (mounted) setState(() => _status = 'AI redaction needs a configured model and your permission.');
+          return null;
+        }
         map = await ExportSanitizer.sanitizeExportMap(_m, map);
         _exportRedactionDone = true;
       } else if (!_redact) {

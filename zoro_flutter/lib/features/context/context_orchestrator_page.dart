@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 
 import '../../core/llm/active_llm_completion.dart';
+import '../../core/llm/llm_consent_gate.dart';
 import '../../core/state/app_model.dart';
 import '../../core/state/internal_app_agent_definition.dart';
 import '../../core/state/ledger_rows.dart';
@@ -96,7 +97,9 @@ Rules:
 
   Future<void> _run() async {
     final m = widget.model;
-    final ready = await m.prepareLlmForAssistant();
+    final ready = await m.prepareLlmForAssistant(
+      requestConsent: LlmConsentGate.requester(context, m),
+    );
     if (!mounted) return;
     if (!ready) {
       setState(() {

@@ -123,11 +123,11 @@ If privacyHideAmounts is true, avoid dollar amounts and speak in general terms.
   }
 
   LlmProvider? _providerForRun(AppModel model) {
-    if (model.appleFoundationEnabled && model.appleFoundationRuntimeAvailable) {
+    if (model.isLlmProviderReady(LlmProvider.appleFoundation)) {
       return LlmProvider.appleFoundation;
     }
     final active = model.activeLlmProvider;
-    if (model.apiKeyFor(active) != null) return active;
+    if (model.isLlmProviderReady(active)) return active;
     return null;
   }
 

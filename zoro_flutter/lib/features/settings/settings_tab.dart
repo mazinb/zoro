@@ -11,6 +11,9 @@ import '../../shared/help/tab_help_content.dart';
 import '../../shared/settings/home_messages_settings_card.dart';
 import '../../shared/widgets/tab_header_actions.dart';
 import '../../core/entitlements/mobile_entitlements.dart';
+import '../../shared/widgets/cloud_import_consent_sheet.dart';
+import '../../core/iap/apple_subscription_store.dart';
+import '../../core/legal/legal_urls.dart';
 import '../../core/notifications/notification_service.dart';
 import '../../core/state/app_model.dart';
 import '../../core/state/internal_app_agent_definition.dart';
@@ -214,10 +217,12 @@ class _GeneralPaneState extends State<_GeneralPane> {
     if (!mounted) return;
     final thbPerUsd = double.tryParse(_usdToThbCtrl.text.trim().replaceAll(',', ''));
     final inrPerUsd = double.tryParse(_usdToInrCtrl.text.trim().replaceAll(',', ''));
-    if (thbPerUsd != null && thbPerUsd > 0) {
-      model.setFxUsdPerUnitOverride(model.homeCurrencyQuickPick1, 1 / thbPerUsd);
-    } else {
-      model.setFxUsdPerUnitOverride(model.homeCurrencyQuickPick1, null);
+    if (model.homeCurrencyQuickPick1 != CurrencyCode.usd) {
+      if (thbPerUsd != null && thbPerUsd > 0) {
+        model.setFxUsdPerUnitOverride(model.homeCurrencyQuickPick1, 1 / thbPerUsd);
+      } else {
+        model.setFxUsdPerUnitOverride(model.homeCurrencyQuickPick1, null);
+      }
     }
     final pick2 = model.homeCurrencyQuickPick2;
     if (pick2 != null) {
@@ -277,7 +282,7 @@ class _GeneralPaneState extends State<_GeneralPane> {
                 children: [
                   for (final c in {
                     CurrencyCode.usd,
-                    model.homeCurrencyQuickPick1,
+                    if (model.homeCurrencyQuickPick1 != CurrencyCode.usd) model.homeCurrencyQuickPick1,
                     if (model.homeCurrencyQuickPick2 != null) model.homeCurrencyQuickPick2!,
                   })
                     Padding(
@@ -455,19 +460,33 @@ class _GeneralPaneState extends State<_GeneralPane> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _fxRateRow(
-                    context,
-                    controller: _usdToThbCtrl,
-                    selected: model.homeCurrencyQuickPick1,
-                    exclude: model.homeCurrencyQuickPick2,
-                    onCurrencyChanged: (c) {
-                      if (c == model.homeCurrencyQuickPick1) return;
-                      model.setFxUsdPerUnitOverride(model.homeCurrencyQuickPick1, null);
-                      model.setHomeCurrencyQuickPick(1, c);
-                      _syncFxFieldsFromModel();
-                      _applyFxFromFieldsToModel();
-                    },
-                  ),
+                  if (model.homeCurrencyQuickPick1 == CurrencyCode.usd)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: () {
+                          model.addHomeCurrency();
+                          _syncFxFieldsFromModel();
+                          setState(() {});
+                        },
+                        icon: const Icon(Icons.add, size: 18),
+                        label: const Text('Add currency'),
+                      ),
+                    )
+                  else
+                    _fxRateRow(
+                      context,
+                      controller: _usdToThbCtrl,
+                      selected: model.homeCurrencyQuickPick1,
+                      exclude: model.homeCurrencyQuickPick2,
+                      onCurrencyChanged: (c) {
+                        if (c == model.homeCurrencyQuickPick1) return;
+                        model.setFxUsdPerUnitOverride(model.homeCurrencyQuickPick1, null);
+                        model.setHomeCurrencyQuickPick(1, c);
+                        _syncFxFieldsFromModel();
+                        _applyFxFromFieldsToModel();
+                      },
+                    ),
                   if (model.homeCurrencyQuickPick2 != null) ...[
                     Divider(height: 1, thickness: 0.5, color: cs.outlineVariant.withValues(alpha: 0.35)),
                     _fxRateRow(
@@ -493,12 +512,12 @@ class _GeneralPaneState extends State<_GeneralPane> {
                         },
                       ),
                     ),
-                  ] else
+                  ] else if (model.homeCurrencyQuickPick1 != CurrencyCode.usd)
                     Align(
                       alignment: Alignment.centerLeft,
                       child: TextButton.icon(
                         onPressed: () {
-                          model.addSecondHomeCurrency();
+                          model.addHomeCurrency();
                           _syncFxFieldsFromModel();
                           setState(() {});
                         },
@@ -1051,32 +1070,64 @@ class _AgentsPaneState extends State<_AgentsPane> {
 
 enum AgentSettingsSection { home, ledger, context, goals, data }
 
-class _UsagePane extends StatelessWidget {
+class _UsagePane extends StatefulWidget {
   const _UsagePane({required this.model});
 
   final AppModel model;
 
-  static String _formatLocalDate(DateTime d) {
-    final local = d.toLocal();
-    final m = local.month.toString().padLeft(2, '0');
-    final day = local.day.toString().padLeft(2, '0');
-    return '${local.year}-$m-$day';
+  @override
+  State<_UsagePane> createState() => _UsagePaneState();
+}
+
+class _UsagePaneState extends State<_UsagePane> {
+  StreamSubscription<void>? _purchaseUpdatesSub;
+  bool _subscriptionStoreAvailable = false;
+
+  AppModel get model => widget.model;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_initSubscriptionStore());
+    unawaited(model.refreshMobileEntitlements());
   }
 
-  static String _proGraceMessage(MobileEntitlements? ent) {
-    final graceEnd = ent?.proGraceEndsAt;
-    if (graceEnd == null) {
-      return 'Subscription ended — ${MobileEntitlements.proGraceDays}-day grace period active.';
+  Future<void> _initSubscriptionStore() async {
+    final available = await AppleSubscriptionStore.isAvailable();
+    if (!mounted) return;
+    setState(() => _subscriptionStoreAvailable = available);
+    _purchaseUpdatesSub ??= AppleSubscriptionStore.purchaseUpdates().listen((_) {
+      unawaited(model.applyEntitlementsFromIap(model.iap));
+    });
+  }
+
+  @override
+  void dispose() {
+    _purchaseUpdatesSub?.cancel();
+    super.dispose();
+  }
+
+  static String _freePlanLine(AppModel model, MobileEntitlements? ent, int credits) {
+    if (model.inSetupImportPhase && ent != null) {
+      return '${ent.onboardingImportsRemaining} of ${MobileEntitlements.onboardingImportAllowance} setup imports left · $credits credits';
     }
-    return 'Subscription ended — Pro access until ${_formatLocalDate(graceEnd)} (${MobileEntitlements.proGraceDays}-day grace).';
+    if (ent?.freeAiUsed == true) {
+      return 'Monthly free import used · $credits credits';
+    }
+    return '1 free import this month · $credits credits';
   }
 
-  static String _proRenewalMessage(MobileEntitlements ent) {
-    final raw = ent.proExpiresAtIso?.trim();
-    if (raw == null || raw.isEmpty) return '';
-    final expires = DateTime.tryParse(raw);
-    if (expires == null) return '';
-    return 'Renews through ${_formatLocalDate(expires)} (includes ${MobileEntitlements.proGraceDays}-day grace if billing lapses).';
+  static String _importLimitDetail(AppModel model, MobileEntitlements? ent) {
+    if (model.isPro) return 'Unlimited imports with Pro.';
+    if (model.inSetupImportPhase && ent != null) {
+      return 'During setup you can run up to ${MobileEntitlements.onboardingImportAllowance} imports '
+          '(${ent.onboardingImportsRemaining} left). After assets and 6 months of expenses are in, '
+          'you get 1 free import per month.';
+    }
+    if (ent?.freeAiUsed == true) {
+      return 'Your free import this month is used. Buy credits or upgrade to Pro for more.';
+    }
+    return 'After setup: 1 free import per month, then 1 credit per import.';
   }
 
   @override
@@ -1086,7 +1137,6 @@ class _UsagePane extends StatelessWidget {
     final catalog = iap.catalog;
     final isPro = model.isPro;
     final ent = model.mobileEntitlements;
-    final inGrace = ent?.isInProGracePeriod == true;
     final credits = model.creditsBalance;
 
     Future<void> buy(ProductDetails? p) async {
@@ -1123,32 +1173,21 @@ class _UsagePane extends StatelessWidget {
                 isPro ? 'Pro' : 'Free',
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
               ),
-              const SizedBox(height: 6),
-              Text(
-                isPro
-                    ? 'Unlimited imports, export, and helper edits.'
-                    : 'Export and helper edits need Pro.',
-                style: TextStyle(color: cs.onSurfaceVariant, height: 1.35),
-              ),
-              if (isPro && inGrace) ...[
+              if (isPro) ...[
                 const SizedBox(height: 8),
                 Text(
-                  _proGraceMessage(ent),
-                  style: TextStyle(color: cs.tertiary, fontSize: 12, height: 1.35, fontWeight: FontWeight.w700),
+                  'Unlimited imports and exports',
+                  style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13, height: 1.35),
                 ),
-              ] else if (isPro && ent?.proExpiresAtIso != null) ...[
+              ] else ...[
                 const SizedBox(height: 8),
                 Text(
-                  _proRenewalMessage(ent!),
-                  style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12, height: 1.35),
+                  _freePlanLine(model, ent, credits),
+                  style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13, height: 1.35),
                 ),
-              ],
-              if (!isPro) ...[
-                const SizedBox(height: 12),
-                Text('Credits: $credits', style: const TextStyle(fontWeight: FontWeight.w900)),
-                const SizedBox(height: 4),
+                const SizedBox(height: 6),
                 Text(
-                  '1 free import/month · then 1 credit each',
+                  _importLimitDetail(model, ent),
                   style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12, height: 1.35),
                 ),
               ],
@@ -1160,31 +1199,46 @@ class _UsagePane extends StatelessWidget {
           Text(iap.lastError!, style: TextStyle(color: cs.error, fontWeight: FontWeight.w700)),
           const SizedBox(height: 12),
         ],
-        if (isPro)
-          card(child: _ProLlmUsageSection(model: model))
-        else
+        card(child: _ImportAiUsageSection(model: model)),
+        const SizedBox(height: 12),
+        if (!isPro)
           card(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                FilledButton(
-                  onPressed: iap.available && !iap.busy ? () => buy(catalog?.proMonthly) : null,
-                  child: Text(
-                    catalog?.proMonthly == null
-                        ? 'Upgrade (loading…) '
-                        : 'Upgrade (${catalog!.proMonthly!.price}/mo)',
-                  ),
+                Text(
+                  'Zoro Pro',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 4),
+                Text(
+                  'Monthly subscription · unlimited imports, export, and helper edits',
+                  style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13, height: 1.35),
+                ),
+                const SizedBox(height: 12),
+                if (_subscriptionStoreAvailable) ...[
+                  const AppleProSubscriptionStoreView(height: 380),
+                  const SizedBox(height: 12),
+                ] else ...[
+                  FilledButton(
+                    onPressed: iap.available && !iap.busy ? () => buy(catalog?.proMonthly) : null,
+                    child: Text(
+                      catalog?.proMonthly == null
+                          ? 'Subscribe to Zoro Pro'
+                          : 'Zoro Pro · ${catalog!.proMonthly!.price}/mo',
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                ],
                 OutlinedButton(
                   onPressed: iap.available && !iap.busy ? () => buy(catalog?.credit1) : null,
                   child: Text(
                     catalog?.credit1 == null
-                        ? 'Buy 1 credit (loading…) '
+                        ? 'Buy 1 import credit'
                         : 'Buy 1 credit (${catalog!.credit1!.price})',
                   ),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 4),
                 TextButton(
                   onPressed: iap.available && !iap.busy ? restore : null,
                   child: const Text('Restore purchases'),
@@ -1192,143 +1246,202 @@ class _UsagePane extends StatelessWidget {
               ],
             ),
           ),
+        if (isPro) ...[
+          const SizedBox(height: 12),
+          card(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                OutlinedButton(
+                  onPressed: () => AppleSubscriptionStore.showManageSubscriptions(),
+                  child: const Text('Manage subscription'),
+                ),
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: iap.available && !iap.busy ? restore : null,
+                  child: const Text('Restore purchases'),
+                ),
+              ],
+            ),
+          ),
+        ],
+        const SizedBox(height: 20),
+        _SubscriptionLegalLinks(colorScheme: cs),
       ],
     );
   }
 }
 
-class _ProLlmUsageSection extends StatelessWidget {
-  const _ProLlmUsageSection({required this.model});
+class _SubscriptionLegalLinks extends StatelessWidget {
+  const _SubscriptionLegalLinks({required this.colorScheme});
+
+  final ColorScheme colorScheme;
+
+  Future<void> _open(String url) async {
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Wrap(
+        alignment: WrapAlignment.center,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 8,
+        runSpacing: 0,
+        children: [
+          TextButton(
+            onPressed: () => _open(LegalUrls.termsOfUse),
+            child: const Text('Terms of Use'),
+          ),
+          TextButton(
+            onPressed: () => _open(LegalUrls.privacyPolicy),
+            child: const Text('Privacy Policy'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ImportAiUsageSection extends StatefulWidget {
+  const _ImportAiUsageSection({required this.model});
 
   final AppModel model;
 
-  static const _providers = <LlmProvider>[
-    LlmProvider.appleFoundation,
-    LlmProvider.openai,
-    LlmProvider.gemini,
-    LlmProvider.anthropic,
-  ];
+  @override
+  State<_ImportAiUsageSection> createState() => _ImportAiUsageSectionState();
+}
 
-  static String _title(LlmProvider p) => switch (p) {
-        LlmProvider.appleFoundation => 'On-device',
-        LlmProvider.openai => 'OpenAI',
-        LlmProvider.gemini => 'Gemini',
-        LlmProvider.anthropic => 'Anthropic',
-      };
+class _ImportAiUsageSectionState extends State<_ImportAiUsageSection> {
+  AppModel get model => widget.model;
 
-  static IconData _icon(LlmProvider p) => switch (p) {
-        LlmProvider.appleFoundation => Icons.memory_outlined,
-        LlmProvider.openai => Icons.smart_toy_outlined,
-        LlmProvider.gemini => Icons.auto_awesome_outlined,
-        LlmProvider.anthropic => Icons.psychology_outlined,
-      };
+  String? _onDeviceNote() {
+    if (model.appleFoundationRuntimeAvailable) return null;
+    final reason = model.appleFoundationDisabledReason?.trim();
+    return reason != null && reason.isNotEmpty ? reason : 'Not available on this device';
+  }
 
-  String _statusLine(LlmProvider p) {
-    if (p == LlmProvider.appleFoundation) {
-      if (!model.appleFoundationRuntimeAvailable) {
-        final reason = model.appleFoundationDisabledReason?.trim();
-        return reason != null && reason.isNotEmpty ? reason : 'Not available on this device';
-      }
-      if (!model.appleFoundationEnabled) return 'Off';
-      return 'Ready';
+  Future<void> _onCloudToggle(bool value) async {
+    if (value) {
+      final ok = await CloudImportConsentGate.ensure(context, model);
+      if (!ok && mounted) setState(() {});
+      return;
     }
-    return model.apiKeyFor(p) != null ? 'API key set' : 'No API key';
+    await model.setCloudImportEnabled(false);
   }
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final onDeviceNote = _onDeviceNote();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          'Model usage',
+          'AI usage',
           style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 12),
         Text(
-          'Request counts are stored on this device.',
-          style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12, height: 1.35),
+          'Imports',
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
         ),
-        const SizedBox(height: 14),
-        for (var i = 0; i < _providers.length; i++) ...[
-          if (i > 0) Divider(height: 20, color: cs.outlineVariant.withValues(alpha: 0.5)),
-          _ProLlmUsageRow(
-            provider: _providers[i],
-            model: model,
-            title: _title(_providers[i]),
-            icon: _icon(_providers[i]),
-            status: _statusLine(_providers[i]),
-          ),
-        ],
+        const SizedBox(height: 8),
+        _ImportAiUsageRow(
+          title: 'On-device',
+          icon: Icons.memory_outlined,
+          requests: model.onDeviceImportRequestCount,
+          note: onDeviceNote,
+        ),
+        const SizedBox(height: 8),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Icon(Icons.cloud_outlined, size: 22, color: cs.onSurfaceVariant),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'Cloud AI',
+                          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
+                        ),
+                      ),
+                      Switch.adaptive(
+                        value: model.canUseCloudImport,
+                        onChanged: _onCloudToggle,
+                      ),
+                    ],
+                  ),
+                  Text(
+                    '${model.cloudImportRequestCount} requests',
+                    style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Text(
+          'Helpers (free)',
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+        ),
+        const SizedBox(height: 8),
+        _ImportAiUsageRow(
+          title: 'On-device',
+          icon: Icons.auto_awesome_outlined,
+          requests: model.onDeviceHelperRequestCount,
+        ),
       ],
     );
   }
 }
 
-class _ProLlmUsageRow extends StatelessWidget {
-  const _ProLlmUsageRow({
-    required this.provider,
-    required this.model,
+class _ImportAiUsageRow extends StatelessWidget {
+  const _ImportAiUsageRow({
     required this.title,
     required this.icon,
-    required this.status,
+    required this.requests,
+    this.note,
   });
 
-  final LlmProvider provider;
-  final AppModel model;
   final String title;
   final IconData icon;
-  final String status;
+  final int requests;
+  final String? note;
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final accent = model.accent;
-    final isActive = model.activeLlmProvider == provider;
-    final requests = model.llmRequestCountFor(provider);
-    final breakdown = model.llmRequestBreakdownFor(provider);
-    final configuredModel = model.modelFor(provider);
-    final modelLabel = breakdown.isEmpty
-        ? configuredModel
-        : breakdown.map((e) => '${e.model} (${e.count})').join(', ');
-
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 22, color: isActive ? accent : cs.onSurfaceVariant),
+        Icon(icon, size: 22, color: cs.onSurfaceVariant),
         const SizedBox(width: 12),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(title, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
-                  ),
-                  if (isActive)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: accent.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: accent.withValues(alpha: 0.35)),
-                      ),
-                      child: Text(
-                        'Active',
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: accent),
-                      ),
-                    ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              Text(
-                '$requests ${requests == 1 ? 'request' : 'requests'} · $modelLabel',
-                style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12, height: 1.35),
-              ),
+              Text(title, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
               const SizedBox(height: 2),
-              Text(status, style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12, height: 1.35)),
+              Text(
+                '$requests requests',
+                style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12),
+              ),
+              if (note != null) ...[
+                const SizedBox(height: 2),
+                Text(note!, style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12)),
+              ],
             ],
           ),
         ),

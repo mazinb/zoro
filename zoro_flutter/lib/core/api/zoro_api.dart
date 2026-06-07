@@ -91,9 +91,83 @@ class ZoroApi {
     return body;
   }
 
+  /// Records in-app consent before sharing data with a third-party AI provider.
+  Future<void> recordMobileAiConsent({
+    required String deviceId,
+    required String provider,
+    required String consentedAtIso,
+    String platform = 'ios',
+    String? appVersion,
+    String privacyPolicyVersion = '2026-06-07',
+  }) async {
+    final uri = AppEnv.apiUri('/api/mobile/ai-consent');
+    final res = await _client.post(
+      uri,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'deviceId': deviceId,
+        'provider': provider,
+        'consentedAt': consentedAtIso,
+        'platform': platform,
+        if (appVersion?.trim().isNotEmpty == true) 'appVersion': appVersion!.trim(),
+        'privacyPolicyVersion': privacyPolicyVersion,
+      }),
+    );
+    final body = _decodeJson(res.body);
+    if (res.statusCode != 200) {
+      throw ApiException(
+        body['error']?.toString() ?? 'Failed to record AI consent',
+        statusCode: res.statusCode,
+      );
+    }
+  }
+
+  /// Revokes in-app consent for a third-party AI provider (opt out).
+  Future<void> revokeMobileAiConsent({
+    required String deviceId,
+    required String provider,
+  }) async {
+    final uri = AppEnv.apiUri('/api/mobile/ai-consent');
+    final req = http.Request('DELETE', uri);
+    req.headers['Content-Type'] = 'application/json';
+    req.body = jsonEncode({
+      'deviceId': deviceId,
+      'provider': provider,
+    });
+    final res = await _client.send(req).then(http.Response.fromStream);
+    final body = _decodeJson(res.body);
+    if (res.statusCode != 200) {
+      throw ApiException(
+        body['error']?.toString() ?? 'Failed to revoke AI consent',
+        statusCode: res.statusCode,
+      );
+    }
+  }
+
+  /// Closes the one-time onboarding import pool for this device.
+  Future<Map<String, dynamic>> finishSetupImports({
+    required String deviceId,
+  }) async {
+    final uri = AppEnv.apiUri('/api/mobile/import/finish-setup');
+    final res = await _client.post(
+      uri,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'deviceId': deviceId}),
+    );
+    final body = _decodeJson(res.body);
+    if (res.statusCode != 200) {
+      throw ApiException(
+        body['error']?.toString() ?? 'Failed to finish setup imports',
+        statusCode: res.statusCode,
+      );
+    }
+    return body;
+  }
+
   Future<Map<String, dynamic>> consumeImportAllowance({
     required String deviceId,
     required String kind, // asset|liability|cashflow
+    bool onboardingPhase = false,
   }) async {
     final uri = AppEnv.apiUri('/api/mobile/import/consume');
     final res = await _client.post(
@@ -102,6 +176,7 @@ class ZoroApi {
       body: jsonEncode({
         'deviceId': deviceId,
         'kind': kind,
+        'onboardingPhase': onboardingPhase,
       }),
     );
     final body = _decodeJson(res.body);
@@ -119,6 +194,7 @@ class ZoroApi {
     required String kind, // asset|liability|cashflow
     required String system,
     required String user,
+    List<Map<String, dynamic>> attachments = const [],
   }) async {
     final uri = AppEnv.apiUri('/api/mobile/ledger-import');
     final res = await _client.post(
@@ -129,6 +205,7 @@ class ZoroApi {
         'kind': kind,
         'system': system,
         'user': user,
+        if (attachments.isNotEmpty) 'attachments': attachments,
       }),
     );
     final body = _decodeJson(res.body);

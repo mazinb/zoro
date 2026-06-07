@@ -117,6 +117,7 @@ class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver
     }
     if (state == AppLifecycleState.resumed) {
       unawaited(widget.model.reconcileNotifications());
+      unawaited(widget.model.refreshMobileEntitlements());
       _maybeRunHomeSummaryHelper();
     }
   }
@@ -159,13 +160,47 @@ class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver
     });
   }
 
-  void _onBottomNavSelected(int next) => _selectShellTab(next);
+  void _showGoalsLockedMessage() {
+    final m = widget.model;
+    final message = !m.onboardingComplete
+        ? 'Complete onboarding, then import your assets and 6 months of expenses to unlock Goals.'
+        : 'Import your assets and at least 6 months of cashflow to unlock Goals.';
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+        action: SnackBarAction(
+          label: 'Ledger',
+          onPressed: () => _selectShellTab(_ledgerIndex),
+        ),
+      ),
+    );
+  }
+
+  bool _trySelectGoalsTab({void Function()? andThen}) {
+    if (!widget.model.goalsTabUnlocked) {
+      _showGoalsLockedMessage();
+      return false;
+    }
+    _selectShellTab(_goalsIndex, andThen: andThen);
+    return true;
+  }
+
+  void _onBottomNavSelected(int next) {
+    if (next == _goalsIndex && !widget.model.goalsTabUnlocked) {
+      _showGoalsLockedMessage();
+      return;
+    }
+    _selectShellTab(next);
+  }
 
   void _goToGoalsAndOpenHelper() {
-    _selectShellTab(_goalsIndex, andThen: () {
+    if (!_trySelectGoalsTab(andThen: () {
       _ledgerFocus = null;
       _pendingOpenGoalsHelper = true;
-    });
+    })) {
+      return;
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _goalsTabKey.currentState?.openHelperHub();
@@ -195,7 +230,7 @@ class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver
       CommandCenterTab(
         model: widget.model,
         onGoToLedger: (section) => _selectShellTab(_ledgerIndex, andThen: () => _ledgerFocus = section),
-        onGoToGoals: () => _selectShellTab(_goalsIndex, andThen: () => _ledgerFocus = null),
+        onGoToGoals: () => _trySelectGoalsTab(andThen: () => _ledgerFocus = null),
         onOpenGoalsHelper: _goToGoalsAndOpenHelper,
       ),
       LedgerTab(

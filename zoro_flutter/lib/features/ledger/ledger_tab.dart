@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:dirham_symbol/dirham_symbol.dart';
 
+import '../../core/llm/llm_consent_gate.dart';
 import '../../core/state/app_model.dart';
 import '../../shared/help/tab_help_content.dart';
 import '../../shared/widgets/liquid_glass.dart';
@@ -232,7 +233,9 @@ class _LedgerTabState extends State<LedgerTab> {
       return;
     }
 
-    final ready = await m.prepareLlmForAssistant();
+    final ready = await m.prepareLlmForAssistant(
+      requestConsent: LlmConsentGate.requester(context, m),
+    );
     if (!mounted) return;
     if (!ready) {
       ScaffoldMessenger.of(context).showSnackBar(

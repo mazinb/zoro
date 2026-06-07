@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -6,6 +7,8 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../../core/import/document_ingest.dart';
+import '../../core/import/ledger_import_service.dart';
+import '../../shared/widgets/cloud_import_consent_sheet.dart';
 import '../../core/finance/currency.dart';
 import '../../core/state/app_model.dart';
 import '../../shared/widgets/liquid_glass.dart';
@@ -353,6 +356,7 @@ Infer **monthKey** from the document or statement period; use this hint only if 
     });
 
     final allowMultipleImages = widget.kind == LedgerImportKind.asset;
+    final cloudOk = widget.model.canUseCloudImport;
 
     final pickerKind = await showLiquidGlassModalBottomSheet<_LedgerImportPickerKind>(
       context: context,
@@ -374,16 +378,28 @@ Infer **monthKey** from the document or statement period; use this hint only if 
                 ),
                 const SizedBox(height: 8),
                 ListTile(
-                  leading: const Icon(Icons.image_outlined),
+                  leading: Icon(
+                    Icons.image_outlined,
+                    color: cloudOk ? null : Theme.of(ctx).disabledColor,
+                  ),
                   title: Text(
                     allowMultipleImages
                         ? 'Photos / images (multiple)'
                         : 'Photo / image',
-                    style: const TextStyle(fontWeight: FontWeight.w800),
+                    style: TextStyle(
+                      fontWeight: FontWeight.w800,
+                      color: cloudOk ? null : Theme.of(ctx).disabledColor,
+                    ),
                   ),
-                  subtitle: const Text('Sent directly to the LLM as images.'),
-                  onTap: () =>
-                      Navigator.of(ctx).pop(_LedgerImportPickerKind.photos),
+                  subtitle: Text(
+                    cloudOk
+                        ? 'Requires Cloud AI (Settings → Usage).'
+                        : 'Turn on Cloud AI in Settings → Usage to import photos.',
+                  ),
+                  enabled: cloudOk,
+                  onTap: cloudOk
+                      ? () => Navigator.of(ctx).pop(_LedgerImportPickerKind.photos)
+                      : null,
                 ),
                 ListTile(
                   leading: const Icon(Icons.attach_file),
@@ -493,8 +509,27 @@ Infer **monthKey** from the document or statement period; use this hint only if 
     });
 
     try {
+      final attachments = bundle.attachments;
+      final hasImages = attachments.any((a) => a.isImage);
+      if (m.canUseCloudImport) {
+        final ok = await CloudImportConsentGate.ensure(context, m);
+        if (!ok) {
+          if (mounted) {
+            setState(() {
+              _error = 'Cloud AI is required for this import. Allow it in Settings → Usage.';
+              _stage = _LedgerImportStage.localReady;
+            });
+          }
+          return;
+        }
+      }
+
       // Consume monthly free import or credits (server is source of truth).
-      final entBody = await m.api.consumeImportAllowance(deviceId: deviceId, kind: _kindApiValue);
+      final entBody = await m.api.consumeImportAllowance(
+        deviceId: deviceId,
+        kind: _kindApiValue,
+        onboardingPhase: m.inSetupImportPhase,
+      );
       m.applyMobileEntitlementsBody(entBody);
 
       final userPrompt = [
@@ -513,15 +548,13 @@ Infer **monthKey** from the document or statement period; use this hint only if 
         ],
       ].join('\n').trim();
 
-      final body = await m.api.ledgerImport(
-        deviceId: deviceId,
+      final obj = await LedgerImportService.runStructured(
+        model: m,
         kind: _kindApiValue,
         system: _systemPrompt(),
         user: userPrompt,
+        attachments: attachments,
       );
-      final data = body['data'];
-      if (data is! Map) throw const FormatException('Import returned invalid JSON');
-      final obj = Map<String, dynamic>.from(data);
 
       if (widget.kind == LedgerImportKind.asset) {
         final list = obj['assets'];
@@ -686,7 +719,7 @@ Infer **monthKey** from the document or statement period; use this hint only if 
     } catch (e) {
       if (mounted) {
         setState(() {
-          _error = e.toString();
+          _error = _friendlyImportError(e);
         });
       }
     } finally {
@@ -749,6 +782,19 @@ Infer **monthKey** from the document or statement period; use this hint only if 
 
   /// Robust money parser: accepts numbers, JSON strings, and human strings like
   /// "$1,234.56", "₹1.2L", "12 345,67". Returns 0 on failure.
+  static String _friendlyImportError(Object e) {
+    var msg = e.toString();
+    const statePrefix = 'StateError: ';
+    if (msg.startsWith(statePrefix)) msg = msg.substring(statePrefix.length);
+    const formatPrefix = 'FormatException: ';
+    if (msg.startsWith(formatPrefix)) msg = msg.substring(formatPrefix.length);
+    if (msg.startsWith('ApiException')) {
+      final idx = msg.indexOf(': ');
+      if (idx >= 0) return msg.substring(idx + 2);
+    }
+    return msg;
+  }
+
   static double _toMoney(Object? v) {
     if (v == null) return 0;
     if (v is num) return v.toDouble();
@@ -1139,6 +1185,7 @@ Infer **monthKey** from the document or statement period; use this hint only if 
     }
 
     if (!mounted) return;
+    unawaited(m.maybeFinishSetupImports());
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(_isRowEditMode ? 'Changes applied' : 'Imported'),

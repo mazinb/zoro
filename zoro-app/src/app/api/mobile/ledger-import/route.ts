@@ -8,50 +8,69 @@ function toNonEmptyString(v: unknown): string | null {
 
 type ImportKind = 'asset' | 'liability' | 'cashflow';
 
-async function openAiJsonCompletion(params: {
+type AttachmentIn = {
+  mimeType: string;
+  dataBase64: string;
+  fileName?: string;
+};
+
+async function geminiJsonCompletion(params: {
   system: string;
   user: string;
-  model?: string;
+  attachments?: AttachmentIn[];
 }): Promise<Record<string, unknown>> {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error('Server missing OPENAI_API_KEY');
-  const model = params.model || process.env.OPENAI_LEDGER_IMPORT_MODEL || 'gpt-4o-mini';
-  // OpenAI rejects json_object unless some message contains the word "json".
-  const system = params.system.toLowerCase().includes('json')
-    ? params.system
-    : `${params.system}\n\nReturn a JSON object only (valid json).`;
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error('Cloud import is unavailable');
 
-  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+  const model =
+    process.env.GEMINI_LEDGER_IMPORT_MODEL?.trim() || 'gemini-2.5-flash';
+
+  const parts: Array<Record<string, unknown>> = [];
+  for (const att of params.attachments ?? []) {
+    const mime = att.mimeType?.trim();
+    const data = att.dataBase64?.trim();
+    if (!mime || !data) continue;
+    parts.push({ inlineData: { mimeType: mime, data } });
+  }
+  parts.push({ text: params.user.slice(0, 120_000) });
+
+  const system = params.system.toLowerCase().includes('json')
+    ? params.system.slice(0, 60_000)
+    : `${params.system.slice(0, 60_000)}\n\nReturn a JSON object only (valid json).`;
+
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
+
+  const res = await fetch(url, {
     method: 'POST',
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model,
-      response_format: { type: 'json_object' },
-      messages: [
-        { role: 'system', content: system.slice(0, 60_000) },
-        { role: 'user', content: params.user.slice(0, 120_000) },
-      ],
-      temperature: 0.2,
+      systemInstruction: { parts: [{ text: system }] },
+      contents: [{ role: 'user', parts }],
+      generationConfig: {
+        temperature: 0.2,
+        responseMimeType: 'application/json',
+      },
     }),
   });
 
   if (!res.ok) {
     const text = await res.text().catch(() => '');
-    throw new Error(`OpenAI import failed (${res.status}): ${text || 'no body'}`);
+    const lower = text.toLowerCase();
+    if (res.status === 400 && (lower.includes('token') || lower.includes('too large'))) {
+      throw new Error('FILE_TOO_LONG');
+    }
+    throw new Error(`Import failed (${res.status})`);
   }
 
   const data = (await res.json()) as {
-    choices?: Array<{ message?: { content?: string } }>;
+    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
   };
-  const content = data.choices?.[0]?.message?.content;
-  if (!content) throw new Error('OpenAI returned no content');
+  const content = data.candidates?.[0]?.content?.parts?.map((p) => p.text ?? '').join('') ?? '';
+  if (!content.trim()) throw new Error('Import returned no content');
   try {
     return JSON.parse(content) as Record<string, unknown>;
   } catch {
-    throw new Error('OpenAI returned non-JSON');
+    throw new Error('Import returned invalid JSON');
   }
 }
 
@@ -80,12 +99,31 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid kind' }, { status: 400 });
   }
 
+  const attachmentsRaw = o.attachments;
+  const attachments: AttachmentIn[] = [];
+  if (Array.isArray(attachmentsRaw)) {
+    for (const item of attachmentsRaw) {
+      if (!item || typeof item !== 'object') continue;
+      const m = item as Record<string, unknown>;
+      const mimeType = toNonEmptyString(m.mimeType);
+      const dataBase64 = toNonEmptyString(m.dataBase64);
+      if (!mimeType || !dataBase64) continue;
+      attachments.push({
+        mimeType,
+        dataBase64,
+        fileName: toNonEmptyString(m.fileName) ?? undefined,
+      });
+    }
+  }
+
   try {
-    const obj = await openAiJsonCompletion({ system, user });
+    const obj = await geminiJsonCompletion({ system, user, attachments });
     return NextResponse.json({ data: obj });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Import failed';
-    return NextResponse.json({ error: msg }, { status: 502 });
+    if (msg === 'FILE_TOO_LONG') {
+      return NextResponse.json({ error: 'File too long.' }, { status: 413 });
+    }
+    return NextResponse.json({ error: 'Import failed. Try again.' }, { status: 502 });
   }
 }
-

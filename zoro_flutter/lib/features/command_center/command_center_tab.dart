@@ -262,42 +262,43 @@ class _CommandCenterTabState extends State<CommandCenterTab> with TickerProvider
                     ),
                   ),
                 ),
-                SizedBox(
-                  height: 44,
-                  child: Builder(
-                    builder: (ctx) {
-                      final cs = Theme.of(ctx).colorScheme;
-                      final options = widget.model.homeDisplayCurrencyOptions;
-                      return SegmentedButton<CurrencyCode>(
-                        segments: [
-                          for (final c in options)
-                            ButtonSegment(
-                              value: c,
-                              label: Text(c == CurrencyCode.usd ? 'USD' : c.code),
-                            ),
-                        ],
-                        selected: {widget.model.displayCurrency},
-                        onSelectionChanged: (s) => widget.model.setDisplayCurrency(s.first),
-                        style: ButtonStyle(
-                          minimumSize: const WidgetStatePropertyAll(Size(0, 44)),
-                          padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 12, vertical: 12)),
-                          tapTargetSize: MaterialTapTargetSize.padded,
-                          side: WidgetStatePropertyAll(BorderSide(color: cs.outlineVariant)),
-                          backgroundColor: WidgetStateProperty.resolveWith((states) {
-                            if (states.contains(WidgetState.selected)) {
-                              return widget.model.accent.withValues(alpha: 0.12);
-                            }
-                            return cs.surfaceContainerHigh;
-                          }),
-                          foregroundColor: WidgetStateProperty.resolveWith((states) {
-                            if (states.contains(WidgetState.selected)) return widget.model.accent;
-                            return cs.onSurfaceVariant;
-                          }),
-                        ),
-                      );
-                    },
+                if (widget.model.showHomeCurrencyToggle)
+                  SizedBox(
+                    height: 44,
+                    child: Builder(
+                      builder: (ctx) {
+                        final cs = Theme.of(ctx).colorScheme;
+                        final options = widget.model.homeDisplayCurrencyOptions;
+                        return SegmentedButton<CurrencyCode>(
+                          segments: [
+                            for (final c in options)
+                              ButtonSegment(
+                                value: c,
+                                label: Text(c == CurrencyCode.usd ? 'USD' : c.code),
+                              ),
+                          ],
+                          selected: {widget.model.displayCurrency},
+                          onSelectionChanged: (s) => widget.model.setDisplayCurrency(s.first),
+                          style: ButtonStyle(
+                            minimumSize: const WidgetStatePropertyAll(Size(0, 44)),
+                            padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 12, vertical: 12)),
+                            tapTargetSize: MaterialTapTargetSize.padded,
+                            side: WidgetStatePropertyAll(BorderSide(color: cs.outlineVariant)),
+                            backgroundColor: WidgetStateProperty.resolveWith((states) {
+                              if (states.contains(WidgetState.selected)) {
+                                return widget.model.accent.withValues(alpha: 0.12);
+                              }
+                              return cs.surfaceContainerHigh;
+                            }),
+                            foregroundColor: WidgetStateProperty.resolveWith((states) {
+                              if (states.contains(WidgetState.selected)) return widget.model.accent;
+                              return cs.onSurfaceVariant;
+                            }),
+                          ),
+                        );
+                      },
+                    ),
                   ),
-                ),
               ],
             ),
           ),

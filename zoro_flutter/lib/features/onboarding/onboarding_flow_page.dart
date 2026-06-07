@@ -106,23 +106,23 @@ class _OnboardingFlowPageState extends State<OnboardingFlowPage> {
     return netAnnual / 12;
   }
 
-  // Allow only 2 currencies: one required income currency + optional second.
-  bool get _canNextCurrency =>
-      _pick1 != null && (_pick2 == null || _pick2 != _pick1);
+  CurrencyCode get _primaryCurrency => _pick1 ?? CurrencyCode.usd;
+
+  // USD-only is valid; optional second must differ from primary.
+  bool get _canNextCurrency => _pick2 == null || _pick2 != _primaryCurrency;
 
   bool get _canNextIncome => (_parseIncomeField(_salaryCtrl) ?? 0) > 0;
 
   List<CurrencyCode> get _expenseCurrencyOptions {
-    final p1 = _pick1 ?? CurrencyCode.usd;
-    final out = <CurrencyCode>[CurrencyCode.usd, p1];
-    if (_pick2 != null && _pick2 != p1) out.add(_pick2!);
-    return out;
+    final out = <CurrencyCode>{CurrencyCode.usd, _primaryCurrency};
+    if (_pick2 != null && _pick2 != _primaryCurrency) out.add(_pick2!);
+    return out.toList();
   }
 
   Map<CurrencyCode, double> get _fxUsdPerUnitOverrides {
     final fx = <CurrencyCode, double>{};
     for (final c in [_pick1, _pick2]) {
-      if (c == null) continue;
+      if (c == null || c == CurrencyCode.usd) continue;
       final perUsd = double.tryParse(_fxController(c).text.trim().replaceAll(',', ''));
       if (perUsd != null && perUsd > 0) fx[c] = 1 / perUsd;
     }
@@ -230,10 +230,9 @@ class _OnboardingFlowPageState extends State<OnboardingFlowPage> {
       setState(() {
         _mainStep = 1;
         // Default income currencies to the chosen “income currency”.
-        final c = _pick1 ?? CurrencyCode.usd;
-        _salaryCcy = c;
-        _bonusCcy = c;
-        _rsuCcy = c;
+        _salaryCcy = _primaryCurrency;
+        _bonusCcy = _primaryCurrency;
+        _rsuCcy = _primaryCurrency;
       });
       return;
     }
@@ -244,7 +243,7 @@ class _OnboardingFlowPageState extends State<OnboardingFlowPage> {
         _expenseSubStep = _expenseManual ? -1 : 0;
         _expenseSelected.clear();
         _addDummyData = null;
-        _expenseCcy = _pick1 ?? CurrencyCode.usd;
+        _expenseCcy = _primaryCurrency;
       });
       return;
     }
@@ -273,10 +272,11 @@ class _OnboardingFlowPageState extends State<OnboardingFlowPage> {
   }
 
   Future<void> _finish({required bool addDummyData}) async {
-    if (_finishing || _pick1 == null) return;
+    if (_finishing) return;
     setState(() => _finishing = true);
 
-    final dummyEnabledCurrencies = <CurrencyCode>{_salaryCcy, _pick1!, if (_pick2 != null) _pick2!};
+    final primary = _primaryCurrency;
+    final dummyEnabledCurrencies = <CurrencyCode>{_salaryCcy, primary, if (_pick2 != null) _pick2!};
     final dummySecondary = OnboardingDummyTemplates.secondaryCurrencyIn(
       dummyEnabledCurrencies,
       primaryCurrency: _salaryCcy,
@@ -295,8 +295,8 @@ class _OnboardingFlowPageState extends State<OnboardingFlowPage> {
       optionalNote: _expenseNoteCtrl.text.trim(),
     );
     final fx = <CurrencyCode, double>{};
-    for (final c in [_pick1!, _pick2]) {
-      if (c == null) continue;
+    for (final c in [primary, if (_pick2 != null) _pick2!]) {
+      if (c == CurrencyCode.usd) continue;
       final perUsd = double.tryParse(_fxController(c).text.trim().replaceAll(',', ''));
       if (perUsd != null && perUsd > 0) fx[c] = perUsd;
     }
@@ -316,6 +316,7 @@ class _OnboardingFlowPageState extends State<OnboardingFlowPage> {
     final note = _expenseNoteCtrl.text.trim();
     if (note.isNotEmpty && !_expenseManual) {
       final ai = await appleOnboardingExpenseBuckets(
+        context: context,
         model: widget.model,
         note: note,
         mcq: mcq,
@@ -328,7 +329,7 @@ class _OnboardingFlowPageState extends State<OnboardingFlowPage> {
 
     widget.model.applyOnboardingSetup(
       markOnboardingComplete: false,
-      homeQuickPick1: _pick1!,
+      homeQuickPick1: primary,
       homeQuickPick2: _pick2,
       unitsPerUsdByCurrency: fx,
       salaryAnnual: _annualFromSalaryField(),
@@ -344,8 +345,10 @@ class _OnboardingFlowPageState extends State<OnboardingFlowPage> {
     );
     try {
       if (addDummyData) {
+        if (!mounted) return;
         final ok = await synthesizeDummyLedgerWithApple(
           widget.model,
+          context: context,
           primaryCurrency: _salaryCcy,
           secondaryCurrency: dummySecondary,
           enabledCurrencies: dummyEnabledCurrencies,
@@ -440,7 +443,7 @@ class _OnboardingFlowPageState extends State<OnboardingFlowPage> {
                             primaryCurrency: _salaryCcy,
                             enabledCurrencies: {
                               _salaryCcy,
-                              _pick1!,
+                              _primaryCurrency,
                               if (_pick2 != null) _pick2!,
                             },
                           )
@@ -604,7 +607,7 @@ class _CurrencyStep extends StatelessWidget {
           exclude: pick2,
           onChanged: onPick1,
         ),
-        if (pick1 != null) ...[
+        if (pick1 != null && pick1 != CurrencyCode.usd) ...[
           const SizedBox(height: 8),
           _FxRateRow(currency: pick1!, controller: fxController(pick1!)),
         ],
@@ -615,7 +618,7 @@ class _CurrencyStep extends StatelessWidget {
           exclude: pick1,
           onChanged: onPick2,
         ),
-        if (pick2 != null) ...[
+        if (pick2 != null && pick2 != CurrencyCode.usd) ...[
           const SizedBox(height: 8),
           _FxRateRow(currency: pick2!, controller: fxController(pick2!)),
         ],

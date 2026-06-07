@@ -13,7 +13,10 @@ import UserNotifications
 
   func didInitializeImplicitFlutterEngine(_ engineBridge: FlutterImplicitEngineBridge) {
     GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
-    AppleFoundationModelsPlugin.register(with: engineBridge.applicationRegistrar.messenger())
+    let registrar = engineBridge.applicationRegistrar
+    AppleFoundationModelsPlugin.register(with: registrar.messenger())
+    AppleSubscriptionStorePlugin.register(with: registrar.messenger())
+    AppleSubscriptionStorePlugin.registerEmbeddedStoreView(registrar)
     if #available(iOS 10.0, *) {
       UNUserNotificationCenter.current().delegate = self
     }

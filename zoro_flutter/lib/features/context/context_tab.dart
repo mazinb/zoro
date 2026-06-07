@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/constants/web_expenses_income.dart';
 import '../../core/finance/currency.dart';
+import '../../core/llm/llm_consent_gate.dart';
 import '../../core/state/app_model.dart';
 import '../../shared/help/tab_help_content.dart';
 import '../../shared/widgets/ledger_card_subtitle.dart';
@@ -64,7 +65,9 @@ class _ContextTabState extends State<ContextTab> {
   Future<void> _runContextHelper() async {
     if (_contextReviewRunning) return;
     final m = widget.model;
-    final ready = await m.prepareLlmForAssistant();
+    final ready = await m.prepareLlmForAssistant(
+      requestConsent: LlmConsentGate.requester(context, m),
+    );
     if (!mounted) return;
     if (!ready) {
       ScaffoldMessenger.of(context).showSnackBar(

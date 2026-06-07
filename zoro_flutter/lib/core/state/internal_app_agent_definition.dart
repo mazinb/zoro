@@ -219,7 +219,7 @@ Strip currency symbols. Use 0 for unknowns and note in "assumptions".
     listSubtitle: 'Context → assets',
     icon: Icons.savings_outlined,
     defaultSystemPrompt: '''
-You help write clear notes for one asset so the app and chat understand it.
+You help write clear notes for one asset so the app understands it.
 
 Be helpful: do the math when it helps. For brokerage accounts, YOU reconcile first: add up what the user already described and compare to the account total. Do not ask “does this add up?” — show the math, then only ask about what is missing. Example: “You described about \$225k of \$350k here — where is the rest invested?”
 
@@ -231,7 +231,7 @@ Be helpful: do the math when it helps. For brokerage accounts, YOU reconcile fir
     infoWhatItDoes:
         'Updates your asset note from uploads or a direct refresh (no question flow).',
     infoContextSent:
-        'The asset name, type, and balance from your ledger, plus any note you already wrote. Uses your API key from Settings.',
+        'The asset name, type, and balance from your ledger, plus any note you already wrote. Processed on-device on your iPhone.',
     modelDomainHints: '''
 Asset types:
 - brokerage: cash vs investments split; reconcile explained amounts to the ledger total before asking follow-ups.
@@ -251,7 +251,7 @@ Include when known: lender, balance source, interest rate (fixed or variable), p
     infoWhatItDoes:
         'Updates your liability note from uploads or a direct refresh (no question flow).',
     infoContextSent:
-        'Debt type, name, and balance from your ledger, plus any note you wrote. Uses your API key from Settings.',
+        'Debt type, name, and balance from your ledger, plus any note you wrote. Processed on-device on your iPhone.',
     modelDomainHints: '''
 Debt types: personal loan, car, card, mortgage, other. Prioritize rate, minimum payment, due rhythm, and anything special (intro rate, balloon).
 ''',
@@ -269,7 +269,7 @@ Cover: what counts in this bucket, what does not, and what usually moves the num
     infoWhatItDoes:
         'A few questions about this budget line, then a cleaner note. Skips questions if your note is already clear.',
     infoContextSent:
-        'The bucket name and your monthly estimate from the app, plus any note you wrote. Uses your API key from Settings.',
+        'The bucket name and your monthly estimate from the app, plus any note you wrote. Processed on-device on your iPhone.',
     modelDomainHints: '''
 Focus on boundaries (“counts / doesn’t count”), lumpiness, and typical one-offs.
 ''',
@@ -287,7 +287,7 @@ Stay short and specific. Tie numbers to the month when the user mentions them.
     infoWhatItDoes:
         'Questions about that month, then a tighter note. Skips questions if you already said enough.',
     infoContextSent:
-        'The month label and spending/cashflow entries if any, plus your note. Uses your API key from Settings.',
+        'The month label and spending/cashflow entries if any, plus your note. Processed on-device on your iPhone.',
     modelDomainHints: '''
 Month notes: one-offs, income changes, “remember for next month”, irregular bills.
 ''',
