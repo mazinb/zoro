@@ -235,8 +235,8 @@ function TermsOfUse() {
         To the fullest extent permitted by law, Zoro and its affiliates will not be liable for any
         indirect, incidental, special, consequential, or punitive damages, or for any loss of
         profits, data, or goodwill, arising from your use of the Services. Our total liability for
-        any claim relating to the Services will not exceed the greater of (a) amounts you paid us
-        in the twelve months before the claim, or (b) INR 1,000.
+        any claim relating to the Services will not exceed the amounts you paid us for the Services
+        in the twelve months before the claim (or, if you have not paid us, zero).
       </p>
 
       <h3>11. Indemnity</h3>
@@ -252,10 +252,11 @@ function TermsOfUse() {
         suspend access if you breach these Terms.
       </p>
 
-      <h3>13. Governing law</h3>
+      <h3>13. Governing law and disputes</h3>
       <p>
-        These Terms are governed by the laws of India. Courts in Mumbai, Maharashtra have exclusive
-        jurisdiction, subject to mandatory consumer protections that apply where you live.
+        These Terms are interpreted according to applicable law. Mandatory consumer protections
+        where you live continue to apply where they cannot be waived. For App Store purchases,
+        Apple&apos;s terms and refund policies also apply.
       </p>
 
       <h3>14. Contact</h3>
@@ -264,8 +265,6 @@ function TermsOfUse() {
         <a href="mailto:admin@getzoro.com" className="text-blue-600 dark:text-blue-400 hover:underline">
           admin@getzoro.com
         </a>
-        <br />
-        <strong>Zoro</strong> — Mumbai, Maharashtra, India
       </p>
     </>
   );
@@ -428,10 +427,10 @@ function PrivacyPolicy() {
 
       <h3>8. Your rights</h3>
       <p>
-        Depending on applicable law (including India&apos;s Digital Personal Data Protection Act,
-        2023), you may have rights to access, correct, delete, or withdraw consent for personal data
-        we hold about you. To exercise these rights, email us. You may also lodge a complaint with
-        the relevant authority where you live.
+        Depending on applicable law where you live, you may have rights to access, correct, delete,
+        or withdraw consent for personal data we hold about you. To exercise these rights, email us.
+        You may also lodge a complaint with a relevant privacy authority if one applies where you
+        live.
       </p>
 
       <h3>9. Children</h3>
@@ -439,28 +438,35 @@ function PrivacyPolicy() {
 
       <h3>10. International transfers</h3>
       <p>
-        Our service providers or AI vendors may process data outside India. Where required, we use
-        appropriate safeguards for such transfers.
+        Some service providers or AI vendors may process data in countries other than where you
+        live. Where required, we use appropriate safeguards for such transfers.
       </p>
 
-      <h3>11. Changes</h3>
+      <h3>11. Changes to this Policy</h3>
       <p>
         We may update this Policy. The &quot;Last updated&quot; date will change. Continued use after
         material changes means you accept the updated Policy.
       </p>
 
-      <h3>12. Contact</h3>
+      <h3>12. App Store and Apple</h3>
+      <p>
+        If you download Zoro from the Apple App Store, Apple&apos;s terms apply to your App Store
+        account and purchases. Apple processes subscription and payment data for Zoro Pro and import
+        credits; we do not receive your full payment card details. The App Store privacy nutrition
+        label for Zoro summarizes data types the app may access; this Policy provides additional
+        detail. Manage subscriptions in iOS Settings → Apple ID → Subscriptions.
+      </p>
+
+      <h3>13. Contact</h3>
       <p>
         <strong>Email:</strong>{' '}
         <a href="mailto:admin@getzoro.com" className="text-blue-600 dark:text-blue-400 hover:underline">
           admin@getzoro.com
         </a>
-        <br />
-        <strong>Zoro</strong> — Mumbai, Maharashtra, India
       </p>
       <p>
-        For privacy grievances under Indian law, contact us at the same address. We will respond
-        within reasonable timeframes required by applicable rules.
+        For privacy questions or concerns, contact us at the same address. We will respond within a
+        reasonable time.
       </p>
     </>
   );
