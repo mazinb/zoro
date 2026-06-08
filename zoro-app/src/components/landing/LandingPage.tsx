@@ -391,6 +391,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             <ZoroLogo className="h-8" isDark={darkMode} />
           </div>
           <div className={`text-sm ${theme.textSecondaryClass} flex items-center gap-2`}>
+            <Link href="/support" className="hover:underline transition-colors">
+              Support
+            </Link>
+            <span>|</span>
             <Link
               href="/legal?tab=terms"
               className="hover:underline transition-colors"

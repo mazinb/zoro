@@ -264,6 +264,10 @@ export const DownloadLandingPage: React.FC<DownloadLandingPageProps> = ({
         <div className="max-w-6xl mx-auto px-6 flex flex-col sm:flex-row items-center justify-between gap-6">
           <ZoroLogo className="h-8" isDark={darkMode} />
           <div className={`text-sm ${theme.textSecondaryClass} flex items-center gap-2`}>
+            <Link href="/support" className="hover:underline transition-colors">
+              Support
+            </Link>
+            <span>|</span>
             <Link href="/legal?tab=terms" className="hover:underline transition-colors">
               Terms of use
             </Link>
