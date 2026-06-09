@@ -1081,24 +1081,18 @@ class _UsagePane extends StatefulWidget {
 
 class _UsagePaneState extends State<_UsagePane> {
   StreamSubscription<void>? _purchaseUpdatesSub;
-  bool _subscriptionStoreAvailable = false;
 
   AppModel get model => widget.model;
 
   @override
   void initState() {
     super.initState();
-    unawaited(_initSubscriptionStore());
     unawaited(model.refreshMobileEntitlements());
-  }
-
-  Future<void> _initSubscriptionStore() async {
-    final available = await AppleSubscriptionStore.isAvailable();
-    if (!mounted) return;
-    setState(() => _subscriptionStoreAvailable = available);
-    _purchaseUpdatesSub ??= AppleSubscriptionStore.purchaseUpdates().listen((_) {
-      unawaited(model.applyEntitlementsFromIap(model.iap));
-    });
+    if (!kIsWeb) {
+      _purchaseUpdatesSub ??= AppleSubscriptionStore.purchaseUpdates().listen((_) {
+        unawaited(model.applyEntitlementsFromIap(model.iap));
+      });
+    }
   }
 
   @override
@@ -1201,71 +1195,42 @@ class _UsagePaneState extends State<_UsagePane> {
         ],
         card(child: _ImportAiUsageSection(model: model)),
         const SizedBox(height: 12),
-        if (!isPro)
-          card(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  'Zoro Pro',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Monthly subscription · unlimited imports, export, and helper edits',
-                  style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13, height: 1.35),
-                ),
-                const SizedBox(height: 12),
-                if (_subscriptionStoreAvailable) ...[
-                  const AppleProSubscriptionStoreView(height: 380),
-                  const SizedBox(height: 12),
-                ] else ...[
-                  FilledButton(
-                    onPressed: iap.available && !iap.busy ? () => buy(catalog?.proMonthly) : null,
-                    child: Text(
-                      catalog?.proMonthly == null
-                          ? 'Subscribe to Zoro Pro'
-                          : 'Zoro Pro · ${catalog!.proMonthly!.price}/mo',
-                    ),
+        card(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (!isPro) ...[
+                FilledButton(
+                  onPressed: iap.available && !iap.busy ? () => buy(catalog?.proMonthly) : null,
+                  child: Text(
+                    catalog?.proMonthly == null ? 'Pro' : 'Pro · ${catalog!.proMonthly!.price}/mo',
                   ),
-                  const SizedBox(height: 8),
-                ],
+                ),
+                const SizedBox(height: 8),
                 OutlinedButton(
                   onPressed: iap.available && !iap.busy ? () => buy(catalog?.credit1) : null,
                   child: Text(
-                    catalog?.credit1 == null
-                        ? 'Buy 1 import credit'
-                        : 'Buy 1 credit (${catalog!.credit1!.price})',
+                    catalog?.credit1 == null ? 'Credits' : 'Credits · ${catalog!.credit1!.price}',
                   ),
                 ),
-                const SizedBox(height: 4),
                 TextButton(
                   onPressed: iap.available && !iap.busy ? restore : null,
                   child: const Text('Restore purchases'),
                 ),
-              ],
-            ),
-          ),
-        if (isPro) ...[
-          const SizedBox(height: 12),
-          card(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
+              ] else ...[
                 OutlinedButton(
                   onPressed: () => AppleSubscriptionStore.showManageSubscriptions(),
                   child: const Text('Manage subscription'),
                 ),
-                const SizedBox(height: 8),
                 TextButton(
                   onPressed: iap.available && !iap.busy ? restore : null,
                   child: const Text('Restore purchases'),
                 ),
               ],
-            ),
+            ],
           ),
-        ],
-        const SizedBox(height: 20),
+        ),
+        const SizedBox(height: 12),
         _SubscriptionLegalLinks(colorScheme: cs),
       ],
     );
@@ -1342,65 +1307,29 @@ class _ImportAiUsageSectionState extends State<_ImportAiUsageSection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          'AI usage',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
-        ),
-        const SizedBox(height: 12),
-        Text(
-          'Imports',
-          style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
-        ),
-        const SizedBox(height: 8),
         _ImportAiUsageRow(
           title: 'On-device',
           icon: Icons.memory_outlined,
-          requests: model.onDeviceImportRequestCount,
+          requests: model.onDeviceRequestCount,
           note: onDeviceNote,
         ),
         const SizedBox(height: 8),
         Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Icon(Icons.cloud_outlined, size: 22, color: cs.onSurfaceVariant),
-            const SizedBox(width: 12),
+            Icon(Icons.cloud_outlined, size: 20, color: cs.onSurfaceVariant),
+            const SizedBox(width: 10),
             Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Row(
-                    children: [
-                      const Expanded(
-                        child: Text(
-                          'Cloud AI',
-                          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15),
-                        ),
-                      ),
-                      Switch.adaptive(
-                        value: model.canUseCloudImport,
-                        onChanged: _onCloudToggle,
-                      ),
-                    ],
-                  ),
-                  Text(
-                    '${model.cloudImportRequestCount} requests',
-                    style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12),
-                  ),
-                ],
+              child: Text(
+                'Cloud · ${model.cloudImportRequestCount} requests',
+                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
               ),
             ),
+            Switch.adaptive(
+              value: model.canUseCloudImport,
+              onChanged: _onCloudToggle,
+            ),
           ],
-        ),
-        const SizedBox(height: 16),
-        Text(
-          'Helpers (free)',
-          style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
-        ),
-        const SizedBox(height: 8),
-        _ImportAiUsageRow(
-          title: 'On-device',
-          icon: Icons.auto_awesome_outlined,
-          requests: model.onDeviceHelperRequestCount,
         ),
       ],
     );
@@ -1424,27 +1353,18 @@ class _ImportAiUsageRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Icon(icon, size: 22, color: cs.onSurfaceVariant),
-        const SizedBox(width: 12),
+        Icon(icon, size: 20, color: cs.onSurfaceVariant),
+        const SizedBox(width: 10),
         Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(title, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
-              const SizedBox(height: 2),
-              Text(
-                '$requests requests',
-                style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12),
-              ),
-              if (note != null) ...[
-                const SizedBox(height: 2),
-                Text(note!, style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12)),
-              ],
-            ],
+          child: Text(
+            '$title · $requests requests',
+            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
           ),
         ),
+        if (note != null)
+          Text(note!, style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12)),
       ],
     );
   }

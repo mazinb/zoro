@@ -107,15 +107,14 @@ private struct ProSubscriptionStoreContent: View {
 
   var body: some View {
     SubscriptionStoreView(productIDs: productIds) {
-      VStack(alignment: .leading, spacing: 8) {
+      VStack(alignment: .leading, spacing: 4) {
         Text("Zoro Pro")
-          .font(.title2.bold())
+          .font(.headline.bold())
         Text("Unlimited imports, export, and helper edits.")
-          .font(.subheadline)
+          .font(.caption)
           .foregroundStyle(.secondary)
       }
       .frame(maxWidth: .infinity, alignment: .leading)
-      .padding(.vertical, 4)
     }
     .storeButton(.visible, for: .restorePurchases)
   }

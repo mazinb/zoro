@@ -791,9 +791,12 @@ class AppModel extends ChangeNotifier {
   int get onDeviceImportRequestCount =>
       llmRequestsByModelKey[importRequestKeyOnDevice] ?? 0;
 
+  /// All on-device Apple Foundation calls (imports + helpers).
+  int get onDeviceRequestCount => llmRequestCountFor(LlmProvider.appleFoundation);
+
   /// On-device helper calls (excludes import keys).
   int get onDeviceHelperRequestCount {
-    final total = llmRequestCountFor(LlmProvider.appleFoundation);
+    final total = onDeviceRequestCount;
     return (total - onDeviceImportRequestCount).clamp(0, total);
   }
 
@@ -1075,7 +1078,7 @@ class AppModel extends ChangeNotifier {
   List<CurrencyCode> get homeDisplayCurrencyOptions {
     final fxPicks = <CurrencyCode>[
       if (homeCurrencyQuickPick1 != CurrencyCode.usd) homeCurrencyQuickPick1,
-      if (homeCurrencyQuickPick2 != null) homeCurrencyQuickPick2!,
+      ?homeCurrencyQuickPick2,
     ];
     if (fxPicks.isEmpty) return const [];
     return [CurrencyCode.usd, ...fxPicks];
@@ -4484,7 +4487,7 @@ class AppModel extends ChangeNotifier {
       final allowedDisplay = {
         CurrencyCode.usd,
         if (homeCurrencyQuickPick1 != CurrencyCode.usd) homeCurrencyQuickPick1,
-        if (homeCurrencyQuickPick2 != null) homeCurrencyQuickPick2!,
+        ?homeCurrencyQuickPick2,
       };
       if (!allowedDisplay.contains(displayCurrency)) {
         displayCurrency = homeCurrencyQuickPick1 == CurrencyCode.usd

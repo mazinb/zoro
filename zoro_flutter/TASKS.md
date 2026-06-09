@@ -32,7 +32,7 @@ Privacy-first finance on device. Production API: **getzoro.com**. On-device stor
 **Apple resubmission (Guidelines 5.1.1/5.1.2 + 3.1.2):**
 - In-app consent sheet before Cloud AI / on-device AI first use; recorded in `mobile_ai_consents`
 - Settings → Usage: `SubscriptionStoreView` (title, term, price, Terms, Privacy) + legal links
-- Legal pages at https://www.getzoro.com/legal?tab=terms and ?tab=privacy updated June 7, 2026
+- Legal pages at https://www.getzoro.com/legal?tab=terms and ?tab=privacy updated June 9, 2026 (Terms: Apple App Store additional terms)
 
 **iOS:** `./scripts/setup_ios.sh` → open `ios/Runner.xcworkspace` → Team → device. CLI: `flutter run -d <id> --dart-define=API_BASE_URL=https://www.getzoro.com`. Signing / `objective_c` pin: see **iOS notes** below.
 

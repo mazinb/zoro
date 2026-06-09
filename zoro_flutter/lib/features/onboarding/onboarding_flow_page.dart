@@ -276,7 +276,7 @@ class _OnboardingFlowPageState extends State<OnboardingFlowPage> {
     setState(() => _finishing = true);
 
     final primary = _primaryCurrency;
-    final dummyEnabledCurrencies = <CurrencyCode>{_salaryCcy, primary, if (_pick2 != null) _pick2!};
+    final dummyEnabledCurrencies = <CurrencyCode>{_salaryCcy, primary, ?_pick2};
     final dummySecondary = OnboardingDummyTemplates.secondaryCurrencyIn(
       dummyEnabledCurrencies,
       primaryCurrency: _salaryCcy,
@@ -295,7 +295,7 @@ class _OnboardingFlowPageState extends State<OnboardingFlowPage> {
       optionalNote: _expenseNoteCtrl.text.trim(),
     );
     final fx = <CurrencyCode, double>{};
-    for (final c in [primary, if (_pick2 != null) _pick2!]) {
+    for (final c in [primary, ?_pick2]) {
       if (c == CurrencyCode.usd) continue;
       final perUsd = double.tryParse(_fxController(c).text.trim().replaceAll(',', ''));
       if (perUsd != null && perUsd > 0) fx[c] = perUsd;
@@ -444,7 +444,7 @@ class _OnboardingFlowPageState extends State<OnboardingFlowPage> {
                             enabledCurrencies: {
                               _salaryCcy,
                               _primaryCurrency,
-                              if (_pick2 != null) _pick2!,
+                              ?_pick2,
                             },
                           )
                         : _onExpenseDummyStep

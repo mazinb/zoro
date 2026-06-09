@@ -128,7 +128,7 @@ function TermsOfUse() {
   return (
     <>
       <h2>Terms of Use</h2>
-      <p><strong>Last updated:</strong> June 7, 2026</p>
+      <p><strong>Last updated:</strong> June 9, 2026</p>
 
       <p>
         These Terms of Use (&quot;Terms&quot;) govern your use of the Zoro mobile application,
@@ -255,11 +255,74 @@ function TermsOfUse() {
       <h3>13. Governing law and disputes</h3>
       <p>
         These Terms are interpreted according to applicable law. Mandatory consumer protections
-        where you live continue to apply where they cannot be waived. For App Store purchases,
-        Apple&apos;s terms and refund policies also apply.
+        where you live continue to apply where they cannot be waived. If you download the Zoro
+        iOS app from the Apple App Store, Section 14 also applies.
       </p>
 
-      <h3>14. Contact</h3>
+      <h3>14. Apple App Store additional terms and conditions</h3>
+      <p>
+        The following additional terms apply to your use of the Zoro iOS application (the
+        &quot;Application&quot;) if downloaded from the Apple App Store:
+      </p>
+      <p>
+        <strong>Acknowledgment.</strong> You and Zoro acknowledge that these Terms are concluded
+        between you and Zoro only, and not with Apple, Inc. (&quot;Apple&quot;). Zoro, not Apple,
+        is solely responsible for the Application and the content thereof.
+      </p>
+      <p>
+        <strong>Scope of license.</strong> The license granted to you for the Application is limited
+        to a non-transferable license to use the Application on any Apple-branded products that you
+        own or control and as permitted by the Usage Rules set forth in the Apple Media Services
+        Terms of Service. This scope applies to the Application only; other parts of the Services
+        (for example the website) remain governed by Section 9.
+      </p>
+      <p>
+        <strong>Maintenance and support.</strong> Zoro is solely responsible for providing any
+        maintenance and support services with respect to the Application, as specified in these
+        Terms or as required under applicable law. You and Zoro acknowledge that Apple has no
+        obligation whatsoever to furnish any maintenance and support services with respect to the
+        Application.
+      </p>
+      <p>
+        <strong>Warranty and refunds.</strong> Zoro is solely responsible for any product
+        warranties, whether express or implied by law, to the extent not effectively disclaimed in
+        Section 4. In the event of any failure of the Application to conform to any applicable
+        warranty, you may notify Apple, and Apple will refund the purchase price for the
+        Application to you. To the maximum extent permitted by applicable law, Apple will have no
+        other warranty obligation whatsoever with respect to the Application, and any other claims,
+        losses, liabilities, damages, costs, or expenses attributable to any failure to conform to
+        any warranty will be Zoro&apos;s sole responsibility.
+      </p>
+      <p>
+        <strong>Product claims.</strong> You and Zoro acknowledge that Zoro, not Apple, is
+        responsible for addressing any claims by you or any third party relating to the Application
+        or your possession and/or use of that Application, including, but not limited to: (i)
+        product liability claims; (ii) any claim that the Application fails to conform to any
+        applicable legal or regulatory requirement; and (iii) claims arising under consumer
+        protection, privacy, or similar legislation.
+      </p>
+      <p>
+        <strong>Intellectual property rights.</strong> You and Zoro acknowledge that, in the event of
+        any third-party claim that the Application or your possession and use of that Application
+        infringes that third party&apos;s intellectual property rights, Zoro, not Apple, will be
+        solely responsible for the investigation, defense, settlement, and discharge of any such
+        intellectual property infringement claim.
+      </p>
+      <p>
+        <strong>Legal compliance.</strong> You represent and warrant that (i) you are not located in
+        a country that is subject to a U.S. Government embargo, or that has been designated by the
+        U.S. Government as a &quot;terrorist supporting&quot; country; and (ii) you are not listed
+        on any U.S. Government list of prohibited or restricted parties.
+      </p>
+      <p>
+        <strong>Third-party beneficiary.</strong> You and Zoro acknowledge and agree that Apple, and
+        Apple&apos;s subsidiaries, are third-party beneficiaries of these Terms with respect to
+        your use of the Application, and that, upon your acceptance of these Terms, Apple will have
+        the right (and will be deemed to have accepted the right) to enforce these Terms against you
+        as a third-party beneficiary thereof.
+      </p>
+
+      <h3>15. Contact</h3>
       <p>
         <strong>Email:</strong>{' '}
         <a href="mailto:admin@getzoro.com" className="text-blue-600 dark:text-blue-400 hover:underline">
