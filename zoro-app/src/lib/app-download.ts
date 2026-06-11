@@ -1,11 +1,10 @@
-/** Public App Store / Play Store URLs — set in Vercel or .env.local */
-export const IOS_APP_URL =
-  (process.env.NEXT_PUBLIC_IOS_APP_URL || '').trim();
+/** Public App Store / Play Store URLs — override in Vercel or .env.local if needed */
+export const IOS_APP_URL = (
+  process.env.NEXT_PUBLIC_IOS_APP_URL || 'https://apps.apple.com/app/id6767001446'
+).trim();
 
 export const ANDROID_APP_URL =
   (process.env.NEXT_PUBLIC_ANDROID_APP_URL || '').trim();
-
-export const TESTFLIGHT_URL = 'https://testflight.apple.com/join/87U5ckxQ';
 
 export const REDDIT_URL = 'https://www.reddit.com/r/getzoro/';
 

@@ -154,7 +154,7 @@ export const DownloadLandingPage: React.FC<DownloadLandingPageProps> = ({
           <DownloadButtons darkMode={darkMode} size="md" className="justify-center" />
 
           <p className={`text-xs ${theme.textSecondaryClass} mt-3`}>
-            iOS beta on TestFlight
+            Available on the App Store for iPhone and iPad
           </p>
         </div>
       </section>
@@ -251,7 +251,7 @@ export const DownloadLandingPage: React.FC<DownloadLandingPageProps> = ({
       >
         <div className="max-w-4xl mx-auto px-6 text-center">
           <h2 className={`text-2xl sm:text-3xl font-bold ${headerTextClass} mb-3`}>
-            Join the beta community
+            Join the community
           </h2>
           <p className={`${theme.textSecondaryClass} mb-8 max-w-md mx-auto`}>
             Share feedback, ask questions, and follow updates on Reddit.

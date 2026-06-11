@@ -55,7 +55,7 @@ function SupportPageContent() {
           Questions about the app, subscriptions, imports, or your privacy? We&apos;re here to help.
         </p>
 
-        <div className={`prose dark:prose-invert prose-neutral max-w-none leading-relaxed`}>
+        <div className={theme.legalContentClass}>
           <h2>Contact us</h2>
           <p>
             Email is the fastest way to reach us for account, billing, and privacy questions:
@@ -63,7 +63,7 @@ function SupportPageContent() {
           <p>
             <a
               href="mailto:admin@getzoro.com"
-              className="inline-flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:underline font-medium"
+              className="inline-flex items-center gap-2 font-medium"
             >
               <Mail className="w-4 h-4" aria-hidden />
               admin@getzoro.com
@@ -73,14 +73,14 @@ function SupportPageContent() {
 
           <h2>Community</h2>
           <p>
-            Share feedback, ask questions, and follow beta updates on our subreddit:
+            Share feedback, ask questions, and follow updates on our subreddit:
           </p>
           <p>
             <a
               href={REDDIT_URL}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:underline font-medium"
+              className="inline-flex items-center gap-2 font-medium"
             >
               <MessageCircle className="w-4 h-4" aria-hidden />
               r/getzoro on Reddit
@@ -104,22 +104,16 @@ function SupportPageContent() {
             </li>
             <li>
               <strong>Your data:</strong> Your ledger stays on your device by default. See our{" "}
-              <Link href="/legal?tab=privacy" className="text-blue-600 dark:text-blue-400 hover:underline">
-                Privacy Policy
-              </Link>{" "}
+              <Link href="/legal?tab=privacy">Privacy Policy</Link>{" "}
               for details.
             </li>
           </ul>
 
           <h2>Legal</h2>
           <p>
-            <Link href="/legal?tab=terms" className="text-blue-600 dark:text-blue-400 hover:underline">
-              Terms of Use (EULA)
-            </Link>
+            <Link href="/legal?tab=terms">Terms of Use (EULA)</Link>
             {" · "}
-            <Link href="/legal?tab=privacy" className="text-blue-600 dark:text-blue-400 hover:underline">
-              Privacy Policy
-            </Link>
+            <Link href="/legal?tab=privacy">Privacy Policy</Link>
           </p>
         </div>
       </div>

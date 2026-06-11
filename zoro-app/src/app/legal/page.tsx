@@ -102,7 +102,7 @@ function LegalPageContent() {
         </div>
 
         {/* Content */}
-        <div className={`prose dark:prose-invert prose-neutral max-w-none leading-relaxed`}>
+        <div className={theme.legalContentClass}>
           {activeTab === "terms" ? <TermsOfUse /> : <PrivacyPolicy />}
         </div>
       </div>
@@ -325,9 +325,7 @@ function TermsOfUse() {
       <h3>15. Contact</h3>
       <p>
         <strong>Email:</strong>{' '}
-        <a href="mailto:admin@getzoro.com" className="text-blue-600 dark:text-blue-400 hover:underline">
-          admin@getzoro.com
-        </a>
+        <a href="mailto:admin@getzoro.com">admin@getzoro.com</a>
       </p>
     </>
   );
@@ -391,21 +389,15 @@ function PrivacyPolicy() {
         <li>
           <strong>Apple Inc.</strong> — Apple Intelligence Foundation Models processed on your
           iPhone (on-device). See{' '}
-          <a href="https://www.apple.com/legal/privacy/" className="text-blue-600 dark:text-blue-400 hover:underline">
-            Apple&apos;s Privacy Policy
-          </a>
+          <a href="https://www.apple.com/legal/privacy/">Apple&apos;s Privacy Policy</a>
           .
         </li>
         <li>
           <strong>Google LLC</strong> — when you opt in to Cloud AI for imports, Zoro sends your
           import files and related context to Google&apos;s cloud AI service operated by Google. See{' '}
-          <a href="https://policies.google.com/privacy" className="text-blue-600 dark:text-blue-400 hover:underline">
-            Google&apos;s Privacy Policy
-          </a>{' '}
+          <a href="https://policies.google.com/privacy">Google&apos;s Privacy Policy</a>{' '}
           and{' '}
-          <a href="https://developers.google.com/terms" className="text-blue-600 dark:text-blue-400 hover:underline">
-            Google&apos;s Terms of Service
-          </a>
+          <a href="https://developers.google.com/terms">Google&apos;s Terms of Service</a>
           .
         </li>
       </ul>
@@ -523,9 +515,7 @@ function PrivacyPolicy() {
       <h3>13. Contact</h3>
       <p>
         <strong>Email:</strong>{' '}
-        <a href="mailto:admin@getzoro.com" className="text-blue-600 dark:text-blue-400 hover:underline">
-          admin@getzoro.com
-        </a>
+        <a href="mailto:admin@getzoro.com">admin@getzoro.com</a>
       </p>
       <p>
         For privacy questions or concerns, contact us at the same address. We will respond within a

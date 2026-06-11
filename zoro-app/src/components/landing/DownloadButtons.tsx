@@ -1,10 +1,8 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import Image from 'next/image';
+import React from 'react';
 import Link from 'next/link';
-import { X } from 'lucide-react';
-import { TESTFLIGHT_URL } from '@/lib/app-download';
+import { IOS_APP_URL } from '@/lib/app-download';
 
 interface DownloadButtonsProps {
   className?: string;
@@ -41,140 +39,35 @@ function AppleIcon({ className }: { className?: string }) {
   );
 }
 
-function TestFlightBadge({
+function AppStoreBadge({
   size,
   darkMode,
-  onDesktopClick,
 }: {
   size: 'sm' | 'md' | 'lg';
   darkMode: boolean;
-  onDesktopClick: () => void;
 }) {
-  const [useDirectLink, setUseDirectLink] = useState(true);
-
-  useEffect(() => {
-    const touch = window.matchMedia('(hover: none) and (pointer: coarse)');
-    const narrow = window.matchMedia('(max-width: 767px)');
-
-    const update = () => {
-      setUseDirectLink(touch.matches || narrow.matches);
-    };
-
-    update();
-    touch.addEventListener('change', update);
-    narrow.addEventListener('change', update);
-    return () => {
-      touch.removeEventListener('change', update);
-      narrow.removeEventListener('change', update);
-    };
-  }, []);
-
   const colorClass = darkMode
     ? 'bg-white text-slate-900 hover:bg-slate-100 shadow-md shadow-blue-500/10'
     : 'bg-slate-900 text-white hover:bg-slate-800 shadow-md shadow-blue-500/15';
 
   const labels = labelSizes[size];
 
-  const content = (
-    <>
+  return (
+    <Link
+      href={IOS_APP_URL}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={`${baseBadge} ${sizes[size]} ${colorClass}`}
+      aria-label="Download Zoro on the App Store"
+    >
       <AppleIcon className={`${iconSizes[size]} shrink-0`} />
       <span className="text-left leading-none">
         <span className={`block font-medium uppercase tracking-wide opacity-80 ${labels.sub}`}>
-          Join the beta on
+          Download on the
         </span>
-        <span className={`block font-bold ${labels.main}`}>TestFlight</span>
+        <span className={`block font-bold ${labels.main}`}>App Store</span>
       </span>
-    </>
-  );
-
-  if (useDirectLink) {
-    return (
-      <Link
-        href={TESTFLIGHT_URL}
-        target="_blank"
-        rel="noopener noreferrer"
-        className={`${baseBadge} ${sizes[size]} ${colorClass}`}
-        aria-label="Join the Zoro beta on TestFlight"
-      >
-        {content}
-      </Link>
-    );
-  }
-
-  return (
-    <button
-      type="button"
-      onClick={onDesktopClick}
-      className={`${baseBadge} ${sizes[size]} ${colorClass}`}
-      aria-label="Show TestFlight QR code for iOS beta"
-    >
-      {content}
-    </button>
-  );
-}
-
-function TestFlightQrModal({
-  open,
-  onClose,
-  darkMode,
-}: {
-  open: boolean;
-  onClose: () => void;
-  darkMode: boolean;
-}) {
-  if (!open) return null;
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
-      onClick={onClose}
-      role="presentation"
-    >
-      <div
-        className={`relative w-full max-w-sm rounded-2xl p-6 shadow-2xl ${
-          darkMode ? 'bg-slate-900 text-white' : 'bg-white text-slate-900'
-        }`}
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-labelledby="testflight-qr-title"
-        aria-modal="true"
-      >
-        <button
-          type="button"
-          onClick={onClose}
-          className="absolute right-4 top-4 rounded-lg p-1 opacity-70 hover:opacity-100"
-          aria-label="Close"
-        >
-          <X className="w-5 h-5" />
-        </button>
-
-        <h3 id="testflight-qr-title" className="text-lg font-bold mb-1 pr-8">
-          Join the iOS beta
-        </h3>
-        <p className={`text-sm mb-5 ${darkMode ? 'text-slate-300' : 'text-slate-600'}`}>
-          Scan with your iPhone camera to open TestFlight.
-        </p>
-
-        <div className="flex justify-center mb-5">
-          <Image
-            src="/images/testflight-qr.png"
-            alt="QR code for TestFlight beta"
-            width={240}
-            height={240}
-            className="rounded-lg border border-slate-200"
-          />
-        </div>
-
-        <Link
-          href={TESTFLIGHT_URL}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="block text-center text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline"
-        >
-          Or open the TestFlight link
-        </Link>
-      </div>
-    </div>
+    </Link>
   );
 }
 
@@ -188,32 +81,19 @@ export function DownloadButtons({
   size = 'md',
   darkMode = false,
 }: DownloadButtonsProps) {
-  const [qrOpen, setQrOpen] = useState(false);
-
   return (
-    <>
-      <div className={`flex flex-wrap items-center justify-center gap-4 ${className}`}>
-        <TestFlightBadge
-          size={size}
-          darkMode={darkMode}
-          onDesktopClick={() => setQrOpen(true)}
-        />
-        {/*
-        import { ANDROID_APP_URL, hasAndroidDownload } from '@/lib/app-download';
-        <StoreBadge
-          href={ANDROID_APP_URL}
-          enabled={hasAndroidDownload}
-          platform="android"
-          size={size}
-          darkMode={darkMode}
-        />
-        */}
-      </div>
-      <TestFlightQrModal
-        open={qrOpen}
-        onClose={() => setQrOpen(false)}
+    <div className={`flex flex-wrap items-center justify-center gap-4 ${className}`}>
+      <AppStoreBadge size={size} darkMode={darkMode} />
+      {/*
+      import { ANDROID_APP_URL, hasAndroidDownload } from '@/lib/app-download';
+      <StoreBadge
+        href={ANDROID_APP_URL}
+        enabled={hasAndroidDownload}
+        platform="android"
+        size={size}
         darkMode={darkMode}
       />
-    </>
+      */}
+    </div>
   );
 }
