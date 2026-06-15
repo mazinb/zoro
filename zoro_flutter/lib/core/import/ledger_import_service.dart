@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import '../api/api_exception.dart';
+import '../platform/platform_ai.dart';
 import '../llm/apple_foundation_channel.dart';
 import '../llm/llm_client.dart';
 import '../llm/llm_json.dart';
@@ -63,9 +64,7 @@ class LedgerImportService {
     }
 
     if (!model.appleFoundationRuntimeAvailable) {
-      throw StateError(
-        'Import needs Cloud AI or on-device AI. Turn on Cloud AI in Settings, or use a device with Apple Intelligence.',
-      );
+      throw StateError(PlatformAi.importNeedsAiMessage());
     }
     if (!model.appleFoundationEnabled) {
       model.setAppleFoundationEnabled(true);

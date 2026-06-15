@@ -239,12 +239,7 @@ class _ExpenseEstimatesEditorSheetState extends State<ExpenseEstimatesEditorShee
         if (didPop && _dirty) model.markExpenseEstimatesUpdated();
       },
       child: Padding(
-        padding: EdgeInsets.only(
-          left: 14,
-          right: 14,
-          top: 6,
-          bottom: 14 + MediaQuery.of(context).viewInsets.bottom,
-        ),
+        padding: const EdgeInsets.only(left: 14, right: 14, top: 6, bottom: 14),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -494,13 +489,9 @@ Future<void> _openSingleBucketEditor(
     context: context,
     isScrollControlled: true,
     sizesToContent: true,
-    builder: (ctx) => Padding(
-      padding: EdgeInsets.only(
-        left: 14,
-        right: 14,
-        top: 10,
-        bottom: 14 + MediaQuery.of(ctx).viewInsets.bottom,
-      ),
+    builder: (ctx) {
+      return Padding(
+      padding: const EdgeInsets.only(left: 14, right: 14, top: 10, bottom: 14),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -530,7 +521,8 @@ Future<void> _openSingleBucketEditor(
           ),
         ],
       ),
-    ),
+    );
+    },
   );
 
   ctrl.dispose();

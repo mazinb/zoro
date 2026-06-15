@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/finance/row_review_result.dart';
+import 'modal_sheet_insets.dart';
 
 /// Leading slot on a card: spinner while reviewing, green check when ok, warning/error otherwise.
 class RowReviewLeadingIcon extends StatelessWidget {
@@ -88,7 +89,7 @@ void showRowReviewDetailSheet(BuildContext context, RowReviewResult result) {
   if (result.isOk) return;
   final feas = result.toGoalFeasibility();
   final cs = Theme.of(context).colorScheme;
-  showModalBottomSheet<void>(
+  showAppModalBottomSheet<void>(
     context: context,
     showDragHandle: true,
     builder: (ctx) => Padding(

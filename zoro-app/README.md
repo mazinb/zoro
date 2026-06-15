@@ -5,7 +5,7 @@
 | **`zoro-app/`** (this folder) | Next.js site — [getzoro.com](https://www.getzoro.com): marketing, forms, API routes, Supabase, email, server jobs |
 | **`zoro_flutter/`** | iOS/Android app — privacy-first finance on device; uses the web API in production |
 
-**Mobile app version** (release): `1.0.0+3` — see `zoro_flutter/pubspec.yaml`.
+**Mobile app version** (release): see `zoro_flutter/pubspec.yaml` (currently `1.0.0+8`).
 
 Operational checklists, iOS signing notes, and notification internals live in **`zoro_flutter/TASKS.md`**. This README is the canonical place for **on-device data layout** and how it relates to the web app.
 

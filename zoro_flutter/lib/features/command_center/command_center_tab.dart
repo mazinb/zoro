@@ -236,7 +236,7 @@ class _CommandCenterTabState extends State<CommandCenterTab> with TickerProvider
           rowKey: const ValueKey<String>('reminder-goals'),
           title: 'Goals',
           detail: _lastUpdatedDetail(widget.model.retirementPlanLastUpdatedAt(), now),
-          onTap: widget.onOpenGoalsHelper ?? widget.onGoToGoals ?? () {},
+          onTap: widget.onGoToGoals ?? widget.onOpenGoalsHelper ?? () {},
           icon: Icons.flag_outlined,
           overdue: widget.model.goalsReviewOverdueAt(now),
         ),
@@ -632,9 +632,8 @@ class _CommandCenterTabState extends State<CommandCenterTab> with TickerProvider
       showDragHandle: true,
       isScrollControlled: true,
       builder: (context) {
-        final bottom = MediaQuery.of(context).viewInsets.bottom;
         return Padding(
-          padding: EdgeInsets.fromLTRB(16, 10, 16, 16 + bottom),
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 16),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,

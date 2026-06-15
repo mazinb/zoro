@@ -160,37 +160,12 @@ class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver
     });
   }
 
-  void _showGoalsLockedMessage() {
-    final m = widget.model;
-    final message = !m.onboardingComplete
-        ? 'Complete onboarding, then import your assets and 6 months of expenses to unlock Goals.'
-        : 'Import your assets and at least 6 months of cashflow to unlock Goals.';
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        behavior: SnackBarBehavior.floating,
-        action: SnackBarAction(
-          label: 'Ledger',
-          onPressed: () => _selectShellTab(_ledgerIndex),
-        ),
-      ),
-    );
-  }
-
   bool _trySelectGoalsTab({void Function()? andThen}) {
-    if (!widget.model.goalsTabUnlocked) {
-      _showGoalsLockedMessage();
-      return false;
-    }
     _selectShellTab(_goalsIndex, andThen: andThen);
     return true;
   }
 
   void _onBottomNavSelected(int next) {
-    if (next == _goalsIndex && !widget.model.goalsTabUnlocked) {
-      _showGoalsLockedMessage();
-      return;
-    }
     _selectShellTab(next);
   }
 

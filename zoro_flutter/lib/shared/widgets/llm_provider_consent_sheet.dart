@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/legal/legal_urls.dart';
+import '../../core/legal/open_legal_url.dart';
 import '../../core/llm/llm_provider_consent_info.dart';
 import '../../core/state/app_model.dart';
+import 'modal_sheet_insets.dart';
 
 /// In-app disclosure + permission before sharing data with a third-party AI provider.
 class LlmProviderConsentSheet extends StatelessWidget {
@@ -12,31 +13,25 @@ class LlmProviderConsentSheet extends StatelessWidget {
   final LlmProvider provider;
 
   static Future<bool> show(BuildContext context, LlmProvider provider) async {
-    final result = await showModalBottomSheet<bool>(
+    final result = await showAppModalBottomSheet<bool>(
       context: context,
-      isScrollControlled: true,
       showDragHandle: true,
-      useSafeArea: true,
       builder: (ctx) => LlmProviderConsentSheet(provider: provider),
     );
     return result == true;
   }
 
   Future<void> _openUrl(BuildContext context, String url) async {
-    final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    }
+    await openExternalUrl(url, context: context);
   }
 
   @override
   Widget build(BuildContext context) {
     final info = LlmProviderConsentInfo.forProvider(provider);
     final cs = Theme.of(context).colorScheme;
-    final bottom = MediaQuery.viewInsetsOf(context).bottom;
 
     return Padding(
-      padding: EdgeInsets.fromLTRB(20, 8, 20, 20 + bottom),
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
       child: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,

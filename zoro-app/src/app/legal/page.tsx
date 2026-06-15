@@ -357,8 +357,9 @@ function PrivacyPolicy() {
           what is needed to run the site (basic logs, cookies).
         </li>
         <li>
-          <strong>AI (optional):</strong> On-device AI runs on your iPhone. Cloud AI for imports runs
-          only after you grant in-app permission and sends data to Google&apos;s servers.
+          <strong>AI (optional):</strong> On-device AI runs on supported iPhones (Apple Intelligence)
+          and supported Android phones (Gemini Nano via AICore). Cloud AI for imports runs only after
+          you grant in-app permission and sends data to Google&apos;s cloud servers.
         </li>
         <li>
           <strong>We do not sell your personal data.</strong>
@@ -367,7 +368,7 @@ function PrivacyPolicy() {
 
       <h3>2. Zoro mobile app</h3>
       <p>
-        The app is built so your financial data stays on your phone. You enter assets, liabilities,
+        The app is built so your financial data stays on your phone (iPhone or Android). You enter assets, liabilities,
         income, expenses, and related notes locally. Optional features include:
       </p>
       <ul>
@@ -393,8 +394,10 @@ function PrivacyPolicy() {
           .
         </li>
         <li>
-          <strong>Google LLC</strong> — when you opt in to Cloud AI for imports, Zoro sends your
-          import files and related context to Google&apos;s cloud AI service operated by Google. See{' '}
+          <strong>Google LLC</strong> — on supported Android devices, Gemini Nano may run on-device via
+          Android AICore (no cloud transmission for those calls). When you opt in to Cloud AI for
+          imports, Zoro sends your import files and related context to Google&apos;s cloud AI service.
+          See{' '}
           <a href="https://policies.google.com/privacy">Google&apos;s Privacy Policy</a>{' '}
           and{' '}
           <a href="https://developers.google.com/terms">Google&apos;s Terms of Service</a>
@@ -458,8 +461,8 @@ function PrivacyPolicy() {
           under confidentiality obligations
         </li>
         <li>
-          <strong>AI providers you opt into</strong> when you grant in-app permission (Apple on-device
-          or Google Cloud AI for imports)
+          <strong>AI providers you opt into</strong> when you grant in-app permission (Apple or Google
+          on-device models, or Google Cloud AI for imports)
         </li>
         <li>
           <strong>Authorities</strong> when required by law or to protect rights and safety

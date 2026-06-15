@@ -218,6 +218,36 @@ class ZoroApi {
     return body;
   }
 
+  /// Zoro-hosted Cloud AI for helpers (Gemini via getzoro.com).
+  Future<Map<String, dynamic>> assistantComplete({
+    required String deviceId,
+    required String system,
+    required String user,
+    bool preferJsonObject = false,
+    int? maxOutputTokens,
+  }) async {
+    final uri = AppEnv.apiUri('/api/mobile/assistant');
+    final res = await _client.post(
+      uri,
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'deviceId': deviceId,
+        'system': system,
+        'user': user,
+        if (preferJsonObject) 'preferJsonObject': true,
+        if (maxOutputTokens != null) 'maxOutputTokens': maxOutputTokens,
+      }),
+    );
+    final body = _decodeJson(res.body);
+    if (res.statusCode != 200) {
+      throw ApiException(
+        body['error']?.toString() ?? 'Assistant failed',
+        statusCode: res.statusCode,
+      );
+    }
+    return body;
+  }
+
   /// Load profile by [token] (users.verification_token) or [email] (registered users).
   Future<Map<String, dynamic>> getUserData({
     String? token,

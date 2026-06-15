@@ -88,6 +88,8 @@ If privacyHideAmounts is true, avoid dollar amounts and speak in general terms.
         system: system,
         user: user,
         maxOutputTokens: _maxOutputTokens,
+        zoroApi: provider == LlmProvider.zoroCloud ? model.api : null,
+        zoroDeviceId: provider == LlmProvider.zoroCloud ? model.deviceId : null,
       );
       model.recordLlmRequest(provider: provider, model: modelName);
       model.setPendingLlmCompletionMetadata(
@@ -125,6 +127,9 @@ If privacyHideAmounts is true, avoid dollar amounts and speak in general terms.
   LlmProvider? _providerForRun(AppModel model) {
     if (model.isLlmProviderReady(LlmProvider.appleFoundation)) {
       return LlmProvider.appleFoundation;
+    }
+    if (model.isLlmProviderReady(LlmProvider.zoroCloud)) {
+      return LlmProvider.zoroCloud;
     }
     final active = model.activeLlmProvider;
     if (model.isLlmProviderReady(active)) return active;

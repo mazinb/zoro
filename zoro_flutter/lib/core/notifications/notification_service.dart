@@ -226,10 +226,15 @@ class NotificationService {
     await _plugin.cancel(_reminderSummaryId);
   }
 
-  /// Daily check-in when reminders are on but nothing is overdue yet.
+  /// Android skips OS alarm scheduling (Play exact-alarm policy). Reminders fire when
+  /// the app opens/resumes via [AppModel.maybePostDailyReminder]. iOS uses zonedSchedule.
   Future<void> scheduleDailyCheckInAt({required DateTime when}) async {
     await init();
     await _plugin.cancel(_reminderSummaryId);
+    if (Platform.isAndroid) {
+      _log('Android: deferred reminder until app open (no alarm schedule)');
+      return;
+    }
     final tzWhen = tz.TZDateTime.from(when, tz.local);
     const payload = '{"kind":"reminder","domain":"expenses"}';
     await _plugin.zonedSchedule(
@@ -246,8 +251,8 @@ class NotificationService {
 
   /// Schedules a one-shot OS local notification at [when] (local time) with
   /// per-domain content + a reminder payload deep-linking into [domain].
-  /// This is the primary delivery path for rotation reminders — iOS guarantees
-  /// the buzz at [when] regardless of whether Dart is running.
+  /// iOS: local notification at [when] even if the app is not running.
+  /// Android: persisted slot only — notification when app next opens if overdue.
   ///
   /// Calling this with a different [domain]/[when] supersedes any previous
   /// schedule on the same id (`_reminderSummaryId`).
@@ -257,6 +262,10 @@ class NotificationService {
   }) async {
     await init();
     await _plugin.cancel(_reminderSummaryId);
+    if (Platform.isAndroid) {
+      _log('Android: deferred $domain reminder until app open (no alarm schedule)');
+      return;
+    }
     final tzWhen = tz.TZDateTime.from(when, tz.local);
     final payload = NotificationPayload.reminder(domain: domain).encode();
     try {

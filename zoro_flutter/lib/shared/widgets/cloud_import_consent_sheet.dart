@@ -1,20 +1,20 @@
 import 'package:flutter/material.dart';
 
 import '../../core/legal/legal_urls.dart';
+import '../../core/platform/platform_ai.dart';
 import '../../core/llm/cloud_import_consent_info.dart';
 import '../../core/llm/llm_consent_gate.dart';
 import '../../core/state/app_model.dart';
+import 'modal_sheet_insets.dart';
 
 /// In-app disclosure before cloud import sends data off-device.
 class CloudImportConsentSheet extends StatelessWidget {
   const CloudImportConsentSheet({super.key});
 
   static Future<bool> show(BuildContext context) async {
-    final result = await showModalBottomSheet<bool>(
+    final result = await showAppModalBottomSheet<bool>(
       context: context,
-      isScrollControlled: true,
       showDragHandle: true,
-      useSafeArea: true,
       builder: (ctx) => const CloudImportConsentSheet(),
     );
     return result == true;
@@ -23,10 +23,9 @@ class CloudImportConsentSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final bottom = MediaQuery.viewInsetsOf(context).bottom;
 
     return Padding(
-      padding: EdgeInsets.fromLTRB(20, 8, 20, 20 + bottom),
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
       child: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -37,9 +36,7 @@ class CloudImportConsentSheet extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             Text(
-              'Imports work best with Cloud AI — especially photos. '
-              'You can turn this off anytime in Settings. '
-              'Without it, only PDF and text files use on-device AI.',
+              PlatformAi.cloudImportConsentBody(),
               style: TextStyle(color: cs.onSurfaceVariant, height: 1.4),
             ),
             const SizedBox(height: 16),

@@ -23,7 +23,10 @@ Future<String> completeForActiveProvider(
     system: system,
     user: user,
     maxOutputTokens: maxOutputTokens,
-    preferJsonObjectOutput: preferJsonObjectOutput && provider == LlmProvider.openai,
+    preferJsonObjectOutput: preferJsonObjectOutput &&
+        (provider == LlmProvider.openai || provider == LlmProvider.zoroCloud),
+    zoroApi: provider == LlmProvider.zoroCloud ? model.api : null,
+    zoroDeviceId: provider == LlmProvider.zoroCloud ? model.deviceId : null,
   );
   model.recordLlmRequest(provider: provider, model: modelName);
   model.setPendingLlmCompletionMetadata(
@@ -47,7 +50,8 @@ Future<Map<String, dynamic>> decodeActiveProviderJsonWithRepair(
           'You only fix broken JSON. Return a single valid JSON object preserving schema and meaning. No markdown fences or prose outside JSON.',
       user: broken,
       maxOutputTokens: maxRepairTokens,
-      preferJsonObjectOutput: model.activeLlmProvider == LlmProvider.openai,
+      preferJsonObjectOutput: model.activeLlmProvider == LlmProvider.openai ||
+          model.activeLlmProvider == LlmProvider.zoroCloud,
     ),
   );
 }

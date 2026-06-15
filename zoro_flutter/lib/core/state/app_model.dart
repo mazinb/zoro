@@ -17,6 +17,7 @@ import '../finance/goals_calculator.dart';
 import '../finance/historical_returns.dart';
 import '../../dev/compile_time_api_keys.dart';
 import '../finance/row_review_result.dart';
+import '../platform/platform_ai.dart';
 import '../llm/apple_foundation_channel.dart';
 import '../llm/llm_key_store.dart';
 import '../notifications/notification_service.dart';
@@ -788,6 +789,9 @@ class AppModel extends ChangeNotifier {
 
   int get cloudImportRequestCount => llmRequestsByModelKey[importRequestKeyCloud] ?? 0;
 
+  int get cloudAiRequestCount =>
+      cloudImportRequestCount + llmRequestCountFor(LlmProvider.zoroCloud);
+
   int get onDeviceImportRequestCount =>
       llmRequestsByModelKey[importRequestKeyOnDevice] ?? 0;
 
@@ -800,11 +804,11 @@ class AppModel extends ChangeNotifier {
     return (total - onDeviceImportRequestCount).clamp(0, total);
   }
 
-  /// Goals unlock after assets exist and six months of cashflow are imported.
+  /// Used for setup-import pool eligibility (not tab gating).
   bool get goalsImportRequirementsMet =>
       assets.isNotEmpty && monthlyCashflowByMonth.length >= 6;
 
-  bool get goalsTabUnlocked => onboardingComplete && goalsImportRequirementsMet;
+  bool get goalsTabUnlocked => onboardingComplete;
 
   /// Still in the one-time setup import pool (server tracks eligibility).
   bool get inSetupImportPhase =>
@@ -877,6 +881,7 @@ class AppModel extends ChangeNotifier {
   final AppleFoundationChannel _appleFoundationChannel = AppleFoundationChannel();
 
   static const String appleOnDeviceApiKeySentinel = '__zoro_ondevice_apple__';
+  static const String zoroCloudApiKeySentinel = '__zoro_cloud__';
 
   bool get appleFoundationRuntimeAvailable => _appleFoundationCaps.available;
 
@@ -887,12 +892,14 @@ class AppModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  bool hasLlmProviderConsent(LlmProvider provider) =>
-      llmProviderConsents.containsKey(provider.name);
+  bool hasLlmProviderConsent(LlmProvider provider) {
+    if (provider == LlmProvider.zoroCloud) return hasCloudImportConsent;
+    return llmProviderConsents.containsKey(provider.name);
+  }
 
   bool isLlmProviderConfigured(LlmProvider provider) => switch (provider) {
-        LlmProvider.appleFoundation =>
-          appleFoundationRuntimeAvailable && appleFoundationEnabled,
+        LlmProvider.appleFoundation => appleFoundationRuntimeAvailable,
+        LlmProvider.zoroCloud => canUseCloudImport,
         LlmProvider.openai => (openAiApiKey ?? '').trim().isNotEmpty,
         LlmProvider.anthropic => (anthropicApiKey ?? '').trim().isNotEmpty,
         LlmProvider.gemini => (geminiApiKey ?? '').trim().isNotEmpty,
@@ -901,6 +908,7 @@ class AppModel extends ChangeNotifier {
   /// Provider can be chosen in UI (may still need first-use consent).
   bool canSelectLlmProvider(LlmProvider provider) => switch (provider) {
         LlmProvider.appleFoundation => appleFoundationRuntimeAvailable,
+        LlmProvider.zoroCloud => canUseCloudImport,
         LlmProvider.openai => (openAiApiKey ?? '').trim().isNotEmpty,
         LlmProvider.anthropic => (anthropicApiKey ?? '').trim().isNotEmpty,
         LlmProvider.gemini => (geminiApiKey ?? '').trim().isNotEmpty,
@@ -2792,11 +2800,12 @@ class AppModel extends ChangeNotifier {
   }
 
   void setApiKey({required LlmProvider provider, String? key}) {
-    if (provider == LlmProvider.appleFoundation) return;
+    if (provider == LlmProvider.appleFoundation || provider == LlmProvider.zoroCloud) return;
     final trimmed = (key ?? '').trim();
     final v = trimmed.isEmpty ? null : trimmed;
     switch (provider) {
       case LlmProvider.appleFoundation:
+      case LlmProvider.zoroCloud:
         break;
       case LlmProvider.openai:
         openAiApiKey = v;
@@ -2815,6 +2824,7 @@ class AppModel extends ChangeNotifier {
   void _syncActiveProviderIfKeyRemoved() {
     if (apiKeyFor(activeLlmProvider) != null) return;
     const order = [
+      LlmProvider.zoroCloud,
       LlmProvider.openai,
       LlmProvider.anthropic,
       LlmProvider.gemini,
@@ -2838,17 +2848,20 @@ class AppModel extends ChangeNotifier {
     Future<bool> Function(LlmProvider provider)? requestConsent,
   }) async {
     await refreshAppleFoundationCapabilities();
+    if (appleFoundationRuntimeAvailable && !appleFoundationEnabled) {
+      setAppleFoundationEnabled(true);
+    }
     if (apiKeyFor(activeLlmProvider) == null) {
       _syncActiveProviderIfKeyRemoved();
     }
     final provider = _resolveAssistantLlmProvider();
     if (provider == null) return false;
-    if (provider == LlmProvider.appleFoundation &&
-        appleFoundationRuntimeAvailable &&
-        !appleFoundationEnabled) {
-      setAppleFoundationEnabled(true);
-    }
-    if (provider != LlmProvider.appleFoundation && !hasLlmProviderConsent(provider)) {
+    if (provider == LlmProvider.zoroCloud && !hasCloudImportConsent) {
+      if (requestConsent == null) return false;
+      if (!await requestConsent(provider)) return false;
+    } else if (provider != LlmProvider.appleFoundation &&
+        provider != LlmProvider.zoroCloud &&
+        !hasLlmProviderConsent(provider)) {
       if (requestConsent == null) return false;
       if (!await requestConsent(provider)) return false;
     }
@@ -2862,8 +2875,9 @@ class AppModel extends ChangeNotifier {
 
   LlmProvider? _resolveAssistantLlmProvider() {
     if (apiKeyFor(activeLlmProvider) != null) return activeLlmProvider;
+    if (appleFoundationRuntimeAvailable) return LlmProvider.appleFoundation;
     const order = [
-      LlmProvider.appleFoundation,
+      LlmProvider.zoroCloud,
       LlmProvider.openai,
       LlmProvider.anthropic,
       LlmProvider.gemini,
@@ -2871,27 +2885,21 @@ class AppModel extends ChangeNotifier {
     for (final p in order) {
       if (apiKeyFor(p) != null) return p;
     }
-    if (appleFoundationRuntimeAvailable) return LlmProvider.appleFoundation;
     return null;
   }
 
-  String get llmAssistantUnavailableMessage {
-    if (appleFoundationRuntimeAvailable && !appleFoundationEnabled) {
-      return 'Turn on Apple on-device model in Settings → Usage.';
-    }
-    final reason = appleFoundationDisabledReason?.trim();
-    if (!hasAnyApiKey && reason != null && reason.isNotEmpty) {
-      return reason;
-    }
-    if (!hasAnyApiKey && !appleFoundationRuntimeAvailable) {
-      return 'Apple on-device model is not available on this device.';
-    }
-    return 'No language model available. Check Settings → Usage.';
-  }
+  String get llmAssistantUnavailableMessage => PlatformAi.helperUnavailableMessage(
+        appleFoundationRuntimeAvailable: appleFoundationRuntimeAvailable,
+        appleFoundationEnabled: appleFoundationEnabled,
+        hasAnyApiKey: hasAnyApiKey,
+        canUseCloudImport: canUseCloudImport,
+        appleDisabledReason: appleFoundationDisabledReason,
+      );
 
   String? apiKeyFor(LlmProvider provider) => switch (provider) {
         LlmProvider.appleFoundation =>
-          (appleFoundationRuntimeAvailable && appleFoundationEnabled) ? appleOnDeviceApiKeySentinel : null,
+          appleFoundationRuntimeAvailable ? appleOnDeviceApiKeySentinel : null,
+        LlmProvider.zoroCloud => canUseCloudImport ? zoroCloudApiKeySentinel : null,
         LlmProvider.openai => openAiApiKey,
         LlmProvider.anthropic => anthropicApiKey,
         LlmProvider.gemini => geminiApiKey,
@@ -2899,17 +2907,19 @@ class AppModel extends ChangeNotifier {
 
   String modelFor(LlmProvider provider) => switch (provider) {
         LlmProvider.appleFoundation => 'apple-on-device',
+        LlmProvider.zoroCloud => 'zoro-cloud',
         LlmProvider.openai => openAiModel,
         LlmProvider.anthropic => anthropicModel,
         LlmProvider.gemini => geminiModel,
       };
 
   void setModelFor(LlmProvider provider, String model) {
-    if (provider == LlmProvider.appleFoundation) return;
+    if (provider == LlmProvider.appleFoundation || provider == LlmProvider.zoroCloud) return;
     final next = model.trim();
     if (next.isEmpty) return;
     switch (provider) {
       case LlmProvider.appleFoundation:
+      case LlmProvider.zoroCloud:
         break;
       case LlmProvider.openai:
         openAiModel = next;
@@ -3578,6 +3588,7 @@ class AppModel extends ChangeNotifier {
   void markOnboardingFinished() {
     if (onboardingComplete) return;
     onboardingComplete = true;
+    goalsReviewAcknowledgedAt = DateTime.now();
     _scheduleAppStatePersist();
     notifyListeners();
   }
@@ -3764,8 +3775,10 @@ class AppModel extends ChangeNotifier {
   bool liabilitiesReviewOverdueAt(DateTime now) =>
       _isOverdue(now: now, last: liabilitiesLastReviewed, cadence: remindersLiabilitiesCadence);
 
-  bool goalsReviewOverdueAt(DateTime now) =>
-      _isOverdue(now: now, last: goalsLastUpdated, cadence: remindersGoalsCadence);
+  bool goalsReviewOverdueAt(DateTime now) {
+    if (goalsLastUpdated == null) return false;
+    return _isOverdue(now: now, last: goalsLastUpdated, cadence: remindersGoalsCadence);
+  }
 
   /// Latest change across retirement helper sections and goal edits.
   DateTime? retirementPlanLastUpdatedAt() {
@@ -4918,4 +4931,4 @@ String reminderDomainLabel(ReminderDomain d) => switch (d) {
       ReminderDomain.goals => 'Goals',
     };
 
-enum LlmProvider { appleFoundation, openai, anthropic, gemini }
+enum LlmProvider { appleFoundation, zoroCloud, openai, anthropic, gemini }

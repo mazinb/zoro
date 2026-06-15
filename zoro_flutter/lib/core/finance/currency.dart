@@ -82,7 +82,7 @@ extension CurrencyCodeUi on CurrencyCode {
   double get usdPerUnit => switch (this) {
     CurrencyCode.usd => 1.0,
     CurrencyCode.thb => 0.0277, // ~ 1 THB = 0.0277 USD  (≈ 36.1 THB/USD)
-    CurrencyCode.inr => 0.0120, // ~ 1 INR = 0.0120 USD (≈ 83.3 INR/USD)
+    CurrencyCode.inr => 0.01053, // ~ 1 INR = 0.01053 USD (≈ 95 INR/USD)
     CurrencyCode.aed => 0.272, // ~ 3.67 AED/USD
     CurrencyCode.sgd => 0.741, // ~ 1.35 SGD/USD
     CurrencyCode.aud => 0.649, // ~ 1.54 AUD/USD

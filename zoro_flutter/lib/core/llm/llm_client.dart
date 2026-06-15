@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import '../api/api_exception.dart';
+import '../api/zoro_api.dart';
 import '../state/app_model.dart';
 import 'apple_foundation_channel.dart';
 
@@ -46,11 +48,13 @@ class LlmClient {
     List<LlmAttachment> attachments = const [],
     int? maxOutputTokens,
     bool preferJsonObjectOutput = false,
+    ZoroApi? zoroApi,
+    String? zoroDeviceId,
   }) async {
     switch (provider) {
       case LlmProvider.appleFoundation:
         if (attachments.isNotEmpty) {
-          throw const LlmException('Attachments are not supported with Apple on-device model yet.');
+          throw const LlmException('Attachments are not supported with on-device model yet.');
         }
         try {
           final text = await _apple.complete(
@@ -62,6 +66,32 @@ class LlmClient {
           final outputEstimate = (text.length / 4).ceil();
           return LlmCompleteResult(text: text, tokensUsed: inputTokens + outputEstimate);
         } on AppleFoundationChannelException catch (e) {
+          throw LlmException(e.message);
+        }
+      case LlmProvider.zoroCloud:
+        if (attachments.isNotEmpty) {
+          throw const LlmException('Attachments are not supported with Cloud AI helpers yet.');
+        }
+        final deviceId = zoroDeviceId?.trim();
+        final api = zoroApi;
+        if (deviceId == null || deviceId.isEmpty || api == null) {
+          throw const LlmException('Cloud AI is unavailable. Turn it on in Settings → Usage.');
+        }
+        try {
+          final body = await api.assistantComplete(
+            deviceId: deviceId,
+            system: system,
+            user: user,
+            preferJsonObject: preferJsonObjectOutput,
+            maxOutputTokens: maxOutputTokens,
+          );
+          final text = body['text']?.toString().trim() ?? '';
+          if (text.isEmpty) {
+            throw const LlmException('Cloud AI returned empty text.');
+          }
+          final tokens = ((system.length + user.length + text.length) / 4).ceil();
+          return LlmCompleteResult(text: text, tokensUsed: tokens);
+        } on ApiException catch (e) {
           throw LlmException(e.message);
         }
       case LlmProvider.openai:

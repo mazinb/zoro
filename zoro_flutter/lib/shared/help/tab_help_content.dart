@@ -1,3 +1,5 @@
+import '../../core/platform/platform_ai.dart';
+
 /// Short “how it works” copy per main tab (Home has none).
 abstract final class TabHelpContent {
   static const onboarding = HowItWorksContent(
@@ -10,7 +12,7 @@ abstract final class TabHelpContent {
     ],
   );
 
-  static const ledger = HowItWorksContent(
+  static final ledger = HowItWorksContent(
     title: 'How Ledger works',
     bullets: [
       'Assets and liabilities are your balance sheet; Cash tracks real monthly in/out.',
@@ -18,7 +20,7 @@ abstract final class TabHelpContent {
       'Expense estimates are planned monthly buckets separate from actual spending in Cash.',
       'AI asset import can auto-populate context notes with extracted details.',
       'Import with AI uses credits (or Pro) to extract assets, liabilities, and cash flow.',
-      'The ✨ action runs on-device helpers when available.',
+      PlatformAi.helperTabHelpLine(),
     ],
   );
 

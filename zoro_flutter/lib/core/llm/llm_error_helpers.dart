@@ -9,7 +9,8 @@ List<LlmProvider> llmProvidersReady(AppModel model) {
 }
 
 String shortLlmLabel(LlmProvider p) => switch (p) {
-      LlmProvider.appleFoundation => 'Apple on-device',
+      LlmProvider.appleFoundation => 'On-device',
+      LlmProvider.zoroCloud => 'Cloud AI',
       LlmProvider.openai => 'OpenAI',
       LlmProvider.anthropic => 'Anthropic',
       LlmProvider.gemini => 'Gemini',

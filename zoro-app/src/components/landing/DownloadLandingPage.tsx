@@ -151,7 +151,7 @@ export const DownloadLandingPage: React.FC<DownloadLandingPageProps> = ({
             Track net worth, cash flow and remember major decisions. Data stays on your phone.
           </p>
 
-          <DownloadButtons darkMode={darkMode} size="md" className="justify-center" />
+          <DownloadButtons darkMode={darkMode} size="lg" className="justify-center" />
 
           <p className={`text-xs ${theme.textSecondaryClass} mt-3`}>
             Available on the App Store for iPhone and iPad
@@ -209,11 +209,16 @@ export const DownloadLandingPage: React.FC<DownloadLandingPageProps> = ({
               See it in action
             </h2>
             <p
-              className={`${theme.textSecondaryClass} mb-8 max-w-md mx-auto lg:mx-0 leading-relaxed`}
+              className={`text-base lg:text-lg ${theme.textSecondaryClass} mb-8 max-w-md mx-auto lg:mx-0 leading-relaxed`}
             >
               Command center, ledger, and context in one app.
             </p>
-            <DownloadButtons darkMode={darkMode} size="sm" className="justify-center lg:justify-start" />
+            <DownloadButtons
+              darkMode={darkMode}
+              size="md"
+              badgeClassName="h-12 sm:h-14"
+              className="justify-center lg:justify-start"
+            />
           </div>
           <div className="order-1 lg:order-2 flex justify-center">
             <PhoneFrame videoSrc={APP_DEMO_VIDEO_URL} posterSrc="/images/app/hero.png" />

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/finance/asset_context_health.dart';
 import '../../core/finance/goals_calculator.dart';
+import 'modal_sheet_insets.dart';
 
 enum ZoroStatusLevel { caution, broken }
 
@@ -41,7 +42,7 @@ class ZoroStatusIcon extends StatelessWidget {
   void _showDetail(BuildContext context) {
     if (feasibility.isOk) return;
     final cs = Theme.of(context).colorScheme;
-    showModalBottomSheet<void>(
+    showAppModalBottomSheet<void>(
       context: context,
       showDragHandle: true,
       builder: (ctx) => Padding(

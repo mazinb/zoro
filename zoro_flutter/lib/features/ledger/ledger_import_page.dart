@@ -510,7 +510,6 @@ Infer **monthKey** from the document or statement period; use this hint only if 
 
     try {
       final attachments = bundle.attachments;
-      final hasImages = attachments.any((a) => a.isImage);
       if (m.canUseCloudImport) {
         final ok = await CloudImportConsentGate.ensure(context, m);
         if (!ok) {

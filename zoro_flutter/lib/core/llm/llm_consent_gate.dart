@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
+import '../legal/open_legal_url.dart';
 import '../state/app_model.dart';
+import '../../shared/widgets/cloud_import_consent_sheet.dart';
 import '../../shared/widgets/llm_provider_consent_sheet.dart';
 
 /// Ensures the user has granted in-app permission before data is sent to an AI provider.
@@ -13,12 +14,15 @@ class LlmConsentGate {
     AppModel model,
     LlmProvider provider,
   ) async {
-    // On-device Apple Intelligence — no third-party transmission; no consent sheet.
+    // On-device model — no third-party transmission; no consent sheet.
     if (provider == LlmProvider.appleFoundation) {
       if (model.appleFoundationRuntimeAvailable && !model.appleFoundationEnabled) {
         model.setAppleFoundationEnabled(true);
       }
       return model.appleFoundationRuntimeAvailable;
+    }
+    if (provider == LlmProvider.zoroCloud) {
+      return CloudImportConsentGate.ensure(context, model);
     }
     if (model.hasLlmProviderConsent(provider)) return true;
     if (!context.mounted) return false;
@@ -35,9 +39,6 @@ class LlmConsentGate {
       (provider) => ensure(context, model, provider);
 
   static Future<void> openUrl(BuildContext context, String url) async {
-    final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    }
+    await openExternalUrl(url, context: context);
   }
 }

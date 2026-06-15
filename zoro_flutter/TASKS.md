@@ -36,6 +36,27 @@ Privacy-first finance on device. Production API: **getzoro.com**. On-device stor
 
 **iOS:** `./scripts/setup_ios.sh` → open `ios/Runner.xcworkspace` → Team → device. CLI: `flutter run -d <id> --dart-define=API_BASE_URL=https://www.getzoro.com`. Signing / `objective_c` pin: see **iOS notes** below.
 
+### Android ship checklist
+
+- [x] Keystore script + `android/key.properties.example` — run `./scripts/generate_android_keystore.sh` (back up `upload-keystore.jks`)
+- [x] Build script: `./scripts/build_play_aab.sh` → AAB under `build/app/outputs/bundle/prodRelease/`
+- [x] **v1.0.1+13 AAB built** — `app-prod-release.aab` (~58MB), verify OK, ready for Play upload
+- [x] On-device AI: Gemini Nano / AICore plugin — [`docs/android-on-device-ai.md`](docs/android-on-device-ai.md)
+- [x] Cloud AI helpers via getzoro.com when on-device unavailable (`/api/mobile/assistant`); Usage layout + legal links fixed; Goals tab unlocked after onboarding
+- [ ] **Physical device required:** upload new AAB to internal testing; verify on-device helpers + IAP
+- [ ] Play Console IAP: `com.getzoro.pro_monthly_sub` + `com.getzoro.credit_1` — see [`docs/android-play-console.md`](docs/android-play-console.md) (internal testing already live)
+- [ ] License testers: Pro purchase, credit purchase, restore, manage subscription (Play Store link)
+- [ ] Device smoke (Android): onboarding → on-device helper (Gemini Nano) or Cloud AI → PDF/photo import → notifications → export/import
+- [ ] Production listing + `NEXT_PUBLIC_ANDROID_APP_URL` on Vercel when going public
+- [ ] No secrets in `--dart-define-from-file` for release builds
+
+**Android setup:** `./scripts/setup_android.sh` · **Dev:** `flutter run -d <id> --flavor dev --dart-define=API_BASE_URL=https://www.getzoro.com`
+
+| Flavor | applicationId |
+|--------|----------------|
+| Prod | `com.getzoro.zoroFlutter` |
+| Dev | `com.getzoro.zoroFlutter.dev` |
+
 ---
 
 ## Shipped (Goals retire tradeoff)
@@ -57,6 +78,8 @@ Helper hub: `goals_helper_hub_page.dart` + `goals_structured_sections.dart`. Tes
 ## Notifications (summary)
 
 Local only (`flutter_local_notifications`). Init after engine in `AppDelegate`, not `main()`. Master toggle in Settings; per-domain cadence **Off** to silence. Daily slot + rotation id `900`. Logs: `[ZoroNotif]` in Xcode console. Tests: `test/notifications_test.dart`.
+
+**Android:** local OS notifications on **iOS** (scheduled). On **Android**, reminders fire when you open the app (no alarm scheduling — Play blocks `USE_EXACT_ALARM` for finance apps). Verify before upload: `./scripts/verify_play_aab.sh`.
 
 ---
 

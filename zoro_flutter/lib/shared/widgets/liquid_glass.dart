@@ -2,6 +2,8 @@ import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
 
+import 'modal_sheet_insets.dart';
+
 class _GlassConstants {
   static const double blurSigma = 18;
   static const double barBlurSigma = 22;
@@ -236,11 +238,10 @@ class LiquidGlassModalSurface extends StatelessWidget {
 Future<T?> showLiquidGlassModalBottomSheet<T extends Object?>({
   required BuildContext context,
   required WidgetBuilder builder,
-  bool isScrollControlled = false,
+  bool isScrollControlled = true,
   bool showDragHandle = true,
   bool enableDrag = true,
   bool isDismissible = true,
-  bool useSafeArea = true,
   bool sizesToContent = false,
 }) {
   final cs = Theme.of(context).colorScheme;
@@ -252,11 +253,14 @@ Future<T?> showLiquidGlassModalBottomSheet<T extends Object?>({
     showDragHandle: false,
     enableDrag: enableDrag,
     isDismissible: isDismissible,
-    useSafeArea: useSafeArea,
-    builder: (ctx) => LiquidGlassModalSurface(
-      showDragHandle: showDragHandle,
-      sizesToContent: sizesToContent,
-      child: builder(ctx),
+    useSafeArea: false,
+    builder: (ctx) => modalSheetSafeChild(
+      ctx,
+      child: LiquidGlassModalSurface(
+        showDragHandle: showDragHandle,
+        sizesToContent: sizesToContent,
+        child: builder(ctx),
+      ),
     ),
   );
 }

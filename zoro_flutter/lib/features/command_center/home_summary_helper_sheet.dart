@@ -4,12 +4,12 @@ import 'package:flutter/material.dart';
 import '../../core/home/home_summary_focus_domain.dart';
 import '../../core/state/app_model.dart';
 import '../../core/state/internal_app_agent_definition.dart';
+import '../../shared/widgets/modal_sheet_insets.dart';
 
 void showHomeSummaryHelperSheet(BuildContext context, AppModel model) {
-  showModalBottomSheet<void>(
+  showAppModalBottomSheet<void>(
     context: context,
     showDragHandle: true,
-    isScrollControlled: true,
     builder: (ctx) => _HomeSummaryHelperSheet(model: model),
   );
 }
@@ -72,17 +72,12 @@ class _HomeSummaryHelperSheetState extends State<_HomeSummaryHelperSheet> {
         ? null
         : homeSummaryDomainAtRotationIndex(_orderedSelected, _previewRotationIndex);
 
-    return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.only(
-          left: 20,
-          right: 20,
-          bottom: MediaQuery.paddingOf(context).bottom + 16,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
             Text(
               'Home summary helper',
               style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
@@ -128,7 +123,6 @@ class _HomeSummaryHelperSheetState extends State<_HomeSummaryHelperSheet> {
             ),
           ],
         ),
-      ),
     );
   }
 }

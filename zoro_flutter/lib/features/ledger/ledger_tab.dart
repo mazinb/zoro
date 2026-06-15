@@ -1581,11 +1581,11 @@ class _AssetEditorSheetState extends State<_AssetEditorSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final bottom = MediaQuery.of(context).viewInsets.bottom;
+    final keyboard = MediaQuery.viewInsetsOf(context).bottom;
     final native = currencyCodeForPresetCountry(_row.currencyCountry);
-    final maxH = (MediaQuery.sizeOf(context).height * 0.88 - bottom).clamp(220.0, 4000.0);
+    final maxH = (MediaQuery.sizeOf(context).height * 0.88 - keyboard).clamp(220.0, 4000.0);
     return Padding(
-      padding: EdgeInsets.fromLTRB(16, 8, 16, 16 + bottom),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
       child: ConstrainedBox(
         constraints: BoxConstraints(maxHeight: maxH),
         child: ListView(
@@ -1829,11 +1829,11 @@ class _LiabilityEditorSheetState extends State<_LiabilityEditorSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final bottom = MediaQuery.of(context).viewInsets.bottom;
+    final keyboard = MediaQuery.viewInsetsOf(context).bottom;
     final native = currencyCodeForPresetCountry(_row.currencyCountry);
-    final maxH = (MediaQuery.sizeOf(context).height * 0.88 - bottom).clamp(220.0, 4000.0);
+    final maxH = (MediaQuery.sizeOf(context).height * 0.88 - keyboard).clamp(220.0, 4000.0);
     return Padding(
-      padding: EdgeInsets.fromLTRB(16, 8, 16, 16 + bottom),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
       child: ConstrainedBox(
         constraints: BoxConstraints(maxHeight: maxH),
         child: ListView(

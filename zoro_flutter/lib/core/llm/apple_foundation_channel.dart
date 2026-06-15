@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
-/// On-device Apple Foundation Models (iOS only). Other platforms report unavailable.
+/// On-device platform LLM: Apple Foundation Models (iOS) or Gemini Nano / AICore (Android).
 class AppleFoundationCapabilities {
   const AppleFoundationCapabilities({
     required this.available,
@@ -46,10 +46,16 @@ class AppleFoundationCapabilities {
 }
 
 class AppleFoundationChannel {
-  AppleFoundationChannel({MethodChannel? channel})
-      : _channel = channel ?? const MethodChannel('zoro/apple_foundation_models');
+  AppleFoundationChannel({
+    MethodChannel? iosChannel,
+    MethodChannel? androidChannel,
+  })  : _iosChannel = iosChannel ?? const MethodChannel('zoro/apple_foundation_models'),
+        _androidChannel = androidChannel ?? const MethodChannel('zoro/android_gemini_nano');
 
-  final MethodChannel _channel;
+  final MethodChannel _iosChannel;
+  final MethodChannel _androidChannel;
+
+  MethodChannel get _channel => Platform.isIOS ? _iosChannel : _androidChannel;
 
   static int? _parseInt(Object? v) {
     if (v is int) return v;
@@ -58,17 +64,27 @@ class AppleFoundationChannel {
   }
 
   Future<AppleFoundationCapabilities> getCapabilities() async {
-    if (!Platform.isIOS) {
+    if (!Platform.isIOS && !Platform.isAndroid) {
       return AppleFoundationCapabilities.unsupported;
     }
     try {
-      final raw = await _channel.invokeMethod<Object?>('getCapabilities');
-      return AppleFoundationCapabilities.fromMethodResult(raw);
+      var caps = AppleFoundationCapabilities.fromMethodResult(
+        await _channel.invokeMethod<Object?>('getCapabilities'),
+      );
+      if (Platform.isAndroid &&
+          !caps.available &&
+          (caps.disabledReason?.contains('Checking') ?? false)) {
+        await Future<void>.delayed(const Duration(seconds: 2));
+        caps = AppleFoundationCapabilities.fromMethodResult(
+          await _channel.invokeMethod<Object?>('getCapabilities'),
+        );
+      }
+      return caps;
     } on MissingPluginException {
       return AppleFoundationCapabilities.unsupported;
     } catch (e) {
       if (kDebugMode) {
-        debugPrint('[AppleFoundation] getCapabilities: $e');
+        debugPrint('[OnDeviceLLM] getCapabilities: $e');
       }
       return const AppleFoundationCapabilities(
         available: false,
@@ -78,7 +94,7 @@ class AppleFoundationChannel {
   }
 
   Future<({int contextSize, int reservedForOutput})> getContextBudget() async {
-    if (!Platform.isIOS) {
+    if (!Platform.isIOS && !Platform.isAndroid) {
       return (contextSize: 0, reservedForOutput: 2048);
     }
     try {
@@ -101,7 +117,7 @@ class AppleFoundationChannel {
   }
 
   Future<int> countTokens({required String system, required String user}) async {
-    if (!Platform.isIOS) {
+    if (!Platform.isIOS && !Platform.isAndroid) {
       return ((system.length + user.length) / 4).ceil();
     }
     try {
@@ -135,8 +151,8 @@ class AppleFoundationChannel {
     required String user,
     int? maxOutputTokens,
   }) async {
-    if (!Platform.isIOS) {
-      throw const AppleFoundationChannelException('Apple on-device model is only available on iOS.');
+    if (!Platform.isIOS && !Platform.isAndroid) {
+      throw const AppleFoundationChannelException('On-device model is not available on this platform.');
     }
     try {
       final raw = await _channel.invokeMethod<String>(

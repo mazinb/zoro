@@ -9,6 +9,7 @@ import '../../core/llm/llm_consent_gate.dart';
 import '../../core/persistence/export_sanitizer.dart';
 import '../../core/state/app_model.dart';
 import '../../core/state/internal_app_agent_definition.dart';
+import '../../shared/widgets/modal_sheet_insets.dart';
 import 'data_json_viewer.dart';
 import 'internal_agent_prompt_editor_page.dart';
 import 'settings_tab.dart';
@@ -355,9 +356,8 @@ class _DataTransferPaneState extends State<DataTransferPane> {
     required String? selectedId,
   }) async {
     if (items.isEmpty || _busy) return;
-    final picked = await showModalBottomSheet<String>(
+    final picked = await showAppModalBottomSheet<String>(
       context: context,
-      isScrollControlled: true,
       showDragHandle: true,
       builder: (ctx) => _ExportItemPickerSheet(
         title: title,
@@ -763,11 +763,11 @@ class _ExportItemPickerSheetState extends State<_ExportItemPickerSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final bottom = MediaQuery.paddingOf(context).bottom;
-    final maxH = MediaQuery.sizeOf(context).height * 0.65;
+    final keyboard = MediaQuery.viewInsetsOf(context).bottom;
+    final maxH = MediaQuery.sizeOf(context).height * 0.65 - keyboard;
 
     return Padding(
-      padding: EdgeInsets.fromLTRB(16, 0, 16, 12 + bottom),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [

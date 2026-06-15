@@ -1,0 +1,6 @@
+# Copy to key.properties (gitignored) and fill in after generating upload-keystore.jks.
+# Run: ./scripts/generate_android_keystore.sh
+storePassword=your-store-password
+keyPassword=your-key-password
+keyAlias=upload
+storeFile=../upload-keystore.jks

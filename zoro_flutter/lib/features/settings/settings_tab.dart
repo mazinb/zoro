@@ -12,8 +12,13 @@ import '../../shared/settings/home_messages_settings_card.dart';
 import '../../shared/widgets/tab_header_actions.dart';
 import '../../core/entitlements/mobile_entitlements.dart';
 import '../../shared/widgets/cloud_import_consent_sheet.dart';
+import 'dart:io' show Platform;
+
 import '../../core/iap/apple_subscription_store.dart';
+import '../../core/iap/play_subscription_store.dart';
+import '../../core/platform/platform_ai.dart';
 import '../../core/legal/legal_urls.dart';
+import '../../core/legal/open_legal_url.dart';
 import '../../core/notifications/notification_service.dart';
 import '../../core/state/app_model.dart';
 import '../../core/state/internal_app_agent_definition.dart';
@@ -1219,7 +1224,13 @@ class _UsagePaneState extends State<_UsagePane> {
                 ),
               ] else ...[
                 OutlinedButton(
-                  onPressed: () => AppleSubscriptionStore.showManageSubscriptions(),
+                  onPressed: () {
+                    if (!kIsWeb && Platform.isIOS) {
+                      AppleSubscriptionStore.showManageSubscriptions();
+                    } else if (!kIsWeb && Platform.isAndroid) {
+                      PlaySubscriptionStore.showManageSubscriptions();
+                    }
+                  },
                   child: const Text('Manage subscription'),
                 ),
                 TextButton(
@@ -1242,11 +1253,8 @@ class _SubscriptionLegalLinks extends StatelessWidget {
 
   final ColorScheme colorScheme;
 
-  Future<void> _open(String url) async {
-    final uri = Uri.parse(url);
-    if (await canLaunchUrl(uri)) {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    }
+  Future<void> _open(BuildContext context, String url) async {
+    await openExternalUrl(url, context: context);
   }
 
   @override
@@ -1259,11 +1267,11 @@ class _SubscriptionLegalLinks extends StatelessWidget {
         runSpacing: 0,
         children: [
           TextButton(
-            onPressed: () => _open(LegalUrls.termsOfUse),
+            onPressed: () => _open(context, LegalUrls.termsOfUse),
             child: const Text('Terms of Use'),
           ),
           TextButton(
-            onPressed: () => _open(LegalUrls.privacyPolicy),
+            onPressed: () => _open(context, LegalUrls.privacyPolicy),
             child: const Text('Privacy Policy'),
           ),
         ],
@@ -1286,8 +1294,7 @@ class _ImportAiUsageSectionState extends State<_ImportAiUsageSection> {
 
   String? _onDeviceNote() {
     if (model.appleFoundationRuntimeAvailable) return null;
-    final reason = model.appleFoundationDisabledReason?.trim();
-    return reason != null && reason.isNotEmpty ? reason : 'Not available on this device';
+    return PlatformAi.onDeviceUnavailableNote(disabledReason: model.appleFoundationDisabledReason);
   }
 
   Future<void> _onCloudToggle(bool value) async {
@@ -1308,7 +1315,7 @@ class _ImportAiUsageSectionState extends State<_ImportAiUsageSection> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _ImportAiUsageRow(
-          title: 'On-device',
+          title: PlatformAi.onDeviceSettingsTitle,
           icon: Icons.memory_outlined,
           requests: model.onDeviceRequestCount,
           note: onDeviceNote,
@@ -1321,7 +1328,7 @@ class _ImportAiUsageSectionState extends State<_ImportAiUsageSection> {
             const SizedBox(width: 10),
             Expanded(
               child: Text(
-                'Cloud · ${model.cloudImportRequestCount} requests',
+                'Cloud AI · ${model.cloudAiRequestCount} requests',
                 style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
               ),
             ),
@@ -1352,19 +1359,29 @@ class _ImportAiUsageRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Icon(icon, size: 20, color: cs.onSurfaceVariant),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            '$title · $requests requests',
-            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
-          ),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Icon(icon, size: 20, color: cs.onSurfaceVariant),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                '$title · $requests requests',
+                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+              ),
+            ),
+          ],
         ),
-        if (note != null)
-          Text(note!, style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12)),
+        if (note != null) ...[
+          const SizedBox(height: 6),
+          Text(
+            note!,
+            style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12, height: 1.35),
+          ),
+        ],
       ],
     );
   }
