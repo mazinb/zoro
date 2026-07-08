@@ -8,8 +8,8 @@ import { useThemeClasses } from '@/hooks/useThemeClasses';
 import { DownloadButtons } from '@/components/landing/DownloadButtons';
 import { PhoneFrame } from '@/components/landing/PhoneFrame';
 import { APP_DEMO_VIDEO_URL } from '@/lib/app-download';
-import { RedditCta } from '@/components/landing/RedditCta';
 import { FeatureCarousel, type FeatureSlide } from '@/components/landing/FeatureCarousel';
+import { FaqSection, type FaqItem } from '@/components/landing/FaqSection';
 
 interface DownloadLandingPageProps {
   darkMode: boolean;
@@ -89,6 +89,76 @@ const features: FeatureSlide[] = [
     image: '/images/app/feature-api-keys.png',
     title: 'Bring your own API keys',
     description: '',
+  },
+];
+
+const faqs: FaqItem[] = [
+  {
+    question: 'What is Zoro?',
+    answer: (
+      <>
+        Zoro is a privacy-first personal finance app. It helps you track net worth, cash flow,
+        and major money decisions in one place, with data saved on your phone by default. There
+        is no bank sync: you add what you choose, then plan goals like retirement against your own
+        numbers.
+      </>
+    ),
+  },
+  {
+    question: 'How much does it cost?',
+    answer: (
+      <>
+        The app is free to use for core tracking. AI imports include a free tier: setup imports
+        while you get started, then one free import per month. Extra imports cost one import credit
+        each (available as an in-app purchase). Zoro Pro is an optional monthly subscription with
+        unlimited imports. Exact prices are shown in the App Store / Play Store purchase sheet
+        before you buy.
+      </>
+    ),
+  },
+  {
+    question: 'Which asset classes are supported?',
+    answer: (
+      <>
+        Assets: savings, investments (including brokerage and crypto), property, and other.
+        Liabilities: personal loans, car loans, credit cards, mortgages, and other. Holdings can
+        sit in multiple currencies in a single ledger.
+      </>
+    ),
+  },
+  {
+    question: 'Is my data secure?',
+    answer: (
+      <>
+        Your ledger stays on your device by default. Zoro does not connect to your bank. Optional
+        Cloud AI only runs after you consent, and you can turn it off anytime. We do not sell your
+        data. See the{' '}
+        <Link href="/legal?tab=privacy" className="underline underline-offset-2 hover:opacity-80">
+          Privacy Policy
+        </Link>{' '}
+        for details.
+      </>
+    ),
+  },
+  {
+    question: 'How is the data uploaded?',
+    answer: (
+      <>
+        You can import from screenshots or photos, PDFs of statements and similar documents, or add
+        rows manually in the ledger. AI import is optional and only sends the document you choose
+        for that import after you consent.
+      </>
+    ),
+  },
+  {
+    question: 'Who is Zoro for?',
+    answer: (
+      <>
+        Anyone who wants a clear, private view of their money. It is especially useful for HNIs
+        with diversified portfolios across multiple currencies who need one place for assets,
+        liabilities, cash flow, and long-term goals without linking bank accounts.
+      </>
+    ),
   },
 ];
 
@@ -249,19 +319,20 @@ export const DownloadLandingPage: React.FC<DownloadLandingPageProps> = ({
         </div>
       </section>
 
-      {/* Bottom CTA */}
-      <section
-        id="community"
-        className={`border-t ${theme.borderClass} py-20 lg:py-24`}
-      >
-        <div className="max-w-4xl mx-auto px-6 text-center">
-          <h2 className={`text-2xl sm:text-3xl font-bold ${headerTextClass} mb-3`}>
-            Join the community
-          </h2>
-          <p className={`${theme.textSecondaryClass} mb-8 max-w-md mx-auto`}>
-            Share feedback, ask questions, and follow updates on Reddit.
-          </p>
-          <RedditCta />
+      {/* FAQ */}
+      <section id="faq" className={`border-t ${theme.borderClass} py-20 lg:py-24`}>
+        <div className="max-w-6xl mx-auto px-6">
+          <FaqSection
+            faqs={faqs}
+            darkMode={darkMode}
+            textClass={theme.textClass}
+            textSecondaryClass={theme.textSecondaryClass}
+            borderClass={theme.borderClass}
+            headerTextClass={headerTextClass}
+          />
+          <div className="mt-12 text-center">
+            <DownloadButtons darkMode={darkMode} size="md" className="justify-center" />
+          </div>
         </div>
       </section>
 

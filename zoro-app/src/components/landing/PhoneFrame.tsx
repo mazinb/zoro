@@ -1,7 +1,7 @@
 'use client';
 
 import Image from 'next/image';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 interface PhoneFrameProps {
   videoSrc?: string;
@@ -18,8 +18,43 @@ export function PhoneFrame({
   posterSrc = '/images/app/hero.png',
   className = '',
 }: PhoneFrameProps) {
+  const videoRef = useRef<HTMLVideoElement>(null);
   const [videoMissing, setVideoMissing] = useState(false);
   const showVideo = Boolean(videoSrc) && !videoMissing;
+
+  useEffect(() => {
+    if (!showVideo) return;
+    const video = videoRef.current;
+    if (!video) return;
+
+    video.muted = true;
+    video.defaultMuted = true;
+    video.loop = true;
+
+    const tryPlay = () => {
+      const playPromise = video.play();
+      if (playPromise !== undefined) {
+        playPromise.catch(() => {
+          // Autoplay can be blocked until interaction; retry on visibility.
+        });
+      }
+    };
+
+    tryPlay();
+    video.addEventListener('loadeddata', tryPlay);
+    video.addEventListener('canplay', tryPlay);
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') tryPlay();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+
+    return () => {
+      video.removeEventListener('loadeddata', tryPlay);
+      video.removeEventListener('canplay', tryPlay);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [showVideo, videoSrc]);
 
   return (
     <div className={`relative mx-auto w-full max-w-[280px] sm:max-w-[320px] ${className}`}>
@@ -35,6 +70,7 @@ export function PhoneFrame({
         <div className="relative aspect-[9/19.5] overflow-hidden rounded-[2.1rem] bg-black">
           {showVideo ? (
             <video
+              ref={videoRef}
               className="h-full w-full object-cover"
               src={videoSrc}
               poster={posterSrc}
@@ -42,6 +78,9 @@ export function PhoneFrame({
               muted
               loop
               playsInline
+              preload="auto"
+              controls={false}
+              disablePictureInPicture
               onError={() => setVideoMissing(true)}
             />
           ) : (
