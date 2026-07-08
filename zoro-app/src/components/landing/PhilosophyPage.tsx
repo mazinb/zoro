@@ -133,18 +133,13 @@ export const PhilosophyPage: React.FC<PhilosophyPageProps> = ({
                 progress tied to your numbers.
               </li>
               <li>
-                <strong className={theme.textClass}>Optional AI:</strong> Helpers and imports can
-                use AI after you consent in Settings. Your full ledger stays on your phone. Only
-                the prompt for that action is sent (for example summarized balances, context notes,
-                or text extracted from a PDF or screenshot you chose). Paths include: on-device
-                models when available (Apple Intelligence on iPhone, Gemini Nano on supported
-                Android), Zoro Cloud AI (routed through getzoro.com to Google Gemini, subject to
-                free imports, credits, or Pro), or your own API keys for OpenAI, Anthropic, or
-                Google Gemini stored only on device.
+                <strong className={theme.textClass}>Import helper:</strong>
+                Use AI after you consent in Settings. Your full ledger stays on your phone. Only
+                the prompt for that action is sent.
               </li>
               <li>
                 <strong className={theme.textClass}>Reminders:</strong> Local notifications on your
-                device. No push service required for core use.
+                device. No data leaves your phone.
               </li>
             </ul>
             <p className={`text-lg ${theme.textSecondaryClass}`}>
