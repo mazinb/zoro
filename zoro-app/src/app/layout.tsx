@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: {
-    default: "Zoro | Your AI Financial Advisor",
+    default: "Zoro",
     template: "%s | Zoro"
   },
   description: "Download Zoro for iOS. Track net worth, cash flow, and major decisions. No bank sync. Data stays on your phone.",
@@ -37,13 +37,13 @@ export const metadata: Metadata = {
     type: "website",
     locale: "en_US",
     url: "/",
-    title: "Zoro - Your AI Financial Advisor",
+    title: "Zoro",
     description: "Privacy-first finance on your phone. No bank sync. Download for iOS and Android.",
     siteName: "Zoro",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Zoro - Your AI Financial Advisor",
+    title: "Zoro",
     description: "Privacy-first finance on your phone. No bank sync. Download for iOS and Android.",
   },
   icons: {
