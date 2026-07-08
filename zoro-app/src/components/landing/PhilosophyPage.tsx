@@ -133,9 +133,14 @@ export const PhilosophyPage: React.FC<PhilosophyPageProps> = ({
                 progress tied to your numbers.
               </li>
               <li>
-                <strong className={theme.textClass}>Optional AI:</strong> Bring your own API keys
-                (OpenAI, Anthropic, Gemini, or on-device Apple). Your ledger stays on your phone;
-                only what you send in a request goes to the provider you choose.
+                <strong className={theme.textClass}>Optional AI:</strong> Helpers and imports can
+                use AI after you consent in Settings. Your full ledger stays on your phone. Only
+                the prompt for that action is sent (for example summarized balances, context notes,
+                or text extracted from a PDF or screenshot you chose). Paths include: on-device
+                models when available (Apple Intelligence on iPhone, Gemini Nano on supported
+                Android), Zoro Cloud AI (routed through getzoro.com to Google Gemini, subject to
+                free imports, credits, or Pro), or your own API keys for OpenAI, Anthropic, or
+                Google Gemini stored only on device.
               </li>
               <li>
                 <strong className={theme.textClass}>Reminders:</strong> Local notifications on your
@@ -157,8 +162,9 @@ export const PhilosophyPage: React.FC<PhilosophyPageProps> = ({
             </p>
             <p className={`text-lg ${theme.textSecondaryClass}`}>
               <strong className={theme.textClass}>Privacy first:</strong> Your financial data lives
-              on your phone by default. We do not connect to your bank. Optional AI uses your keys
-              and your chosen providers. We do not sell your data.
+              on your phone by default. We do not connect to your bank. Optional AI runs only after
+              consent, and you can use on-device models, Zoro Cloud AI, or your own provider keys.
+              We do not sell your data.
             </p>
           </div>
         </div>
