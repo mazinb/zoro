@@ -1,0 +1,122 @@
+[
+  {
+    "id": "content-agency",
+    "title": "AI-Powered Content Agency",
+    "rank": 1,
+    "analysis": "Most immediately revenue-generating. Indian B2B companies spend ₹50K-₹2L/month on content marketing. With Qwen3.6-35B + existing pipeline, produce 50-100 articles/week at near-zero marginal cost. Serve 10-20 clients at ₹30K-1L/month.",
+    "scores": { "revenue": 8, "market": 8, "competition": 3, "setup": 9, "maintenance": 5, "time": 9 },
+    "weighted": 7.95,
+    "key_strength": "Highest revenue + fastest time to first dollar",
+    "key_weakness": "High maintenance, fierce competition",
+    "recommendation": "start",
+    "status": "pending"
+  },
+  {
+    "id": "paid-newsletter",
+    "title": "Paid Newsletter on Zoro",
+    "rank": 2,
+    "analysis": "Indian startup research is high-value niche. VC and founder market of 150K+ active founders. Paid newsletter at ₹2K-5K/month with 500-1K subscribers yields ₹10-50L/month.",
+    "scores": { "revenue": 6, "market": 5, "competition": 7, "setup": 9, "maintenance": 8, "time": 7 },
+    "weighted": 6.8,
+    "key_strength": "Near-zero setup, autonomous, complements agency",
+    "key_weakness": "Small addressable market",
+    "recommendation": "start",
+    "status": "pending"
+  },
+  {
+    "id": "content-localization",
+    "title": "AI Content Localization Engine",
+    "rank": 3,
+    "analysis": "90% of India's internet users are vernacular speakers. Creator economy exploding. Target 1K-3K creators at ₹3K-15K/month yields ₹30L-4.5Cr/month.",
+    "scores": { "revenue": 7, "market": 9, "competition": 4, "setup": 6, "maintenance": 7, "time": 6 },
+    "weighted": 6.7,
+    "key_strength": "Massive TAM, growing demand",
+    "key_weakness": "Quality bar in Indian languages",
+    "recommendation": "later",
+    "status": "pending"
+  },
+  {
+    "id": "legal-doc-reviewer",
+    "title": "Local AI Legal Doc Reviewer",
+    "rank": 4,
+    "analysis": "15M SMEs and 1.2M freelancers need affordable contract review. AI at ₹500-2K/month targets mass market. DGX Spark enables on-premise fine-tuning with data privacy.",
+    "scores": { "revenue": 7, "market": 8, "competition": 5, "setup": 4, "maintenance": 5, "time": 5 },
+    "weighted": 6.05,
+    "key_strength": "Large TAM, clear problem",
+    "key_weakness": "Liability risk, domain expertise needed",
+    "recommendation": "later",
+    "status": "pending"
+  },
+  {
+    "id": "exam-prep",
+    "title": "AI-Powered Exam Prep Engine",
+    "rank": 5,
+    "analysis": "India's exam market is massive — 12-15M students for JEE/NEET/UPSC/CAT. Unacademy, PW, BYJU'S dominate. Revenue potential ₹25L-7.5Cr/month but highly competitive battleground.",
+    "scores": { "revenue": 8, "market": 10, "competition": 2, "setup": 3, "maintenance": 5, "time": 4 },
+    "weighted": 5.9,
+    "key_strength": "Huge market, high revenue potential",
+    "key_weakness": "Dominated by well-funded incumbents",
+    "recommendation": "avoid",
+    "status": "pending"
+  },
+  {
+    "id": "data-selling",
+    "title": "Specialized Data/Report Selling",
+    "rank": 6,
+    "analysis": "Structured datasets for VCs and analysts. Indian startup funding data is fragmented. Pricing ₹5K-20K/month. TAM: 500-2K VCs/analysts in India/SEA.",
+    "scores": { "revenue": 7, "market": 6, "competition": 5, "setup": 4, "maintenance": 4, "time": 5 },
+    "weighted": 5.5,
+    "key_strength": "Strong B2B demand, recurring revenue",
+    "key_weakness": "High data pipeline complexity",
+    "recommendation": "later",
+    "status": "pending"
+  },
+  {
+    "id": "competitive-intel",
+    "title": "AI-Powered Competitive Intelligence",
+    "rank": 7,
+    "analysis": "Monitor competitor websites, job postings, pricing, social signals. Market growing at 20% CAGR, $1.2B in 2023. Crayon raises $10M+ rounds. Pricing ₹3K-20K/month.",
+    "scores": { "revenue": 7, "market": 8, "competition": 3, "setup": 3, "maintenance": 5, "time": 4 },
+    "weighted": 5.4,
+    "key_strength": "Large market, proven SaaS model",
+    "key_weakness": "High dev effort, CRISPR-level competition",
+    "recommendation": "later",
+    "status": "pending"
+  },
+  {
+    "id": "startup-saas",
+    "title": "SaaS Wrapper — Startup Intelligence",
+    "rank": 8,
+    "analysis": "Productized version of data selling with UI and real-time monitoring. Crunchbase/Tracxn/Anliest dominate. Setup HIGH — needs auth, dashboards, alerts.",
+    "scores": { "revenue": 6, "market": 7, "competition": 3, "setup": 3, "maintenance": 6, "time": 4 },
+    "weighted": 5.1,
+    "key_strength": "Good TAM, pipeline advantage",
+    "key_weakness": "Very high setup effort",
+    "recommendation": "later",
+    "status": "pending"
+  },
+  {
+    "id": "research-report-gen",
+    "title": "AI Research Report Generator",
+    "rank": 9,
+    "analysis": "400 universities, 20K+ PhD students in India. Pricing ₹2K-8K/month. Tools like Elicit/Consensus exist but are English-focused. DGX Spark enables local privacy.",
+    "scores": { "revenue": 5, "market": 4, "competition": 4, "setup": 5, "maintenance": 7, "time": 6 },
+    "weighted": 5.05,
+    "key_strength": "Can run mostly autonomously",
+    "key_weakness": "Small niche market",
+    "recommendation": "later",
+    "status": "pending"
+  },
+  {
+    "id": "fine-tuning",
+    "title": "Fine-Tuning Service",
+    "rank": 10,
+    "analysis": "Leverages DGX Spark's 128GB unified memory for on-premise fine-tuning. Indian SMEs data-hesitant. ₹50K-5L per project. ~20 clients/year yields ₹10L-100L.",
+    "scores": { "revenue": 6, "market": 5, "competition": 4, "setup": 5, "maintenance": 4, "time": 4 },
+    "weighted": 4.9,
+    "key_strength": "Leverages DGX Spark directly",
+    "key_weakness": "Pure service, not scalable product",
+    "recommendation": "avoid",
+    "status": "pending"
+  }
+]
