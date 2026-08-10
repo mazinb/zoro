@@ -1,0 +1,44 @@
+// app/api/reports/route.ts
+import { NextResponse } from "next/server";
+import { promises as fs } from "fs";
+import path from "path";
+
+const REPORTS_DIR = path.join(process.cwd(), "public", "reports");
+
+interface ReportMeta {
+  slug: string;
+  title: string;
+  date: string;
+  category: string;
+  summary: string;
+}
+
+export async function GET() {
+  try {
+    if (!await fs.access(REPORTS_DIR).then(() => true).catch(() => false)) {
+      return NextResponse.json({ reports: [] });
+    }
+
+    const files = await fs.readdir(REPORTS_DIR);
+    const metas: ReportMeta[] = [];
+
+    for (const file of files) {
+      if (file.endsWith(".json")) {
+        const content = await fs.readFile(path.join(REPORTS_DIR, file), "utf-8");
+        try {
+          const meta: ReportMeta = JSON.parse(content);
+          metas.push(meta);
+        } catch {
+          // skip malformed JSON
+        }
+      }
+    }
+
+    // Sort by date descending
+    metas.sort((a, b) => b.date.localeCompare(a.date));
+
+    return NextResponse.json({ reports: metas });
+  } catch {
+    return NextResponse.json({ reports: [] });
+  }
+}

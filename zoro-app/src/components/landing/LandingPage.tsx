@@ -396,6 +396,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </Link>
             <span>|</span>
             <Link
+              href="/reports"
+              className="hover:underline transition-colors"
+            >
+              Reports
+            </Link>
+            <span>|</span>
+            <Link
               href="/legal?tab=terms"
               className="hover:underline transition-colors"
             >

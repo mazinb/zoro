@@ -344,6 +344,10 @@ export const DownloadLandingPage: React.FC<DownloadLandingPageProps> = ({
               Support
             </Link>
             <span>|</span>
+            <Link href="/reports" className="hover:underline transition-colors">
+              Reports
+            </Link>
+            <span>|</span>
             <Link href="/legal?tab=terms" className="hover:underline transition-colors">
               Terms of use
             </Link>
