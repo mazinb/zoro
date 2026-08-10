@@ -239,23 +239,6 @@ export default function ReportPage() {
           </p>
         </div>
 
-        {/* Quality gates (if any) */}
-        {report.meta.qualityGates && (
-          <div className={`mb-6 rounded-lg border p-4 ${darkMode ? 'bg-slate-800/50 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
-            <h3 className={`text-xs font-semibold mb-3 ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>Quality Gates</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-              {Object.entries(report.meta.qualityGates).map(([key, value]) => (
-                <div key={key} className={`rounded-md p-2 text-center ${darkMode ? 'bg-slate-900/50' : 'bg-white'}`}>
-                  <div className={`text-lg ${value ? 'text-emerald-400' : 'text-red-400'}`}>{value ? '✓' : '✗'}</div>
-                  <div className={`text-[10px] ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>
-                    {key.replace(/([A-Z])/g, ' $1').trim()}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* HTML content rendered by marked */}
         <div
           className={`${theme.legalContentClass} [&_pre]:bg-[var(--pre-bg)] [&_pre]:p-4 [&_pre]:rounded [&_pre]:overflow-x-auto [&_code]:text-sm [&_blockquote]:border-l-4 [&_blockquote]:border-slate-500 [&_blockquote]:pl-4 [&_blockquote]:italic [&_table]:w-full [&_table]:border-collapse [&_th]:text-left [&_th]:p-2 [&_th]:border [&_th]:${darkMode ? 'border-slate-700' : 'border-slate-300'} [&_td]:p-2 [&_td]:border [&_td]:${darkMode ? 'border-slate-700' : 'border-slate-300'}`}
