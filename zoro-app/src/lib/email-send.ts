@@ -1,13 +1,25 @@
-import { getSupabaseServiceRole } from './supabase-server';
+import { getSupabaseClient } from './supabase-server';
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://bnqrzxscdrivvsbqtggq.supabase.co';
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_KEY;
+
+function getSupabaseRestHeaders() {
+  return {
+    'apikey': SUPABASE_SERVICE_KEY || '',
+    'Authorization': `Bearer ${SUPABASE_SERVICE_KEY || ''}`,
+    'Content-Type': 'application/json',
+  };
+}
 
 export type SendEmailParams = {
-  from: string;
+  from?: string;
   to: string;
   subject: string;
   html?: string;
   text?: string;
   inReplyTo?: string; // inbound UUID for threading
   userId: string;
+  userToken?: string; // user's auth token for RLS
 };
 
 export type SendEmailResult =
@@ -60,44 +72,28 @@ export async function sendEmailViaResend(
     return { ok: false, error: msg };
   }
 
-  // Log to user_context.memory_jsonb (same pattern as nag-memory-log.ts)
+  // Log to user_context.memory_jsonb using direct REST API
+  // (avoids Supabase client which fails when service key env var is missing)
   try {
-    const supabase = getSupabaseServiceRole();
     const timestamp = new Date().toISOString();
+    const headers = getSupabaseRestHeaders();
+    const baseUrl = `${SUPABASE_URL}/rest/v1`;
 
-    const { data: row, error: fetchErr } = await supabase
-      .from('user_context')
-      .select('memory_jsonb')
-      .eq('user_id', params.userId)
-      .maybeSingle();
+    // Try to fetch existing row
+    const fetchUrl = `${baseUrl}/user_context?select=memory_jsonb&user_id=eq.${encodeURIComponent(params.userId)}`;
+    const fetchRes = await fetch(fetchUrl, { headers });
+    let mem: unknown[] = [];
 
-    if (fetchErr) {
-      console.error('[email-send] fetch user_context error:', fetchErr.message);
-    }
-
-    let mem: unknown[];
-
-    if (row && Array.isArray(row.memory_jsonb)) {
-      mem = [...(row.memory_jsonb as unknown[])];
-    } else {
-      console.log('[email-send] no user_context row found for', params.userId, '- creating new one');
-      // Create a new user_context row if it doesn't exist
-      const { error: createErr, data: insertData } = await supabase
-        .from('user_context')
-        .insert({
-          user_id: params.userId,
-          memory_jsonb: [],
-          updated_at: timestamp,
-        })
-        .select()
-        .single();
-
-      if (createErr) {
-        console.error('[email-send] create user_context failed:', createErr.message, createErr.details);
+    if (fetchRes.ok) {
+      const rows = await fetchRes.json() as Array<{ memory_jsonb: unknown[] }>;
+      if (rows.length > 0 && Array.isArray(rows[0].memory_jsonb)) {
+        mem = [...rows[0].memory_jsonb];
+        console.log('[email-send] found existing user_context, appending');
       } else {
-        console.log('[email-send] created user_context row:', JSON.stringify(insertData));
+        console.log('[email-send] empty memory_jsonb in existing user_context, will populate');
       }
-      mem = [];
+    } else {
+      console.log('[email-send] fetch user_context returned', fetchRes.status, '- will create new row');
     }
 
     const entry = {
@@ -113,19 +109,27 @@ export async function sendEmailViaResend(
     // Keep last 50 entries to avoid unbounded growth
     const trimmed = mem.slice(-50);
 
-    const { error: updateErr } = await supabase
-      .from('user_context')
-      .update({ memory_jsonb: trimmed, updated_at: timestamp })
-      .eq('user_id', params.userId);
+    // Upsert: insert if new, update if exists
+    const url = `${baseUrl}/user_context?select=*&on_conflict=user_id`;
+    const upsertRes = await fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        user_id: params.userId,
+        memory_jsonb: trimmed,
+        updated_at: timestamp,
+      }),
+    });
 
-    if (updateErr) {
-      console.error('[email-send] update user_context failed:', updateErr.message, updateErr.details);
-    } else {
+    if (upsertRes.ok) {
       console.log('[email-send] successfully logged email to memory_jsonb');
+    } else {
+      const errText = await upsertRes.text();
+      console.error('[email-send] upsert user_context failed:', upsertRes.status, errText);
     }
   } catch (dbErr) {
-    console.error('[email-send] memory_jsonb log failed:', dbErr);
-    // Don't fail the send — email went out, just logging failed
+    const errMsg = dbErr instanceof Error ? dbErr.message : String(dbErr);
+    console.error('[email-send] memory_jsonb log fatal error:', errMsg);
   }
 
   return { ok: true, id: resendId ?? '' };
