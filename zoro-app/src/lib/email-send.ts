@@ -71,26 +71,43 @@ export async function sendEmailViaResend(
       .eq('user_id', params.userId)
       .maybeSingle();
 
-    if (row) {
-      const mem = Array.isArray(row.memory_jsonb) ? [...(row.memory_jsonb as unknown[])] : [];
-      const entry = {
-        type: 'outbound',
-        timestamp,
-        subject: params.subject,
-        bodyPreview: (params.text ?? params.html ?? '').slice(0, 200),
-        resend_id: resendId,
-        in_reply_to: params.inReplyTo ?? null,
-      } as Record<string, unknown>;
-      mem.push(entry);
+    let mem: unknown[];
 
-      // Keep last 50 entries to avoid unbounded growth
-      const trimmed = mem.slice(-50);
-
-      await supabase
+    if (row && Array.isArray(row.memory_jsonb)) {
+      mem = [...(row.memory_jsonb as unknown[])];
+    } else {
+      // Create a new user_context row if it doesn't exist
+      const { error: createErr } = await supabase
         .from('user_context')
-        .update({ memory_jsonb: trimmed, updated_at: timestamp })
-        .eq('user_id', params.userId);
+        .insert({
+          user_id: params.userId,
+          memory_jsonb: [],
+          updated_at: timestamp,
+        });
+
+      if (createErr) {
+        console.error('[email-send] create user_context failed:', createErr.message);
+      }
+      mem = [];
     }
+
+    const entry = {
+      type: 'outbound',
+      timestamp,
+      subject: params.subject,
+      bodyPreview: (params.text ?? params.html ?? '').slice(0, 200),
+      resend_id: resendId,
+      in_reply_to: params.inReplyTo ?? null,
+    } as Record<string, unknown>;
+    mem.push(entry);
+
+    // Keep last 50 entries to avoid unbounded growth
+    const trimmed = mem.slice(-50);
+
+    await supabase
+      .from('user_context')
+      .update({ memory_jsonb: trimmed, updated_at: timestamp })
+      .eq('user_id', params.userId);
   } catch (dbErr) {
     console.error('[email-send] memory_jsonb log failed:', dbErr);
     // Don't fail the send — email went out, just logging failed
