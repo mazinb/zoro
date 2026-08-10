@@ -166,6 +166,27 @@ export async function GET(request: NextRequest) {
     const memoryJsonb = ctxResult.data?.memory_jsonb ?? [];
     const paired = pairInboundsWithReplies(inbounds, memoryJsonb);
 
+    // Extract general email outbounds (not nag entries) from memory_jsonb
+    const emailOutbounds = (memoryJsonb as unknown[] ?? [])
+      .filter((item): boolean => {
+        if (!item || typeof item !== 'object') return false;
+        const o = item as Record<string, unknown>;
+        return o.type === 'outbound' && typeof o.resend_id === 'string';
+      })
+      .map((item: unknown): Record<string, string | null> => {
+        const o = item as Record<string, unknown>;
+        return {
+          id: o.resend_id as string,
+          subject: (o.subject as string) ?? '',
+          body_preview: ((o.bodyPreview as string) ?? '').slice(0, 200),
+          created_at: (o.timestamp as string) ?? '',
+          in_reply_to: (o.in_reply_to as string) ?? null,
+        };
+      })
+      .sort((a: Record<string, string | null>, b: Record<string, string | null>) =>
+        (b.created_at as string) > (a.created_at as string) ? 1 : -1
+      );
+
     const dailyLimit = userRow.data?.daily_email_limit ?? 3;
     const monthlyLimit = userRow.data?.monthly_email_limit ?? 10;
 
@@ -178,6 +199,7 @@ export async function GET(request: NextRequest) {
       },
       auto_responses_enabled: userRow.data?.auto_responses_enabled ?? true,
       inbounds: paired,
+      outbounds: emailOutbounds,
     });
   } catch (e: unknown) {
     return NextResponse.json(
