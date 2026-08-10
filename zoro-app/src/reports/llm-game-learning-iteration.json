@@ -1,0 +1,76 @@
+{
+  "slug": "llm-game-learning",
+  "title": "Iteration & Feedback",
+  "rounds": [
+    {
+      "round": 1,
+      "type": "review",
+      "status": "FAIL",
+      "score": 6.6,
+      "date": "2026-08-10",
+      "dimensions": {
+        "Personality": 6,
+        "NarrativeFlow": 7,
+        "Readability": 8,
+        "InsightDepth": 5,
+        "VoiceConsistency": 7
+      },
+      "summary": "Good bones — strong opening, compelling ChipTycoon example. Insight depth is the main drag. Needs real citations, counterarguments, and a tighter conclusion.",
+      "kills": [
+        "Repetitive 'bullet points' in opening sentence",
+        "Generic cognitive science section with zero sourcing",
+        "Section 7 doubles back on conclusion"
+      ],
+      "fixes": [
+        "Add real citations (Dunlosky, Sweller)",
+        "Expand ChipTycoon section with personal reaction",
+        "Add counterargument section — where this approach breaks down",
+        "Condense repetitive conclusion into one tight paragraph",
+        "Vary sentence structure — remove AI-ism patterns"
+      ]
+    },
+    {
+      "round": 2,
+      "type": "revision",
+      "status": "APPLIED",
+      "date": "2026-08-10",
+      "summary": "Addressed all KILL and FIX items. Added 3 academic citations, a new 'Where This Breaks Down' counterargument section, personal voice throughout, and replaced repetitive meta-insights with concrete observations.",
+      "changes": [
+        "KILL: Removed repetitive 'bullet points' phrase",
+        "KILL: Deleted Section 7 (meta-insight doubles back on conclusion)",
+        "KILL: Replaced 'Beyond Games' listicle with 3 concrete examples (Oregon Trail, SimCity, orbital mechanics)",
+        "KILL: Fixed contradiction between 'skeptical traditional education will change' and 'explosion coming'",
+        "FIX: Added citations — Brown et al. 1989 (situated learning), Dunlosky 2013 (active recall), Sweller 1988 (cognitive load)",
+        "FIX: Expanded ChipTycoon with 'I visited it' personal reaction",
+        "FIX: New 'Where This Breaks Down' — covers philosophy, cost, engagement trap, accessibility",
+        "FIX: Opening enhanced with GPU memory bus example",
+        "FIX: Conclusion condensed to one paragraph",
+        "FIX: 'The problem is structural' → 'The problem is baked in' with explanation"
+      ]
+    },
+    {
+      "round": 3,
+      "type": "review",
+      "status": "PASS",
+      "score": 7.8,
+      "date": "2026-08-10",
+      "dimensions": {
+        "Personality": 8,
+        "NarrativeFlow": 8,
+        "Readability": 8,
+        "InsightDepth": 7,
+        "VoiceConsistency": 8
+      },
+      "summary": "All 10 KILL/FIX items addressed. Strong personal voice, real citations, counterarguments, and a clear call-to-action. The article goes from 6.6 → 7.8.",
+      "verdict": "PUBLISH",
+      "final_score": 7.8
+    }
+  ],
+  "qualityGates": {
+    "minWordCount": 2000,
+    "minCitations": 3,
+    "hasCounterargument": true,
+    "hasCallToAction": true,
+    "noHallucinatedClaims": true
+  }
+}
