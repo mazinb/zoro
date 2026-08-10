@@ -65,28 +65,37 @@ export async function sendEmailViaResend(
     const supabase = getSupabaseServiceRole();
     const timestamp = new Date().toISOString();
 
-    const { data: row } = await supabase
+    const { data: row, error: fetchErr } = await supabase
       .from('user_context')
       .select('memory_jsonb')
       .eq('user_id', params.userId)
       .maybeSingle();
+
+    if (fetchErr) {
+      console.error('[email-send] fetch user_context error:', fetchErr.message);
+    }
 
     let mem: unknown[];
 
     if (row && Array.isArray(row.memory_jsonb)) {
       mem = [...(row.memory_jsonb as unknown[])];
     } else {
+      console.log('[email-send] no user_context row found for', params.userId, '- creating new one');
       // Create a new user_context row if it doesn't exist
-      const { error: createErr } = await supabase
+      const { error: createErr, data: insertData } = await supabase
         .from('user_context')
         .insert({
           user_id: params.userId,
           memory_jsonb: [],
           updated_at: timestamp,
-        });
+        })
+        .select()
+        .single();
 
       if (createErr) {
-        console.error('[email-send] create user_context failed:', createErr.message);
+        console.error('[email-send] create user_context failed:', createErr.message, createErr.details);
+      } else {
+        console.log('[email-send] created user_context row:', JSON.stringify(insertData));
       }
       mem = [];
     }
@@ -104,10 +113,16 @@ export async function sendEmailViaResend(
     // Keep last 50 entries to avoid unbounded growth
     const trimmed = mem.slice(-50);
 
-    await supabase
+    const { error: updateErr } = await supabase
       .from('user_context')
       .update({ memory_jsonb: trimmed, updated_at: timestamp })
       .eq('user_id', params.userId);
+
+    if (updateErr) {
+      console.error('[email-send] update user_context failed:', updateErr.message, updateErr.details);
+    } else {
+      console.log('[email-send] successfully logged email to memory_jsonb');
+    }
   } catch (dbErr) {
     console.error('[email-send] memory_jsonb log failed:', dbErr);
     // Don't fail the send — email went out, just logging failed
