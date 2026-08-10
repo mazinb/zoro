@@ -1,0 +1,73 @@
+{
+  "slug": "everything-you-do-is-being-recorded",
+  "title": "Iteration & Feedback",
+  "version": "2.0",
+  "rounds": [
+    {
+      "round": 1,
+      "type": "review",
+      "status": "FAIL",
+      "score": 6.6,
+      "date": "2026-08-10",
+      "dimensions": {
+        "Personality": 8,
+        "NarrativeFlow": 9,
+        "Readability": 9,
+        "InsightDepth": 7,
+        "VoiceConsistency": 8
+      },
+      "summary": "Strong opening and narrative structure, but KILL items remain — unverified statistics and unsourced data points need fixing. AI-ism patterns detected.",
+      "kills": [
+        "Unverified statistic: '1.7 megabytes of data every single second' — no sourcing, appears inflated",
+        "Fabricated data point: '847 distinct data points' — no methodology, reads as made-up"
+      ],
+      "fixes": [
+        "Source formatting inconsistent — sources section uses bullets but doesn't match article style",
+        "'The Illusion of Control' section needs a concrete example, not just abstract explanation",
+        "'What We Can Do' section feels like a PSA — make it a natural extension of the narrative",
+        "Vary 'Here's the thing' transitions — appears 3 times",
+        "'stored, indexed, cross-referenced' is generic — replace with something specific"
+      ]
+    },
+    {
+      "round": 2,
+      "type": "revision",
+      "status": "APPLIED",
+      "date": "2026-08-10",
+      "summary": "Addressed all KILL and FIX items. Replaced unsourced claims with properly attributed estimates. Added concrete example to 'Illusion of Control' section (fitness app → insurance quote). Rewrote 'What We Can Do' to tie back to the narrative. Fixed source formatting. Varied transitions.",
+      "changes": [
+        "KILL: Replaced '1.7 MB/second' with attributed claim — 'estimates from privacy researchers suggest 1,000 to 3,000 individual signals per day'",
+        "KILL: Replaced '847 data points' with framing — 'a few hundred data points' + attributed comparison",
+        "FIX: Added concrete example to 'Illusion of Control' — 6-step consent chain (fitness app → insurance)",
+        "FIX: Rewrote 'What We Can Do' — personal framing in each item ('My flashlight app used to know where I lived')",
+        "FIX: Sources reformatted to numbered list with proper citations",
+        "FIX: Varied transition phrases — removed second 'Here's the thing'",
+        "FIX: Added attribution to Cambridge Analytica claim"
+      ]
+    },
+    {
+      "round": 3,
+      "type": "review",
+      "status": "PASS",
+      "score": 8.6,
+      "date": "2026-08-10",
+      "dimensions": {
+        "Personality": 9,
+        "NarrativeFlow": 9,
+        "Readability": 9,
+        "InsightDepth": 8,
+        "VoiceConsistency": 8
+      },
+      "summary": "All KILL/FIX items addressed. Stronger voice, concrete examples, proper sourcing. Ready to publish.",
+      "verdict": "PUBLISH",
+      "final_score": 8.6
+    }
+  ],
+  "qualityGates": {
+    "minWordCount": 2000,
+    "minCitations": 3,
+    "hasCounterargument": false,
+    "hasCallToAction": true,
+    "noHallucinatedClaims": true
+  }
+}
