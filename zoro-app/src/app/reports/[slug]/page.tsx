@@ -3,8 +3,9 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { Moon, Sun, ArrowLeft, FileText } from "lucide-react";
+import { Moon, Sun, ArrowLeft, FileText, GitBranch } from "lucide-react";
 import { ZoroLogo } from "@/components/ZoroLogo";
+import { IterationTimeline } from "@/components/IterationTimeline";
 import { useDarkMode } from "@/hooks/useDarkMode";
 import { useThemeClasses } from "@/hooks/useThemeClasses";
 import { marked } from "marked";
@@ -15,6 +16,35 @@ interface ReportMeta {
   date: string;
   category: string;
   summary: string;
+  qualityGates?: {
+    minWordCount?: number;
+    minCitations?: number;
+    hasCounterargument?: boolean;
+    hasCallToAction?: boolean;
+    noHallucinatedClaims?: boolean;
+  };
+}
+
+interface IterationMeta {
+  rounds: {
+    round: number;
+    type: "review" | "revision" | "published";
+    status: "FAIL" | "PASS" | "APPLIED" | "PUBLISH";
+    score?: number;
+    date: string;
+    summary: string;
+    verdict?: string;
+    dimensions?: Record<string, number>;
+    kills?: string[];
+    fixes?: string[];
+    changes?: string[];
+  }[];
+}
+
+interface ReportData {
+  meta: ReportMeta;
+  html: string;
+  iteration?: IterationMeta;
 }
 
 export default function ReportPage() {
@@ -24,32 +54,37 @@ export default function ReportPage() {
   const { darkMode, toggleDarkMode } = useDarkMode();
   const theme = useThemeClasses(darkMode);
 
-  const [report, setReport] = useState<{ meta: ReportMeta; html: string } | null>(null);
+  const [report, setReport] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!slug) return;
 
-    // Fetch metadata
     const baseUrl = "/reports/" + slug;
     const fetchReport = async () => {
       try {
-        const [metaRes, contentRes] = await Promise.all([
+        const [metaRes, contentRes, iterationRes] = await Promise.all([
           fetch(baseUrl + ".json"),
           fetch(baseUrl + ".md"),
+          fetch(baseUrl + "-iteration.json").catch(() => null),
         ]);
 
         const meta = await metaRes.json();
         const content = await contentRes.text();
 
-        // Use marked to render markdown to HTML
         marked.setOptions({
           breaks: true,
           gfm: true,
         });
         const html = marked.parse(content) as string;
 
-        setReport({ meta, html });
+        let iteration: IterationMeta | undefined;
+        const iterationResData = await iterationRes?.json().catch(() => null);
+        if (iterationResData?.rounds?.length) {
+          iteration = iterationResData;
+        }
+
+        setReport({ meta, html, iteration });
       } catch (err) {
         console.error("Failed to load report:", err);
       } finally {
@@ -118,6 +153,10 @@ export default function ReportPage() {
     );
   }
 
+  const hasIteration = report.iteration?.rounds?.length > 0;
+  const finalRound = report.iteration?.rounds?.[report.iteration.rounds.length - 1];
+  const finalScore = finalRound?.type === "review" ? finalRound.score : undefined;
+
   return (
     <div className={`min-h-screen ${theme.bgClass} transition-colors duration-300 ${darkMode ? 'dark' : ''}`}>
       {/* Navigation Header */}
@@ -140,6 +179,14 @@ export default function ReportPage() {
             </button>
           </div>
           <div className="flex items-center gap-6">
+            {hasIteration && (
+              <div className="hidden sm:flex items-center gap-2">
+                <GitBranch className={`w-4 h-4 ${darkMode ? "text-slate-400" : "text-slate-500"}`} />
+                <span className={`text-xs ${darkMode ? "text-slate-400" : "text-slate-500"}`}>
+                  {report.iteration?.rounds?.length} iterations
+                </span>
+              </div>
+            )}
             <button
               onClick={toggleDarkMode}
               className={`p-2 rounded-lg ${theme.textSecondaryClass} hover:${theme.textClass} transition-colors`}
@@ -155,9 +202,17 @@ export default function ReportPage() {
       <div className="max-w-3xl mx-auto py-10 px-5 md:px-20">
         {/* Title & metadata */}
         <div className="mb-8">
-          <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium mb-4 ${darkMode ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-600'}`}>
-            <FileText className="w-3 h-3" />
-            {report.meta.category}
+          <div className="flex items-center gap-3 mb-3">
+            <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium ${darkMode ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-600'}`}>
+              <FileText className="w-3 h-3" />
+              {report.meta.category}
+            </div>
+            {hasIteration && finalScore && (
+              <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium ${finalScore >= 7 ? (darkMode ? 'bg-emerald-900/30 text-emerald-400' : 'bg-emerald-100 text-emerald-700') : (darkMode ? 'bg-amber-900/30 text-amber-400' : 'bg-amber-100 text-amber-700')}`}>
+                <GitBranch className="w-3 h-3" />
+                Final score: {finalScore.toFixed(1)}/10
+              </div>
+            )}
           </div>
           <h1 className={`text-3xl font-bold mb-3 ${theme.textClass}`}>
             {report.meta.title}
@@ -167,11 +222,33 @@ export default function ReportPage() {
           </p>
         </div>
 
+        {/* Quality gates (if any) */}
+        {report.meta.qualityGates && (
+          <div className={`mb-6 rounded-lg border p-4 ${darkMode ? 'bg-slate-800/50 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
+            <h3 className={`text-xs font-semibold mb-3 ${darkMode ? 'text-slate-400' : 'text-slate-500'}`}>Quality Gates</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+              {Object.entries(report.meta.qualityGates).map(([key, value]) => (
+                <div key={key} className={`rounded-md p-2 text-center ${darkMode ? 'bg-slate-900/50' : 'bg-white'}`}>
+                  <div className={`text-lg ${value ? 'text-emerald-400' : 'text-red-400'}`}>{value ? '✓' : '✗'}</div>
+                  <div className={`text-[10px] ${darkMode ? 'text-slate-500' : 'text-slate-400'}`}>
+                    {key.replace(/([A-Z])/g, ' $1').trim()}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* HTML content rendered by marked */}
         <div
           className={`${theme.legalContentClass} [&_pre]:bg-[var(--pre-bg)] [&_pre]:p-4 [&_pre]:rounded [&_pre]:overflow-x-auto [&_code]:text-sm [&_blockquote]:border-l-4 [&_blockquote]:border-slate-500 [&_blockquote]:pl-4 [&_blockquote]:italic [&_table]:w-full [&_table]:border-collapse [&_th]:text-left [&_th]:p-2 [&_th]:border [&_th]:${darkMode ? 'border-slate-700' : 'border-slate-300'} [&_td]:p-2 [&_td]:border [&_td]:${darkMode ? 'border-slate-700' : 'border-slate-300'}`}
           dangerouslySetInnerHTML={{ __html: report.html }}
         />
+
+        {/* Iteration timeline */}
+        {hasIteration && (
+          <IterationTimeline iteration={report.iteration!} />
+        )}
       </div>
     </div>
   );

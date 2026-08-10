@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Moon, Sun, ArrowLeft, TrendingUp, ExternalLink, ThumbsUp, Send, X, FileText } from "lucide-react";
+import { Moon, Sun, ArrowLeft, TrendingUp, ExternalLink, ThumbsUp, Send, X, FileText, RefreshCw, Sparkles } from "lucide-react";
 import { ZoroLogo } from "@/components/ZoroLogo";
 import { useDarkMode } from "@/hooks/useDarkMode";
 import { useThemeClasses } from "@/hooks/useThemeClasses";
@@ -45,6 +45,8 @@ export default function CombinedPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [voting, setVoting] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [generating, setGenerating] = useState(false);
 
   // Modal form
   const [newTitle, setNewTitle] = useState("");
@@ -118,6 +120,36 @@ export default function CombinedPage() {
       }
     } catch { /* ignore */ }
     finally { setSubmitting(false); }
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      const res = await fetch("/api/topics/refresh", { method: "POST" });
+      if (res.ok) {
+        // Refresh topics list
+        const tRes = await fetch("/api/topics");
+        const tData = await tRes.json();
+        setTopics(tData.topics || []);
+      }
+    } catch { /* ignore */ }
+    finally { setRefreshing(false); }
+  };
+
+  const handleGenerate = async () => {
+    setGenerating(true);
+    try {
+      const res = await fetch("/api/articles/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        alert(data.message || "Article generation started!");
+      }
+    } catch { /* ignore */ }
+    finally { setGenerating(false); }
   };
 
   /* ---- helpers ---- */
@@ -247,12 +279,22 @@ export default function CombinedPage() {
           <div className="flex items-center justify-center gap-3 flex-wrap">
             <span className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm ${darkMode ? "bg-slate-800 text-slate-400" : "bg-slate-100 text-slate-500"}`}>
               <TrendingUp className="w-4 h-4" />
-              Next article: Tomorrow 9:00 AM (Bangkok)
+              On-demand: pick a topic to generate
             </span>
+            <button onClick={handleRefresh} disabled={refreshing}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-600 text-white hover:bg-slate-700 transition-colors disabled:opacity-50">
+              <RefreshCw className={`w-4 h-4 ${refreshing ? "animate-spin" : ""}`} />
+              {refreshing ? "Refreshing..." : "Refresh Topics"}
+            </button>
             <button onClick={() => setModalOpen(true)}
               className="flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors">
               <Send className="w-4 h-4" />
               Submit
+            </button>
+            <button onClick={handleGenerate} disabled={generating || topics.length === 0}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 transition-colors disabled:opacity-50">
+              <Sparkles className="w-4 h-4" />
+              {generating ? "Generating..." : "Generate Article"}
             </button>
           </div>
         </div>

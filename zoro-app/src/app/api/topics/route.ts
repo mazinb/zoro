@@ -1,12 +1,29 @@
-// app/api/topics/route.ts
+// app/api/topics/route.ts — Supabase-backed topics API (falls back to local JSON)
 import { NextResponse } from "next/server";
-import { promises as fs } from "fs";
-import path from "path";
+import { createClient } from "@supabase/supabase-js";
+import * as fs from "fs";
+import * as path from "path";
 
-const TOPICS_JSON = path.join(process.cwd(), "public", "api", "topics.json");
-const ARCHIVE_JSON = path.join(process.cwd(), "public", "api", "topics-archive.json");
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+const SUPABASE_ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+const SUPABASE_SERVICE = process.env.SUPABASE_SERVICE_KEY || "";
 
-interface Topic {
+function getSupabase() {
+  if (SUPABASE_URL && SUPABASE_ANON) {
+    return createClient(SUPABASE_URL, SUPABASE_ANON);
+  }
+  return null;
+}
+
+function getSupabaseAdmin() {
+  if (SUPABASE_URL && SUPABASE_SERVICE) {
+    return createClient(SUPABASE_URL, SUPABASE_SERVICE);
+  }
+  return null;
+}
+
+// In-memory fallback topic store (dev/testing without Supabase)
+let topicsCache: Array<{
   id: string;
   title: string;
   description: string;
@@ -19,139 +36,188 @@ interface Topic {
   updated_at: string;
   notes: string;
   status: string;
-}
+}> = [];
 
-// Read current topics from file
-async function readTopics(): Promise<Topic[]> {
+const QUEUE_PATH = path.join("/home/mazin/projects/research", "topic-queue.json");
+
+function loadLocalTopicsSync() {
   try {
-    const content = await fs.readFile(TOPICS_JSON, "utf-8");
-    return JSON.parse(content);
-  } catch {
-    return [];
+    if (fs.existsSync(QUEUE_PATH)) {
+      const raw = fs.readFileSync(QUEUE_PATH, "utf-8");
+      const data = JSON.parse(raw);
+      topicsCache = (Array.isArray(data) ? data : (data.topics || [])).map((t: any) => ({
+        id: t.id || Math.random().toString(36).slice(2),
+        title: t.title || "",
+        description: t.description || "",
+        source: t.source || "",
+        source_name: t.source_name || "",
+        url: t.url || "",
+        votes: t.votes || 0,
+        category: t.category || "AI",
+        created_at: t.created_at || new Date().toISOString(),
+        updated_at: t.updated_at || new Date().toISOString(),
+        notes: t.notes || "",
+        status: t.status || "queued",
+      }));
+    }
+  } catch (e) {
+    console.error("Failed to load local topics:", e);
+  }
+}
+loadLocalTopicsSync();
+
+function saveLocalTopicsSync() {
+  try {
+    const data = { topics: topicsCache, updated_at: new Date().toISOString() };
+    fs.writeFileSync(QUEUE_PATH, JSON.stringify(data, null, 2));
+  } catch (e) {
+    console.error("Failed to save local topics:", e);
   }
 }
 
-// Write topics back to file
-async function writeTopics(topics: Topic[]): Promise<void> {
-  const dir = path.dirname(TOPICS_JSON);
-  await fs.mkdir(dir, { recursive: true });
-  await fs.writeFile(TOPICS_JSON, JSON.stringify(topics, null, 2), "utf-8");
-}
-
-// Read archive
-async function readArchive(): Promise<any[]> {
-  try {
-    const content = await fs.readFile(ARCHIVE_JSON, "utf-8");
-    return JSON.parse(content);
-  } catch {
-    return [];
-  }
-}
-
-// Write archive
-async function writeArchive(archive: any[]): Promise<void> {
-  const dir = path.dirname(ARCHIVE_JSON);
-  await fs.mkdir(dir, { recursive: true });
-  await fs.writeFile(ARCHIVE_JSON, JSON.stringify(archive, null, 2), "utf-8");
-}
-
-// Auto-archive expired topics (older than 5 days)
-async function archiveExpired(): Promise<Topic[]> {
-  const topics = await readTopics();
-  const now = Date.now();
-  const FIVE_DAYS_MS = 5 * 24 * 60 * 60 * 1000;
-  let changed = false;
-
-  const active: Topic[] = [];
-  const expired: Topic[] = [];
-
-  for (const topic of topics) {
-    const created = new Date(topic.created_at).getTime();
-    if (topic.status === "active" && now - created >= FIVE_DAYS_MS) {
-      expired.push({ ...topic, status: "expired" });
-      changed = true;
-    } else {
-      active.push(topic);
+async function getTopics() {
+  const sb = getSupabase();
+  if (sb) {
+    const { data, error } = await sb
+      .from("topics")
+      .select("*")
+      .eq("status", "queued")
+      .order("votes", { ascending: false })
+      .order("created_at", { ascending: false });
+    if (!error && data) {
+      return data.map((d: any) => ({
+        id: d.id,
+        title: d.title,
+        description: d.description,
+        source: d.source,
+        source_name: d.source_name,
+        url: d.url,
+        votes: d.votes || 0,
+        category: d.category,
+        created_at: d.created_at,
+        updated_at: d.updated_at,
+        notes: d.notes || "",
+        status: d.status,
+      }));
     }
   }
+  loadLocalTopicsSync();
+  return topicsCache;
+}
 
-  if (changed && expired.length > 0) {
-    // Archive expired topics
-    const archive = await readArchive();
-    for (const t of expired) {
-      archive.push({
-        ...t,
-        archived_at: new Date().toISOString(),
-        archived_reason: "expired",
-      });
-    }
-    await writeArchive(archive);
-    await writeTopics(active);
+async function saveTopic(topic: any) {
+  const sbAdmin = getSupabaseAdmin();
+  if (sbAdmin) {
+    const { data, error } = await sbAdmin
+      .from("topics")
+      .insert([{
+        id: topic.id,
+        title: topic.title,
+        description: topic.description || "",
+        source: topic.source || "user",
+        source_name: "user",
+        url: topic.url || "",
+        votes: 0,
+        category: topic.category || "AI",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        notes: topic.notes || "",
+        status: "queued",
+      }])
+      .select()
+      .single();
+    if (!error && data) return { topic: data as any, status: 201 };
+  }
+  topicsCache.unshift({
+    id: topic.id,
+    title: topic.title,
+    description: topic.description || "",
+    source: topic.source || "user",
+    source_name: "user",
+    url: topic.url || "",
+    votes: 0,
+    category: topic.category || "AI",
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    notes: topic.notes || "",
+    status: "queued",
+  });
+  saveLocalTopicsSync();
+  return { topic: topicsCache[0], status: 201 };
+}
+
+async function vote(topicId: string, clientId: string) {
+  const sbAdmin = getSupabaseAdmin();
+  if (sbAdmin) {
+    const { data: existing } = await sbAdmin
+      .from("topic_votes")
+      .select("id")
+      .eq("topic_id", topicId)
+      .eq("client_id", clientId)
+      .single();
+    if (existing) return { error: "Already voted", status: 409 };
+
+    const { data: cur } = await sbAdmin
+      .from("topics")
+      .select("votes")
+      .eq("id", topicId)
+      .single() as { data: { votes: number } | null; error: any };
+
+    if (!cur) return { error: "Topic not found", status: 404 };
+
+    const newVotes = (cur as any).votes + 1;
+    await sbAdmin
+      .from("topics")
+      .update({ votes: newVotes, updated_at: new Date().toISOString() })
+      .eq("id", topicId);
+
+    await sbAdmin.from("topic_votes").insert({
+      topic_id: topicId,
+      client_id: clientId,
+      created_at: new Date().toISOString(),
+    });
+
+    const { data: topic } = await sbAdmin
+      .from("topics")
+      .select("*")
+      .eq("id", topicId)
+      .single();
+
+    return { topic };
   }
 
-  return active;
+  const idx = topicsCache.findIndex(t => t.id === topicId);
+  if (idx === -1) return { error: "Topic not found", status: 404 };
+  topicsCache[idx].votes += 1;
+  topicsCache[idx].updated_at = new Date().toISOString();
+  saveLocalTopicsSync();
+  return { topic: topicsCache[idx] };
 }
 
 export async function GET() {
-  const topics = await archiveExpired(); // Auto-archive expired on every read
-  return NextResponse.json({ topics, count: topics.length });
+  const topics = await getTopics();
+  return NextResponse.json({ topics });
 }
 
-export async function POST(request: Request) {
-  const body = await request.json();
-  const action = body.action as string;
+export async function POST(req: Request) {
+  const body = await req.json();
+  const clientId = req.headers.get("x-client-id") || Math.random().toString(36).slice(2);
 
-  // Sync expired topics before any write operation
-  await archiveExpired();
-
-  if (action === "vote") {
-    const { id }: { id: string } = body;
-    const topics = await readTopics();
-    const topic = topics.find((t) => t.id === id && t.status === "active");
-
-    if (!topic) {
-      return NextResponse.json({ error: "Topic not found" }, { status: 404 });
-    }
-
-    topic.votes += 1;
-    topic.updated_at = new Date().toISOString();
-    await writeTopics(topics);
-    return NextResponse.json({ topic: { id: topic.id, votes: topic.votes } });
+  if (body.action === "vote") {
+    const result = await vote(body.id, clientId);
+    return NextResponse.json(result, { status: result.status || 200 });
   }
 
-  if (action === "submit") {
-    const { title, url, notes, category }: { title: string; url?: string; notes?: string; category?: string } = body;
-
-    if (!title || title.length < 5) {
-      return NextResponse.json({ error: "Title must be at least 5 characters" }, { status: 400 });
-    }
-
-    const topics = await readTopics();
-
-    // Generate ID from title
-    const id = "user-submit-" + Buffer.from(title + Date.now()).toString("base64url").slice(0, 16);
-    const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
-
-    const newTopic: Topic = {
-      id,
-      title: title.trim(),
-      description: title.trim(),
-      source: "user",
-      source_name: "Community",
-      url: url || "",
-      votes: 1, // User gets 1 vote on their own submission
-      category: category || "general",
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      notes: notes || "",
-      status: "active",
-    };
-
-    topics.push(newTopic);
-    // Sort by votes desc
-    topics.sort((a, b) => b.votes - a.votes || new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-    await writeTopics(topics);
-    return NextResponse.json({ topic: newTopic });
+  if (body.action === "submit") {
+    const result = await saveTopic({
+      id: Math.random().toString(36).slice(2, 10),
+      title: body.title,
+      url: body.url || "",
+      description: "",
+      category: body.category || "AI",
+      notes: body.notes || "",
+    });
+    return NextResponse.json(result, { status: result.status || 201 });
   }
 
   return NextResponse.json({ error: "Unknown action" }, { status: 400 });

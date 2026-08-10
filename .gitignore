@@ -4,3 +4,4 @@ inbox-agent/
 
 # OS
 .DS_Store
+.vercel
