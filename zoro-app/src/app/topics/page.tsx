@@ -1,9 +1,9 @@
-// app/topics/page.tsx — Combined Topics + Reports with modal + age tracking
+// app/topics/page.tsx — Clean Topics + Reports with modal
 "use client";
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Moon, Sun, ArrowLeft, TrendingUp, ExternalLink, ThumbsUp, Send, X, FileText, Clock, Flag } from "lucide-react";
+import { Moon, Sun, ArrowLeft, TrendingUp, ExternalLink, ThumbsUp, Send, X, FileText } from "lucide-react";
 import { ZoroLogo } from "@/components/ZoroLogo";
 import { useDarkMode } from "@/hooks/useDarkMode";
 import { useThemeClasses } from "@/hooks/useThemeClasses";
@@ -45,7 +45,6 @@ export default function CombinedPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [voting, setVoting] = useState<string | null>(null);
-  const [archiving, setArchiving] = useState<string | null>(null);
 
   // Modal form
   const [newTitle, setNewTitle] = useState("");
@@ -121,29 +120,7 @@ export default function CombinedPage() {
     finally { setSubmitting(false); }
   };
 
-  const handleArchive = async (id: string) => {
-    setArchiving(id);
-    try {
-      await fetch("/api/topics/archive", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id }),
-      });
-      setTopics((prev) => prev.filter((t) => t.id !== id));
-    } catch { /* ignore */ }
-    finally { setArchiving(null); }
-  };
-
   /* ---- helpers ---- */
-
-  const getAge = (created_at: string) => {
-    const diffMs = Date.now() - new Date(created_at).getTime();
-    const days = Math.floor(diffMs / 86400000);
-    if (days >= 5) return { label: "expired", cls: "text-red-500", bg: darkMode ? "bg-red-900/30 text-red-400" : "bg-red-50 text-red-600", border: "border-red-500/30" };
-    if (days === 4) return { label: "1 day left", cls: "text-amber-500", bg: darkMode ? "bg-amber-900/30 text-amber-400" : "bg-amber-50 text-amber-700", border: "border-amber-500/30" };
-    if (days === 3) return { label: "2 days left", cls: "text-yellow-600", bg: darkMode ? "bg-yellow-900/20 text-yellow-400" : "bg-yellow-50 text-yellow-700", border: "border-yellow-500/30" };
-    return { label: `${days}d old`, cls: theme.textSecondaryClass, bg: darkMode ? "bg-slate-800 text-slate-400" : "bg-slate-100 text-slate-500", border: "" };
-  };
 
   const formatDate = (d: string) =>
     new Date(d).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -287,57 +264,56 @@ export default function CombinedPage() {
           <div className={`text-center py-12 ${theme.textSecondaryClass}`}>No topics yet. Submit one!</div>
         ) : (
           <div className="space-y-3">
-            {topics.map((t, idx) => {
-              const age = getAge(t.created_at);
-              return (
-                <div key={t.id} className={`rounded-lg border p-5 transition ${age.label === "expired" ? `opacity-50 ${age.border}` : `${theme.cardBorderClass} ${theme.cardHoverClass} ${theme.cardBgClass}`}`}>
-                  <div className="flex items-start gap-4">
-                    {/* Rank badge */}
-                    <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
-                      idx === 0 ? "bg-yellow-500 text-white" :
-                      idx === 1 ? "bg-slate-400 text-white" :
-                      idx === 2 ? "bg-amber-700 text-white" :
-                      darkMode ? "bg-slate-700 text-slate-300" : "bg-slate-200 text-slate-600"
-                    }`}>
-                      {idx + 1}
-                    </div>
-
-                    {/* Body */}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <h3 className={`font-semibold ${theme.textClass}`}>{t.title}</h3>
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs ${darkMode ? "bg-slate-700 text-slate-300" : "bg-slate-100 text-slate-600"}`}>{t.category}</span>
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ${age.bg}`}>
-                          {age.label === "expired" ? <Flag className="w-3 h-3" /> : <Clock className="w-3 h-3" />}
-                          {age.label}
-                        </span>
-                      </div>
-
-                      {t.notes && <p className={`text-sm mb-2 ${theme.textSecondaryClass}`}>{t.notes}</p>}
-
-                      {t.url && (
-                        <a href={t.url} target="_blank" rel="noreferrer" className={`text-sm flex items-center gap-1 ${theme.linkClass} hover:${theme.textClass}`}>
-                          <span className="truncate">{t.url}</span>
-                          <ExternalLink className="w-3 h-3 flex-shrink-0" />
-                        </a>
-                      )}
-
-                      <div className={`flex items-center gap-4 mt-2 text-xs ${theme.textSecondaryClass}`}>
-                        <span>📎 {t.source_name}</span>
-                        <span>📅 {formatDate(t.created_at)}</span>
-                      </div>
-                    </div>
-
-                    {/* Vote */}
-                    <button onClick={() => handleVote(t.id)} disabled={voting === t.id}
-                      className={`flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${theme.cardBorderClass} ${theme.cardBgClass} hover:${theme.cardHoverClass} disabled:opacity-50`}>
-                      <ThumbsUp className={`w-4 h-4 ${t.votes > 0 ? "text-blue-500" : ""}`} />
-                      <span className={`font-semibold ${t.votes > 0 ? "text-blue-500" : ""}`}>{t.votes}</span>
-                    </button>
+            {topics.map((t, idx) => (
+              <div key={t.id} className={`rounded-lg border p-5 transition ${theme.cardBorderClass} ${theme.cardBgClass}`}>
+                <div className="flex items-start gap-4">
+                  {/* Rank badge */}
+                  <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${
+                    idx === 0 ? "bg-yellow-500 text-white" :
+                    idx === 1 ? "bg-slate-400 text-white" :
+                    idx === 2 ? "bg-amber-700 text-white" :
+                    darkMode ? "bg-slate-700 text-slate-300" : "bg-slate-200 text-slate-600"
+                  }`}>
+                    {idx + 1}
                   </div>
+
+                  {/* Body */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                      <h3 className={`font-semibold ${theme.textClass}`}>{t.title}</h3>
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs ${darkMode ? "bg-slate-700 text-slate-300" : "bg-slate-100 text-slate-600"}`}>{t.category}</span>
+                    </div>
+
+                    {t.description && (
+                      <p className={`text-sm mb-2 ${darkMode ? "text-slate-300" : "text-slate-600"}`}>{t.description}</p>
+                    )}
+
+                    {t.notes && (
+                      <p className={`text-sm mb-2 ${theme.textSecondaryClass}`}>{t.notes}</p>
+                    )}
+
+                    {t.url && (
+                      <a href={t.url} target="_blank" rel="noreferrer" className={`text-sm flex items-center gap-1 ${theme.linkClass} hover:${theme.textClass}`}>
+                        <span className="truncate">{t.url}</span>
+                        <ExternalLink className="w-3 h-3 flex-shrink-0" />
+                      </a>
+                    )}
+
+                    <div className={`flex items-center gap-4 mt-2 text-xs ${theme.textSecondaryClass}`}>
+                      <span>📎 {t.source_name}</span>
+                      <span>📅 {formatDate(t.created_at)}</span>
+                    </div>
+                  </div>
+
+                  {/* Vote */}
+                  <button onClick={() => handleVote(t.id)} disabled={voting === t.id}
+                    className={`flex-shrink-0 flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${theme.cardBorderClass} ${theme.cardBgClass} hover:${theme.cardHoverClass} disabled:opacity-50`}>
+                    <ThumbsUp className={`w-4 h-4 ${t.votes > 0 ? "text-blue-500" : ""}`} />
+                    <span className={`font-semibold ${t.votes > 0 ? "text-blue-500" : ""}`}>{t.votes}</span>
+                  </button>
                 </div>
-              );
-            })}
+              </div>
+            ))}
           </div>
         )}
 
