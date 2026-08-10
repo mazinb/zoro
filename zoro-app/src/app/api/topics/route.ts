@@ -62,7 +62,7 @@ export async function POST(request: Request) {
   }
 
   if (action === "submit") {
-    const { title, url, notes }: { title: string; url?: string; notes?: string } = body;
+    const { title, url, notes, category }: { title: string; url?: string; notes?: string; category?: string } = body;
 
     if (!title || title.length < 5) {
       return NextResponse.json({ error: "Title must be at least 5 characters" }, { status: 400 });
@@ -82,7 +82,7 @@ export async function POST(request: Request) {
       source_name: "Community",
       url: url || "",
       votes: 1, // User gets 1 vote on their own submission
-      category: "general",
+      category: category || "general",
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       notes: notes || "",
