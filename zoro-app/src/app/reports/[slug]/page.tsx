@@ -5,8 +5,7 @@ import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Moon, Sun, ArrowLeft, FileText, GitBranch } from "lucide-react";
 import { ZoroLogo } from "@/components/ZoroLogo";
-import { IterationTimeline } from "@/components/IterationTimeline";
-import { useDarkMode } from "@/hooks/useDarkMode";
+import IterationTimeline from "@/components/IterationTimeline";
 import { useThemeClasses } from "@/hooks/useThemeClasses";
 import { marked } from "marked";
 
@@ -51,7 +50,25 @@ export default function ReportPage() {
   const params = useParams();
   const router = useRouter();
   const slug = params.slug as string;
-  const { darkMode, toggleDarkMode } = useDarkMode();
+  const [darkMode, setDarkMode] = useState(() => {
+    if (typeof window !== "undefined") {
+      return document.documentElement.classList.contains("dark");
+    }
+    return false;
+  });
+  const toggleDarkMode = () => {
+    setDarkMode((prev) => {
+      const next = !prev;
+      if (typeof window !== "undefined") {
+        if (next) {
+          document.documentElement.classList.add("dark");
+        } else {
+          document.documentElement.classList.remove("dark");
+        }
+      }
+      return next;
+    });
+  };
   const theme = useThemeClasses(darkMode);
 
   const [report, setReport] = useState<ReportData | null>(null);
@@ -153,8 +170,8 @@ export default function ReportPage() {
     );
   }
 
-  const hasIteration = report.iteration?.rounds?.length > 0;
-  const finalRound = report.iteration?.rounds?.[report.iteration.rounds.length - 1];
+  const hasIteration = !!report?.iteration?.rounds?.length;
+  const finalRound = hasIteration ? report.iteration!.rounds[report.iteration!.rounds.length - 1] : undefined;
   const finalScore = finalRound?.type === "review" ? finalRound.score : undefined;
 
   return (

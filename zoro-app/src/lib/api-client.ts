@@ -2,6 +2,7 @@ import { supabaseClient } from './supabase-client';
 
 // Helper to get auth headers for API calls
 export async function getAuthHeaders(): Promise<HeadersInit> {
+  if (!supabaseClient) return { 'Content-Type': 'application/json' };
   const { data: { session } } = await supabaseClient.auth.getSession();
   const headers: HeadersInit = {
     'Content-Type': 'application/json',
