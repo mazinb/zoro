@@ -5,6 +5,7 @@ export const useThemeClasses = (darkMode: boolean) => {
     bgClass: darkMode ? 'bg-slate-900' : 'bg-white',
     textClass: darkMode ? 'text-white' : 'text-slate-900',
     textSecondaryClass: darkMode ? 'text-slate-400' : 'text-slate-600',
+    linkClass: darkMode ? 'text-blue-400' : 'text-blue-600',
     borderClass: darkMode ? 'border-slate-800' : 'border-slate-100',
     cardBgClass: darkMode ? 'bg-slate-800' : 'bg-white',
     cardBorderClass: darkMode ? 'border-slate-700' : 'border-slate-200',
