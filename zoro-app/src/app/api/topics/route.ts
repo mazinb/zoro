@@ -4,6 +4,7 @@ import { promises as fs } from "fs";
 import path from "path";
 
 const TOPICS_JSON = path.join(process.cwd(), "public", "api", "topics.json");
+const ARCHIVE_JSON = path.join(process.cwd(), "public", "api", "topics-archive.json");
 
 interface Topic {
   id: string;
@@ -37,14 +38,71 @@ async function writeTopics(topics: Topic[]): Promise<void> {
   await fs.writeFile(TOPICS_JSON, JSON.stringify(topics, null, 2), "utf-8");
 }
 
-export async function GET() {
+// Read archive
+async function readArchive(): Promise<any[]> {
+  try {
+    const content = await fs.readFile(ARCHIVE_JSON, "utf-8");
+    return JSON.parse(content);
+  } catch {
+    return [];
+  }
+}
+
+// Write archive
+async function writeArchive(archive: any[]): Promise<void> {
+  const dir = path.dirname(ARCHIVE_JSON);
+  await fs.mkdir(dir, { recursive: true });
+  await fs.writeFile(ARCHIVE_JSON, JSON.stringify(archive, null, 2), "utf-8");
+}
+
+// Auto-archive expired topics (older than 5 days)
+async function archiveExpired(): Promise<Topic[]> {
   const topics = await readTopics();
+  const now = Date.now();
+  const FIVE_DAYS_MS = 5 * 24 * 60 * 60 * 1000;
+  let changed = false;
+
+  const active: Topic[] = [];
+  const expired: Topic[] = [];
+
+  for (const topic of topics) {
+    const created = new Date(topic.created_at).getTime();
+    if (topic.status === "active" && now - created >= FIVE_DAYS_MS) {
+      expired.push({ ...topic, status: "expired" });
+      changed = true;
+    } else {
+      active.push(topic);
+    }
+  }
+
+  if (changed && expired.length > 0) {
+    // Archive expired topics
+    const archive = await readArchive();
+    for (const t of expired) {
+      archive.push({
+        ...t,
+        archived_at: new Date().toISOString(),
+        archived_reason: "expired",
+      });
+    }
+    await writeArchive(archive);
+    await writeTopics(active);
+  }
+
+  return active;
+}
+
+export async function GET() {
+  const topics = await archiveExpired(); // Auto-archive expired on every read
   return NextResponse.json({ topics, count: topics.length });
 }
 
 export async function POST(request: Request) {
   const body = await request.json();
   const action = body.action as string;
+
+  // Sync expired topics before any write operation
+  await archiveExpired();
 
   if (action === "vote") {
     const { id }: { id: string } = body;
