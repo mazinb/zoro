@@ -1,20 +1,5 @@
 [
   {
-    "title": "Against Explainable AI in Law: Why Justifiable AI Matters",
-    "description": "Re-examines the 'right to explanation' in EU law for credit scoring, arguing that justifiability (legal justification) matters more than technical explainability. Challenges the narrow interpretation of XAI requirements.",
-    "source": "arXiv Economics Papers",
-    "source_id": "arxiv-econ",
-    "source_url": "https://export.arxiv.org/api/query?search_query=cat:cs.CY",
-    "url": "https://arxiv.org/abs/2608.07452v1",
-    "category": "behavioral-econ",
-    "notes": "Important legal-philosophy angle: argues the EU 'right to explanation' should encompass legal justification, not just technical explanations. Relevant to the AI governance/copyright discussion. Could explore why 'explainability' is the wrong framing for AI accountability.",
-    "id": "e9cd31a3875f",
-    "votes": 0,
-    "status": "active",
-    "created_at": "2026-08-10T17:00:00Z",
-    "updated_at": "2026-08-10T17:00:00Z"
-  },
-  {
     "title": "Meta Muse Glimmer \u2013 open weights 30B local coding model",
     "description": "Meta releases Muse Glimmer, an open-weights 30B parameter coding model designed for local deployment. Competes directly with other open-source coding models in the agentic AI space. Signals that open-weight models are becoming a serious alternative to proprietary alternatives.",
     "source": "Hacker News",
@@ -69,6 +54,21 @@
     "category": "AI",
     "notes": "Anthropic's agentic framework (SynthEx) plans routes to complex natural products beyond reach of conventional algorithms. Expert chemists judged its key steps comparable to human syntheses \u2014 a first for algorithmic route prediction. Releases 1000+ routes as SynthAtlas.",
     "id": "1792afc80b63",
+    "votes": 0,
+    "status": "active",
+    "created_at": "2026-08-10T17:00:00Z",
+    "updated_at": "2026-08-10T17:00:00Z"
+  },
+  {
+    "title": "Against Explainable AI in Law: Why Justifiable AI Matters",
+    "description": "Re-examines the 'right to explanation' in EU law for credit scoring, arguing that justifiability (legal justification) matters more than technical explainability. Challenges the narrow interpretation of XAI requirements.",
+    "source": "arXiv Economics Papers",
+    "source_id": "arxiv-econ",
+    "source_url": "https://export.arxiv.org/api/query?search_query=cat:cs.CY",
+    "url": "https://arxiv.org/abs/2608.07452v1",
+    "category": "behavioral-econ",
+    "notes": "Important legal-philosophy angle: argues the EU 'right to explanation' should encompass legal justification, not just technical explanations. Relevant to the AI governance/copyright discussion. Could explore why 'explainability' is the wrong framing for AI accountability.",
+    "id": "e9cd31a3875f",
     "votes": 0,
     "status": "active",
     "created_at": "2026-08-10T17:00:00Z",
