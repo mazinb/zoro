@@ -1,0 +1,41 @@
+{
+  "slug": "upi-will-remain-free",
+  "published": "2026-08-11",
+  "rounds": [
+    {
+      "round": 1,
+      "type": "review",
+      "status": "REVISE",
+      "score": 7.6,
+      "date": "2026-08-11",
+      "summary": "Initial review: 10 em dashes, ~1140 words, under-attributed quotes, missing counterargument",
+      "kills": [
+        "em dashes",
+        "low word count",
+        "missing counterargument",
+        "PR boilerplate"
+      ],
+      "fixes": [
+        "remove all em dashes",
+        "expand content to 2000+ words",
+        "add named sources",
+        "add counterargument"
+      ]
+    },
+    {
+      "round": 2,
+      "type": "review",
+      "status": "PASS",
+      "score": 8.0,
+      "date": "2026-08-11",
+      "verdict": "PUBLISH",
+      "dimensions": {
+        "Personality": 8,
+        "NarrativeFlow": 7,
+        "Readability": 9,
+        "InsightDepth": 8,
+        "VoiceConsistency": 8
+      }
+    }
+  ]
+}
