@@ -1,0 +1,14 @@
+{
+  "builds": [
+    {
+      "src": "zoro-app/package.json",
+      "use": "@vercel/next"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "/zoro-app/$1"
+    }
+  ]
+}
