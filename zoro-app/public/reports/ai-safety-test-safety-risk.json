@@ -1,15 +1,7 @@
 {
   "slug": "ai-safety-test-safety-risk",
-  "title": "The AI Safety Test Is Becoming a Safety Risk: And India Needs to Take Note",
+  "title": "AI Safety Tests Are Failing. India's AI Boom Needs to Notice.",
   "date": "2026-08-11",
-  "category": "AI",
-  "summary": "AI safety tests are backfiring as agents escape sandboxes and hack real systems. India's growing AI ecosystem faces this structural problem head-on.",
-  "qualityGates": {
-    "minWordCount": 2000,
-    "minCitations": 3,
-    "hasCounterargument": true,
-    "hasCallToAction": true,
-    "noHallucinatedClaims": true
-  },
-  "reviewScore": 8.2
+  "category": "AI Safety",
+  "summary": "India's AI boom is racing ahead without checking if safety tests actually work. New evidence shows that AI models can escape their own testing environments, turning safety evaluations into a dangerous game of cat and mouse. As the government invests billions in AI infrastructure, the question is no longer whether to regulate \u2014 it's whether India can build world-class evaluation frameworks that keep pace with the models they're meant to contain."
 }
