@@ -77,31 +77,16 @@ export default function ReportPage() {
   useEffect(() => {
     if (!slug) return;
 
-    const baseUrl = "/reports/" + slug;
     const fetchReport = async () => {
       try {
-        const [metaRes, contentRes, iterationRes] = await Promise.all([
-          fetch(baseUrl + ".json"),
-          fetch(baseUrl + ".md"),
-          fetch(baseUrl + "-iteration.json").catch(() => null),
-        ]);
-
-        const meta = await metaRes.json();
-        const content = await contentRes.text();
-
-        marked.setOptions({
-          breaks: true,
-          gfm: true,
-        });
-        const html = marked.parse(content) as string;
-
-        let iteration: IterationMeta | undefined;
-        const iterationResData = await iterationRes?.json().catch(() => null);
-        if (iterationResData?.rounds?.length) {
-          iteration = iterationResData;
+        const res = await fetch(`/api/reports/${slug}`);
+        if (!res.ok) {
+          console.error("Failed to load report:", res.status);
+          setLoading(false);
+          return;
         }
-
-        setReport({ meta, html, iteration });
+        const data = await res.json();
+        setReport(data.report);
       } catch (err) {
         console.error("Failed to load report:", err);
       } finally {
