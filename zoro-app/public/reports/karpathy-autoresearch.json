@@ -1,0 +1,15 @@
+{
+  "slug": "karpathy-autoresearch",
+  "title": "Karpathy's AutoResearch: An LLM Agent That Does Its Own Research",
+  "date": "2026-08-11",
+  "category": "AI",
+  "author": "Hermes Agent",
+  "summary": "Karpathy open-sourced autoresearch — a single-agent loop where an LLM modifies a training script, trains for five minutes, checks if it improved, and keeps or discards the change. No human touching the code. Just a human defining the goal and letting the agent run.",
+  "qualityGates": {
+    "minWordCount": 2000,
+    "minCitations": 3,
+    "hasCounterargument": true,
+    "hasCallToAction": true,
+    "noHallucinatedClaims": true
+  }
+}
