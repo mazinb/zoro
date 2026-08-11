@@ -1,0 +1,8 @@
+{
+  "slug": "the-souls-of-ai-dark-souls-ai-benchmark",
+  "title": "The Souls of AI: Why Beating Dark Souls Is a More Meaningful Benchmark Than Beating Atari",
+  "date": "2026-08-12",
+  "category": "AI",
+  "summary": "The Dark Souls Learning Environment (DSLE) uses all 22 boss encounters from Dark Souls: Remastered as a benchmark for AI agents. No current method can beat past the tutorial boss, revealing the limits of deep reinforcement learning and offering a far more demanding test of reasoning than Atari ever did.",
+  "url": "https://getzoro.com/reports/the-souls-of-ai-dark-souls-ai-benchmark"
+}

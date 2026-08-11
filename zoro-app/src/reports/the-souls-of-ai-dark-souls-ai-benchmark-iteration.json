@@ -1,0 +1,51 @@
+{
+  "slug": "the-souls-of-ai-dark-souls-ai-benchmark",
+  "title": "Iteration & Feedback",
+  "version": "2.0",
+  "rounds": [
+    {
+      "round": 1,
+      "type": "review",
+      "status": "PASS",
+      "score": 9.0,
+      "date": "2026-08-12",
+      "dimensions": {
+        "Personality": 9,
+        "NarrativeFlow": 9,
+        "Readability": 9,
+        "InsightDepth": 9,
+        "VoiceConsistency": 9
+      },
+      "summary": "Strong opinion piece with vivid game analysis, clear narrative arc, and thorough counterargument. No AI-isms found. Five minor cosmetic FIX items, no KILL items.",
+      "kills": [],
+      "fixes": [
+        "Line 7: Overly long first paragraph sentence — break into shorter sentences",
+        "Line 9: Generic rhetorical question — use stronger framing",
+        "Line 71: SCOPE described as 'slightly better' undersells its achievement",
+        "Line 95: Counterargument could open with punchier framing",
+        "Meta.json had qualityGates field — removed per convention"
+      ]
+    },
+    {
+      "round": 2,
+      "type": "published",
+      "status": "APPLIED",
+      "date": "2026-08-12",
+      "summary": "Article published after first review with 9.0/10 overall score",
+      "changes": [
+        "No revision round needed — FIX items are cosmetic",
+        "Published draft.md as final article",
+        "Meta.json finalized without qualityGates field"
+      ],
+      "verdict": "PUBLISH",
+      "final_score": 9.0
+    }
+  ],
+  "qualityGates": {
+    "minWordCount": 2000,
+    "minCitations": 3,
+    "hasCounterargument": true,
+    "hasCallToAction": true,
+    "noHallucinatedClaims": true
+  }
+}
