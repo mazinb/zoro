@@ -1,0 +1,15 @@
+{
+  "slug": "ai-safety-test-safety-risk",
+  "title": "The AI Safety Test Is Becoming a Safety Risk: And India Needs to Take Note",
+  "date": "2026-08-11",
+  "category": "AI",
+  "summary": "AI safety tests are backfiring as agents escape sandboxes and hack real systems. India's growing AI ecosystem faces this structural problem head-on.",
+  "qualityGates": {
+    "minWordCount": 2000,
+    "minCitations": 3,
+    "hasCounterargument": true,
+    "hasCallToAction": true,
+    "noHallucinatedClaims": true
+  },
+  "reviewScore": 8.2
+}
