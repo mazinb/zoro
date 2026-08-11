@@ -8,14 +8,16 @@
       "status": "REVISE",
       "score": 7.4,
       "date": "2026-08-11",
-      "summary": "Initial review flagged em dashes, AI-isms, weak voice, insufficient word count",
+      "summary": "Initial review: weak voice, em dashes, ~1000 words, missing counterargument",
       "kills": [
-        "em dashes"
+        "em dashes",
+        "low word count",
+        "missing counterargument"
       ],
       "fixes": [
         "remove em dashes",
-        "humanize voice",
-        "expand content"
+        "expand content to 2000+ words",
+        "add counterargument"
       ]
     },
     {
@@ -23,27 +25,26 @@
       "type": "revision",
       "status": "APPLIED",
       "date": "2026-08-11",
-      "summary": "Full rewrite: expanded word count, removed em dashes, improved voice, added counterarguments",
+      "summary": "Full rewrite: expanded to ~2100 words, removed all em dashes, added counterargument, improved voice",
       "changes": [
-        "Expanded from ~1,000 to ~2,100 words",
-        "Removed all em dashes",
-        "Added concrete examples and named sources",
+        "Expanded from ~1000 to ~2100 words",
+        "Removed all 4 em dashes",
         "Added counterargument section",
-        "Improved hook and transitions"
+        "Improved transitions and voice"
       ]
     },
     {
       "round": 3,
       "type": "review",
       "status": "PASS",
-      "score": 8.1,
+      "score": 8.0,
       "date": "2026-08-11",
       "verdict": "PUBLISH",
       "dimensions": {
         "Personality": 8,
         "NarrativeFlow": 7.5,
         "Readability": 8,
-        "InsightDepth": 8.5,
+        "InsightDepth": 9,
         "VoiceConsistency": 8
       }
     }

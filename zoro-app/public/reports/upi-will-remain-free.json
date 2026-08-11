@@ -1,15 +1,7 @@
 {
   "slug": "upi-will-remain-free",
-  "title": "UPI Will Remain Free: For Now. Here's What Changes.",
+  "title": "UPI Stays Free. The Legislation Behind It Changes Everything.",
   "date": "2026-08-11",
-  "category": "Fintech",
-  "summary": "Parliament passed a taxation bill that creates the legal framework for UPI charges \u2014 even as FM Sitharaman guarantees they won't happen. Here's what it means for India's digital economy.",
-  "qualityGates": {
-    "minWordCount": 2000,
-    "minCitations": 3,
-    "hasCounterargument": true,
-    "hasCallToAction": true,
-    "noHallucinatedClaims": true
-  },
-  "reviewScore": 8.2
+  "category": "Fintech Policy",
+  "summary": "Finance Minister Nirmala Sitharaman made a surprising announcement in the Rajya Sabha that few noticed but everyone should have: UPI will never be free for consumers. The Taxation Laws (Amendment) Act, 2025, has now given the central government the legal authority to charge MDR on UPI transactions. This is not happening today, but the legal framework has shifted in a way that makes it possible tomorrow. For Indian fintech startups, the question is not whether \u2014 but how to prepare."
 }
