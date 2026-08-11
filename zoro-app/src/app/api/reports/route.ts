@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { promises as fs } from "fs";
 import path from "path";
 
-const REPORTS_DIR = path.join(process.cwd(), "public", "reports");
+const REPORTS_DIR = path.join(process.cwd(), "src", "reports");
 
 interface ReportMeta {
   slug: string;

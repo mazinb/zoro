@@ -1,0 +1,14 @@
+{
+  "slug": "indias-cognitive-capacity-bottleneck",
+  "title": "AI's True Bottleneck: Why India Needs to Measure Cognitive Capacity, Not Just Headcount",
+  "date": "2026-08-11",
+  "category": "behavioral-econ",
+  "summary": "A new paper argues that 'Effective Cognitive Population' predicts economic output far better than headcount. India's 1.5 million engineers are impressive in volume but reveal a deeper crisis: only 20% are employable. India's AI future depends on cognitive quality, not engineer quantity.",
+  "qualityGates": {
+    "minWordCount": 2000,
+    "minCitations": 3,
+    "hasCounterargument": true,
+    "hasCallToAction": true,
+    "noHallucinatedClaims": true
+  }
+}
