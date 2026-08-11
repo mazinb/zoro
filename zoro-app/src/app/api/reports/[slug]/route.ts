@@ -51,12 +51,12 @@ export async function GET(
     const { slug } = await params;
     const [metaRes, contentRes, iterationRes] = await Promise.all([
       fs.readFile(path.join(REPORTS_DIR, `${slug}.json`), "utf-8"),
-      fs.readFile(path.join(REPORTS_DIR, `${slug}.md`), "utf-8"),
+      fs.readFile(path.join(REPORTS_DIR, `${slug}.md`), "utf-8").catch(() => null),
       fs.readFile(path.join(REPORTS_DIR, `${slug}-iteration.json`), "utf-8").catch(() => null),
     ]);
 
     const meta: ReportMeta = JSON.parse(metaRes);
-    const content = contentRes;
+    const content = contentRes || "";
 
     marked.setOptions({
       breaks: true,
