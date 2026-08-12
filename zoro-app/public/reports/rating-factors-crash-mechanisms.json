@@ -1,8 +1,16 @@
 {
-  "slug": "rating-factors-crash-mechanisms",
   "title": "Why Insurance Rating Factors Predict Claims But Don't Cause Crashes",
-  "date": "2026-08-12",
+  "author": "Mazin Biviji",
   "category": "behavioral-econ",
-  "summary": "Insurance rating models predict claims accurately but cannot identify crash mechanisms. Arthur Charpentier's 2026 paper uses a multiscale causal DAG framework to show that the time scale gap between seconds-level crash dynamics and annual claim aggregation makes causal inference from rating coefficients impossible.",
-  "url": "https://getzoro.com/reports/rating-factors-crash-mechanisms"
+  "date": "2026-08-12",
+  "slug": "rating-factors-crash-mechanisms",
+  "summary": "**Mazin Biviji**",
+  "word_count": 3236,
+  "qualityGates": {
+    "minWordCount": 2000,
+    "minCitations": 3,
+    "hasCounterargument": true,
+    "hasCallToAction": true,
+    "noHallucinatedClaims": true
+  }
 }
