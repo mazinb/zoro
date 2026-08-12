@@ -1,0 +1,53 @@
+{
+  "slug": "foundational-values-foundation-models",
+  "title": "Foundations Beneath the Surface: What a medical imaging researcher secretly knows when she reaches for a foundation model",
+  "version": "2.0",
+  "rounds": [
+    {
+      "round": 1,
+      "type": "review",
+      "status": "PASS",
+      "score": 8.4,
+      "date": "2026-08-12",
+      "dimensions": {
+        "Personality": 9,
+        "NarrativeFlow": 8,
+        "Readability": 9,
+        "InsightDepth": 8,
+        "VoiceConsistency": 8
+      },
+      "summary": "Strong opening vignette, fair pro/con treatment, clear opinion voice. Minor fixes applied: eliminated repetitive phrasing, expanded Socratic section with concrete Kenya example.",
+      "kills": [],
+      "fixes": [
+        "Replaced repetitive 'value-neutral' phrasing in con section (line 61)",
+        "Expanded Socratic approach section with concrete diabetic retinopathy case study"
+      ],
+      "verdict": "PASS"
+    },
+    {
+      "round": 2,
+      "type": "revision",
+      "status": "APPLIED",
+      "date": "2026-08-12",
+      "summary": "Fixed repetitive phrasing and expanded Socratic section with Kenya example",
+      "changes": [
+        "Line 61: Changed 'None of it is value-neutral' to 'None of it is neutral' to avoid echo of line 43",
+        "Line 69: Added paragraph with concrete Kenya diabetic retinopathy case study illustrating Socratic questions"
+      ]
+    },
+    {
+      "round": 3,
+      "type": "published",
+      "status": "PUBLISH",
+      "date": "2026-08-12",
+      "summary": "Article published to Zoro /reports"
+    }
+  ],
+  "qualityGates": {
+    "minWordCount": 2000,
+    "minCitations": 3,
+    "hasCounterargument": true,
+    "hasCallToAction": true,
+    "noHallucinatedClaims": true
+  }
+}
