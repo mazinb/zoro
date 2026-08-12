@@ -11,7 +11,10 @@
       "date": "2026-08-12",
       "dimensions": {
         "Readability": 9,
-        "Personality": 8
+        "Personality": 8,
+        "NarrativeFlow": 7,
+        "InsightDepth": 8,
+        "VoiceConsistency": 8
       },
       "summary": "Initial review: needs revision",
       "kills": [
