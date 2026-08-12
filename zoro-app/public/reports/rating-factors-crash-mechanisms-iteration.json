@@ -1,0 +1,37 @@
+{
+  "slug": "rating-factors-crash-mechanisms",
+  "title": "Iteration & Feedback",
+  "version": "2.0",
+  "rounds": [
+    {
+      "round": 1,
+      "type": "review",
+      "status": "PASS",
+      "score": 8.4,
+      "date": "2026-08-12",
+      "dimensions": {
+        "Personality": 8,
+        "NarrativeFlow": 8,
+        "Readability": 9,
+        "InsightDepth": 9,
+        "VoiceConsistency": 8
+      },
+      "summary": "Strong opinion piece with excellent opening hook, substantive counterargument, and deep analysis of bonus-malus endogeneity. Zero AI-isms, zero em dashes. Minor polish needed.",
+      "kills": [],
+      "fixes": [
+        "Section 8 reading like paper abstract rather than article section",
+        "Dense methodological sentence in section 89 needs simplification",
+        "Section title 'The behavioral economics angle' underplays its content"
+      ]
+    },
+    {
+      "round": 2,
+      "type": "published",
+      "status": "PUBLISH",
+      "date": "2026-08-12",
+      "summary": "Article published after passing review with scores: Personality 8, NarrativeFlow 8, Readability 9, InsightDepth 9, VoiceConsistency 8. Overall 8.4/10. FIX items are minor polish not requiring revision round.",
+      "verdict": "PUBLISH",
+      "final_score": 8.4
+    }
+  ]
+}
