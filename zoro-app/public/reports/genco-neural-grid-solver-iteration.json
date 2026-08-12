@@ -1,0 +1,47 @@
+{
+  "slug": "genco-neural-grid-solver",
+  "title": "Iteration & Feedback",
+  "version": "2.0",
+  "rounds": [
+    {
+      "round": 1,
+      "type": "review",
+      "status": "PASS",
+      "score": 8.8,
+      "date": "2026-08-12",
+      "dimensions": {
+        "Personality": 9,
+        "NarrativeFlow": 9,
+        "Readability": 8,
+        "InsightDepth": 9,
+        "VoiceConsistency": 9
+      },
+      "summary": "Strong opinion piece with excellent opening hook, substantive counterargument, and killer closing. Scored 8.8 overall. Two minor FIX items addressed immediately.",
+      "kills": [],
+      "fixes": [
+        "Section header 'The Counterargument: You Cannot Train Physics' clarified to 'You Cannot Train Physics Into a Neural Net'",
+        "Remaining 'not just' removed from 'But the counterargument goes deeper than just operational safety'"
+      ]
+    },
+    {
+      "round": 2,
+      "type": "revision",
+      "status": "APPLIED",
+      "date": "2026-08-12",
+      "summary": "Two minor wording fixes applied post-review.",
+      "changes": [
+        "Section header updated for clarity",
+        "'not just' → 'reaches deeper than' for cleaner prose"
+      ]
+    },
+    {
+      "round": 3,
+      "type": "published",
+      "status": "PUBLISH",
+      "date": "2026-08-12",
+      "summary": "Article published after passing review with scores: Personality 9, NarrativeFlow 9, Readability 8, InsightDepth 9, VoiceConsistency 9. Overall 8.8/10.",
+      "verdict": "PUBLISH",
+      "final_score": 8.8
+    }
+  ]
+}
