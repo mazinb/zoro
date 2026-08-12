@@ -1,0 +1,25 @@
+{
+  "slug": "ai-bubble-bursts",
+  "title": "Iteration & Feedback",
+  "version": "2.0",
+  "rounds": [
+    {
+      "round": 1,
+      "type": "review",
+      "status": "PASS",
+      "score": 8.5,
+      "date": "2026-08-12",
+      "dimensions": {
+        "Personality": 8,
+        "NarrativeFlow": 9,
+        "Readability": 9,
+        "InsightDepth": 8,
+        "VoiceConsistency": 8
+      },
+      "summary": "Strong data-driven analysis with clear structure and engaging opening. All quality gates passed.",
+      "kills": [],
+      "fixes": [],
+      "verdict": "PUBLISH"
+    }
+  ]
+}
