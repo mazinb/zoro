@@ -1,9 +1,11 @@
 {
-  "slug": "zen-and-the-art-of-surviving-indias-startup-crash",
   "title": "Zen and the Art of Surviving India's Startup Crash",
+  "slug": "zen-and-the-art-of-surviving-indias-startup-crash",
   "date": "2026-08-12",
   "category": "startups",
-  "summary": "A deep dive into India's startup ecosystem, analyzing the current funding winter, the collapse of unicorns like Byju's, the pivot strategies of surviving companies, and the lessons from Sequoia Peak XV's approach to investing in the world's third-largest startup ecosystem.",
+  "source": "hn-startups",
+  "word_count": 2239,
+  "summary": "# Zen and the Art of Surviving India's Startup Crash",
   "qualityGates": {
     "minWordCount": 2000,
     "minCitations": 3,
