@@ -7,14 +7,14 @@
       "round": 1,
       "type": "review",
       "status": "PUBLISH",
-      "score": 0,
+      "score": 8.2,
       "date": "2026-08-12",
       "dimensions": {
         "NarrativeFlow": 8,
-        "InsightDepth": 8,
         "VoiceConsistency": 8,
         "Readability": 9,
-        "Personality": 8
+        "Personality": 8,
+        "InsightDepth": 8
       },
       "summary": "Initial review: passed",
       "kills": [],
@@ -40,18 +40,18 @@
       "round": 3,
       "type": "review",
       "status": "PASS",
-      "score": 0.5,
+      "score": 8.7,
       "date": "2026-08-12",
       "dimensions": {
         "NarrativeFlow": 9,
-        "InsightDepth": 9,
         "VoiceConsistency": 9,
         "Readability": 10,
-        "Personality": 9
+        "Personality": 9,
+        "InsightDepth": 9
       },
       "summary": "Final review: article approved for publication",
       "verdict": "PUBLISH",
-      "final_score": 0.5
+      "final_score": 8.7
     }
   ],
   "qualityGates": {
