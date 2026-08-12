@@ -1,0 +1,78 @@
+[
+  {
+    "round": 1,
+    "type": "review",
+    "status": "REVISE",
+    "verdict": "REVISE",
+    "scores": {
+      "Personality": 7,
+      "Narrative Flow": 7,
+      "Readability": 8,
+      "Insight Depth": 8,
+      "Voice Consistency": 7
+    },
+    "overall": 7.0,
+    "kills": [
+      "Section 3 (Byju's) duplicates Section 1 content",
+      "354x sales sentence duplicated in Section 1 and VC Arms Race"
+    ],
+    "fixes": [
+      "Merge Byju's into Section 1",
+      "Fix transitions between sections",
+      "Fix funding number (78% → 8% decline from 2023 to 2024)"
+    ],
+    "changes": "Merged section 6 into section 1, fixed hook, added counterargument, fixed funding numbers"
+  },
+  {
+    "round": 2,
+    "type": "review",
+    "status": "REVISE",
+    "verdict": "REVISE",
+    "scores": {
+      "Personality": 7,
+      "Narrative Flow": 7,
+      "Readability": 8,
+      "Insight Depth": 8,
+      "Voice Consistency": 7
+    },
+    "overall": 7.4,
+    "kills": [],
+    "fixes": [
+      "Overuse of \"The\" at sentence start (14 paragraphs)",
+      "Section 4-5 transition needs improvement"
+    ],
+    "changes": "Reduced The-starts from 15+ to 9, fixed broken sentences, improved transitions"
+  },
+  {
+    "round": 3,
+    "type": "review",
+    "status": "PASS",
+    "verdict": "PUBLISH",
+    "scores": {
+      "Personality": 8,
+      "Narrative Flow": 8,
+      "Readability": 9,
+      "Insight Depth": 8,
+      "Voice Consistency": 8
+    },
+    "overall": 8.2,
+    "kills": [],
+    "fixes": [
+      "Reduced repetitive The sentence starts from 15+ to 9",
+      "Merged Byju's section into opening section",
+      "Fixed sentence fragments",
+      "Fixed duplicate word \"had become had become\"",
+      "Fixed \"India has ecosystem\" grammar"
+    ],
+    "changes": "Sentence variety improved, structural issues resolved, maintained 2239 words"
+  },
+  {
+    "round": null,
+    "type": "published",
+    "status": "PUBLISHED",
+    "verdict": "PUBLISH",
+    "slug": "zen-and-the-art-of-surviving-indias-startup-crash",
+    "date": "2026-08-12",
+    "sources": ["src/reports", "public/reports"]
+  }
+]
