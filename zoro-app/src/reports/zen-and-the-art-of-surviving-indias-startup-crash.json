@@ -1,8 +1,14 @@
 {
-  "title": "Zen and the Art of Surviving India's Startup Crash",
   "slug": "zen-and-the-art-of-surviving-indias-startup-crash",
+  "title": "Zen and the Art of Surviving India's Startup Crash",
   "date": "2026-08-12",
   "category": "startups",
-  "source": "hn-startups",
-  "word_count": 2239
+  "summary": "A deep look at India's 2021 unicorn boom, the brutal funding winter that wiped $60B, and the lessons from Byju's collapse that separate the cockroaches from the unicorns.",
+  "qualityGates": {
+    "minWordCount": 2000,
+    "minCitations": 3,
+    "hasCounterargument": true,
+    "hasCallToAction": true,
+    "noHallucinatedClaims": true
+  }
 }
