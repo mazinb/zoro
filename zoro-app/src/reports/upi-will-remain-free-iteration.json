@@ -10,11 +10,11 @@
       "score": 8.0,
       "date": "2026-08-12",
       "dimensions": {
-        "Readability": 9,
         "Personality": 8,
-        "NarrativeFlow": 7,
+        "VoiceConsistency": 8,
         "InsightDepth": 8,
-        "VoiceConsistency": 8
+        "Readability": 9,
+        "NarrativeFlow": 7
       },
       "summary": "Initial review: needs revision",
       "kills": [
