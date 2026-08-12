@@ -6,24 +6,37 @@
     {
       "round": 1,
       "type": "review",
-      "status": "PUBLISH",
+      "status": "REVISE",
       "score": 8.0,
       "date": "2026-08-12",
-      "dimensions": {},
-      "summary": "Initial review: passed",
-      "kills": [],
-      "fixes": []
+      "dimensions": {
+        "Readability": 9,
+        "Personality": 8
+      },
+      "summary": "Initial review: needs revision",
+      "kills": [
+        "All 10 em dashes flagged in Round 1 have been successfully eliminated. The article is clean on this criterion."
+      ],
+      "fixes": [
+        "— The article jumps from the closing thought of the Global Ambition section (line 51: \"A system that *keeps* working at that scale requires sustainable economics, not just political will.\") directly i",
+        "— *It has turned a country where half the population remained unbanked in 2016 into a digital payments superpower in under a decade.* The sentiment is strong but the phrasing is generic and reads like",
+        "— *This is the invisible value of UPI's free model.* What exactly is \"invisible\"? Replace with something more precise and concrete, such as *The hidden leverage* or simply state what the value is: *Th",
+        "— *The beauty of UPI is that it works at massive scale for everyone. Its challenge going forward will be making that scale economically sustainable without breaking the model that made it successful. "
+      ]
     },
     {
       "round": 2,
-      "type": "review",
-      "status": "PASS",
-      "score": 8.5,
+      "type": "revision",
+      "status": "APPLIED",
       "date": "2026-08-12",
-      "dimensions": {},
-      "summary": "Final review: article approved for publication",
-      "verdict": "PUBLISH",
-      "final_score": 8.5
+      "summary": "Applied fixes from initial review",
+      "changes": [
+        "Fixed: All 10 em dashes flagged in Round 1 have been successfully eliminated. The article is clean on this criterion.",
+        "Fixed: — The article jumps from the closing thought of the Global Ambition section (line 51: \"A system that *keeps* working at that scale requires sustainable economics, not just political will.\") directly i",
+        "Fixed: — *It has turned a country where half the population remained unbanked in 2016 into a digital payments superpower in under a decade.* The sentiment is strong but the phrasing is generic and reads like",
+        "Fixed: — *This is the invisible value of UPI's free model.* What exactly is \"invisible\"? Replace with something more precise and concrete, such as *The hidden leverage* or simply state what the value is: *Th",
+        "Fixed: — *The beauty of UPI is that it works at massive scale for everyone. Its challenge going forward will be making that scale economically sustainable without breaking the model that made it successful. "
+      ]
     }
   ],
   "qualityGates": {
