@@ -3,10 +3,11 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Moon, Sun, ArrowLeft, FileText } from "lucide-react";
+import { Moon, Sun, ArrowLeft, FileText, HelpCircle } from "lucide-react";
 import { ZoroLogo } from "@/components/ZoroLogo";
 import { useDarkMode } from "@/hooks/useDarkMode";
 import { useThemeClasses } from "@/hooks/useThemeClasses";
+import { HowItWorksModal } from "@/components/HowItWorksModal";
 
 interface ReportMeta {
   slug: string;
@@ -22,6 +23,7 @@ function ReportsPageContent() {
   const theme = useThemeClasses(darkMode);
   const [reports, setReports] = useState<ReportMeta[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showHowItWorks, setShowHowItWorks] = useState(false);
 
   useEffect(() => {
     fetch("/api/reports")
@@ -35,6 +37,8 @@ function ReportsPageContent() {
 
   return (
     <div className={`min-h-screen ${theme.bgClass} transition-colors duration-300 ${darkMode ? 'dark' : ''}`}>
+      <HowItWorksModal open={showHowItWorks} onClose={() => setShowHowItWorks(false)} darkMode={darkMode} />
+
       {/* Navigation Header */}
       <nav className={`border-b ${theme.borderClass}`}>
         <div className="max-w-6xl mx-auto px-6 py-6 flex items-center justify-between">
@@ -55,6 +59,13 @@ function ReportsPageContent() {
             </button>
           </div>
           <div className="flex items-center gap-6">
+            <button
+              onClick={() => setShowHowItWorks(true)}
+              className={`p-2 rounded-lg ${theme.textSecondaryClass} hover:${theme.textClass} transition-colors`}
+              aria-label="How reports are generated"
+            >
+              <HelpCircle className="w-5 h-5" />
+            </button>
             <button
               onClick={toggleDarkMode}
               className={`p-2 rounded-lg ${theme.textSecondaryClass} hover:${theme.textClass} transition-colors`}
