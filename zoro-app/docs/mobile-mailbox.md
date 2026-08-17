@@ -6,7 +6,7 @@ Private PDF-only forwarding inbox for the Zoro app. Not Gmail/Outlook access.
 
 1. Agent tab → **Claim private mailbox** → enter the email you send statements from.
 2. Magic link opens `https://www.getzoro.com/mailbox/claim?nonce=…` and then `zoro://mailbox/claim?nonce=…`.
-3. The phone receives a private address (`zoro-…@inbox.getzoro.com` by default). Forward PDFs **from the claimed address only**.
+3. The phone receives a private address (`zoro-…@getzoro.com` by default). Forward PDFs **from the claimed address only**.
 4. The app pulls pending PDFs, then acks so getzoro deletes the server copy (default retention 48h).
 
 One claimed email may have **one active mailbox** at a time. Disconnecting clears the remote inbox and local credential, not PDFs already on the phone.
@@ -32,7 +32,7 @@ One claimed email may have **one active mailbox** at a time. Disconnecting clear
 
 | Variable | Notes |
 |----------|--------|
-| `MAILBOX_INBOUND_DOMAIN` | Default `inbox.getzoro.com` |
+| `MAILBOX_INBOUND_DOMAIN` | Optional receiving-domain override; defaults to verified `getzoro.com` |
 | `RESEND_INBOUND_WEBHOOK_SECRET` | Resend/Svix signing secret |
 | `MAILBOX_RETENTION_HOURS` | Default 48 |
 | `RESEND_API_KEY` / `RESEND_FROM` | Claim emails |

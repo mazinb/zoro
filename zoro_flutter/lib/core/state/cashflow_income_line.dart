@@ -15,11 +15,11 @@ class CashflowIncomeLine {
   String currencyCountry;
 
   CashflowIncomeLine clone() => CashflowIncomeLine(
-        id: id,
-        label: label,
-        annualAmount: annualAmount,
-        currencyCountry: currencyCountry,
-      );
+    id: id,
+    label: label,
+    annualAmount: annualAmount,
+    currencyCountry: currencyCountry,
+  );
 
   factory CashflowIncomeLine.blank({required String defaultCurrencyCountry}) {
     return CashflowIncomeLine(

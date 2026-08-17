@@ -23,7 +23,9 @@ class LedgerImportService {
     final hasImages = attachments.any((a) => a.isImage);
 
     if (hasImages && !model.canUseCloudImport) {
-      throw StateError('Photo import needs Cloud AI. Turn it on in Settings → Usage.');
+      throw StateError(
+        'Photo import needs Cloud AI. Turn it on in Settings → Usage.',
+      );
     }
 
     if (model.canUseCloudImport) {
@@ -53,10 +55,13 @@ class LedgerImportService {
         model.recordImportRequest(
           cloud: true,
           tokensUsed: billed > 0 ? billed : null,
-          entitlementsApiBody: MobileEntitlements.wrapApiData(body['entitlements']),
+          entitlementsApiBody: MobileEntitlements.wrapApiData(
+            body['entitlements'],
+          ),
         );
         final data = body['data'];
-        if (data is! Map) throw const FormatException('Import returned invalid data');
+        if (data is! Map)
+          throw const FormatException('Import returned invalid data');
         return Map<String, dynamic>.from(data);
       } catch (e) {
         final msg = e.toString();
@@ -68,7 +73,9 @@ class LedgerImportService {
     }
 
     if (attachments.isNotEmpty) {
-      throw StateError('Photo import needs Cloud AI. Turn it on in Settings → Usage.');
+      throw StateError(
+        'Photo import needs Cloud AI. Turn it on in Settings → Usage.',
+      );
     }
 
     if (!model.appleFoundationRuntimeAvailable) {

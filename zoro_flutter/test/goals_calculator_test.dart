@@ -104,11 +104,19 @@ void main() {
   group('surplusAfterCorpusIncrease', () {
     test('corpus rise eats surplus first', () {
       expect(
-        surplusAfterCorpusIncrease(surplus: 5_000_000, oldBase: 100_000_000, newBase: 103_000_000),
+        surplusAfterCorpusIncrease(
+          surplus: 5_000_000,
+          oldBase: 100_000_000,
+          newBase: 103_000_000,
+        ),
         closeTo(2_000_000, 1),
       );
       expect(
-        surplusAfterCorpusIncrease(surplus: 1_000_000, oldBase: 100_000_000, newBase: 90_000_000),
+        surplusAfterCorpusIncrease(
+          surplus: 1_000_000,
+          oldBase: 100_000_000,
+          newBase: 90_000_000,
+        ),
         closeTo(1_000_000, 1),
       );
     });

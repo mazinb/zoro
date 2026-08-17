@@ -58,7 +58,8 @@ class _CorpusBacktestPageState extends State<CorpusBacktestPage> {
     return r == null ? 0 : m.goalRetirementCorpusBaseAmount(r);
   }
 
-  CorpusBacktestResult? get _result => m.corpusBacktestPreview(safeWithdrawalRatePct: _swr);
+  CorpusBacktestResult? get _result =>
+      m.corpusBacktestPreview(safeWithdrawalRatePct: _swr);
 
   void _applyAndPop() {
     m.setRetirementCorpusParams(
@@ -80,30 +81,45 @@ class _CorpusBacktestPageState extends State<CorpusBacktestPage> {
         final result = _result;
         final equityPct = m.corpusBacktestEquityPct.round();
         final cashFdPct = 100 - equityPct;
-        final equityOptions = m.historicalSeriesForClass(HistoricalAssetClass.equity);
-        final debtOptions = m.historicalSeriesForClass(HistoricalAssetClass.debt);
-        final inflation = (m.projectionInflationPctAnnual[m.displayCurrency] ?? 0).toStringAsFixed(1);
+        final equityOptions = m.historicalSeriesForClass(
+          HistoricalAssetClass.equity,
+        );
+        final debtOptions = m.historicalSeriesForClass(
+          HistoricalAssetClass.debt,
+        );
+        final inflation =
+            (m.projectionInflationPctAnnual[m.displayCurrency] ?? 0)
+                .toStringAsFixed(1);
 
-        final eq = m.historicalSeriesById(m.corpusBacktestEquitySeriesId) ??
+        final eq =
+            m.historicalSeriesById(m.corpusBacktestEquitySeriesId) ??
             m.historicalSeriesById(kDefaultUsSp500SeriesId);
-        final de = m.historicalSeriesById(m.corpusBacktestDebtSeriesId) ??
+        final de =
+            m.historicalSeriesById(m.corpusBacktestDebtSeriesId) ??
             m.historicalSeriesById(kDefaultCashFdSeriesId);
         final overlapYears = (eq == null || de == null)
             ? const <int>[]
-            : (eq.years.toSet().intersection(de.years.toSet()).toList()..sort());
+            : (eq.years.toSet().intersection(de.years.toSet()).toList()
+                ..sort());
         final minYear = overlapYears.isEmpty ? null : overlapYears.first;
         final maxYear = overlapYears.isEmpty ? null : overlapYears.last;
 
         return Scaffold(
           extendBodyBehindAppBar: true,
           appBar: AppBar(
-            title: const Text('Corpus backtest', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17)),
+            title: const Text(
+              'Corpus backtest',
+              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17),
+            ),
             backgroundColor: Colors.transparent,
             elevation: 0,
             actions: [
               TextButton(
                 onPressed: _applyAndPop,
-                child: const Text('Save', style: TextStyle(fontWeight: FontWeight.w900)),
+                child: const Text(
+                  'Save',
+                  style: TextStyle(fontWeight: FontWeight.w900),
+                ),
               ),
             ],
           ),
@@ -126,7 +142,10 @@ class _CorpusBacktestPageState extends State<CorpusBacktestPage> {
                       children: [
                         Text(
                           goalMoney(m, _corpusBase, hide: hide),
-                          style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 22),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w900,
+                            fontSize: 22,
+                          ),
                         ),
                         const SizedBox(height: 4),
                         Text(
@@ -144,10 +163,14 @@ class _CorpusBacktestPageState extends State<CorpusBacktestPage> {
                           dense: true,
                           title: const Text(
                             'Corpus from expenses',
-                            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+                            style: TextStyle(
+                              fontWeight: FontWeight.w800,
+                              fontSize: 14,
+                            ),
                           ),
                           value: _corpusFromExpenses,
-                          onChanged: (on) => setState(() => _corpusFromExpenses = on),
+                          onChanged: (on) =>
+                              setState(() => _corpusFromExpenses = on),
                         ),
                         if (minYear != null && maxYear != null) ...[
                           const SizedBox(height: 6),
@@ -173,13 +196,17 @@ class _CorpusBacktestPageState extends State<CorpusBacktestPage> {
                             ],
                           ),
                           Slider(
-                            value: ((_startYear ?? minYear) - minYear).toDouble(),
+                            value: ((_startYear ?? minYear) - minYear)
+                                .toDouble(),
                             min: 0,
                             max: (maxYear - minYear).toDouble(),
                             divisions: (maxYear - minYear).clamp(1, 120),
                             label: (_startYear ?? minYear).toString(),
                             onChanged: (v) {
-                              final year = (minYear + v.round()).clamp(minYear, maxYear);
+                              final year = (minYear + v.round()).clamp(
+                                minYear,
+                                maxYear,
+                              );
                               setState(() => _startYear = year);
                               m.setCorpusBacktestStartYear(year);
                             },
@@ -218,7 +245,11 @@ class _CorpusBacktestPageState extends State<CorpusBacktestPage> {
                         Center(
                           child: Text(
                             '$equityPct% equity · $cashFdPct% cash/FD',
-                            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: cs.onSurface),
+                            style: TextStyle(
+                              fontWeight: FontWeight.w900,
+                              fontSize: 16,
+                              color: cs.onSurface,
+                            ),
                           ),
                         ),
                         Slider(
@@ -234,14 +265,16 @@ class _CorpusBacktestPageState extends State<CorpusBacktestPage> {
                           label: 'Equity dataset',
                           valueId: m.corpusBacktestEquitySeriesId,
                           options: equityOptions,
-                          onChanged: (id) => m.setCorpusBacktestSeriesIds(equityId: id),
+                          onChanged: (id) =>
+                              m.setCorpusBacktestSeriesIds(equityId: id),
                         ),
                         const SizedBox(height: 8),
                         _SeriesDropdown(
                           label: 'Cash / FD dataset',
                           valueId: m.corpusBacktestDebtSeriesId,
                           options: debtOptions,
-                          onChanged: (id) => m.setCorpusBacktestSeriesIds(debtId: id),
+                          onChanged: (id) =>
+                              m.setCorpusBacktestSeriesIds(debtId: id),
                         ),
                       ],
                     ),
@@ -254,7 +287,10 @@ class _CorpusBacktestPageState extends State<CorpusBacktestPage> {
                         m.recurringExpensesMonthly <= 0 && _corpusFromExpenses
                             ? 'Add recurring expenses in Ledger to size the corpus.'
                             : 'Set a corpus target to run the backtest.',
-                        style: TextStyle(color: cs.onSurfaceVariant, fontWeight: FontWeight.w600),
+                        style: TextStyle(
+                          color: cs.onSurfaceVariant,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     )
                   else ...[
@@ -278,31 +314,75 @@ class _CorpusBacktestPageState extends State<CorpusBacktestPage> {
                           ),
                           const SizedBox(height: 8),
                           DataTable(
-                              headingRowHeight: 36,
-                              dataRowMinHeight: 32,
-                              dataRowMaxHeight: 40,
-                              columnSpacing: 10,
-                              horizontalMargin: 6,
-                              columns: const [
-                                DataColumn(label: Text('Year', style: TextStyle(fontWeight: FontWeight.w800))),
-                                DataColumn(label: Text('Expense/yr', style: TextStyle(fontWeight: FontWeight.w800))),
-                                DataColumn(label: Text('Corpus', style: TextStyle(fontWeight: FontWeight.w800))),
-                                DataColumn(label: Text('Returns', style: TextStyle(fontWeight: FontWeight.w800))),
-                              ],
-                              rows: [
-                                for (final row in result.years)
-                                  DataRow(
-                                    color: row.depleted
-                                        ? WidgetStatePropertyAll(cs.errorContainer.withValues(alpha: 0.35))
-                                        : null,
-                                    cells: [
-                                      DataCell(Text('${row.year}')),
-                                      DataCell(Text(goalMoney(m, row.expenseAnnual, hide: hide))),
-                                      DataCell(Text(goalMoney(m, row.corpusStart, hide: hide))),
-                                      DataCell(Text('${row.blendedReturnPct >= 0 ? "+" : ""}${row.blendedReturnPct.toStringAsFixed(1)}%')),
-                                    ],
-                                  ),
-                              ],
+                            headingRowHeight: 36,
+                            dataRowMinHeight: 32,
+                            dataRowMaxHeight: 40,
+                            columnSpacing: 10,
+                            horizontalMargin: 6,
+                            columns: const [
+                              DataColumn(
+                                label: Text(
+                                  'Year',
+                                  style: TextStyle(fontWeight: FontWeight.w800),
+                                ),
+                              ),
+                              DataColumn(
+                                label: Text(
+                                  'Expense/yr',
+                                  style: TextStyle(fontWeight: FontWeight.w800),
+                                ),
+                              ),
+                              DataColumn(
+                                label: Text(
+                                  'Corpus',
+                                  style: TextStyle(fontWeight: FontWeight.w800),
+                                ),
+                              ),
+                              DataColumn(
+                                label: Text(
+                                  'Returns',
+                                  style: TextStyle(fontWeight: FontWeight.w800),
+                                ),
+                              ),
+                            ],
+                            rows: [
+                              for (final row in result.years)
+                                DataRow(
+                                  color: row.depleted
+                                      ? WidgetStatePropertyAll(
+                                          cs.errorContainer.withValues(
+                                            alpha: 0.35,
+                                          ),
+                                        )
+                                      : null,
+                                  cells: [
+                                    DataCell(Text('${row.year}')),
+                                    DataCell(
+                                      Text(
+                                        goalMoney(
+                                          m,
+                                          row.expenseAnnual,
+                                          hide: hide,
+                                        ),
+                                      ),
+                                    ),
+                                    DataCell(
+                                      Text(
+                                        goalMoney(
+                                          m,
+                                          row.corpusStart,
+                                          hide: hide,
+                                        ),
+                                      ),
+                                    ),
+                                    DataCell(
+                                      Text(
+                                        '${row.blendedReturnPct >= 0 ? "+" : ""}${row.blendedReturnPct.toStringAsFixed(1)}%',
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                            ],
                           ),
                         ],
                       ),
@@ -311,7 +391,11 @@ class _CorpusBacktestPageState extends State<CorpusBacktestPage> {
                   const SizedBox(height: 12),
                   Text(
                     'Import or export return datasets in Settings → Data → Historical returns.',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: cs.onSurfaceVariant),
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: cs.onSurfaceVariant,
+                    ),
                   ),
                 ],
               ),
@@ -339,7 +423,9 @@ class _SeriesDropdown extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final ids = options.map((s) => s.id).toSet();
-    final value = ids.contains(valueId) ? valueId : (options.isNotEmpty ? options.first.id : null);
+    final value = ids.contains(valueId)
+        ? valueId
+        : (options.isNotEmpty ? options.first.id : null);
     return InputDecorator(
       decoration: InputDecoration(
         labelText: label,
@@ -358,9 +444,11 @@ class _SeriesDropdown extends StatelessWidget {
                 child: Text('${s.name} (${s.years.first}–${s.years.last})'),
               ),
           ],
-          onChanged: value == null ? null : (id) {
-            if (id != null) onChanged(id);
-          },
+          onChanged: value == null
+              ? null
+              : (id) {
+                  if (id != null) onChanged(id);
+                },
         ),
       ),
     );
@@ -390,10 +478,20 @@ class _OutcomeBanner extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(ok ? Icons.check_circle_outline : Icons.warning_amber_rounded, color: fg),
+          Icon(
+            ok ? Icons.check_circle_outline : Icons.warning_amber_rounded,
+            color: fg,
+          ),
           const SizedBox(width: 10),
           Expanded(
-            child: Text(text, style: TextStyle(fontWeight: FontWeight.w800, color: fg, fontSize: 13)),
+            child: Text(
+              text,
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                color: fg,
+                fontSize: 13,
+              ),
+            ),
           ),
         ],
       ),
@@ -423,7 +521,8 @@ class GoalEditablePercentSlider extends StatefulWidget {
   final double Function(double)? quantize;
 
   @override
-  State<GoalEditablePercentSlider> createState() => _GoalEditablePercentSliderState();
+  State<GoalEditablePercentSlider> createState() =>
+      _GoalEditablePercentSliderState();
 }
 
 class _GoalEditablePercentSliderState extends State<GoalEditablePercentSlider> {
@@ -473,7 +572,14 @@ class _GoalEditablePercentSliderState extends State<GoalEditablePercentSlider> {
       children: [
         Row(
           children: [
-            Text(widget.label, style: TextStyle(fontWeight: FontWeight.w800, color: cs.onSurfaceVariant, fontSize: 12)),
+            Text(
+              widget.label,
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                color: cs.onSurfaceVariant,
+                fontSize: 12,
+              ),
+            ),
             const Spacer(),
             SizedBox(
               width: 52,
@@ -483,9 +589,17 @@ class _GoalEditablePercentSliderState extends State<GoalEditablePercentSlider> {
                 textInputAction: TextInputAction.done,
                 onSubmitted: (_) => _applyFromField(dismiss: true),
                 onEditingComplete: () => _applyFromField(dismiss: true),
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[\d.]'))],
-                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15, height: 1.2),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[\d.]')),
+                ],
+                style: const TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 15,
+                  height: 1.2,
+                ),
                 textAlign: TextAlign.center,
                 decoration: const InputDecoration(
                   isDense: true,
@@ -495,7 +609,13 @@ class _GoalEditablePercentSliderState extends State<GoalEditablePercentSlider> {
                 ),
               ),
             ),
-            Text('%', style: TextStyle(fontWeight: FontWeight.w800, color: cs.onSurfaceVariant)),
+            Text(
+              '%',
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                color: cs.onSurfaceVariant,
+              ),
+            ),
           ],
         ),
         Slider(

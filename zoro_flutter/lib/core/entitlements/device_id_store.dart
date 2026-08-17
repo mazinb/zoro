@@ -9,7 +9,8 @@ const _kDeviceIdKey = 'zoro_device_id_v1';
 /// Stored in secure storage so it survives reinstalls less often (iOS Keychain),
 /// but we treat it as best-effort identity for entitlements.
 class DeviceIdStore {
-  DeviceIdStore({FlutterSecureStorage? storage}) : _storage = storage ?? const FlutterSecureStorage();
+  DeviceIdStore({FlutterSecureStorage? storage})
+    : _storage = storage ?? const FlutterSecureStorage();
 
   final FlutterSecureStorage _storage;
 
@@ -25,7 +26,8 @@ class DeviceIdStore {
     // 128-bit-ish URL-safe token, good enough for device identity.
     final rnd = Random.secure();
     final bytes = List<int>.generate(16, (_) => rnd.nextInt(256));
-    const alphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_';
+    const alphabet =
+        'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_';
     final out = StringBuffer();
     for (final b in bytes) {
       out.write(alphabet[b % alphabet.length]);
@@ -33,4 +35,3 @@ class DeviceIdStore {
     return out.toString();
   }
 }
-

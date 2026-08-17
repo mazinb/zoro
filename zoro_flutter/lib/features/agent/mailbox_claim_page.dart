@@ -80,7 +80,10 @@ class _MailboxClaimPageState extends State<MailboxClaimPage> {
 
   void _startPoll() {
     _poll?.cancel();
-    _poll = Timer.periodic(const Duration(seconds: 3), (_) => unawaited(_tryFinish()));
+    _poll = Timer.periodic(
+      const Duration(seconds: 3),
+      (_) => unawaited(_tryFinish()),
+    );
   }
 
   Future<void> _tryFinish({String? nonce}) async {
@@ -110,9 +113,7 @@ class _MailboxClaimPageState extends State<MailboxClaimPage> {
     final cs = Theme.of(context).colorScheme;
     final address = widget.model.agentWorkspace.identity.mailboxAddress ?? '';
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Claim private mailbox'),
-      ),
+      appBar: AppBar(title: const Text('Claim private mailbox')),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
         children: [
@@ -123,10 +124,10 @@ class _MailboxClaimPageState extends State<MailboxClaimPage> {
               children: [
                 Text(
                   _step == 0
-                      ? 'Verify the email you send statements from. Zoro assigns a private forwarding address. Hermes only sees PDFs that land on this phone.'
+                      ? 'Verify the email you send statements from. Zoro assigns a private forwarding address. Your agent only sees PDFs that land on this phone.'
                       : _step == 1
-                          ? 'Open the link we emailed. It returns here and finishes the claim. Server copies are deleted after this phone downloads them.'
-                          : 'Forward PDFs to this address from ${_email.text.trim().isEmpty ? 'your claimed email' : _email.text.trim()}.',
+                      ? 'Open the link we emailed. It returns here and finishes the claim. Server copies are deleted after this phone downloads them.'
+                      : 'Forward PDFs to this address from ${_email.text.trim().isEmpty ? 'your claimed email' : _email.text.trim()}.',
                   style: TextStyle(color: cs.onSurfaceVariant, height: 1.4),
                 ),
                 const SizedBox(height: 16),
@@ -161,7 +162,10 @@ class _MailboxClaimPageState extends State<MailboxClaimPage> {
                 ] else ...[
                   SelectableText(
                     address,
-                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 16,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   FilledButton(
@@ -171,7 +175,10 @@ class _MailboxClaimPageState extends State<MailboxClaimPage> {
                 ],
                 if (_error != null) ...[
                   const SizedBox(height: 12),
-                  Text(_error!, style: TextStyle(color: cs.error, fontSize: 13)),
+                  Text(
+                    _error!,
+                    style: TextStyle(color: cs.error, fontSize: 13),
+                  ),
                 ],
               ],
             ),

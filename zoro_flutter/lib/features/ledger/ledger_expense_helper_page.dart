@@ -16,7 +16,8 @@ class LedgerExpenseHelperPage extends StatefulWidget {
   final AppModel model;
 
   @override
-  State<LedgerExpenseHelperPage> createState() => _LedgerExpenseHelperPageState();
+  State<LedgerExpenseHelperPage> createState() =>
+      _LedgerExpenseHelperPageState();
 }
 
 class _LedgerExpenseHelperPageState extends State<LedgerExpenseHelperPage> {
@@ -91,10 +92,13 @@ expenseBuckets = suggested **monthly** amounts in display currency for each key 
   }
 
   String _systemPrompt() {
-    final user = widget.model.internalAgentSystemPrompt(InternalAppAgentIds.ledgerOrchestrator).trim();
-    final hints = internalAppAgentDefinitionById(InternalAppAgentIds.ledgerOrchestrator)
-            ?.modelDomainHints
-            .trim() ??
+    final user = widget.model
+        .internalAgentSystemPrompt(InternalAppAgentIds.ledgerOrchestrator)
+        .trim();
+    final hints =
+        internalAppAgentDefinitionById(
+          InternalAppAgentIds.ledgerOrchestrator,
+        )?.modelDomainHints.trim() ??
         '';
     return [
       'You help tune recurring monthly expense **estimates** using six completed months of actual spending.',
@@ -226,52 +230,55 @@ expenseBuckets = suggested **monthly** amounts in display currency for each key 
         child: _loading
             ? const Center(child: CircularProgressIndicator())
             : _error != null
-                ? Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(_error!, style: TextStyle(color: cs.error, height: 1.35)),
-                      const SizedBox(height: 16),
-                      FilledButton(onPressed: _run, child: const Text('Try again')),
-                    ],
-                  )
-                : Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      if (avg != null && est != null && !hide) ...[
-                        Text(
-                          '6-month average: ${formatCurrencyDisplay(avg, currency: m.displayCurrency)}',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w800,
-                            color: cs.onSurfaceVariant,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Your estimates: ${formatCurrencyDisplay(est, currency: m.displayCurrency)}/mo',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w800,
-                            color: cs.onSurfaceVariant,
-                          ),
-                        ),
-                        const SizedBox(height: 14),
-                      ],
-                      Text(
-                        _message ?? '',
-                        style: TextStyle(
-                          color: cs.onSurface,
-                          fontWeight: FontWeight.w800,
-                          height: 1.35,
-                        ),
-                      ),
-                      if (_suggestedBuckets != null) ...[
-                        const SizedBox(height: 16),
-                        FilledButton(
-                          onPressed: _apply,
-                          child: const Text('Apply suggested estimates'),
-                        ),
-                      ],
-                    ],
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    _error!,
+                    style: TextStyle(color: cs.error, height: 1.35),
                   ),
+                  const SizedBox(height: 16),
+                  FilledButton(onPressed: _run, child: const Text('Try again')),
+                ],
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (avg != null && est != null && !hide) ...[
+                    Text(
+                      '6-month average: ${formatCurrencyDisplay(avg, currency: m.displayCurrency)}',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Your estimates: ${formatCurrencyDisplay(est, currency: m.displayCurrency)}/mo',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                  ],
+                  Text(
+                    _message ?? '',
+                    style: TextStyle(
+                      color: cs.onSurface,
+                      fontWeight: FontWeight.w800,
+                      height: 1.35,
+                    ),
+                  ),
+                  if (_suggestedBuckets != null) ...[
+                    const SizedBox(height: 16),
+                    FilledButton(
+                      onPressed: _apply,
+                      child: const Text('Apply suggested estimates'),
+                    ),
+                  ],
+                ],
+              ),
       ),
     );
   }

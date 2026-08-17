@@ -32,7 +32,9 @@ class CloudImportConsentSheet extends StatelessWidget {
           children: [
             Text(
               'Use Cloud AI for imports?',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 10),
             Text(
@@ -42,7 +44,9 @@ class CloudImportConsentSheet extends StatelessWidget {
             const SizedBox(height: 16),
             Text(
               'What may be sent',
-              style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
+              style: Theme.of(
+                context,
+              ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 6),
             for (final item in CloudImportConsentInfo.dataSent)
@@ -51,9 +55,21 @@ class CloudImportConsentSheet extends StatelessWidget {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('• ', style: TextStyle(color: cs.onSurfaceVariant, height: 1.35)),
+                    Text(
+                      '• ',
+                      style: TextStyle(
+                        color: cs.onSurfaceVariant,
+                        height: 1.35,
+                      ),
+                    ),
                     Expanded(
-                      child: Text(item, style: TextStyle(color: cs.onSurfaceVariant, height: 1.35)),
+                      child: Text(
+                        item,
+                        style: TextStyle(
+                          color: cs.onSurfaceVariant,
+                          height: 1.35,
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -61,22 +77,33 @@ class CloudImportConsentSheet extends StatelessWidget {
             const SizedBox(height: 10),
             Text(
               CloudImportConsentInfo.processingLocation,
-              style: TextStyle(color: cs.onSurfaceVariant, height: 1.35, fontSize: 12),
+              style: TextStyle(
+                color: cs.onSurfaceVariant,
+                height: 1.35,
+                fontSize: 12,
+              ),
             ),
             const SizedBox(height: 12),
             Wrap(
               spacing: 8,
               children: [
                 TextButton(
-                  onPressed: () => LlmConsentGate.openUrl(context, CloudImportConsentInfo.recipientTermsUrl),
+                  onPressed: () => LlmConsentGate.openUrl(
+                    context,
+                    CloudImportConsentInfo.recipientTermsUrl,
+                  ),
                   child: const Text('Google terms'),
                 ),
                 TextButton(
-                  onPressed: () => LlmConsentGate.openUrl(context, CloudImportConsentInfo.recipientPrivacyUrl),
+                  onPressed: () => LlmConsentGate.openUrl(
+                    context,
+                    CloudImportConsentInfo.recipientPrivacyUrl,
+                  ),
                   child: const Text('Google privacy'),
                 ),
                 TextButton(
-                  onPressed: () => LlmConsentGate.openUrl(context, LegalUrls.termsOfUse),
+                  onPressed: () =>
+                      LlmConsentGate.openUrl(context, LegalUrls.termsOfUse),
                   child: const Text('Zoro legal'),
                 ),
               ],

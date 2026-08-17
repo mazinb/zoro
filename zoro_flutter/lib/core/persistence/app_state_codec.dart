@@ -7,6 +7,7 @@ import '../state/cashflow_income_line.dart';
 import '../state/financial_goals.dart';
 import '../state/ledger_rows.dart';
 import '../state/monthly_cashflow_entry.dart';
+
 /// JSON schema version inside each split file and portable exports. Documented in `zoro-app/README.md`.
 /// Bump when field semantics change (not when only adding optional keys).
 const int kAppStateFormatVersion = 3;
@@ -21,16 +22,17 @@ Object? tryJsonSafeEncode(Object? v) {
 }
 
 Map<String, dynamic> encodeLedgerAssetRow(LedgerAssetRow r) => {
-      'id': r.id,
-      'type': r.type.apiValue,
-      'currencyCountry': r.currencyCountry,
-      'name': r.name,
-      'total': r.total,
-      'label': r.label,
-      'comment': r.comment,
-      'returnRatePct': r.returnRatePct,
-      if (r.contextMarkdown != null && r.contextMarkdown!.trim().isNotEmpty) 'contextMarkdown': r.contextMarkdown,
-    };
+  'id': r.id,
+  'type': r.type.apiValue,
+  'currencyCountry': r.currencyCountry,
+  'name': r.name,
+  'total': r.total,
+  'label': r.label,
+  'comment': r.comment,
+  'returnRatePct': r.returnRatePct,
+  if (r.contextMarkdown != null && r.contextMarkdown!.trim().isNotEmpty)
+    'contextMarkdown': r.contextMarkdown,
+};
 
 LedgerAssetRow? decodeLedgerAssetRow(Object? raw) {
   if (raw is! Map) return null;
@@ -38,13 +40,17 @@ LedgerAssetRow? decodeLedgerAssetRow(Object? raw) {
   final id = m['id']?.toString();
   if (id == null) return null;
   final rr = m['returnRatePct'] ?? m['interestRatePct'];
-  final returnRatePct = rr is num ? rr.toDouble() : double.tryParse(rr?.toString() ?? '') ?? 0;
+  final returnRatePct = rr is num
+      ? rr.toDouble()
+      : double.tryParse(rr?.toString() ?? '') ?? 0;
   return LedgerAssetRow(
     id: id,
     type: LedgerAssetTypeUi.fromApi(m['type']?.toString()),
     currencyCountry: m['currencyCountry']?.toString() ?? 'Thailand',
     name: m['name']?.toString() ?? '',
-    total: (m['total'] is num) ? (m['total'] as num).toDouble() : double.tryParse(m['total']?.toString() ?? '') ?? 0,
+    total: (m['total'] is num)
+        ? (m['total'] as num).toDouble()
+        : double.tryParse(m['total']?.toString() ?? '') ?? 0,
     label: m['label']?.toString() ?? '',
     comment: m['comment']?.toString() ?? '',
     contextMarkdown: m['contextMarkdown']?.toString(),
@@ -53,17 +59,18 @@ LedgerAssetRow? decodeLedgerAssetRow(Object? raw) {
 }
 
 Map<String, dynamic> encodeLedgerLiabilityRow(LedgerLiabilityRow r) => {
-      'id': r.id,
-      'type': r.type.apiValue,
-      'name': r.name,
-      'currencyCountry': r.currencyCountry,
-      'total': r.total,
-      'comment': r.comment,
-      'interestRatePct': r.interestRatePct,
-      'paydownWeight': r.paydownWeight,
-      'paydownMonthly': r.paydownMonthly,
-      if (r.contextMarkdown != null && r.contextMarkdown!.trim().isNotEmpty) 'contextMarkdown': r.contextMarkdown,
-    };
+  'id': r.id,
+  'type': r.type.apiValue,
+  'name': r.name,
+  'currencyCountry': r.currencyCountry,
+  'total': r.total,
+  'comment': r.comment,
+  'interestRatePct': r.interestRatePct,
+  'paydownWeight': r.paydownWeight,
+  'paydownMonthly': r.paydownMonthly,
+  if (r.contextMarkdown != null && r.contextMarkdown!.trim().isNotEmpty)
+    'contextMarkdown': r.contextMarkdown,
+};
 
 LedgerLiabilityRow? decodeLedgerLiabilityRow(Object? raw) {
   if (raw is! Map) return null;
@@ -71,17 +78,25 @@ LedgerLiabilityRow? decodeLedgerLiabilityRow(Object? raw) {
   final id = m['id']?.toString();
   if (id == null) return null;
   final ir = m['interestRatePct'];
-  final interestRatePct = ir is num ? ir.toDouble() : double.tryParse(ir?.toString() ?? '') ?? 0;
+  final interestRatePct = ir is num
+      ? ir.toDouble()
+      : double.tryParse(ir?.toString() ?? '') ?? 0;
   final pw = m['paydownWeight'];
-  final paydownWeight = pw is num ? pw.toDouble() : double.tryParse(pw?.toString() ?? '') ?? 1;
+  final paydownWeight = pw is num
+      ? pw.toDouble()
+      : double.tryParse(pw?.toString() ?? '') ?? 1;
   final pm = m['paydownMonthly'];
-  final paydownMonthly = pm is num ? pm.toDouble() : double.tryParse(pm?.toString() ?? '') ?? 0;
+  final paydownMonthly = pm is num
+      ? pm.toDouble()
+      : double.tryParse(pm?.toString() ?? '') ?? 0;
   return LedgerLiabilityRow(
     id: id,
     type: LedgerLiabilityTypeUi.fromApi(m['type']?.toString()),
     name: m['name']?.toString() ?? '',
     currencyCountry: m['currencyCountry']?.toString() ?? 'Thailand',
-    total: (m['total'] is num) ? (m['total'] as num).toDouble() : double.tryParse(m['total']?.toString() ?? '') ?? 0,
+    total: (m['total'] is num)
+        ? (m['total'] as num).toDouble()
+        : double.tryParse(m['total']?.toString() ?? '') ?? 0,
     comment: m['comment']?.toString() ?? '',
     contextMarkdown: m['contextMarkdown']?.toString(),
     interestRatePct: interestRatePct,
@@ -91,11 +106,11 @@ LedgerLiabilityRow? decodeLedgerLiabilityRow(Object? raw) {
 }
 
 Map<String, dynamic> encodeIncomeLine(CashflowIncomeLine r) => {
-      'id': r.id,
-      'label': r.label,
-      'annualAmount': r.annualAmount,
-      'currencyCountry': r.currencyCountry,
-    };
+  'id': r.id,
+  'label': r.label,
+  'annualAmount': r.annualAmount,
+  'currencyCountry': r.currencyCountry,
+};
 
 CashflowIncomeLine? decodeIncomeLine(Object? raw) {
   if (raw is! Map) return null;
@@ -105,19 +120,21 @@ CashflowIncomeLine? decodeIncomeLine(Object? raw) {
   return CashflowIncomeLine(
     id: id,
     label: m['label']?.toString() ?? '',
-    annualAmount:
-        (m['annualAmount'] is num) ? (m['annualAmount'] as num).toDouble() : double.tryParse(m['annualAmount']?.toString() ?? '') ?? 0,
+    annualAmount: (m['annualAmount'] is num)
+        ? (m['annualAmount'] as num).toDouble()
+        : double.tryParse(m['annualAmount']?.toString() ?? '') ?? 0,
     currencyCountry: m['currencyCountry']?.toString() ?? 'Thailand',
   );
 }
 
 Map<String, dynamic> encodeMonthlyInvestmentLine(MonthlyInvestmentLine l) => {
-      'id': l.id,
-      if (l.assetId != null) 'assetId': l.assetId,
-      'amount': l.amount,
-      if (l.contextMarkdown != null && l.contextMarkdown!.trim().isNotEmpty) 'contextMarkdown': l.contextMarkdown,
-      'amountAppliedToAssets': l.amountAppliedToAssets,
-    };
+  'id': l.id,
+  if (l.assetId != null) 'assetId': l.assetId,
+  'amount': l.amount,
+  if (l.contextMarkdown != null && l.contextMarkdown!.trim().isNotEmpty)
+    'contextMarkdown': l.contextMarkdown,
+  'amountAppliedToAssets': l.amountAppliedToAssets,
+};
 
 MonthlyInvestmentLine? decodeMonthlyInvestmentLine(Object? raw) {
   if (raw is! Map) return null;
@@ -127,7 +144,9 @@ MonthlyInvestmentLine? decodeMonthlyInvestmentLine(Object? raw) {
   return MonthlyInvestmentLine(
     id: id,
     assetId: m['assetId']?.toString(),
-    amount: (m['amount'] is num) ? (m['amount'] as num).toDouble() : double.tryParse(m['amount']?.toString() ?? '') ?? 0,
+    amount: (m['amount'] is num)
+        ? (m['amount'] as num).toDouble()
+        : double.tryParse(m['amount']?.toString() ?? '') ?? 0,
     contextMarkdown: m['contextMarkdown']?.toString(),
     amountAppliedToAssets: (m['amountAppliedToAssets'] is num)
         ? (m['amountAppliedToAssets'] as num).toDouble()
@@ -136,13 +155,14 @@ MonthlyInvestmentLine? decodeMonthlyInvestmentLine(Object? raw) {
 }
 
 Map<String, dynamic> encodeMonthlySavingsLine(MonthlySavingsLine l) => {
-      'id': l.id,
-      if (l.assetId != null) 'assetId': l.assetId,
-      if (l.liabilityId != null) 'liabilityId': l.liabilityId,
-      'amount': l.amount,
-      if (l.contextMarkdown != null && l.contextMarkdown!.trim().isNotEmpty) 'contextMarkdown': l.contextMarkdown,
-      'amountApplied': l.amountApplied,
-    };
+  'id': l.id,
+  if (l.assetId != null) 'assetId': l.assetId,
+  if (l.liabilityId != null) 'liabilityId': l.liabilityId,
+  'amount': l.amount,
+  if (l.contextMarkdown != null && l.contextMarkdown!.trim().isNotEmpty)
+    'contextMarkdown': l.contextMarkdown,
+  'amountApplied': l.amountApplied,
+};
 
 MonthlySavingsLine? decodeMonthlySavingsLine(Object? raw) {
   if (raw is! Map) return null;
@@ -153,7 +173,9 @@ MonthlySavingsLine? decodeMonthlySavingsLine(Object? raw) {
     id: id,
     assetId: m['assetId']?.toString(),
     liabilityId: m['liabilityId']?.toString(),
-    amount: (m['amount'] is num) ? (m['amount'] as num).toDouble() : double.tryParse(m['amount']?.toString() ?? '') ?? 0,
+    amount: (m['amount'] is num)
+        ? (m['amount'] as num).toDouble()
+        : double.tryParse(m['amount']?.toString() ?? '') ?? 0,
     contextMarkdown: m['contextMarkdown']?.toString(),
     amountApplied: (m['amountApplied'] is num)
         ? (m['amountApplied'] as num).toDouble()
@@ -162,18 +184,21 @@ MonthlySavingsLine? decodeMonthlySavingsLine(Object? raw) {
 }
 
 Map<String, dynamic> encodeMonthlyCashflowEntry(MonthlyCashflowEntry e) => {
-      'monthKey': e.monthKey,
-      'openingBalance': e.openingBalance,
-      'closingBalance': e.closingBalance,
-      'monthlyEarned': e.monthlyEarned,
-      'outflowToCashFd': e.outflowToCashFd,
-      'outflowToInvested': e.outflowToInvested,
-      'monthlySpending': e.monthlySpending,
-      'comment': e.comment,
-      if (e.contextMarkdown != null && e.contextMarkdown!.trim().isNotEmpty) 'contextMarkdown': e.contextMarkdown,
-      'investmentLines': e.investmentLines.map(encodeMonthlyInvestmentLine).toList(),
-      'savingsLines': e.savingsLines.map(encodeMonthlySavingsLine).toList(),
-    };
+  'monthKey': e.monthKey,
+  'openingBalance': e.openingBalance,
+  'closingBalance': e.closingBalance,
+  'monthlyEarned': e.monthlyEarned,
+  'outflowToCashFd': e.outflowToCashFd,
+  'outflowToInvested': e.outflowToInvested,
+  'monthlySpending': e.monthlySpending,
+  'comment': e.comment,
+  if (e.contextMarkdown != null && e.contextMarkdown!.trim().isNotEmpty)
+    'contextMarkdown': e.contextMarkdown,
+  'investmentLines': e.investmentLines
+      .map(encodeMonthlyInvestmentLine)
+      .toList(),
+  'savingsLines': e.savingsLines.map(encodeMonthlySavingsLine).toList(),
+};
 
 MonthlyCashflowEntry? decodeMonthlyCashflowEntry(Object? raw) {
   if (raw is! Map) return null;
@@ -198,12 +223,15 @@ MonthlyCashflowEntry? decodeMonthlyCashflowEntry(Object? raw) {
   }
   return MonthlyCashflowEntry(
     monthKey: mk,
-    openingBalance:
-        (m['openingBalance'] is num) ? (m['openingBalance'] as num).toDouble() : double.tryParse(m['openingBalance']?.toString() ?? '') ?? 0,
-    closingBalance:
-        (m['closingBalance'] is num) ? (m['closingBalance'] as num).toDouble() : double.tryParse(m['closingBalance']?.toString() ?? '') ?? 0,
-    monthlyEarned:
-        (m['monthlyEarned'] is num) ? (m['monthlyEarned'] as num).toDouble() : double.tryParse(m['monthlyEarned']?.toString() ?? '') ?? 0,
+    openingBalance: (m['openingBalance'] is num)
+        ? (m['openingBalance'] as num).toDouble()
+        : double.tryParse(m['openingBalance']?.toString() ?? '') ?? 0,
+    closingBalance: (m['closingBalance'] is num)
+        ? (m['closingBalance'] as num).toDouble()
+        : double.tryParse(m['closingBalance']?.toString() ?? '') ?? 0,
+    monthlyEarned: (m['monthlyEarned'] is num)
+        ? (m['monthlyEarned'] as num).toDouble()
+        : double.tryParse(m['monthlyEarned']?.toString() ?? '') ?? 0,
     outflowToCashFd: (m['outflowToCashFd'] is num)
         ? (m['outflowToCashFd'] as num).toDouble()
         : double.tryParse(m['outflowToCashFd']?.toString() ?? '') ?? 0,
@@ -223,14 +251,15 @@ MonthlyCashflowEntry? decodeMonthlyCashflowEntry(Object? raw) {
 DateTime? dateTimeFromJsonField(Object? v) {
   if (v == null) return null;
   if (v is int) return DateTime.fromMillisecondsSinceEpoch(v, isUtc: true);
-  if (v is num) return DateTime.fromMillisecondsSinceEpoch(v.round(), isUtc: true);
+  if (v is num)
+    return DateTime.fromMillisecondsSinceEpoch(v.round(), isUtc: true);
   if (v is String) return DateTime.tryParse(v);
   return null;
 }
 
 Map<String, dynamic> encodeProjectionMap(Map<CurrencyCode, double> m) => {
-      for (final e in m.entries) e.key.name: e.value,
-    };
+  for (final e in m.entries) e.key.name: e.value,
+};
 
 void decodeProjectionMap(Map<CurrencyCode, double> target, Object? raw) {
   if (raw is! Map) return;
@@ -260,23 +289,25 @@ ReminderCadence reminderCadenceFromJson(Object? v) {
 }
 
 Map<String, dynamic> encodeFinancialGoal(FinancialGoal g) => {
-      'id': g.id,
-      'kind': g.kind.apiValue,
-      'name': g.name,
-      'targetAmount': g.targetAmount,
-      if (g.targetDate != null) 'targetDate': g.targetDate!.toUtc().toIso8601String(),
-      'linkedAssetIds': g.linkedAssetIds,
-      'savingsWeight': g.savingsWeight,
-      'sortOrder': g.sortOrder,
-      'corpusSurplus': g.corpusSurplus,
-      if (g.contextMarkdown.trim().isNotEmpty) 'contextMarkdown': g.contextMarkdown,
-      if (g.isRetirement) ...{
-        'safeWithdrawalRatePct': g.safeWithdrawalRatePct,
-        'corpusBufferPct': g.corpusBufferPct,
-        'corpusAutoFromExpenses': g.corpusAutoFromExpenses,
-      },
-      if (g.timelineStart != null) 'timelineStart': g.timelineStart!.toUtc().toIso8601String(),
-    };
+  'id': g.id,
+  'kind': g.kind.apiValue,
+  'name': g.name,
+  'targetAmount': g.targetAmount,
+  if (g.targetDate != null)
+    'targetDate': g.targetDate!.toUtc().toIso8601String(),
+  'linkedAssetIds': g.linkedAssetIds,
+  'savingsWeight': g.savingsWeight,
+  'sortOrder': g.sortOrder,
+  'corpusSurplus': g.corpusSurplus,
+  if (g.contextMarkdown.trim().isNotEmpty) 'contextMarkdown': g.contextMarkdown,
+  if (g.isRetirement) ...{
+    'safeWithdrawalRatePct': g.safeWithdrawalRatePct,
+    'corpusBufferPct': g.corpusBufferPct,
+    'corpusAutoFromExpenses': g.corpusAutoFromExpenses,
+  },
+  if (g.timelineStart != null)
+    'timelineStart': g.timelineStart!.toUtc().toIso8601String(),
+};
 
 FinancialGoal? decodeFinancialGoal(Object? raw) {
   if (raw is! Map) return null;
@@ -286,7 +317,9 @@ FinancialGoal? decodeFinancialGoal(Object? raw) {
   final kind = FinancialGoalKind.fromApi(m['kind']?.toString());
   final name = (m['name']?.toString() ?? '').trim();
   final target = m['targetAmount'];
-  final targetAmount = target is num ? target.toDouble() : double.tryParse(target?.toString() ?? '') ?? 0;
+  final targetAmount = target is num
+      ? target.toDouble()
+      : double.tryParse(target?.toString() ?? '') ?? 0;
   DateTime? targetDate;
   final td = m['targetDate']?.toString();
   if (td != null && td.isNotEmpty) {
@@ -301,16 +334,25 @@ FinancialGoal? decodeFinancialGoal(Object? raw) {
     }
   }
   final sw = m['savingsWeight'];
-  final savingsWeight = sw is num ? sw.toDouble() : double.tryParse(sw?.toString() ?? '') ?? 1;
+  final savingsWeight = sw is num
+      ? sw.toDouble()
+      : double.tryParse(sw?.toString() ?? '') ?? 1;
   final so = m['sortOrder'];
-  final sortOrder = so is num ? so.round() : int.tryParse(so?.toString() ?? '') ?? 0;
+  final sortOrder = so is num
+      ? so.round()
+      : int.tryParse(so?.toString() ?? '') ?? 0;
   final cs = m['corpusSurplus'] ?? m['corpusAdjustment'];
-  final corpusSurplus = cs is num ? cs.toDouble() : double.tryParse(cs?.toString() ?? '') ?? 0;
+  final corpusSurplus = cs is num
+      ? cs.toDouble()
+      : double.tryParse(cs?.toString() ?? '') ?? 0;
   final swr = m['safeWithdrawalRatePct'];
-  final safeWithdrawalRatePct =
-      swr is num ? swr.toDouble() : double.tryParse(swr?.toString() ?? '') ?? 4;
+  final safeWithdrawalRatePct = swr is num
+      ? swr.toDouble()
+      : double.tryParse(swr?.toString() ?? '') ?? 4;
   final buf = m['corpusBufferPct'];
-  final corpusBufferPct = buf is num ? buf.toDouble() : double.tryParse(buf?.toString() ?? '') ?? 0;
+  final corpusBufferPct = buf is num
+      ? buf.toDouble()
+      : double.tryParse(buf?.toString() ?? '') ?? 0;
   DateTime? timelineStart;
   final ts = m['timelineStart']?.toString();
   if (ts != null && ts.isNotEmpty) {
@@ -319,7 +361,9 @@ FinancialGoal? decodeFinancialGoal(Object? raw) {
   return FinancialGoal(
     id: id,
     kind: kind,
-    name: name.isEmpty ? (kind == FinancialGoalKind.retirement ? 'Retirement' : 'Goal') : name,
+    name: name.isEmpty
+        ? (kind == FinancialGoalKind.retirement ? 'Retirement' : 'Goal')
+        : name,
     targetAmount: targetAmount,
     targetDate: targetDate,
     linkedAssetIds: linked,
@@ -339,14 +383,20 @@ Map<String, dynamic> encodeNotificationsBlock(AppModel m) {
   return {
     'enabled': m.notificationsEnabled,
     'agentJobsEnabled': m.agentJobsEnabled,
-    if (m.homeMessagesNotifications) 'homeMessagesNotify': m.homeMessagesNotifications,
-    if (toMs(m.homeMessagesLastNotifiedOn) != null) 'homeMessagesLastNotifiedOnMs': toMs(m.homeMessagesLastNotifiedOn),
+    if (m.homeMessagesNotifications)
+      'homeMessagesNotify': m.homeMessagesNotifications,
+    if (toMs(m.homeMessagesLastNotifiedOn) != null)
+      'homeMessagesLastNotifiedOnMs': toMs(m.homeMessagesLastNotifiedOn),
     'reminderHour': m.reminderNotifyHour,
     'reminderMinute': m.reminderNotifyMinute,
-    if (toMs(m.remindersLastFiredOn) != null) 'lastFiredOnMs': toMs(m.remindersLastFiredOn),
-    if (m.remindersLastFiredDomain != null) 'lastFiredDomain': m.remindersLastFiredDomain!.name,
-    if (toMs(m.remindersScheduledFireOn) != null) 'scheduledFireOnMs': toMs(m.remindersScheduledFireOn),
-    if (m.remindersPendingDomain != null) 'pendingDomain': m.remindersPendingDomain!.name,
+    if (toMs(m.remindersLastFiredOn) != null)
+      'lastFiredOnMs': toMs(m.remindersLastFiredOn),
+    if (m.remindersLastFiredDomain != null)
+      'lastFiredDomain': m.remindersLastFiredDomain!.name,
+    if (toMs(m.remindersScheduledFireOn) != null)
+      'scheduledFireOnMs': toMs(m.remindersScheduledFireOn),
+    if (m.remindersPendingDomain != null)
+      'pendingDomain': m.remindersPendingDomain!.name,
     'userTouchedExpenses': m.userTouchedExpenses,
     'userTouchedIncome': m.userTouchedIncome,
     'userTouchedAssets': m.userTouchedAssets,
@@ -371,9 +421,12 @@ void decodeNotificationsBlock(AppModel m, Object? raw) {
   }
   final cadRaw = n['homeMessagesCadence']?.toString();
   if (cadRaw != null) {
-    m.homeMessagesCadence = HomeMessageCadenceUi.tryParse(cadRaw) ?? HomeMessageCadence.daily;
+    m.homeMessagesCadence =
+        HomeMessageCadenceUi.tryParse(cadRaw) ?? HomeMessageCadence.daily;
   }
-  m.homeMessagesLastNotifiedOn = dateTimeFromJsonField(n['homeMessagesLastNotifiedOnMs']);
+  m.homeMessagesLastNotifiedOn = dateTimeFromJsonField(
+    n['homeMessagesLastNotifiedOnMs'],
+  );
   final rh = n['reminderHour'];
   final rm = n['reminderMinute'];
   if (rh is int) m.reminderNotifyHour = rh.clamp(0, 23);
@@ -406,7 +459,8 @@ void decodeNotificationsBlock(AppModel m, Object? raw) {
   if (n['userTouchedLiabilities'] == true) m.userTouchedLiabilities = true;
 }
 
-Map<String, dynamic> encodeCorpusBacktestBlock(AppModel model) => encodeCorpusBacktestPrefs(
+Map<String, dynamic> encodeCorpusBacktestBlock(AppModel model) =>
+    encodeCorpusBacktestPrefs(
       equityPct: model.corpusBacktestEquityPct,
       equitySeriesId: model.corpusBacktestEquitySeriesId,
       debtSeriesId: model.corpusBacktestDebtSeriesId,

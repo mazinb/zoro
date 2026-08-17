@@ -37,9 +37,15 @@ void main() {
 
       expect(result.years.length, 2);
       expect(result.years.first.year, 2000);
-      expect(result.years.first.blendedReturnPct, closeTo(8, 0.01)); // 0.6*10 + 0.4*5
+      expect(
+        result.years.first.blendedReturnPct,
+        closeTo(8, 0.01),
+      ); // 0.6*10 + 0.4*5
       expect(result.years.first.corpusEnd, greaterThan(0));
-      expect(result.years[1].expenseAnnual, greaterThan(result.years[0].expenseAnnual));
+      expect(
+        result.years[1].expenseAnnual,
+        greaterThan(result.years[0].expenseAnnual),
+      );
     });
 
     test('flags depletion when annual expense exceeds corpus', () {

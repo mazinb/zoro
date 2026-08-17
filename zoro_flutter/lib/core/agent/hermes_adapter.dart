@@ -35,10 +35,7 @@ class HermesRunRequest {
 }
 
 class HermesRunResult {
-  const HermesRunResult({
-    required this.ok,
-    this.message = '',
-  });
+  const HermesRunResult({required this.ok, this.message = ''});
 
   final bool ok;
   final String message;
@@ -60,16 +57,17 @@ abstract class HermesAdapter {
 
 class StubHermesAdapter implements HermesAdapter {
   @override
-  Future<HermesStatus> status() async => const HermesStatus(
-        presence: HermesPresence.missing,
-        protocolVersion: 1,
-      );
+  Future<HermesStatus> status() async =>
+      const HermesStatus(presence: HermesPresence.missing, protocolVersion: 1);
 
   @override
-  Future<HermesRunResult> run(HermesRunRequest req) async => const HermesRunResult(
-        ok: false,
-        message: 'On-device agent is not installed yet. You can still drop PDFs and edit the plan.',
-      );
+  Future<HermesRunResult> run(
+    HermesRunRequest req,
+  ) async => const HermesRunResult(
+    ok: false,
+    message:
+        'The on-device agent is not installed yet. You can still drop PDFs and edit the plan.',
+  );
 
   @override
   Stream<HermesCronChange> get onCronChanged => const Stream.empty();

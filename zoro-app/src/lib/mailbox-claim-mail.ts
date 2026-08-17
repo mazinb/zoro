@@ -26,7 +26,7 @@ export async function sendMailboxClaimEmail(opts: {
 }): Promise<{ ok: true } | { ok: false; status: number; text: string }> {
   const html = [
     `<p>Hi,</p>`,
-    `<p>Confirm this email to claim a <strong>private Hermes mailbox</strong> in Zoro. Forward PDFs here from this address only. The link expires in 30 minutes.</p>`,
+    `<p>Confirm this email to claim a <strong>private agent mailbox</strong> in Zoro. Forward PDFs here from this address only. The link expires in 30 minutes.</p>`,
     `<p style="margin:24px 0"><a href="${opts.actionUrl}" style="display:inline-block;background:#2563eb;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600">Open Zoro and confirm</a></p>`,
     `<p style="color:#64748b;font-size:14px">If the button doesn’t work, copy this link:</p>`,
     `<p style="word-break:break-all;font-size:14px">${opts.actionUrl}</p>`,

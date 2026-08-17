@@ -15,7 +15,8 @@ class ContextOrchestratorPage extends StatefulWidget {
   final AppModel model;
 
   @override
-  State<ContextOrchestratorPage> createState() => _ContextOrchestratorPageState();
+  State<ContextOrchestratorPage> createState() =>
+      _ContextOrchestratorPageState();
 }
 
 class _ContextOrchestratorPageState extends State<ContextOrchestratorPage> {
@@ -57,8 +58,10 @@ Rules:
             'name': a.name,
             'total': m.assetDisplayValue(a),
             'contextMarkdown': (a.contextMarkdown ?? '').trim(),
-            'contextLastUpdated': m.contextNoteLastUpdatedIso(AppModel.contextKeyAsset(a.id)),
-          }
+            'contextLastUpdated': m.contextNoteLastUpdatedIso(
+              AppModel.contextKeyAsset(a.id),
+            ),
+          },
       ],
       'liabilities': [
         for (final l in m.liabilities)
@@ -68,30 +71,39 @@ Rules:
             'name': l.name,
             'total': l.total,
             'contextMarkdown': (l.contextMarkdown ?? '').trim(),
-            'contextLastUpdated': m.contextNoteLastUpdatedIso(AppModel.contextKeyLiability(l.id)),
-          }
+            'contextLastUpdated': m.contextNoteLastUpdatedIso(
+              AppModel.contextKeyLiability(l.id),
+            ),
+          },
       ],
       'expenseBuckets': [
         for (final k in m.expenseBucketContextMarkdown.keys)
           {
             'key': k,
             'contextMarkdown': (m.expenseBucketContextMarkdown[k] ?? '').trim(),
-            'contextLastUpdated': m.contextNoteLastUpdatedIso(AppModel.contextKeyBucket(k)),
-          }
+            'contextLastUpdated': m.contextNoteLastUpdatedIso(
+              AppModel.contextKeyBucket(k),
+            ),
+          },
       ],
       'months': [
         for (final mk in AppModel.recentMonthKeys())
           {
             'monthKey': mk,
-            'contextMarkdown': (m.monthlyEntryFor(mk)?.contextMarkdown ?? '').trim(),
-            'contextLastUpdated': m.contextNoteLastUpdatedIso(AppModel.contextKeyMonth(mk)),
-          }
+            'contextMarkdown': (m.monthlyEntryFor(mk)?.contextMarkdown ?? '')
+                .trim(),
+            'contextLastUpdated': m.contextNoteLastUpdatedIso(
+              AppModel.contextKeyMonth(mk),
+            ),
+          },
       ],
     };
   }
 
   String _systemPrompt() {
-    final user = widget.model.internalAgentSystemPrompt(InternalAppAgentIds.contextOrchestrator).trim();
+    final user = widget.model
+        .internalAgentSystemPrompt(InternalAppAgentIds.contextOrchestrator)
+        .trim();
     return '$_system\n\n---\n\nUser instructions:\n$user\n';
   }
 
@@ -136,9 +148,10 @@ Rules:
         return;
       }
 
-      widget.model.recordInternalAgentRun(InternalAppAgentIds.contextOrchestrator, {
-        'summary': message ?? '',
-      });
+      widget.model.recordInternalAgentRun(
+        InternalAppAgentIds.contextOrchestrator,
+        {'summary': message ?? ''},
+      );
 
       setState(() {
         _loading = false;
@@ -165,10 +178,16 @@ Rules:
         page = ContextEditorPage.asset(model: widget.model, assetId: id);
         break;
       case 'liability':
-        page = ContextEditorPage.liability(model: widget.model, liabilityId: id);
+        page = ContextEditorPage.liability(
+          model: widget.model,
+          liabilityId: id,
+        );
         break;
       case 'bucket':
-        page = ContextEditorPage.expenseBucket(model: widget.model, bucketKey: id);
+        page = ContextEditorPage.expenseBucket(
+          model: widget.model,
+          bucketKey: id,
+        );
         break;
       case 'month':
         page = ContextEditorPage.month(model: widget.model, monthKey: id);
@@ -178,11 +197,14 @@ Rules:
     if (page == null) return;
 
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(_message ?? 'Ok'), behavior: SnackBarBehavior.floating),
+      SnackBar(
+        content: Text(_message ?? 'Ok'),
+        behavior: SnackBarBehavior.floating,
+      ),
     );
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (ctx) => page!),
-    );
+    Navigator.of(
+      context,
+    ).pushReplacement(MaterialPageRoute(builder: (ctx) => page!));
   }
 
   @override
@@ -200,31 +222,35 @@ Rules:
         child: _loading
             ? const Center(child: CircularProgressIndicator())
             : _error != null
-                ? Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
-                      const SizedBox(height: 16),
-                      FilledButton(onPressed: _run, child: const Text('Try again')),
-                    ],
-                  )
-                : Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(
-                        _message ?? '',
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.onSurface,
-                          fontWeight: FontWeight.w800,
-                          height: 1.35,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      FilledButton(onPressed: _go, child: const Text('Go')),
-                    ],
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    _error!,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
                   ),
+                  const SizedBox(height: 16),
+                  FilledButton(onPressed: _run, child: const Text('Try again')),
+                ],
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    _message ?? '',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurface,
+                      fontWeight: FontWeight.w800,
+                      height: 1.35,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  FilledButton(onPressed: _go, child: const Text('Go')),
+                ],
+              ),
       ),
     );
   }
 }
-

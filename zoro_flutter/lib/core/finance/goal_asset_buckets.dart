@@ -1,7 +1,10 @@
 import '../state/financial_goals.dart';
 import '../state/ledger_rows.dart';
 
-bool assetCountsTowardRetirement(LedgerAssetRow asset, AssetsGoalsPolicy policy) {
+bool assetCountsTowardRetirement(
+  LedgerAssetRow asset,
+  AssetsGoalsPolicy policy,
+) {
   switch (asset.type.defaultGoalsBucket) {
     case AssetGoalsBucket.retirement:
       return true;
@@ -53,7 +56,8 @@ Map<String, double> assignSavingsPoolToTargets({
   if (targetsOrdered.isEmpty) return {};
 
   final remainingByAsset = <String, double>{
-    for (final a in savingsAssets) a.id: savingsBalanceFromAsset(a, displayValue, policy),
+    for (final a in savingsAssets)
+      a.id: savingsBalanceFromAsset(a, displayValue, policy),
   };
 
   final assigned = <String, double>{for (final g in targetsOrdered) g.id: 0.0};
@@ -100,5 +104,10 @@ double totalSavingsPoolBalance({
   return sum;
 }
 
-List<LedgerAssetRow> savingsPoolAssets(Iterable<LedgerAssetRow> assets, AssetsGoalsPolicy policy) =>
-    [for (final a in assets) if (assetCountsTowardSavings(a, policy)) a];
+List<LedgerAssetRow> savingsPoolAssets(
+  Iterable<LedgerAssetRow> assets,
+  AssetsGoalsPolicy policy,
+) => [
+  for (final a in assets)
+    if (assetCountsTowardSavings(a, policy)) a,
+];

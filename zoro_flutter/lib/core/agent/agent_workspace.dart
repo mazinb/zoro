@@ -4,16 +4,19 @@ import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../state/financial_goals.dart';
+import 'chat_history_store.dart';
 import 'credential_vault.dart';
 import 'cron_bridge.dart';
 import 'document_store.dart';
 import 'hermes_adapter.dart';
 import 'hermes_home_paths.dart';
+import 'hermes_home_writer.dart';
 import 'identity_store.dart';
 import 'inbox_store.dart';
 import 'mailbox_client.dart';
 import 'retirement_migration.dart';
 import 'retirement_plan_codec.dart';
+import 'skill_pack.dart';
 import 'skill_registry.dart';
 import 'vault_index.dart';
 
@@ -24,10 +27,10 @@ class AgentWorkspace extends ChangeNotifier {
     CredentialVault? vault,
     HermesAdapter? hermes,
     MailboxClient? mailbox,
-  })  : _injectedHome = home,
-        vault = vault ?? CredentialVault(),
-        hermes = hermes ?? StubHermesAdapter(),
-        mailbox = mailbox ?? MailboxClient();
+  }) : _injectedHome = home,
+       vault = vault ?? CredentialVault(),
+       hermes = hermes ?? StubHermesAdapter(),
+       mailbox = mailbox ?? MailboxClient();
 
   final Directory? _injectedHome;
   final CredentialVault vault;
@@ -41,8 +44,11 @@ class AgentWorkspace extends ChangeNotifier {
   VaultIndex? vaultIndex;
   SkillRegistry? skills;
   CronBridge? cron;
+  ChatHistoryStore? chatHistory;
   AgentIdentity identity = AgentIdentity();
-  HermesStatus hermesStatus = const HermesStatus(presence: HermesPresence.missing);
+  HermesStatus hermesStatus = const HermesStatus(
+    presence: HermesPresence.missing,
+  );
   bool ready = false;
   String? lastError;
 
@@ -63,6 +69,7 @@ class AgentWorkspace extends ChangeNotifier {
     FinancialGoal? retirementGoal,
     double investMonthly = 0,
     void Function(RetirementPlanDoc doc)? onRetirementLoaded,
+    Future<String> Function(String assetPath)? loadSkillAsset,
   }) async {
     lastError = null;
     try {
@@ -73,13 +80,27 @@ class AgentWorkspace extends ChangeNotifier {
       identityStore = IdentityStore(_home!);
       skills = SkillRegistry(_home!);
       cron = CronBridge(_home!);
+      chatHistory = ChatHistoryStore(_home!);
       vaultIndex = VaultIndex(File(vaultIndexPath(_home!)));
 
       await documents!.ensureLayout();
       await inbox!.ensure();
+      await chatHistory!.ensure();
       await skills!.ensureEmpty();
-      await Directory('${_home!.path}/${HermesHomePaths.cronDir}').create(recursive: true);
-      final noBundled = File('${_home!.path}/${HermesHomePaths.noBundledSkillsFile}');
+      await HermesHomeWriter.ensureIdentityFiles(_home!);
+      if (loadSkillAsset != null) {
+        try {
+          await skills!.installBundled(loadAsset: loadSkillAsset);
+        } catch (_) {
+          await skills!.ensureEmpty();
+        }
+      }
+      await Directory(
+        '${_home!.path}/${HermesHomePaths.cronDir}',
+      ).create(recursive: true);
+      final noBundled = File(
+        '${_home!.path}/${HermesHomePaths.noBundledSkillsFile}',
+      );
       if (!await noBundled.exists()) {
         await noBundled.create(recursive: true);
       }
@@ -88,7 +109,9 @@ class AgentWorkspace extends ChangeNotifier {
       hermesStatus = await hermes.status();
 
       if (retirementGoal != null) {
-        final existing = await documents!.readHead(HermesHomePaths.retirementDocId);
+        final existing = await documents!.readHead(
+          HermesHomePaths.retirementDocId,
+        );
         if (existing == null || existing.trim().isEmpty) {
           final md = seedRetirementMarkdown(
             goal: retirementGoal,
@@ -99,7 +122,9 @@ class AgentWorkspace extends ChangeNotifier {
             markdown: md,
             reason: 'migration from goals.json',
             author: 'migration',
-            title: retirementGoal.name.trim().isEmpty ? 'Retirement' : retirementGoal.name.trim(),
+            title: retirementGoal.name.trim().isEmpty
+                ? 'Retirement'
+                : retirementGoal.name.trim(),
             skill: 'retirement-plan',
           );
         }
@@ -121,7 +146,8 @@ class AgentWorkspace extends ChangeNotifier {
     return (await documents?.readHead(HermesHomePaths.retirementDocId)) ?? '';
   }
 
-  RetirementPlanDoc retirementDocFrom(String raw) => RetirementPlanDoc.parse(raw);
+  RetirementPlanDoc retirementDocFrom(String raw) =>
+      RetirementPlanDoc.parse(raw);
 
   Future<DocIndexEntry> saveRetirement({
     required String markdown,
@@ -186,15 +212,15 @@ class AgentWorkspace extends ChangeNotifier {
     notifyListeners();
   }
 
-  bool get hasMailbox =>
-      (identity.mailboxAddress ?? '').trim().isNotEmpty;
+  bool get hasMailbox => (identity.mailboxAddress ?? '').trim().isNotEmpty;
 
   Future<void> applyClaim(MailboxClaimInfo info) async {
     await vault.writeMailboxToken(info.mailboxToken);
     identity.mailboxAddress = info.address;
     identity.claimedEmail = info.claimedEmail;
     final email = info.claimedEmail.trim().toLowerCase();
-    if (email.isNotEmpty && !identity.allowlist.any((a) => a.toLowerCase() == email)) {
+    if (email.isNotEmpty &&
+        !identity.allowlist.any((a) => a.toLowerCase() == email)) {
       identity.allowlist = [email, ...identity.allowlist];
     }
     await identityStore?.save(identity);
@@ -202,10 +228,16 @@ class AgentWorkspace extends ChangeNotifier {
   }
 
   Future<void> requestClaim({required String deviceId, required String email}) {
-    return mailbox.requestClaim(deviceId: deviceId, email: email.trim().toLowerCase());
+    return mailbox.requestClaim(
+      deviceId: deviceId,
+      email: email.trim().toLowerCase(),
+    );
   }
 
-  Future<MailboxClaimInfo> finishClaim({required String deviceId, String? nonce}) async {
+  Future<MailboxClaimInfo> finishClaim({
+    required String deviceId,
+    String? nonce,
+  }) async {
     final info = await mailbox.finishClaim(deviceId: deviceId, nonce: nonce);
     await applyClaim(info);
     return info;
@@ -214,7 +246,10 @@ class AgentWorkspace extends ChangeNotifier {
   Future<void> rotateMailbox({required String deviceId}) async {
     final token = await vault.readMailboxToken();
     if (token == null || token.isEmpty) return;
-    final next = await mailbox.register(deviceId: deviceId, mailboxToken: token);
+    final next = await mailbox.register(
+      deviceId: deviceId,
+      mailboxToken: token,
+    );
     if (next == null) return;
     await vault.writeMailboxToken(next.mailboxToken);
     identity.mailboxAddress = next.address;
@@ -275,5 +310,17 @@ class AgentWorkspace extends ChangeNotifier {
     if (identity.allowlist.isEmpty) return true;
     final f = from.toLowerCase();
     return identity.allowlist.any((a) => f.contains(a.toLowerCase()));
+  }
+
+  bool hasSkill(String nameOrId) {
+    final reg = skills;
+    if (reg == null) return false;
+    final needle = nameOrId.split('/').last;
+    for (final id in SkillPack.bundledIds) {
+      if (id == nameOrId || id.endsWith('/$needle')) {
+        return reg.skillFile(id).existsSync();
+      }
+    }
+    return false;
   }
 }

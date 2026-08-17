@@ -17,11 +17,11 @@ class AgentIdentity {
   int protocolMin;
 
   Map<String, dynamic> toJson() => {
-        'protocolMin': protocolMin,
-        if (mailboxAddress != null) 'mailboxAddress': mailboxAddress,
-        if (claimedEmail != null) 'claimedEmail': claimedEmail,
-        'allowlist': allowlist,
-      };
+    'protocolMin': protocolMin,
+    if (mailboxAddress != null) 'mailboxAddress': mailboxAddress,
+    if (claimedEmail != null) 'claimedEmail': claimedEmail,
+    'allowlist': allowlist,
+  };
 
   static AgentIdentity fromJson(Map<String, dynamic>? m) {
     if (m == null) return AgentIdentity();
@@ -29,7 +29,9 @@ class AgentIdentity {
     return AgentIdentity(
       mailboxAddress: m['mailboxAddress']?.toString(),
       claimedEmail: m['claimedEmail']?.toString(),
-      protocolMin: (m['protocolMin'] as num?)?.toInt() ?? HermesHomePaths.protocolVersion,
+      protocolMin:
+          (m['protocolMin'] as num?)?.toInt() ??
+          HermesHomePaths.protocolVersion,
       allowlist: allow is List ? [for (final e in allow) e.toString()] : [],
     );
   }
@@ -50,7 +52,8 @@ class IdentityStore {
     }
     try {
       final raw = jsonDecode(await _file.readAsString());
-      if (raw is Map) return AgentIdentity.fromJson(Map<String, dynamic>.from(raw));
+      if (raw is Map)
+        return AgentIdentity.fromJson(Map<String, dynamic>.from(raw));
     } catch (_) {}
     return AgentIdentity();
   }

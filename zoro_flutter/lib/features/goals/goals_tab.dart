@@ -18,8 +18,14 @@ import 'goals_paydown_sheet.dart';
 
 /// Goals tab type scale (aligned with Ledger cards).
 abstract final class _GoalsType {
-  static const sectionTitle = TextStyle(fontWeight: FontWeight.w900, fontSize: 15);
-  static const sectionSubtitle = TextStyle(fontWeight: FontWeight.w600, fontSize: 13);
+  static const sectionTitle = TextStyle(
+    fontWeight: FontWeight.w900,
+    fontSize: 15,
+  );
+  static const sectionSubtitle = TextStyle(
+    fontWeight: FontWeight.w600,
+    fontSize: 13,
+  );
   static const tileTitle = TextStyle(fontWeight: FontWeight.w900, fontSize: 15);
   static const tileBody = TextStyle(fontWeight: FontWeight.w900, fontSize: 14);
   static const tileMeta = TextStyle(fontWeight: FontWeight.w600, fontSize: 13);
@@ -47,10 +53,7 @@ class GoalsTab extends StatefulWidget {
 
 class GoalsTabState extends State<GoalsTab> {
   void openHelperHub() {
-    openGoalsHelperHub(
-      context: context,
-      model: widget.model,
-    );
+    openGoalsHelperHub(context: context, model: widget.model);
   }
 
   @override
@@ -81,19 +84,14 @@ class GoalsTabState extends State<GoalsTab> {
   Widget build(BuildContext context) {
     return ListenableBuilder(
       listenable: widget.model,
-      builder: (context, _) => _GoalsBody(
-        model: widget.model,
-        onGoToLedger: widget.onGoToLedger,
-      ),
+      builder: (context, _) =>
+          _GoalsBody(model: widget.model, onGoToLedger: widget.onGoToLedger),
     );
   }
 }
 
 class _GoalsBody extends StatefulWidget {
-  const _GoalsBody({
-    required this.model,
-    this.onGoToLedger,
-  });
+  const _GoalsBody({required this.model, this.onGoToLedger});
 
   final AppModel model;
   final void Function(String section)? onGoToLedger;
@@ -122,16 +120,25 @@ class _GoalsBodyState extends State<_GoalsBody> {
       policy: policy,
     );
     final savingsRows = savingsPoolAssets(m.assets, policy).toList()
-      ..sort((a, b) => m.assetDisplayValue(b).compareTo(m.assetDisplayValue(a)));
-    final allSavingsAssets = m.assets.where((a) => a.type == LedgerAssetType.savings).toList()
-      ..sort((a, b) => m.assetDisplayValue(b).compareTo(m.assetDisplayValue(a)));
+      ..sort(
+        (a, b) => m.assetDisplayValue(b).compareTo(m.assetDisplayValue(a)),
+      );
+    final allSavingsAssets =
+        m.assets.where((a) => a.type == LedgerAssetType.savings).toList()..sort(
+          (a, b) => m.assetDisplayValue(b).compareTo(m.assetDisplayValue(a)),
+        );
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
       children: [
         Row(
           children: [
-            Text('Goals', style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900)),
+            Text(
+              'Goals',
+              style: Theme.of(
+                context,
+              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
+            ),
             const Spacer(),
             TabHeaderActions(
               model: m,
@@ -139,10 +146,8 @@ class _GoalsBodyState extends State<_GoalsBody> {
               help: TabHelpContent.goals,
               assistantTooltip: 'Goals helper',
               assistantEnabled: m.helperEnabledGoals,
-              onAssistant: () => openGoalsAiAssistant(
-                context: context,
-                model: m,
-              ),
+              onAssistant: () =>
+                  openGoalsAiAssistant(context: context, model: m),
             ),
           ],
         ),
@@ -163,7 +168,11 @@ class _GoalsBodyState extends State<_GoalsBody> {
                 goal: retirement,
                 accent: accent,
                 hide: hide,
-                onTap: () => openGoalEditorSheet(context: context, model: m, goalId: retirement.id),
+                onTap: () => openGoalEditorSheet(
+                  context: context,
+                  model: m,
+                  goalId: retirement.id,
+                ),
               ),
           ],
         ),
@@ -173,7 +182,8 @@ class _GoalsBodyState extends State<_GoalsBody> {
           titleSuffix: allSavingsAssets.isEmpty
               ? null
               : TextButton(
-                  onPressed: () => setState(() => _savingsCorpusEdit = !_savingsCorpusEdit),
+                  onPressed: () =>
+                      setState(() => _savingsCorpusEdit = !_savingsCorpusEdit),
                   style: TextButton.styleFrom(
                     visualDensity: VisualDensity.compact,
                     padding: const EdgeInsets.only(left: 4, right: 6),
@@ -214,7 +224,10 @@ class _GoalsBodyState extends State<_GoalsBody> {
               ),
             if (m.liabilities.isNotEmpty) ...[
               const SizedBox(height: 12),
-              Text('Loans', style: _GoalsType.sectionTitle.copyWith(color: cs.onSurface)),
+              Text(
+                'Loans',
+                style: _GoalsType.sectionTitle.copyWith(color: cs.onSurface),
+              ),
               const SizedBox(height: 6),
               ...m.liabilities.map((l) {
                 final liabilityId = l.id;
@@ -254,7 +267,9 @@ class _SavingsSalaryPctBoxState extends State<_SavingsSalaryPctBox> {
   @override
   void initState() {
     super.initState();
-    _pctCtrl = TextEditingController(text: _formatPct(widget.model.savingsPctOfSalary));
+    _pctCtrl = TextEditingController(
+      text: _formatPct(widget.model.savingsPctOfSalary),
+    );
     _focus.addListener(() => setState(() {}));
   }
 
@@ -309,7 +324,11 @@ class _SavingsSalaryPctBoxState extends State<_SavingsSalaryPctBox> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 8),
             decoration: BoxDecoration(
-              border: Border.all(color: over ? cs.error.withValues(alpha: 0.6) : cs.outlineVariant),
+              border: Border.all(
+                color: over
+                    ? cs.error.withValues(alpha: 0.6)
+                    : cs.outlineVariant,
+              ),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Row(
@@ -323,7 +342,9 @@ class _SavingsSalaryPctBoxState extends State<_SavingsSalaryPctBox> {
                     textInputAction: TextInputAction.done,
                     onSubmitted: (_) => _applyPct(dismissKeyboard: true),
                     onEditingComplete: () => _applyPct(dismissKeyboard: true),
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
                     inputFormatters: [
                       FilteringTextInputFormatter.allow(RegExp(r'[\d.]')),
                     ],
@@ -348,11 +369,18 @@ class _SavingsSalaryPctBoxState extends State<_SavingsSalaryPctBox> {
                       ? Align(
                           alignment: Alignment.centerRight,
                           child: IconButton(
-                            icon: Icon(Icons.check, size: 18, color: widget.model.accent),
+                            icon: Icon(
+                              Icons.check,
+                              size: 18,
+                              color: widget.model.accent,
+                            ),
                             tooltip: 'Apply',
                             visualDensity: VisualDensity.compact,
                             padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                            constraints: const BoxConstraints(
+                              minWidth: 28,
+                              minHeight: 28,
+                            ),
                             onPressed: () => _applyPct(dismissKeyboard: true),
                           ),
                         )
@@ -361,7 +389,11 @@ class _SavingsSalaryPctBoxState extends State<_SavingsSalaryPctBox> {
                           children: [
                             Text(
                               '%',
-                              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: fg),
+                              style: TextStyle(
+                                fontWeight: FontWeight.w900,
+                                fontSize: 14,
+                                color: fg,
+                              ),
                             ),
                             const SizedBox(width: 3),
                             Text(
@@ -404,7 +436,8 @@ class _GoalsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final hasSubtitle = showSubtitle && subtitle.trim().isNotEmpty && subtitle != '—';
+    final hasSubtitle =
+        showSubtitle && subtitle.trim().isNotEmpty && subtitle != '—';
     return LiquidGlassPanel(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
       child: Column(
@@ -428,7 +461,9 @@ class _GoalsSection extends StatelessWidget {
             const SizedBox(height: 2),
             Text(
               subtitle,
-              style: _GoalsType.sectionSubtitle.copyWith(color: cs.onSurfaceVariant),
+              style: _GoalsType.sectionSubtitle.copyWith(
+                color: cs.onSurfaceVariant,
+              ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
@@ -455,7 +490,9 @@ class _SavingsAssetRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final name = asset.name.trim().isEmpty ? asset.type.label : asset.name.trim();
+    final name = asset.name.trim().isEmpty
+        ? asset.type.label
+        : asset.name.trim();
     final balance = model.assetDisplayValue(asset);
 
     return Padding(
@@ -489,7 +526,9 @@ class _SavingsAssetEditRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final name = asset.name.trim().isEmpty ? asset.type.label : asset.name.trim();
+    final name = asset.name.trim().isEmpty
+        ? asset.type.label
+        : asset.name.trim();
     final balance = model.assetDisplayValue(asset);
     final inPool = !model.isRetirementExtraAsset(asset.id);
 
@@ -555,7 +594,9 @@ class _LiabilityRow extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final pay = model.liabilityPaydownMonthly(liability);
     final payoff = goalLiabilityPayoffDateLabel(model, liability);
-    final name = liability.name.trim().isEmpty ? liability.type.label : liability.name.trim();
+    final name = liability.name.trim().isEmpty
+        ? liability.type.label
+        : liability.name.trim();
 
     return Material(
       color: Colors.transparent,
@@ -577,7 +618,9 @@ class _LiabilityRow extends StatelessWidget {
                       pay > 0
                           ? '${goalMoney(model, pay, hide: hide)}/mo${payoff != null ? ' · $payoff' : ''}'
                           : (payoff ?? 'Set paydown'),
-                      style: _GoalsType.rowMeta.copyWith(color: cs.onSurfaceVariant),
+                      style: _GoalsType.rowMeta.copyWith(
+                        color: cs.onSurfaceVariant,
+                      ),
                     ),
                   ],
                 ),
@@ -637,23 +680,36 @@ class _GoalTile extends StatelessWidget {
                       children: [
                         Row(
                           children: [
-                            const Expanded(child: Text('Retirement', style: _GoalsType.tileTitle)),
+                            const Expanded(
+                              child: Text(
+                                'Retirement',
+                                style: _GoalsType.tileTitle,
+                              ),
+                            ),
                             if (timeLabel.isNotEmpty)
                               Text(
                                 timeLabel,
-                                style: _GoalsType.rowMeta.copyWith(color: cs.onSurfaceVariant),
+                                style: _GoalsType.rowMeta.copyWith(
+                                  color: cs.onSurfaceVariant,
+                                ),
                               ),
                           ],
                         ),
                         const SizedBox(height: 2),
                         Text(
                           amountsLine,
-                          style: _GoalsType.tileMeta.copyWith(color: cs.onSurfaceVariant),
+                          style: _GoalsType.tileMeta.copyWith(
+                            color: cs.onSurfaceVariant,
+                          ),
                         ),
                       ],
                     ),
                   ),
-                  Icon(Icons.chevron_right, size: 22, color: cs.onSurfaceVariant),
+                  Icon(
+                    Icons.chevron_right,
+                    size: 22,
+                    color: cs.onSurfaceVariant,
+                  ),
                 ],
               ),
               const SizedBox(height: 8),
@@ -690,7 +746,10 @@ class _RetirementLeadingIcon extends StatelessWidget {
         width: box,
         height: box,
         child: Center(
-          child: ZoroStatusIcon.fromGoalFeasibility(feasibility, size: iconSize),
+          child: ZoroStatusIcon.fromGoalFeasibility(
+            feasibility,
+            size: iconSize,
+          ),
         ),
       );
     }

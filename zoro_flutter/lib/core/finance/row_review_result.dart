@@ -40,14 +40,14 @@ class RowReviewResult {
   bool get isOk => level == RowReviewLevel.ok;
 
   GoalFeasibility toGoalFeasibility() => GoalFeasibility(
-        level: switch (level) {
-          RowReviewLevel.ok => GoalFeasibilityLevel.ok,
-          RowReviewLevel.caution => GoalFeasibilityLevel.caution,
-          RowReviewLevel.broken => GoalFeasibilityLevel.broken,
-        },
-        title: title,
-        detail: detail,
-      );
+    level: switch (level) {
+      RowReviewLevel.ok => GoalFeasibilityLevel.ok,
+      RowReviewLevel.caution => GoalFeasibilityLevel.caution,
+      RowReviewLevel.broken => GoalFeasibilityLevel.broken,
+    },
+    title: title,
+    detail: detail,
+  );
 
   static RowReviewLevel levelFromJson(String? raw) {
     switch (raw?.trim().toLowerCase()) {
@@ -74,7 +74,9 @@ class RowReviewResult {
     final comment = obj['suggestedComment']?.toString().trim() ?? '';
     final ctx = obj['suggestedContextMarkdown']?.toString().trim() ?? '';
     final cash = obj['cashflowAmountAdded'];
-    final cashNum = cash is num ? cash.toDouble() : double.tryParse(cash?.toString() ?? '');
+    final cashNum = cash is num
+        ? cash.toDouble()
+        : double.tryParse(cash?.toString() ?? '');
     return RowReviewResult(
       level: level,
       title: title.isEmpty ? _defaultTitle(level) : title,
@@ -87,10 +89,10 @@ class RowReviewResult {
   }
 
   static String _defaultTitle(RowReviewLevel level) => switch (level) {
-        RowReviewLevel.ok => 'Looks good',
-        RowReviewLevel.caution => 'Needs a look',
-        RowReviewLevel.broken => "Doesn't add up",
-      };
+    RowReviewLevel.ok => 'Looks good',
+    RowReviewLevel.caution => 'Needs a look',
+    RowReviewLevel.broken => "Doesn't add up",
+  };
 
   /// Merge with a stricter floor (e.g. cashflow credit → at least caution).
   RowReviewResult atLeast(RowReviewLevel floor) {
@@ -107,8 +109,8 @@ class RowReviewResult {
   }
 
   static int _rank(RowReviewLevel l) => switch (l) {
-        RowReviewLevel.ok => 0,
-        RowReviewLevel.caution => 1,
-        RowReviewLevel.broken => 2,
-      };
+    RowReviewLevel.ok => 0,
+    RowReviewLevel.caution => 1,
+    RowReviewLevel.broken => 2,
+  };
 }

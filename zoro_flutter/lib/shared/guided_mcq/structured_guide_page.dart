@@ -41,7 +41,10 @@ class StructuredGuideStep {
 }
 
 class StructuredGuideAnswer {
-  const StructuredGuideAnswer({required this.questionId, required this.selectedIds});
+  const StructuredGuideAnswer({
+    required this.questionId,
+    required this.selectedIds,
+  });
 
   final String questionId;
   final Set<String> selectedIds;
@@ -108,9 +111,9 @@ class _StructuredGuidePageState extends State<StructuredGuidePage> {
       _stepIndex < widget.steps.length ? widget.steps[_stepIndex] : null;
 
   StructuredGuideResult get _partialResult => StructuredGuideResult(
-        answers: List<StructuredGuideAnswer>.from(_done),
-        optionalNote: _optionalNoteCtrl.text.trim(),
-      );
+    answers: List<StructuredGuideAnswer>.from(_done),
+    optionalNote: _optionalNoteCtrl.text.trim(),
+  );
 
   @override
   void dispose() {
@@ -155,12 +158,16 @@ class _StructuredGuidePageState extends State<StructuredGuidePage> {
     setState(() {
       if (q.kind == StructuredGuideStepKind.numeric) {
         final v = double.parse(_numericController(q).text.trim());
-        _done.add(StructuredGuideAnswer(
-          questionId: q.id,
-          selectedIds: {'num:$v'},
-        ));
+        _done.add(
+          StructuredGuideAnswer(questionId: q.id, selectedIds: {'num:$v'}),
+        );
       } else {
-        _done.add(StructuredGuideAnswer(questionId: q.id, selectedIds: Set<String>.from(_selected)));
+        _done.add(
+          StructuredGuideAnswer(
+            questionId: q.id,
+            selectedIds: Set<String>.from(_selected),
+          ),
+        );
         _selected.clear();
       }
       _stepIndex++;
@@ -170,7 +177,10 @@ class _StructuredGuidePageState extends State<StructuredGuidePage> {
   void _finish() {
     final note = _optionalNoteCtrl.text.trim();
     Navigator.of(context).pop(
-      StructuredGuideResult(answers: List<StructuredGuideAnswer>.from(_done), optionalNote: note),
+      StructuredGuideResult(
+        answers: List<StructuredGuideAnswer>.from(_done),
+        optionalNote: note,
+      ),
     );
   }
 
@@ -197,7 +207,10 @@ class _StructuredGuidePageState extends State<StructuredGuidePage> {
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: Text(widget.title, style: const TextStyle(fontWeight: FontWeight.w900)),
+        title: Text(
+          widget.title,
+          style: const TextStyle(fontWeight: FontWeight.w900),
+        ),
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
@@ -206,20 +219,24 @@ class _StructuredGuidePageState extends State<StructuredGuidePage> {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              cs.surface,
-              cs.primary.withValues(alpha: 0.06),
-            ],
+            colors: [cs.surface, cs.primary.withValues(alpha: 0.06)],
           ),
         ),
         child: SafeArea(
-          child: onLast ? _buildNoteStep(context, accent, cs) : _buildQuestionStep(context, accent, cs),
+          child: onLast
+              ? _buildNoteStep(context, accent, cs)
+              : _buildQuestionStep(context, accent, cs),
         ),
       ),
     );
   }
 
-  Widget _buildStepBar(BuildContext context, Color accent, ColorScheme cs, int stepNum) {
+  Widget _buildStepBar(
+    BuildContext context,
+    Color accent,
+    ColorScheme cs,
+    int stepNum,
+  ) {
     if (widget.steps.length <= 1) return const SizedBox.shrink();
 
     return LiquidGlassPanel(
@@ -228,7 +245,10 @@ class _StructuredGuidePageState extends State<StructuredGuidePage> {
         children: [
           Text(
             widget.stepCountLabel ?? 'Step $stepNum of ${widget.steps.length}',
-            style: TextStyle(fontWeight: FontWeight.w900, color: cs.onSurfaceVariant),
+            style: TextStyle(
+              fontWeight: FontWeight.w900,
+              color: cs.onSurfaceVariant,
+            ),
           ),
           const Spacer(),
           for (var i = 0; i < _done.length; i++)
@@ -242,7 +262,11 @@ class _StructuredGuidePageState extends State<StructuredGuidePage> {
                   backgroundColor: accent.withValues(alpha: 0.15),
                   child: Text(
                     '${i + 1}',
-                    style: TextStyle(color: accent, fontSize: 12, fontWeight: FontWeight.w900),
+                    style: TextStyle(
+                      color: accent,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
                 ),
               ),
@@ -254,7 +278,11 @@ class _StructuredGuidePageState extends State<StructuredGuidePage> {
               backgroundColor: accent,
               child: Text(
                 '$stepNum',
-                style: TextStyle(color: cs.onPrimary, fontSize: 12, fontWeight: FontWeight.w900),
+                style: TextStyle(
+                  color: cs.onPrimary,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                ),
               ),
             ),
           ),
@@ -263,7 +291,11 @@ class _StructuredGuidePageState extends State<StructuredGuidePage> {
     );
   }
 
-  Widget _buildQuestionStep(BuildContext context, Color accent, ColorScheme cs) {
+  Widget _buildQuestionStep(
+    BuildContext context,
+    Color accent,
+    ColorScheme cs,
+  ) {
     final q = _current!;
     final stepNum = _done.length + 1;
 
@@ -274,10 +306,22 @@ class _StructuredGuidePageState extends State<StructuredGuidePage> {
         children: [
           _buildStepBar(context, accent, cs, stepNum),
           if (widget.steps.length > 1) const SizedBox(height: 14),
-          Text(q.prompt, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
+          Text(
+            q.prompt,
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+          ),
           if (q.hint != null) ...[
             const SizedBox(height: 6),
-            Text(q.hint!, style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.w600)),
+            Text(
+              q.hint!,
+              style: TextStyle(
+                color: cs.onSurfaceVariant,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ],
           if (q.bullets != null && q.bullets!.isNotEmpty) ...[
             const SizedBox(height: 8),
@@ -287,11 +331,22 @@ class _StructuredGuidePageState extends State<StructuredGuidePage> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('• ', style: TextStyle(color: cs.onSurfaceVariant, fontWeight: FontWeight.w800)),
+                    Text(
+                      '• ',
+                      style: TextStyle(
+                        color: cs.onSurfaceVariant,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
                     Expanded(
                       child: Text(
                         b,
-                        style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.w600, height: 1.35),
+                        style: TextStyle(
+                          color: cs.onSurfaceVariant,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          height: 1.35,
+                        ),
                       ),
                     ),
                   ],
@@ -302,7 +357,11 @@ class _StructuredGuidePageState extends State<StructuredGuidePage> {
           if (q.kind == StructuredGuideStepKind.choice)
             Text(
               q.allowMultiple ? 'Select all that apply' : 'Pick one',
-              style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.w600),
+              style: TextStyle(
+                color: cs.onSurfaceVariant,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           const SizedBox(height: 12),
           Expanded(
@@ -346,7 +405,12 @@ class _StructuredGuidePageState extends State<StructuredGuidePage> {
     );
   }
 
-  Widget _buildNumericStep(BuildContext context, StructuredGuideStep q, Color accent, ColorScheme cs) {
+  Widget _buildNumericStep(
+    BuildContext context,
+    StructuredGuideStep q,
+    Color accent,
+    ColorScheme cs,
+  ) {
     final ctrl = _numericController(q);
     return ListView(
       children: [
@@ -356,12 +420,17 @@ class _StructuredGuidePageState extends State<StructuredGuidePage> {
             controller: ctrl,
             autofocus: true,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[\d.]'))],
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'[\d.]')),
+            ],
             style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 22),
             decoration: InputDecoration(
               border: InputBorder.none,
               suffixText: q.numericSuffix,
-              suffixStyle: TextStyle(fontWeight: FontWeight.w800, color: cs.onSurfaceVariant),
+              suffixStyle: TextStyle(
+                fontWeight: FontWeight.w800,
+                color: cs.onSurfaceVariant,
+              ),
             ),
             onChanged: (_) => setState(() {}),
           ),
@@ -371,7 +440,8 @@ class _StructuredGuidePageState extends State<StructuredGuidePage> {
   }
 
   Widget _buildNoteStep(BuildContext context, Color accent, ColorScheme cs) {
-    final preview = widget.previewLines?.call(_partialResult) ?? const <String>[];
+    final preview =
+        widget.previewLines?.call(_partialResult) ?? const <String>[];
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
@@ -386,7 +456,9 @@ class _StructuredGuidePageState extends State<StructuredGuidePage> {
                 children: [
                   Text(
                     'Preview',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   for (final line in preview)
@@ -395,7 +467,10 @@ class _StructuredGuidePageState extends State<StructuredGuidePage> {
                         padding: const EdgeInsets.only(bottom: 6),
                         child: Text(
                           line,
-                          style: const TextStyle(fontWeight: FontWeight.w700, height: 1.35),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            height: 1.35,
+                          ),
                         ),
                       ),
                 ],
@@ -457,7 +532,13 @@ class _GlassChoiceTile extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Text(label, style: TextStyle(fontWeight: FontWeight.w800, color: cs.onSurface)),
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: cs.onSurface,
+                  ),
+                ),
               ),
             ],
           ),

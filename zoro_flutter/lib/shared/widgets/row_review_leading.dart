@@ -49,7 +49,11 @@ class RowReviewLeadingIcon extends StatelessWidget {
       return SizedBox(
         width: size,
         height: size,
-        child: Icon(Icons.check_circle, color: Colors.green.shade600, size: iconSize),
+        child: Icon(
+          Icons.check_circle,
+          color: Colors.green.shade600,
+          size: iconSize,
+        ),
       );
     }
 
@@ -118,7 +122,8 @@ void showRowReviewDetailSheet(BuildContext context, RowReviewResult result) {
               ),
             ),
           ],
-          if (result.cashflowAmountAdded != null && result.cashflowAmountAdded! > 0.005) ...[
+          if (result.cashflowAmountAdded != null &&
+              result.cashflowAmountAdded! > 0.005) ...[
             const SizedBox(height: 8),
             Text(
               'Cashflow added about ${result.cashflowAmountAdded!.round()} to this balance — verify in Ledger → Cash.',

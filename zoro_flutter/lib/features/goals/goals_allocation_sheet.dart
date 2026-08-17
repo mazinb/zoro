@@ -22,17 +22,21 @@ class _GoalsAllocationNotesSheet extends StatefulWidget {
   final AppModel model;
 
   @override
-  State<_GoalsAllocationNotesSheet> createState() => _GoalsAllocationNotesSheetState();
+  State<_GoalsAllocationNotesSheet> createState() =>
+      _GoalsAllocationNotesSheetState();
 }
 
-class _GoalsAllocationNotesSheetState extends State<_GoalsAllocationNotesSheet> {
+class _GoalsAllocationNotesSheetState
+    extends State<_GoalsAllocationNotesSheet> {
   late final TextEditingController _notesCtrl;
   final FocusNode _notesFocus = FocusNode();
 
   @override
   void initState() {
     super.initState();
-    _notesCtrl = TextEditingController(text: widget.model.allocationContextMarkdown);
+    _notesCtrl = TextEditingController(
+      text: widget.model.allocationContextMarkdown,
+    );
   }
 
   @override
@@ -66,7 +70,9 @@ class _GoalsAllocationNotesSheetState extends State<_GoalsAllocationNotesSheet> 
                 Expanded(
                   child: Text(
                     'Allocation notes',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
                 ),
                 IconButton(
@@ -78,7 +84,11 @@ class _GoalsAllocationNotesSheetState extends State<_GoalsAllocationNotesSheet> 
             ),
             Text(
               'Assumptions for your invest / save split',
-              style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant, fontWeight: FontWeight.w600),
+              style: TextStyle(
+                fontSize: 13,
+                color: cs.onSurfaceVariant,
+                fontWeight: FontWeight.w600,
+              ),
             ),
             const SizedBox(height: 10),
             TextField(
@@ -93,7 +103,8 @@ class _GoalsAllocationNotesSheetState extends State<_GoalsAllocationNotesSheet> 
                 border: OutlineInputBorder(),
                 alignLabelWithHint: true,
               ),
-              onChanged: (_) => widget.model.setAllocationContextMarkdown(_notesCtrl.text),
+              onChanged: (_) =>
+                  widget.model.setAllocationContextMarkdown(_notesCtrl.text),
             ),
             const SizedBox(height: 12),
             SizedBox(

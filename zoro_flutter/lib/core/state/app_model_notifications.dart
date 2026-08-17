@@ -104,7 +104,8 @@ extension AppModelNotifications on AppModel {
       );
       if (!now.isBefore(fireMoment)) {
         final alreadyFiredToday =
-            remindersLastFiredOn != null && AppModel._isSameLocalDay(remindersLastFiredOn!, now);
+            remindersLastFiredOn != null &&
+            AppModel._isSameLocalDay(remindersLastFiredOn!, now);
         remindersScheduledFireOn = null;
         if (alreadyFiredToday) {
           remindersPendingDomain = null;
@@ -121,7 +122,9 @@ extension AppModelNotifications on AppModel {
       reminderNotifyHour,
       reminderNotifyMinute,
     );
-    final nextSlot = now.isBefore(todaySlot) ? todaySlot : todaySlot.add(const Duration(days: 1));
+    final nextSlot = now.isBefore(todaySlot)
+        ? todaySlot
+        : todaySlot.add(const Duration(days: 1));
 
     // Prefer overdue domains for copy + rotation; fall back to any schedulable
     // domain so the user's notify time always registers an OS alarm.
@@ -134,16 +137,23 @@ extension AppModelNotifications on AppModel {
     if (domain == null) {
       // New users (onboarding false) and caught-up users still get an OS alarm.
       await svc.scheduleDailyCheckInAt(when: nextSlot);
-      remindersScheduledFireOn = DateTime(nextSlot.year, nextSlot.month, nextSlot.day);
+      remindersScheduledFireOn = DateTime(
+        nextSlot.year,
+        nextSlot.month,
+        nextSlot.day,
+      );
       remindersPendingDomain = null;
       await persistAppStateToDisk();
       return;
     }
 
     await svc.scheduleReminderForDomainAt(domain: domain, when: nextSlot);
-    remindersScheduledFireOn = DateTime(nextSlot.year, nextSlot.month, nextSlot.day);
+    remindersScheduledFireOn = DateTime(
+      nextSlot.year,
+      nextSlot.month,
+      nextSlot.day,
+    );
     remindersPendingDomain = domain;
     await persistAppStateToDisk();
   }
 }
-

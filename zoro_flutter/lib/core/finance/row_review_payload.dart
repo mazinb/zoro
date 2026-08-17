@@ -12,8 +12,8 @@ const primaryCashLinkedReviewResult = RowReviewResult(
 
 /// FX map for helpers: ISO code → USD per 1 unit of that currency.
 Map<String, double> fxUsdPerUnitPayload(AppModel model) => {
-      for (final c in CurrencyCode.values) c.code: model.usdPerUnitResolved(c),
-    };
+  for (final c in CurrencyCode.values) c.code: model.usdPerUnitResolved(c),
+};
 
 /// Authoritative ledger balance for review (native account currency, not Home display).
 double ledgerAssetTotalNative(AppModel model, LedgerAssetRow row) {
@@ -31,10 +31,16 @@ double ledgerAssetTotalNative(AppModel model, LedgerAssetRow row) {
   return row.total;
 }
 
-Map<String, Object?> assetReviewLedgerPayload(AppModel model, LedgerAssetRow row) {
+Map<String, Object?> assetReviewLedgerPayload(
+  AppModel model,
+  LedgerAssetRow row,
+) {
   final accountCurrency = currencyCodeForPresetCountry(row.currencyCountry);
   final ledgerTotal = ledgerAssetTotalNative(model, row);
-  final approxDisplay = model.moneyInDisplayCurrency(ledgerTotal, accountCurrency);
+  final approxDisplay = model.moneyInDisplayCurrency(
+    ledgerTotal,
+    accountCurrency,
+  );
 
   return {
     'id': row.id,
@@ -44,10 +50,16 @@ Map<String, Object?> assetReviewLedgerPayload(AppModel model, LedgerAssetRow row
     'currencyCountry': row.currencyCountry,
     'accountCurrency': accountCurrency.code,
     'ledgerTotal': ledgerTotal,
-    'ledgerTotalFormatted': formatCurrencyDisplay(ledgerTotal, currency: accountCurrency),
+    'ledgerTotalFormatted': formatCurrencyDisplay(
+      ledgerTotal,
+      currency: accountCurrency,
+    ),
     'approxDisplayCurrency': model.displayCurrency.code,
     'approxDisplayTotal': approxDisplay,
-    'approxDisplayFormatted': formatCurrencyDisplay(approxDisplay, currency: model.displayCurrency),
+    'approxDisplayFormatted': formatCurrencyDisplay(
+      approxDisplay,
+      currency: model.displayCurrency,
+    ),
     'balanceSource': model.primaryCashBalanceIsMirrored(row)
         ? 'latest_cashflow_closing_in_account_currency'
         : 'ledger_row_total',
@@ -55,10 +67,16 @@ Map<String, Object?> assetReviewLedgerPayload(AppModel model, LedgerAssetRow row
   };
 }
 
-Map<String, Object?> liabilityReviewLedgerPayload(AppModel model, LedgerLiabilityRow row) {
+Map<String, Object?> liabilityReviewLedgerPayload(
+  AppModel model,
+  LedgerLiabilityRow row,
+) {
   final accountCurrency = currencyCodeForPresetCountry(row.currencyCountry);
   final ledgerTotal = row.total;
-  final approxDisplay = model.moneyInDisplayCurrency(ledgerTotal, accountCurrency);
+  final approxDisplay = model.moneyInDisplayCurrency(
+    ledgerTotal,
+    accountCurrency,
+  );
 
   return {
     'id': row.id,
@@ -68,11 +86,17 @@ Map<String, Object?> liabilityReviewLedgerPayload(AppModel model, LedgerLiabilit
     'currencyCountry': row.currencyCountry,
     'accountCurrency': accountCurrency.code,
     'ledgerTotal': ledgerTotal,
-    'ledgerTotalFormatted': formatCurrencyDisplay(ledgerTotal, currency: accountCurrency),
+    'ledgerTotalFormatted': formatCurrencyDisplay(
+      ledgerTotal,
+      currency: accountCurrency,
+    ),
     'interestRatePct': row.interestRatePct,
     'approxDisplayCurrency': model.displayCurrency.code,
     'approxDisplayTotal': approxDisplay,
-    'approxDisplayFormatted': formatCurrencyDisplay(approxDisplay, currency: model.displayCurrency),
+    'approxDisplayFormatted': formatCurrencyDisplay(
+      approxDisplay,
+      currency: model.displayCurrency,
+    ),
     'fxUsdPerUnit': fxUsdPerUnitPayload(model),
   };
 }

@@ -50,7 +50,7 @@ Do not commit `.env` or service-role keys.
 | `NEXT_PUBLIC_IOS_APP_URL` | App Store link on download page |
 | `NEXT_PUBLIC_ANDROID_APP_URL` | Play Store link on download page |
 | `NEXT_PUBLIC_APP_DEMO_VIDEO` | Optional demo video (default `/videos/demo.mp4`) |
-| `MAILBOX_INBOUND_DOMAIN` | Hermes mailbox domain (default `inbox.getzoro.com`) |
+| `MAILBOX_INBOUND_DOMAIN` | Optional Hermes receiving-domain override (default `getzoro.com`) |
 | `RESEND_INBOUND_WEBHOOK_SECRET` | Svix secret for `/api/webhooks/resend/inbound` |
 | `MAILBOX_RETENTION_HOURS` | Pending PDF TTL (default 48) |
 
@@ -96,47 +96,54 @@ Details: `zoro_flutter/TASKS.md` → Notifications.
 
 | Constant | Current value | Meaning |
 |----------|---------------|---------|
-| **Data layout version** | **`2`** | `app_state.json` is a manifest of file paths (`formatVersion` in manifest). Bump when files/paths/split rules change. Code: `kAppStateSplitLayoutVersion`. |
+| **Data layout version** | **`3`** | `app_state.json` is a manifest of file paths (`formatVersion` in manifest). Bump when files/paths/split rules change. Code: `kAppStateSplitLayoutVersion`. |
 | **Snapshot schema version** | **`2`** | JSON shape inside each linked file (ledger fields, settings keys, etc.). Bump when field semantics change. Code: `kAppStateFormatVersion` in `app_state_codec.dart`. |
-| **Agents index version** | **`1`** | `agents/_index.json` → `{ "version": 1, "ids": [...] }`. |
-| **Chats file version** | **`2`** | Inside `data/chats.json`. |
+| **Agents index version** | **`1`** | Legacy `agents/_index.json` is **not** used by the Flutter app. Skills live under `hermes_home/skills/`. |
+| **Chats file version** | **n/a** | Agent chat transcript is `hermes_home/chat/history.json`, not `data/chats.json`. |
 
-Legacy **layout v1**: one large `app_state.json` with everything inline. On first launch after upgrade, the app **migrates v1 → layout v2** automatically.
+Legacy **layout v1**: one large `app_state.json` with everything inline. On first launch after upgrade, the app **migrates v1 → split layout** automatically. Layout **v3** adds `hermes_home/` (docs, inbox, vault index, skills, cron, chat).
 
 ### Directory tree (Application Support)
 
 All paths are relative to the app’s application support directory (iOS/Android).
 
 ```
-app_state.json              # manifest only (layout version 2)
+app_state.json              # manifest only (layout version 3)
 data/
-  ledger.json               # assets, liabilities, income, expenses, cashflow, FX, projections
-  goals.json                # { "goals": [ ... ] }
-  settings.json             # UI, reminders, LLM model names (no agents list)
-  context.json              # context note timestamps (references only)
-  internal_agents.json      # built-in agent prompts / last runs
-  chats.json                # threads + messages
-agents/
-  _index.json               # agent id list
-  {agent-id}.json           # one file per user-defined agent
+  ledger.json
+  goals.json                # numeric goals; living plan is hermes_home/docs/retirement.md
+  settings.json
+  context.json
+  internal_agents.json
 context_markdown/
-  *.md                      # long markdown for ledger rows (sidecar refs in ledger.json)
+  *.md
+hermes_home/                # HERMES_HOME
+  config.yaml
+  AGENTS.md
+  SOUL.md
+  identity.json             # mailbox address — no secrets
+  vault_index.json          # file-type match rules — no passwords
+  docs/retirement.md
+  revisions/
+  inbox/
+  skills/
+  cron/
+  chat/history.json
+  log/agent.jsonl
 ```
 
 ### Manifest example (`app_state.json`)
 
 ```json
 {
-  "formatVersion": 2,
+  "formatVersion": 3,
   "savedAtMs": 1710000000000,
   "files": {
     "ledger": "data/ledger.json",
     "goals": "data/goals.json",
     "settings": "data/settings.json",
     "context": "data/context.json",
-    "internalAgents": "data/internal_agents.json",
-    "chats": "data/chats.json",
-    "agents": "agents"
+    "internalAgents": "data/internal_agents.json"
   }
 }
 ```
@@ -146,14 +153,13 @@ context_markdown/
 | File | Contents |
 |------|----------|
 | `data/ledger.json` | Portfolio numbers, expense buckets, monthly cashflow, allocation sliders, projection maps. Large per-row markdown stored under `context_markdown/` as `contextMarkdownRef`, not inline on disk. |
-| `data/goals.json` | Financial goals (retirement + targets). |
+| `data/goals.json` | Numeric goal rows; living retirement plan is `hermes_home/docs/retirement.md`. |
 | `data/settings.json` | Theme, currencies, notification prefs, reminder cadences, home summary text, active LLM provider. |
 | `data/context.json` | `noteSavedAtUtc` map (keys like `asset:id`, `month:yyyy-mm`). |
-| `data/internal_agents.json` | Overrides and last-run metadata for built-in agents (ledger orchestrator, goals guide, etc.). |
-| `data/chats.json` | Chat threads and messages. |
-| `agents/*.json` | User-defined agents (permissions, prompts, tools). |
+| `data/internal_agents.json` | Overrides and last-run metadata for built-in helpers still in Settings. |
+| `hermes_home/` | Agent house: docs, inbox, skills, cron, chat history. Secrets stay in Keychain. |
 
-**Not on disk in JSON:** API keys (Flutter secure storage).
+**Not on disk in JSON:** API keys, mailbox token, PDF passwords (Flutter secure storage / Keychain).
 
 ### Ledger export (portable file)
 
@@ -172,7 +178,7 @@ Single file for backup or transfer — **not** the same as the on-device split l
 
 - **`exportKind`:** `"ledger"` — import updates `data/ledger.json` only.  
 - **Inline markdown** in export (no sidecar `.md` refs) so the file is self-contained.  
-- **Import** of old full-app snapshots (if present) still replaces in-memory state and re-splits to layout v2.
+- **Import** of old full-app snapshots (if present) still replaces in-memory state and re-splits to the current layout.
 
 Implementation: `zoro_flutter/lib/core/persistence/app_state_transfer.dart`.
 

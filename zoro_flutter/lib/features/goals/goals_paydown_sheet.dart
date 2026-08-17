@@ -42,7 +42,8 @@ class _GoalsPaydownSheetState extends State<_GoalsPaydownSheet> {
   late TextEditingController _textCtrl;
   bool _syncing = false;
 
-  LedgerLiabilityRow? get _liability => widget.model.liabilityById(widget.liabilityId);
+  LedgerLiabilityRow? get _liability =>
+      widget.model.liabilityById(widget.liabilityId);
 
   double get _maxMonthly => widget.model.availableAfterExpensesMonthly;
 
@@ -65,7 +66,9 @@ class _GoalsPaydownSheetState extends State<_GoalsPaydownSheet> {
     _monthly = _liability?.paydownMonthly ?? 0;
     _syncing = true;
     _textCtrl.text = _formatInput(_monthly);
-    _textCtrl.selection = TextSelection.collapsed(offset: _textCtrl.text.length);
+    _textCtrl.selection = TextSelection.collapsed(
+      offset: _textCtrl.text.length,
+    );
     _syncing = false;
   }
 
@@ -89,7 +92,9 @@ class _GoalsPaydownSheetState extends State<_GoalsPaydownSheet> {
       _monthly = clamped;
       _syncing = true;
       _textCtrl.text = _formatInput(clamped);
-      _textCtrl.selection = TextSelection.collapsed(offset: _textCtrl.text.length);
+      _textCtrl.selection = TextSelection.collapsed(
+        offset: _textCtrl.text.length,
+      );
       _syncing = false;
     });
   }
@@ -114,7 +119,10 @@ class _GoalsPaydownSheetState extends State<_GoalsPaydownSheet> {
     final m = widget.model;
     final l = _liability;
     if (l == null) {
-      return const Padding(padding: EdgeInsets.all(16), child: Text('Debt not found'));
+      return const Padding(
+        padding: EdgeInsets.all(16),
+        child: Text('Debt not found'),
+      );
     }
 
     final hide = m.privacyHideAmounts;
@@ -137,7 +145,12 @@ class _GoalsPaydownSheetState extends State<_GoalsPaydownSheet> {
           Row(
             children: [
               Expanded(
-                child: Text(name, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
+                child: Text(
+                  name,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
               ),
               IconButton(
                 visualDensity: VisualDensity.compact,
@@ -148,13 +161,19 @@ class _GoalsPaydownSheetState extends State<_GoalsPaydownSheet> {
           ),
           Text(
             '${goalMoney(m, balance, hide: hide)} owed${payoff != null ? ' · $payoff' : ''}',
-            style: TextStyle(fontSize: 13, color: cs.onSurfaceVariant, fontWeight: FontWeight.w600),
+            style: TextStyle(
+              fontSize: 13,
+              color: cs.onSurfaceVariant,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           const SizedBox(height: 10),
           TextField(
             controller: _textCtrl,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[\d.,]'))],
+            inputFormatters: [
+              FilteringTextInputFormatter.allow(RegExp(r'[\d.,]')),
+            ],
             decoration: InputDecoration(
               labelText: 'Monthly paydown',
               isDense: true,
@@ -173,7 +192,10 @@ class _GoalsPaydownSheetState extends State<_GoalsPaydownSheet> {
             alignment: Alignment.centerRight,
             child: FilledButton(
               onPressed: _save,
-              child: const Text('Save', style: TextStyle(fontWeight: FontWeight.w800)),
+              child: const Text(
+                'Save',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
             ),
           ),
         ],

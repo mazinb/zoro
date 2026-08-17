@@ -25,7 +25,20 @@ double goalParseGroupedAmount(String raw) {
 
 String goalDateLabel(DateTime? d) {
   if (d == null) return 'No date';
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
   return '${months[d.month - 1]} ${d.year}';
 }
 
@@ -37,7 +50,11 @@ int? goalMonthsRemaining(DateTime? target) {
 
 /// e.g. `8 mo`, `3 yr`, `2 yr 4 mo`, `Past due`.
 /// One-line shortfall vs corpus (invest /mo toward target).
-String retirementMonthlyNeedLine(AppModel model, FinancialGoal goal, {bool hide = false}) {
+String retirementMonthlyNeedLine(
+  AppModel model,
+  FinancialGoal goal, {
+  bool hide = false,
+}) {
   final required = model.goalRequiredMonthlySavingsFor(goal);
   final invest = model.allocInvestmentsMonthly;
   if (goal.targetDate == null && required <= 0.5) return '';
@@ -65,7 +82,10 @@ String goalTimeToTargetLabel(DateTime? target) {
   return '$years yr $rem mo';
 }
 
-String? goalLiabilityPayoffDateLabel(AppModel model, LedgerLiabilityRow liability) {
+String? goalLiabilityPayoffDateLabel(
+  AppModel model,
+  LedgerLiabilityRow liability,
+) {
   final pay = model.liabilityPaydownMonthly(liability);
   if (pay <= 0) return null;
   final balance = model.liabilityDisplayValue(liability);
@@ -73,7 +93,20 @@ String? goalLiabilityPayoffDateLabel(AppModel model, LedgerLiabilityRow liabilit
   final months = (balance / pay).ceil();
   final now = DateTime.now();
   final paid = DateTime(now.year, now.month + months, now.day);
-  const names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const names = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
   return '${names[paid.month - 1]} ${paid.year}';
 }
 
@@ -139,7 +172,9 @@ class RetirementGoalProgressBar extends StatelessWidget {
     final borderColor = isDark
         ? cs.outline.withValues(alpha: 0.55)
         : cs.outlineVariant;
-    final dividerColor = isDark ? cs.outline.withValues(alpha: 0.95) : cs.outline;
+    final dividerColor = isDark
+        ? cs.outline.withValues(alpha: 0.95)
+        : cs.outline;
     const barHeight = 10.0;
     const dividerWidth = 2.0;
     const segmentGap = 1.0;
@@ -178,7 +213,9 @@ class RetirementGoalProgressBar extends StatelessWidget {
                               color: corpusTrack,
                               borderRadius: BorderRadius.horizontal(
                                 left: const Radius.circular(4),
-                                right: surplus > 0.5 ? Radius.zero : const Radius.circular(4),
+                                right: surplus > 0.5
+                                    ? Radius.zero
+                                    : const Radius.circular(4),
                               ),
                             ),
                           ),
@@ -190,7 +227,9 @@ class RetirementGoalProgressBar extends StatelessWidget {
                             child: DecoratedBox(
                               decoration: BoxDecoration(
                                 color: surplusTrack,
-                                borderRadius: const BorderRadius.horizontal(right: Radius.circular(4)),
+                                borderRadius: const BorderRadius.horizontal(
+                                  right: Radius.circular(4),
+                                ),
                               ),
                             ),
                           ),
@@ -206,10 +245,14 @@ class RetirementGoalProgressBar extends StatelessWidget {
                         child: Container(
                           width: (w - 2) * fillEnd,
                           decoration: BoxDecoration(
-                            color: inSurplus ? accent.withValues(alpha: 0.72) : accent,
+                            color: inSurplus
+                                ? accent.withValues(alpha: 0.72)
+                                : accent,
                             borderRadius: BorderRadius.horizontal(
                               left: const Radius.circular(4),
-                              right: fillEnd >= 0.995 ? const Radius.circular(4) : Radius.zero,
+                              right: fillEnd >= 0.995
+                                  ? const Radius.circular(4)
+                                  : Radius.zero,
                             ),
                           ),
                         ),
@@ -247,7 +290,11 @@ class RetirementGoalProgressBar extends StatelessWidget {
   }
 }
 
-String retirementAmountsLine(AppModel model, FinancialGoal goal, {bool hide = false}) {
+String retirementAmountsLine(
+  AppModel model,
+  FinancialGoal goal, {
+  bool hide = false,
+}) {
   final current = model.goalCurrentAmount(goal);
   final base = model.goalRetirementCorpusBaseAmount(goal);
   final surplus = model.goalRetirementSurplusTotal(goal);
@@ -271,10 +318,7 @@ class GoalCardShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final panel = LiquidGlassPanel(
-      padding: padding,
-      child: child,
-    );
+    final panel = LiquidGlassPanel(padding: padding, child: child);
     if (onTap == null) return panel;
     return Material(
       color: Colors.transparent,
@@ -306,9 +350,13 @@ class GoalSavingsChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(10),
-        color: highlight ? cs.primary.withValues(alpha: 0.14) : cs.surfaceContainerHigh,
+        color: highlight
+            ? cs.primary.withValues(alpha: 0.14)
+            : cs.surfaceContainerHigh,
         border: Border.all(
-          color: highlight ? cs.primary.withValues(alpha: 0.4) : cs.outlineVariant,
+          color: highlight
+              ? cs.primary.withValues(alpha: 0.4)
+              : cs.outlineVariant,
         ),
       ),
       child: Column(
@@ -348,5 +396,6 @@ String goalAssetLabel(AppModel model, String assetId) {
 }
 
 IconData goalAssetIcon(AppModel model, String assetId) {
-  return model.assetById(assetId)?.type.icon ?? Icons.account_balance_wallet_outlined;
+  return model.assetById(assetId)?.type.icon ??
+      Icons.account_balance_wallet_outlined;
 }

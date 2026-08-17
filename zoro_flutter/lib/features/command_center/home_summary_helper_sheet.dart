@@ -20,7 +20,8 @@ class _HomeSummaryHelperSheet extends StatefulWidget {
   final AppModel model;
 
   @override
-  State<_HomeSummaryHelperSheet> createState() => _HomeSummaryHelperSheetState();
+  State<_HomeSummaryHelperSheet> createState() =>
+      _HomeSummaryHelperSheetState();
 }
 
 class _HomeSummaryHelperSheetState extends State<_HomeSummaryHelperSheet> {
@@ -70,7 +71,10 @@ class _HomeSummaryHelperSheetState extends State<_HomeSummaryHelperSheet> {
     final now = DateTime.now();
     final nextFocus = _orderedSelected.isEmpty
         ? null
-        : homeSummaryDomainAtRotationIndex(_orderedSelected, _previewRotationIndex);
+        : homeSummaryDomainAtRotationIndex(
+            _orderedSelected,
+            _previewRotationIndex,
+          );
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
@@ -78,51 +82,63 @@ class _HomeSummaryHelperSheetState extends State<_HomeSummaryHelperSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-            Text(
-              'Home summary helper',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+          Text(
+            'Home summary helper',
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            _lastRunLine(now),
+            style: TextStyle(
+              color: cs.onSurfaceVariant,
+              fontWeight: FontWeight.w600,
             ),
-            const SizedBox(height: 6),
-            Text(
-              _lastRunLine(now),
-              style: TextStyle(color: cs.onSurfaceVariant, fontWeight: FontWeight.w600),
-            ),
-            if (nextFocus != null) ...[
-              const SizedBox(height: 4),
-              Text(
-                'Next up: ${nextFocus.label}',
-                style: TextStyle(color: cs.outline, fontSize: 13),
-              ),
-            ],
+          ),
+          if (nextFocus != null) ...[
             const SizedBox(height: 4),
             Text(
-              'Runs once per day when you open the app. Pick which topics stay in rotation.',
-              style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13, height: 1.35),
-            ),
-            const SizedBox(height: 12),
-            for (final d in HomeSummaryFocusDomain.values)
-              CheckboxListTile(
-                contentPadding: EdgeInsets.zero,
-                controlAffinity: ListTileControlAffinity.leading,
-                title: Text(d.label, style: const TextStyle(fontWeight: FontWeight.w700)),
-                value: _selected.contains(d),
-                onChanged: (on) {
-                  setState(() {
-                    if (on == true) {
-                      _selected.add(d);
-                    } else if (_selected.length > 1) {
-                      _selected.remove(d);
-                    }
-                  });
-                },
-              ),
-            const SizedBox(height: 8),
-            FilledButton(
-              onPressed: _selected.isEmpty ? null : _save,
-              child: const Text('Save'),
+              'Next up: ${nextFocus.label}',
+              style: TextStyle(color: cs.outline, fontSize: 13),
             ),
           ],
-        ),
+          const SizedBox(height: 4),
+          Text(
+            'Runs once per day when you open the app. Pick which topics stay in rotation.',
+            style: TextStyle(
+              color: cs.onSurfaceVariant,
+              fontSize: 13,
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: 12),
+          for (final d in HomeSummaryFocusDomain.values)
+            CheckboxListTile(
+              contentPadding: EdgeInsets.zero,
+              controlAffinity: ListTileControlAffinity.leading,
+              title: Text(
+                d.label,
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+              value: _selected.contains(d),
+              onChanged: (on) {
+                setState(() {
+                  if (on == true) {
+                    _selected.add(d);
+                  } else if (_selected.length > 1) {
+                    _selected.remove(d);
+                  }
+                });
+              },
+            ),
+          const SizedBox(height: 8),
+          FilledButton(
+            onPressed: _selected.isEmpty ? null : _save,
+            child: const Text('Save'),
+          ),
+        ],
+      ),
     );
   }
 }

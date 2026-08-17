@@ -25,7 +25,11 @@ const _kOnboardingFxPickerOptions = <CurrencyCode>[
 
 /// First-run setup: currencies → income → expense estimates.
 class OnboardingFlowPage extends StatefulWidget {
-  const OnboardingFlowPage({super.key, required this.model, required this.onComplete});
+  const OnboardingFlowPage({
+    super.key,
+    required this.model,
+    required this.onComplete,
+  });
 
   final AppModel model;
   final VoidCallback onComplete;
@@ -96,9 +100,13 @@ class _OnboardingFlowPageState extends State<OnboardingFlowPage> {
 
   double get _netMonthlyIncomeUsd {
     // Approx in USD for onboarding heuristics only.
-    double toUsd(double v, CurrencyCode c) => convertCurrency(value: v, from: c, to: CurrencyCode.usd);
+    double toUsd(double v, CurrencyCode c) =>
+        convertCurrency(value: v, from: c, to: CurrencyCode.usd);
     final salaryAnnualUsd = toUsd(_annualFromSalaryField(), _salaryCcy);
-    final bonusAnnualUsd = toUsd((_parseIncomeField(_bonusCtrl) ?? 0), _bonusCcy);
+    final bonusAnnualUsd = toUsd(
+      (_parseIncomeField(_bonusCtrl) ?? 0),
+      _bonusCcy,
+    );
     final rsuAnnualUsd = toUsd((_parseIncomeField(_rsuCtrl) ?? 0), _rsuCcy);
     final grossAnnual = salaryAnnualUsd + bonusAnnualUsd + rsuAnnualUsd;
     final tax = double.tryParse(_taxCtrl.text.trim()) ?? 0;
@@ -123,24 +131,31 @@ class _OnboardingFlowPageState extends State<OnboardingFlowPage> {
     final fx = <CurrencyCode, double>{};
     for (final c in [_pick1, _pick2]) {
       if (c == null || c == CurrencyCode.usd) continue;
-      final perUsd = double.tryParse(_fxController(c).text.trim().replaceAll(',', ''));
+      final perUsd = double.tryParse(
+        _fxController(c).text.trim().replaceAll(',', ''),
+      );
       if (perUsd != null && perUsd > 0) fx[c] = 1 / perUsd;
     }
     return fx;
   }
 
   List<StructuredGuideStep> get _expenseSteps => onboardingExpenseMcqSteps(
-        netMonthlyIncomeUsd: _netMonthlyIncomeUsd,
-        hintCurrency: _salaryCcy,
-        usdPerUnitOverrides: _fxUsdPerUnitOverrides,
-      );
+    netMonthlyIncomeUsd: _netMonthlyIncomeUsd,
+    hintCurrency: _salaryCcy,
+    usdPerUnitOverrides: _fxUsdPerUnitOverrides,
+  );
 
   StructuredGuideStep? get _currentExpenseStep =>
-      _expenseSubStep < _expenseSteps.length ? _expenseSteps[_expenseSubStep] : null;
+      _expenseSubStep < _expenseSteps.length
+      ? _expenseSteps[_expenseSubStep]
+      : null;
 
-  bool get _onExpenseManualStep => _mainStep == 2 && _expenseManual && _expenseSubStep == -1;
-  bool get _onExpenseNoteStep => _mainStep == 2 && _expenseSubStep == _expenseSteps.length;
-  bool get _onExpenseDummyStep => _mainStep == 2 && _expenseSubStep == _expenseSteps.length + 1;
+  bool get _onExpenseManualStep =>
+      _mainStep == 2 && _expenseManual && _expenseSubStep == -1;
+  bool get _onExpenseNoteStep =>
+      _mainStep == 2 && _expenseSubStep == _expenseSteps.length;
+  bool get _onExpenseDummyStep =>
+      _mainStep == 2 && _expenseSubStep == _expenseSteps.length + 1;
 
   bool get _canContinueExpense {
     if (_onExpenseManualStep) return true;
@@ -213,7 +228,9 @@ class _OnboardingFlowPageState extends State<OnboardingFlowPage> {
   TextEditingController _bucketCtrl(String key, double initial) {
     return _manualBucketCtrls.putIfAbsent(
       key,
-      () => TextEditingController(text: formatGroupedInteger(initial.round(), currency: _expenseCcy)),
+      () => TextEditingController(
+        text: formatGroupedInteger(initial.round(), currency: _expenseCcy),
+      ),
     );
   }
 
@@ -262,10 +279,12 @@ class _OnboardingFlowPageState extends State<OnboardingFlowPage> {
     final q = _currentExpenseStep;
     if (q == null || !_canContinueExpense) return;
     setState(() {
-      _expenseAnswers.add(StructuredGuideAnswer(
-        questionId: q.id,
-        selectedIds: Set<String>.from(_expenseSelected),
-      ));
+      _expenseAnswers.add(
+        StructuredGuideAnswer(
+          questionId: q.id,
+          selectedIds: Set<String>.from(_expenseSelected),
+        ),
+      );
       _expenseSelected.clear();
       _expenseSubStep++;
     });
@@ -297,13 +316,17 @@ class _OnboardingFlowPageState extends State<OnboardingFlowPage> {
     final fx = <CurrencyCode, double>{};
     for (final c in [primary, ?_pick2]) {
       if (c == CurrencyCode.usd) continue;
-      final perUsd = double.tryParse(_fxController(c).text.trim().replaceAll(',', ''));
+      final perUsd = double.tryParse(
+        _fxController(c).text.trim().replaceAll(',', ''),
+      );
       if (perUsd != null && perUsd > 0) fx[c] = perUsd;
     }
 
     Map<String, double> buckets;
     if (_expenseManual) {
-      buckets = {for (final k in recurringExpenseBucketKeys) k: _parseBucketCtrl(k)};
+      buckets = {
+        for (final k in recurringExpenseBucketKeys) k: _parseBucketCtrl(k),
+      };
     } else {
       buckets = deterministicOnboardingExpenseBuckets(
         displayCurrency: _expenseCcy,
@@ -334,9 +357,13 @@ class _OnboardingFlowPageState extends State<OnboardingFlowPage> {
       unitsPerUsdByCurrency: fx,
       salaryAnnual: _annualFromSalaryField(),
       salaryCurrency: _salaryCcy,
-      bonusAnnual: (_parseIncomeField(_bonusCtrl) ?? 0) > 0 ? (_parseIncomeField(_bonusCtrl) ?? 0) : null,
+      bonusAnnual: (_parseIncomeField(_bonusCtrl) ?? 0) > 0
+          ? (_parseIncomeField(_bonusCtrl) ?? 0)
+          : null,
       bonusCurrency: _bonusCcy,
-      rsuAnnual: (_parseIncomeField(_rsuCtrl) ?? 0) > 0 ? (_parseIncomeField(_rsuCtrl) ?? 0) : null,
+      rsuAnnual: (_parseIncomeField(_rsuCtrl) ?? 0) > 0
+          ? (_parseIncomeField(_rsuCtrl) ?? 0)
+          : null,
       rsuCurrency: _rsuCcy,
       effectiveTaxRatePct: double.tryParse(_taxCtrl.text.trim()),
       expenseBucketsMonthly: buckets,
@@ -387,7 +414,10 @@ class _OnboardingFlowPageState extends State<OnboardingFlowPage> {
         leading: _mainStep > 0
             ? IconButton(icon: const Icon(Icons.arrow_back), onPressed: _back)
             : null,
-        title: const Text('Welcome to Zoro', style: TextStyle(fontWeight: FontWeight.w900)),
+        title: const Text(
+          'Welcome to Zoro',
+          style: TextStyle(fontWeight: FontWeight.w900),
+        ),
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
@@ -417,83 +447,91 @@ class _OnboardingFlowPageState extends State<OnboardingFlowPage> {
                 Expanded(
                   child: switch (_mainStep) {
                     0 => _CurrencyStep(
-                        pick1: _pick1,
-                        pick2: _pick2,
-                        fxController: _fxController,
-                        onPick1: (c) => setState(() => _pick1 = c),
-                        onPick2: (c) => setState(() => _pick2 = c),
-                      ),
+                      pick1: _pick1,
+                      pick2: _pick2,
+                      fxController: _fxController,
+                      onPick1: (c) => setState(() => _pick1 = c),
+                      onPick2: (c) => setState(() => _pick2 = c),
+                    ),
                     1 => _IncomeStep(
-                        monthly: _incomeMonthly,
-                        onMonthlyChanged: (v) => setState(() => _incomeMonthly = v),
-                        salaryCtrl: _salaryCtrl,
-                        bonusCtrl: _bonusCtrl,
-                        rsuCtrl: _rsuCtrl,
-                        taxCtrl: _taxCtrl,
-                        salaryCcy: _salaryCcy,
-                        bonusCcy: _bonusCcy,
-                        rsuCcy: _rsuCcy,
-                        onSalaryCcy: (c) => setState(() => _salaryCcy = c),
-                        onBonusCcy: (c) => setState(() => _bonusCcy = c),
-                        onRsuCcy: (c) => setState(() => _rsuCcy = c),
-                        onFieldChanged: () => setState(() {}),
-                      ),
-                    _ => _finishing && _addDummyData == true
-                        ? _DemoLedgerSetupStep(
-                            primaryCurrency: _salaryCcy,
-                            enabledCurrencies: {
-                              _salaryCcy,
-                              _primaryCurrency,
-                              ?_pick2,
-                            },
-                          )
-                        : _onExpenseDummyStep
-                            ? _DummyDataStep(
-                                value: _addDummyData,
-                                onChanged: (v) => setState(() => _addDummyData = v),
-                              )
-                            : _onExpenseNoteStep
-                            ? _ExpenseNoteStep(controller: _expenseNoteCtrl, finishing: _finishing)
-                            : _onExpenseManualStep
-                                ? _ExpenseManualStep(
-                                    expenseCurrency: _expenseCcy,
-                                    currencyOptions: _expenseCurrencyOptions,
-                                    onExpenseCurrency: (c) => setState(() => _expenseCcy = c),
-                                    bucketCtrl: _bucketCtrl,
-                                    bucketInitial: _manualBucketInitial,
-                                    onSwitchToMcq: () => setState(() {
-                                      _expenseManual = false;
-                                      _expenseSubStep = 0;
-                                    }),
-                                  )
-                                : _ExpenseMcqStep(
-                                    step: _currentExpenseStep!,
-                                    subIndex: _expenseSubStep,
-                                    subTotal: _expenseSteps.length,
-                                    expenseCurrency: _expenseCcy,
-                                    currencyOptions: _expenseCurrencyOptions,
-                                    onExpenseCurrency: (c) => setState(() => _expenseCcy = c),
-                                    selected: _expenseSelected,
-                                    onSelect: (id, multi) {
-                                      setState(() {
-                                        if (multi) {
-                                          if (_expenseSelected.contains(id)) {
-                                            _expenseSelected.remove(id);
-                                          } else {
-                                            _expenseSelected.add(id);
-                                          }
-                                        } else {
-                                          _expenseSelected
-                                            ..clear()
-                                            ..add(id);
-                                        }
-                                      });
-                                    },
-                                    onSkipToManual: () => setState(() {
-                                      _expenseManual = true;
-                                      _expenseSubStep = -1;
-                                    }),
-                                  ),
+                      monthly: _incomeMonthly,
+                      onMonthlyChanged: (v) =>
+                          setState(() => _incomeMonthly = v),
+                      salaryCtrl: _salaryCtrl,
+                      bonusCtrl: _bonusCtrl,
+                      rsuCtrl: _rsuCtrl,
+                      taxCtrl: _taxCtrl,
+                      salaryCcy: _salaryCcy,
+                      bonusCcy: _bonusCcy,
+                      rsuCcy: _rsuCcy,
+                      onSalaryCcy: (c) => setState(() => _salaryCcy = c),
+                      onBonusCcy: (c) => setState(() => _bonusCcy = c),
+                      onRsuCcy: (c) => setState(() => _rsuCcy = c),
+                      onFieldChanged: () => setState(() {}),
+                    ),
+                    _ =>
+                      _finishing && _addDummyData == true
+                          ? _DemoLedgerSetupStep(
+                              primaryCurrency: _salaryCcy,
+                              enabledCurrencies: {
+                                _salaryCcy,
+                                _primaryCurrency,
+                                ?_pick2,
+                              },
+                            )
+                          : _onExpenseDummyStep
+                          ? _DummyDataStep(
+                              value: _addDummyData,
+                              onChanged: (v) =>
+                                  setState(() => _addDummyData = v),
+                            )
+                          : _onExpenseNoteStep
+                          ? _ExpenseNoteStep(
+                              controller: _expenseNoteCtrl,
+                              finishing: _finishing,
+                            )
+                          : _onExpenseManualStep
+                          ? _ExpenseManualStep(
+                              expenseCurrency: _expenseCcy,
+                              currencyOptions: _expenseCurrencyOptions,
+                              onExpenseCurrency: (c) =>
+                                  setState(() => _expenseCcy = c),
+                              bucketCtrl: _bucketCtrl,
+                              bucketInitial: _manualBucketInitial,
+                              onSwitchToMcq: () => setState(() {
+                                _expenseManual = false;
+                                _expenseSubStep = 0;
+                              }),
+                            )
+                          : _ExpenseMcqStep(
+                              step: _currentExpenseStep!,
+                              subIndex: _expenseSubStep,
+                              subTotal: _expenseSteps.length,
+                              expenseCurrency: _expenseCcy,
+                              currencyOptions: _expenseCurrencyOptions,
+                              onExpenseCurrency: (c) =>
+                                  setState(() => _expenseCcy = c),
+                              selected: _expenseSelected,
+                              onSelect: (id, multi) {
+                                setState(() {
+                                  if (multi) {
+                                    if (_expenseSelected.contains(id)) {
+                                      _expenseSelected.remove(id);
+                                    } else {
+                                      _expenseSelected.add(id);
+                                    }
+                                  } else {
+                                    _expenseSelected
+                                      ..clear()
+                                      ..add(id);
+                                  }
+                                });
+                              },
+                              onSkipToManual: () => setState(() {
+                                _expenseManual = true;
+                                _expenseSubStep = -1;
+                              }),
+                            ),
                   },
                 ),
                 const SizedBox(height: 12),
@@ -505,9 +543,11 @@ class _OnboardingFlowPageState extends State<OnboardingFlowPage> {
                           1 => _canNextIncome ? _next : null,
                           _ => _canContinueExpense ? _next : null,
                         },
-                  child: Text(_mainStep == 2 && _onExpenseDummyStep
-                      ? (_finishing ? 'Setting up…' : 'Get started')
-                      : 'Next'),
+                  child: Text(
+                    _mainStep == 2 && _onExpenseDummyStep
+                        ? (_finishing ? 'Setting up…' : 'Get started')
+                        : 'Next',
+                  ),
                 ),
               ],
             ),
@@ -519,7 +559,11 @@ class _OnboardingFlowPageState extends State<OnboardingFlowPage> {
 }
 
 class _StepBar extends StatelessWidget {
-  const _StepBar({required this.mainStep, required this.accent, required this.cs});
+  const _StepBar({
+    required this.mainStep,
+    required this.accent,
+    required this.cs,
+  });
 
   final int mainStep;
   final Color accent;
@@ -533,7 +577,10 @@ class _StepBar extends StatelessWidget {
         children: [
           Text(
             'Step ${mainStep + 1} of 3',
-            style: TextStyle(fontWeight: FontWeight.w900, color: cs.onSurfaceVariant),
+            style: TextStyle(
+              fontWeight: FontWeight.w900,
+              color: cs.onSurfaceVariant,
+            ),
           ),
           const Spacer(),
           for (var i = 0; i < 3; i++)
@@ -541,7 +588,9 @@ class _StepBar extends StatelessWidget {
               padding: const EdgeInsets.only(left: 6),
               child: CircleAvatar(
                 radius: 14,
-                backgroundColor: i <= mainStep ? accent : accent.withValues(alpha: 0.15),
+                backgroundColor: i <= mainStep
+                    ? accent
+                    : accent.withValues(alpha: 0.15),
                 child: Text(
                   '${i + 1}',
                   style: TextStyle(
@@ -580,12 +629,20 @@ class _CurrencyStep extends StatelessWidget {
       children: [
         Text(
           'Currencies',
-          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17, color: cs.onSurface),
+          style: TextStyle(
+            fontWeight: FontWeight.w900,
+            fontSize: 17,
+            color: cs.onSurface,
+          ),
         ),
         const SizedBox(height: 6),
         Text(
           'Pick your income currency. USD is only used as the reference for exchange rates.',
-          style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13, height: 1.35),
+          style: TextStyle(
+            color: cs.onSurfaceVariant,
+            fontSize: 13,
+            height: 1.35,
+          ),
         ),
         const SizedBox(height: 16),
         LiquidGlassPanel(
@@ -594,9 +651,22 @@ class _CurrencyStep extends StatelessWidget {
             children: [
               const Text('🇺🇸', style: TextStyle(fontSize: 28)),
               const SizedBox(width: 12),
-              Text('USD', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: cs.onSurface)),
+              Text(
+                'USD',
+                style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 16,
+                  color: cs.onSurface,
+                ),
+              ),
               const Spacer(),
-              Text('Default', style: TextStyle(fontWeight: FontWeight.w700, color: cs.onSurfaceVariant)),
+              Text(
+                'Default',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: cs.onSurfaceVariant,
+                ),
+              ),
             ],
           ),
         ),
@@ -643,7 +713,9 @@ class _CurrencyPickCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final options = _kOnboardingFxPickerOptions.where((c) => c != exclude).toList();
+    final options = _kOnboardingFxPickerOptions
+        .where((c) => c != exclude)
+        .toList();
 
     return LiquidGlassPanel(
       padding: const EdgeInsets.fromLTRB(14, 10, 14, 6),
@@ -655,12 +727,18 @@ class _CurrencyPickCard extends StatelessWidget {
           border: InputBorder.none,
           isDense: true,
         ),
-        hint: Text('Select currency', style: TextStyle(color: cs.onSurfaceVariant)),
+        hint: Text(
+          'Select currency',
+          style: TextStyle(color: cs.onSurfaceVariant),
+        ),
         items: [
           for (final c in options)
             DropdownMenuItem(
               value: c,
-              child: Text('${c.flag} ${c.code} · ${c.symbol}', style: const TextStyle(fontWeight: FontWeight.w800)),
+              child: Text(
+                '${c.flag} ${c.code} · ${c.symbol}',
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
             ),
         ],
         onChanged: onChanged,
@@ -690,19 +768,26 @@ class _FxRateRow extends StatelessWidget {
             width: 88,
             child: TextField(
               controller: controller,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
               textAlign: TextAlign.center,
               style: const TextStyle(fontWeight: FontWeight.w900),
               decoration: InputDecoration(
                 isDense: true,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
               ),
             ),
           ),
           const SizedBox(width: 8),
           Text(
             '${currency.flag} ${currency.code}',
-            style: TextStyle(fontWeight: FontWeight.w800, color: cs.onSurfaceVariant),
+            style: TextStyle(
+              fontWeight: FontWeight.w800,
+              color: cs.onSurfaceVariant,
+            ),
           ),
         ],
       ),
@@ -748,11 +833,22 @@ class _IncomeStep extends StatelessWidget {
 
     return ListView(
       children: [
-        Text('Income', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17, color: cs.onSurface)),
+        Text(
+          'Income',
+          style: TextStyle(
+            fontWeight: FontWeight.w900,
+            fontSize: 17,
+            color: cs.onSurface,
+          ),
+        ),
         const SizedBox(height: 6),
         Text(
           'Pick a currency per line. Bonus and RSUs are annual (optional).',
-          style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13, height: 1.35),
+          style: TextStyle(
+            color: cs.onSurfaceVariant,
+            fontSize: 13,
+            height: 1.35,
+          ),
         ),
         const SizedBox(height: 14),
         LiquidGlassPanel(
@@ -885,7 +981,10 @@ class _ExpenseCurrencyPicker extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Expense estimates in', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13)),
+        Text(
+          'Expense estimates in',
+          style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13),
+        ),
         const SizedBox(height: 8),
         Wrap(
           spacing: 8,
@@ -938,7 +1037,11 @@ class _ExpenseMcqStep extends StatelessWidget {
       children: [
         Text(
           'Monthly expenses',
-          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17, color: cs.onSurface),
+          style: TextStyle(
+            fontWeight: FontWeight.w900,
+            fontSize: 17,
+            color: cs.onSurface,
+          ),
         ),
         if (subIndex == 0) ...[
           _ExpenseCurrencyPicker(
@@ -949,7 +1052,11 @@ class _ExpenseMcqStep extends StatelessWidget {
         ],
         Text(
           'Question ${subIndex + 1} of $subTotal',
-          style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.w700),
+          style: TextStyle(
+            color: cs.onSurfaceVariant,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
         ),
         Align(
           alignment: Alignment.centerRight,
@@ -959,10 +1066,18 @@ class _ExpenseMcqStep extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
-        Text(step.prompt, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
+        Text(
+          step.prompt,
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+        ),
         if (step.hint != null) ...[
           const SizedBox(height: 6),
-          Text(step.hint!, style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12)),
+          Text(
+            step.hint!,
+            style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12),
+          ),
         ],
         const SizedBox(height: 12),
         Expanded(
@@ -1015,16 +1130,27 @@ class _ExpenseManualStep extends StatelessWidget {
             Expanded(
               child: Text(
                 'Monthly expenses',
-                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17, color: cs.onSurface),
+                style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 17,
+                  color: cs.onSurface,
+                ),
               ),
             ),
-            TextButton(onPressed: onSwitchToMcq, child: const Text('Quick questions')),
+            TextButton(
+              onPressed: onSwitchToMcq,
+              child: const Text('Quick questions'),
+            ),
           ],
         ),
         const SizedBox(height: 6),
         Text(
           'Pick a currency, then type monthly estimates. You can refine later in Ledger.',
-          style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13, height: 1.35),
+          style: TextStyle(
+            color: cs.onSurfaceVariant,
+            fontSize: 13,
+            height: 1.35,
+          ),
         ),
         const SizedBox(height: 10),
         _ExpenseCurrencyPicker(
@@ -1036,7 +1162,9 @@ class _ExpenseManualStep extends StatelessWidget {
           TextField(
             controller: bucketCtrl(k, bucketInitial(k)),
             keyboardType: TextInputType.number,
-            inputFormatters: [GroupedIntegerTextInputFormatter(currency: expenseCurrency)],
+            inputFormatters: [
+              GroupedIntegerTextInputFormatter(currency: expenseCurrency),
+            ],
             decoration: InputDecoration(
               labelText: preset.buckets[k]!.label,
               prefixText: expenseCurrency.symbol,
@@ -1071,12 +1199,10 @@ class _DemoLedgerSetupStep extends StatelessWidget {
       primaryCurrency: primaryCurrency,
       secondaryCurrency: secondary,
       enabledCurrencies: enabledCurrencies,
-    )
-        .map((t) => t['name']?.toString() ?? 'Asset')
-        .toList();
-    final liabilityNames = OnboardingDummyTemplates.liabilityTemplates(primaryCurrency)
-        .map((t) => t['name']?.toString() ?? 'Liability')
-        .toList();
+    ).map((t) => t['name']?.toString() ?? 'Asset').toList();
+    final liabilityNames = OnboardingDummyTemplates.liabilityTemplates(
+      primaryCurrency,
+    ).map((t) => t['name']?.toString() ?? 'Liability').toList();
 
     Widget row(String label) {
       return Padding(
@@ -1088,13 +1214,19 @@ class _DemoLedgerSetupStep extends StatelessWidget {
               SizedBox(
                 width: 22,
                 height: 22,
-                child: CircularProgressIndicator(strokeWidth: 2, color: cs.primary),
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: cs.primary,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Text(
                   label,
-                  style: TextStyle(fontWeight: FontWeight.w800, color: cs.onSurface.withValues(alpha: 0.55)),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: cs.onSurface.withValues(alpha: 0.55),
+                  ),
                 ),
               ),
             ],
@@ -1107,19 +1239,41 @@ class _DemoLedgerSetupStep extends StatelessWidget {
       children: [
         Text(
           'Building your demo ledger',
-          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17, color: cs.onSurface),
+          style: TextStyle(
+            fontWeight: FontWeight.w900,
+            fontSize: 17,
+            color: cs.onSurface,
+          ),
         ),
         const SizedBox(height: 6),
         Text(
           'Tailoring sample assets and loans to your currencies…',
-          style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13, height: 1.35),
+          style: TextStyle(
+            color: cs.onSurfaceVariant,
+            fontSize: 13,
+            height: 1.35,
+          ),
         ),
         const SizedBox(height: 16),
-        Text('Assets', style: TextStyle(fontWeight: FontWeight.w800, color: cs.onSurfaceVariant, fontSize: 12)),
+        Text(
+          'Assets',
+          style: TextStyle(
+            fontWeight: FontWeight.w800,
+            color: cs.onSurfaceVariant,
+            fontSize: 12,
+          ),
+        ),
         const SizedBox(height: 8),
         for (final n in assetNames) row(n),
         const SizedBox(height: 12),
-        Text('Liabilities', style: TextStyle(fontWeight: FontWeight.w800, color: cs.onSurfaceVariant, fontSize: 12)),
+        Text(
+          'Liabilities',
+          style: TextStyle(
+            fontWeight: FontWeight.w800,
+            color: cs.onSurfaceVariant,
+            fontSize: 12,
+          ),
+        ),
         const SizedBox(height: 8),
         for (final n in liabilityNames) row(n),
       ],
@@ -1137,7 +1291,11 @@ class _DummyDataStep extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final accent = Theme.of(context).colorScheme.primary;
-    Widget option({required bool v, required String title, required String subtitle}) {
+    Widget option({
+      required bool v,
+      required String title,
+      required String subtitle,
+    }) {
       final selected = value == v;
       return Material(
         color: Colors.transparent,
@@ -1157,9 +1315,19 @@ class _DummyDataStep extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
+                      Text(
+                        title,
+                        style: const TextStyle(fontWeight: FontWeight.w900),
+                      ),
                       const SizedBox(height: 4),
-                      Text(subtitle, style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12, height: 1.35)),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          color: cs.onSurfaceVariant,
+                          fontSize: 12,
+                          height: 1.35,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -1172,24 +1340,32 @@ class _DummyDataStep extends StatelessWidget {
 
     return ListView(
       children: [
-        Text('Demo data', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17, color: cs.onSurface)),
+        Text(
+          'Demo data',
+          style: TextStyle(
+            fontWeight: FontWeight.w900,
+            fontSize: 17,
+            color: cs.onSurface,
+          ),
+        ),
         const SizedBox(height: 6),
         Text(
           'Add example assets and liabilities (condo, investments, loans) tailored to your currencies. Cash-flow months stay empty until you add them.',
-          style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13, height: 1.35),
+          style: TextStyle(
+            color: cs.onSurfaceVariant,
+            fontSize: 13,
+            height: 1.35,
+          ),
         ),
         const SizedBox(height: 14),
         option(
           v: true,
           title: 'Add demo ledger',
-          subtitle: 'Sample condo, brokerage, and loans — removable if untouched.',
+          subtitle:
+              'Sample condo, brokerage, and loans — removable if untouched.',
         ),
         const SizedBox(height: 10),
-        option(
-          v: false,
-          title: 'No thanks',
-          subtitle: 'Start clean.',
-        ),
+        option(v: false, title: 'No thanks', subtitle: 'Start clean.'),
       ],
     );
   }
@@ -1208,12 +1384,20 @@ class _ExpenseNoteStep extends StatelessWidget {
       children: [
         Text(
           'Anything else about your spending?',
-          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17, color: cs.onSurface),
+          style: TextStyle(
+            fontWeight: FontWeight.w900,
+            fontSize: 17,
+            color: cs.onSurface,
+          ),
         ),
         const SizedBox(height: 6),
         Text(
           'Optional. On supported iPhones, Apple Intelligence adjusts your budget buckets from this note. Otherwise we use your answers above.',
-          style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13, height: 1.35),
+          style: TextStyle(
+            color: cs.onSurfaceVariant,
+            fontSize: 13,
+            height: 1.35,
+          ),
         ),
         const SizedBox(height: 14),
         LiquidGlassPanel(
@@ -1224,7 +1408,8 @@ class _ExpenseNoteStep extends StatelessWidget {
             minLines: 4,
             maxLines: 6,
             decoration: const InputDecoration(
-              hintText: 'e.g. high rent in NYC, eat out often, two kids in school…',
+              hintText:
+                  'e.g. high rent in NYC, eat out often, two kids in school…',
               border: InputBorder.none,
             ),
           ),
@@ -1270,7 +1455,13 @@ class _GlassChoiceTile extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: Text(label, style: TextStyle(fontWeight: FontWeight.w800, color: cs.onSurface)),
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    color: cs.onSurface,
+                  ),
+                ),
               ),
             ],
           ),

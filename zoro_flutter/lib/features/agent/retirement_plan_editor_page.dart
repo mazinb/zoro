@@ -11,7 +11,8 @@ class RetirementPlanEditorPage extends StatefulWidget {
   final AppModel model;
 
   @override
-  State<RetirementPlanEditorPage> createState() => _RetirementPlanEditorPageState();
+  State<RetirementPlanEditorPage> createState() =>
+      _RetirementPlanEditorPageState();
 }
 
 class _RetirementPlanEditorPageState extends State<RetirementPlanEditorPage> {
@@ -30,7 +31,11 @@ class _RetirementPlanEditorPageState extends State<RetirementPlanEditorPage> {
   }
 
   Future<void> _loadRevs() async {
-    final revs = await widget.model.agentWorkspace.documents?.listRevs(HermesHomePaths.retirementDocId) ?? [];
+    final revs =
+        await widget.model.agentWorkspace.documents?.listRevs(
+          HermesHomePaths.retirementDocId,
+        ) ??
+        [];
     if (mounted) setState(() => _revs = revs);
   }
 
@@ -44,11 +49,18 @@ class _RetirementPlanEditorPageState extends State<RetirementPlanEditorPage> {
   Future<void> _save() async {
     setState(() => _busy = true);
     try {
-      final reason = _reasonCtrl.text.trim().isEmpty ? 'manual edit' : _reasonCtrl.text.trim();
-      await widget.model.commitRetirementPlan(markdown: _ctrl.text, reason: reason);
+      final reason = _reasonCtrl.text.trim().isEmpty
+          ? 'manual edit'
+          : _reasonCtrl.text.trim();
+      await widget.model.commitRetirementPlan(
+        markdown: _ctrl.text,
+        reason: reason,
+      );
       await _loadRevs();
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Plan saved as a new revision.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Plan saved as a new revision.')),
+        );
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -58,8 +70,10 @@ class _RetirementPlanEditorPageState extends State<RetirementPlanEditorPage> {
   Future<void> _openRev(DocRevisionMeta meta) async {
     final store = widget.model.agentWorkspace.documents;
     if (store == null) return;
-    final body = await store.readRev(HermesHomePaths.retirementDocId, meta.rev) ??
-        (meta.rev == (await store.entryFor(HermesHomePaths.retirementDocId))?.headRev
+    final body =
+        await store.readRev(HermesHomePaths.retirementDocId, meta.rev) ??
+        (meta.rev ==
+                (await store.entryFor(HermesHomePaths.retirementDocId))?.headRev
             ? await store.readHead(HermesHomePaths.retirementDocId)
             : null);
     if (!mounted) return;
@@ -75,7 +89,10 @@ class _RetirementPlanEditorPageState extends State<RetirementPlanEditorPage> {
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
           if ((body ?? '').trim().isNotEmpty)
             TextButton(
               onPressed: () {
@@ -100,12 +117,18 @@ class _RetirementPlanEditorPageState extends State<RetirementPlanEditorPage> {
           IconButton(
             tooltip: _preview ? 'Edit' : 'Preview',
             onPressed: () => setState(() => _preview = !_preview),
-            icon: Icon(_preview ? Icons.edit_outlined : Icons.visibility_outlined),
+            icon: Icon(
+              _preview ? Icons.edit_outlined : Icons.visibility_outlined,
+            ),
           ),
           TextButton(
             onPressed: _busy ? null : _save,
             child: _busy
-                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
                 : const Text('Save'),
           ),
         ],
@@ -128,20 +151,36 @@ class _RetirementPlanEditorPageState extends State<RetirementPlanEditorPage> {
               controller: _ctrl,
               maxLines: 22,
               minLines: 14,
-              style: const TextStyle(fontFamily: 'monospace', fontSize: 13, height: 1.4),
-              decoration: const InputDecoration(border: OutlineInputBorder(), alignLabelWithHint: true),
+              style: const TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 13,
+                height: 1.4,
+              ),
+              decoration: const InputDecoration(
+                border: OutlineInputBorder(),
+                alignLabelWithHint: true,
+              ),
             ),
           const SizedBox(height: 20),
-          Text('History', style: TextStyle(fontWeight: FontWeight.w900, color: cs.onSurface)),
+          Text(
+            'History',
+            style: TextStyle(fontWeight: FontWeight.w900, color: cs.onSurface),
+          ),
           const SizedBox(height: 8),
           if (_revs.isEmpty)
-            Text('No prior revisions.', style: TextStyle(color: cs.onSurfaceVariant))
+            Text(
+              'No prior revisions.',
+              style: TextStyle(color: cs.onSurfaceVariant),
+            )
           else
             for (final r in _revs)
               ListTile(
                 dense: true,
                 contentPadding: EdgeInsets.zero,
-                title: Text('Rev ${r.rev} · ${r.author}', style: const TextStyle(fontWeight: FontWeight.w800)),
+                title: Text(
+                  'Rev ${r.rev} · ${r.author}',
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
                 subtitle: Text(
                   '${r.reason}\n${r.utc.toLocal()}',
                   style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12),

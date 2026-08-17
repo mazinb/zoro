@@ -39,7 +39,9 @@ abstract final class PlatformAi {
       return 'Turn on the on-device model in Settings → Usage.';
     }
     final reason = appleDisabledReason?.trim();
-    if (reason != null && reason.isNotEmpty && !appleFoundationRuntimeAvailable) {
+    if (reason != null &&
+        reason.isNotEmpty &&
+        !appleFoundationRuntimeAvailable) {
       return reason;
     }
     if (!hasAnyApiKey && !appleFoundationRuntimeAvailable) {
@@ -83,6 +85,5 @@ abstract final class PlatformAi {
   static bool shouldPromptCloudConsentAfterOnboarding({
     required bool hasCloudImportConsent,
     required bool onDeviceRuntimeAvailable,
-  }) =>
-      !hasCloudImportConsent && !onDeviceRuntimeAvailable;
+  }) => !hasCloudImportConsent && !onDeviceRuntimeAvailable;
 }

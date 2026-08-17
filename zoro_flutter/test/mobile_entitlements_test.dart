@@ -6,7 +6,9 @@ void main() {
   test('effectiveIsPro respects grace after expiry', () {
     final expires = DateTime.utc(2026, 6, 1, 12);
     final duringGrace = expires.add(const Duration(days: 1));
-    final afterGrace = expires.add(const Duration(days: MobileEntitlements.proGraceDays, hours: 1));
+    final afterGrace = expires.add(
+      const Duration(days: MobileEntitlements.proGraceDays, hours: 1),
+    );
 
     expect(
       MobileEntitlements.computeEffectiveIsPro(
@@ -28,11 +30,17 @@ void main() {
 
   test('effectiveIsPro without expiry uses isPro flag', () {
     expect(
-      MobileEntitlements.computeEffectiveIsPro(isPro: true, proExpiresAtIso: null),
+      MobileEntitlements.computeEffectiveIsPro(
+        isPro: true,
+        proExpiresAtIso: null,
+      ),
       isTrue,
     );
     expect(
-      MobileEntitlements.computeEffectiveIsPro(isPro: false, proExpiresAtIso: null),
+      MobileEntitlements.computeEffectiveIsPro(
+        isPro: false,
+        proExpiresAtIso: null,
+      ),
       isFalse,
     );
   });

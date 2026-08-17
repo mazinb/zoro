@@ -76,7 +76,11 @@ void _pdfIngestIsolateMain(List<Object?> message) async {
   final password = message[3] as String?;
   try {
     final summary = await _pdfExtractSummaryInWorker(fileName, bytes, password);
-    reply.send(<String, Object?>{'t': 'ok', 'fileName': fileName, 'summary': summary});
+    reply.send(<String, Object?>{
+      't': 'ok',
+      'fileName': fileName,
+      'summary': summary,
+    });
   } on _PdfPasswordRequiredInIsolate {
     reply.send(<String, Object?>{'t': 'pwd'});
   } catch (e, st) {
@@ -98,11 +102,12 @@ Future<String> runPdfTextExtractionInIsolate({
   final receivePort = ReceivePort();
   Isolate? isolate;
   try {
-    isolate = await Isolate.spawn(
-      _pdfIngestIsolateMain,
-      <Object?>[receivePort.sendPort, fileName, copy, password],
-      errorsAreFatal: false,
-    );
+    isolate = await Isolate.spawn(_pdfIngestIsolateMain, <Object?>[
+      receivePort.sendPort,
+      fileName,
+      copy,
+      password,
+    ], errorsAreFatal: false);
     final raw = await receivePort.first;
     if (raw is! Map) {
       throw StateError('Unexpected isolate reply');

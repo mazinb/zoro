@@ -3,19 +3,27 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 /// Keychain/Keystore vault. Never write secrets into hermes_home JSON.
 class CredentialVault {
   CredentialVault({FlutterSecureStorage? storage})
-      : _storage = storage ?? const FlutterSecureStorage();
+    : _storage = storage ?? const FlutterSecureStorage();
 
   final FlutterSecureStorage _storage;
 
   static const mailboxTokenKey = 'zoro.vault.mailbox_token';
+  static const mcpLoopbackTokenKey = 'zoro.vault.mcp_loopback_token';
 
   static String fileTypeKey(String typeId) => 'zoro.vault.fileType.$typeId';
 
   Future<String?> readMailboxToken() => _read(mailboxTokenKey);
 
-  Future<void> writeMailboxToken(String? value) => _write(mailboxTokenKey, value);
+  Future<void> writeMailboxToken(String? value) =>
+      _write(mailboxTokenKey, value);
 
-  Future<String?> readFileTypePassword(String typeId) => _read(fileTypeKey(typeId));
+  Future<String?> readMcpLoopbackToken() => _read(mcpLoopbackTokenKey);
+
+  Future<void> writeMcpLoopbackToken(String? value) =>
+      _write(mcpLoopbackTokenKey, value);
+
+  Future<String?> readFileTypePassword(String typeId) =>
+      _read(fileTypeKey(typeId));
 
   Future<void> writeFileTypePassword(String typeId, String? value) =>
       _write(fileTypeKey(typeId), value);

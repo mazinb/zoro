@@ -11,7 +11,7 @@ import '../../core/state/ledger_rows.dart';
 /// Parallel context review — ledger row is assumed correct; suggest context additions.
 class ContextRowReviewService {
   ContextRowReviewService({PromptContextBudgetService? budget})
-      : _budget = budget ?? PromptContextBudgetService();
+    : _budget = budget ?? PromptContextBudgetService();
 
   final PromptContextBudgetService _budget;
 
@@ -27,10 +27,13 @@ Return ONE JSON object only (no markdown fences):
 ''';
 
   static String _contextAssetSystem(AppModel model) {
-    final user = model.internalAgentSystemPrompt(InternalAppAgentIds.contextReviewAsset).trim();
-    final hints = internalAppAgentDefinitionById(InternalAppAgentIds.contextReviewAsset)
-            ?.modelDomainHints
-            .trim() ??
+    final user = model
+        .internalAgentSystemPrompt(InternalAppAgentIds.contextReviewAsset)
+        .trim();
+    final hints =
+        internalAppAgentDefinitionById(
+          InternalAppAgentIds.contextReviewAsset,
+        )?.modelDomainHints.trim() ??
         '';
     return [
       'You review context notes for ONE asset. Ledger balance and comment are correct — only improve context.',
@@ -50,11 +53,13 @@ Return ONE JSON object only (no markdown fences):
   }
 
   static String _contextLiabilitySystem(AppModel model) {
-    final user =
-        model.internalAgentSystemPrompt(InternalAppAgentIds.contextReviewLiability).trim();
-    final hints = internalAppAgentDefinitionById(InternalAppAgentIds.contextReviewLiability)
-            ?.modelDomainHints
-            .trim() ??
+    final user = model
+        .internalAgentSystemPrompt(InternalAppAgentIds.contextReviewLiability)
+        .trim();
+    final hints =
+        internalAppAgentDefinitionById(
+          InternalAppAgentIds.contextReviewLiability,
+        )?.modelDomainHints.trim() ??
         '';
     return [
       'You review context notes for ONE liability. Ledger balance and rate field are correct — only improve context.',
@@ -70,7 +75,9 @@ Return ONE JSON object only (no markdown fences):
     ].join('\n');
   }
 
-  Future<({bool trimmed, String? budgetLine})> reviewAssetsAndLiabilities(AppModel model) async {
+  Future<({bool trimmed, String? budgetLine})> reviewAssetsAndLiabilities(
+    AppModel model,
+  ) async {
     model.clearContextAssetReviews();
     model.clearContextLiabilityReviews();
     for (final a in model.assets) {
@@ -93,7 +100,12 @@ Return ONE JSON object only (no markdown fences):
       for (final a in model.assets)
         _reviewAsset(model, a, assetSystem, onTrim: () => trimmed = true),
       for (final l in model.liabilities)
-        _reviewLiability(model, l, _contextLiabilitySystem(model), onTrim: () => trimmed = true),
+        _reviewLiability(
+          model,
+          l,
+          _contextLiabilitySystem(model),
+          onTrim: () => trimmed = true,
+        ),
     ]);
     model.recordInternalAgentRun(InternalAppAgentIds.contextReviewAsset, {
       'assets': model.assets.length,
@@ -121,12 +133,16 @@ Return ONE JSON object only (no markdown fences):
       final payload = {
         'asset': assetReviewLedgerPayload(model, row),
         'contextMarkdown': (row.contextMarkdown ?? '').trim(),
-        'contextLastUpdated':
-            model.contextNoteLastUpdatedIso(AppModel.contextKeyAsset(row.id)),
+        'contextLastUpdated': model.contextNoteLastUpdatedIso(
+          AppModel.contextKeyAsset(row.id),
+        ),
       };
       var user = jsonEncode(payload);
       if (model.activeLlmProvider == LlmProvider.appleFoundation) {
-        final prepared = await _budget.prepareUserPayload(system: system, payload: payload);
+        final prepared = await _budget.prepareUserPayload(
+          system: system,
+          payload: payload,
+        );
         if (prepared.trimmed) onTrim();
         user = prepared.userJson;
       }
@@ -163,12 +179,16 @@ Return ONE JSON object only (no markdown fences):
       final payload = {
         'liability': liabilityReviewLedgerPayload(model, row),
         'contextMarkdown': (row.contextMarkdown ?? '').trim(),
-        'contextLastUpdated':
-            model.contextNoteLastUpdatedIso(AppModel.contextKeyLiability(row.id)),
+        'contextLastUpdated': model.contextNoteLastUpdatedIso(
+          AppModel.contextKeyLiability(row.id),
+        ),
       };
       var user = jsonEncode(payload);
       if (model.activeLlmProvider == LlmProvider.appleFoundation) {
-        final prepared = await _budget.prepareUserPayload(system: system, payload: payload);
+        final prepared = await _budget.prepareUserPayload(
+          system: system,
+          payload: payload,
+        );
         if (prepared.trimmed) onTrim();
         user = prepared.userJson;
       }
@@ -196,7 +216,10 @@ Return ONE JSON object only (no markdown fences):
   }
 
   /// Single-asset context refresh from the editor.
-  Future<RowReviewResult?> reviewOneAsset(AppModel model, String assetId) async {
+  Future<RowReviewResult?> reviewOneAsset(
+    AppModel model,
+    String assetId,
+  ) async {
     final row = model.assetById(assetId);
     if (row == null) return null;
     model.setContextAssetReview(assetId, reviewing: true);
@@ -204,11 +227,19 @@ Return ONE JSON object only (no markdown fences):
     return model.contextAssetReviewById[assetId]?.result;
   }
 
-  Future<RowReviewResult?> reviewOneLiability(AppModel model, String liabilityId) async {
+  Future<RowReviewResult?> reviewOneLiability(
+    AppModel model,
+    String liabilityId,
+  ) async {
     final row = model.liabilityById(liabilityId);
     if (row == null) return null;
     model.setContextLiabilityReview(liabilityId, reviewing: true);
-    await _reviewLiability(model, row, _contextLiabilitySystem(model), onTrim: () {});
+    await _reviewLiability(
+      model,
+      row,
+      _contextLiabilitySystem(model),
+      onTrim: () {},
+    );
     return model.contextLiabilityReviewById[liabilityId]?.result;
   }
 }

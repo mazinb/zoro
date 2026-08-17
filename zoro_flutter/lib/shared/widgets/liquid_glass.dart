@@ -34,9 +34,7 @@ class LiquidGlassPanel extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final borderSide = showBorder
-        ? Border.all(
-            color: cs.primary.withValues(alpha: isDark ? 0.35 : 0.22),
-          )
+        ? Border.all(color: cs.primary.withValues(alpha: isDark ? 0.35 : 0.22))
         : null;
     final flat = isDark
         ? Colors.white.withValues(alpha: 0.065)
@@ -65,7 +63,9 @@ class LiquidGlassPanel extends StatelessWidget {
                 : null,
             color: useGradient ? null : flat,
           ),
-          child: padding != null ? Padding(padding: padding!, child: child) : child,
+          child: padding != null
+              ? Padding(padding: padding!, child: child)
+              : child,
         ),
       ),
     );
@@ -79,9 +79,13 @@ class LiquidGlassBar extends StatelessWidget {
   const LiquidGlassBar({
     super.key,
     required this.child,
-    this.margin = const EdgeInsets.fromLTRB(14, 4, 14, 10),
+    this.margin = defaultMargin,
     this.borderRadius = 28,
   });
+
+  /// Screen-edge insets of the floating pill. Callers that reserve space for the
+  /// bar (page bottom padding) must add these to the bar's own height.
+  static const EdgeInsets defaultMargin = EdgeInsets.fromLTRB(14, 4, 14, 10);
 
   final Widget child;
   final EdgeInsetsGeometry margin;
@@ -143,6 +147,7 @@ class LiquidGlassModalSurface extends StatelessWidget {
     super.key,
     required this.child,
     this.showDragHandle = true,
+
     /// When true, the panel sizes to the child’s intrinsic height (better for short pickers).
     this.sizesToContent = false,
   });

@@ -1,4 +1,5 @@
 import '../state/app_model.dart';
+
 /// Cashflow months that increased an asset balance via savings / invest linking.
 class AssetCashflowCredits {
   const AssetCashflowCredits({
@@ -34,20 +35,24 @@ AssetCashflowCredits cashflowCreditsForAsset(AppModel model, String assetId) {
     if (e == null) continue;
     for (final il in e.investmentLines) {
       if (il.assetId != assetId || il.amountAppliedToAssets <= 0.005) continue;
-      lines.add(AssetCashflowCreditLine(
-        monthKey: mk,
-        amountDisplay: il.amountAppliedToAssets,
-        kind: 'invest',
-      ));
+      lines.add(
+        AssetCashflowCreditLine(
+          monthKey: mk,
+          amountDisplay: il.amountAppliedToAssets,
+          kind: 'invest',
+        ),
+      );
       total += il.amountAppliedToAssets;
     }
     for (final sl in e.savingsLines) {
       if (sl.assetId != assetId || sl.amountApplied <= 0.005) continue;
-      lines.add(AssetCashflowCreditLine(
-        monthKey: mk,
-        amountDisplay: sl.amountApplied,
-        kind: 'savings',
-      ));
+      lines.add(
+        AssetCashflowCreditLine(
+          monthKey: mk,
+          amountDisplay: sl.amountApplied,
+          kind: 'savings',
+        ),
+      );
       total += sl.amountApplied;
     }
   }

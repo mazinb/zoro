@@ -34,7 +34,9 @@ class _GoalContextPageState extends State<GoalContextPage> {
   void _save() {
     final g = widget.model.financialGoalById(widget.goalId);
     if (g == null) return;
-    widget.model.upsertFinancialGoal(g.copyWith(contextMarkdown: _ctrl.text.trim()));
+    widget.model.upsertFinancialGoal(
+      g.copyWith(contextMarkdown: _ctrl.text.trim()),
+    );
     _dirty = false;
     if (mounted) Navigator.of(context).pop();
   }
@@ -46,8 +48,14 @@ class _GoalContextPageState extends State<GoalContextPage> {
       builder: (ctx) => AlertDialog(
         title: const Text('Discard changes?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Discard')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Keep editing')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Discard'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Keep editing'),
+          ),
         ],
       ),
     );
@@ -57,7 +65,9 @@ class _GoalContextPageState extends State<GoalContextPage> {
   @override
   Widget build(BuildContext context) {
     final g = widget.model.financialGoalById(widget.goalId);
-    final title = g == null || g.name.trim().isEmpty ? 'Goal context' : '${g.name} context';
+    final title = g == null || g.name.trim().isEmpty
+        ? 'Goal context'
+        : '${g.name} context';
 
     return PopScope(
       canPop: false,
@@ -69,7 +79,10 @@ class _GoalContextPageState extends State<GoalContextPage> {
       },
       child: Scaffold(
         appBar: AppBar(
-          title: Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
+          title: Text(
+            title,
+            style: const TextStyle(fontWeight: FontWeight.w900),
+          ),
           leading: BackButton(
             onPressed: () async {
               if (await _confirmDiscard() && context.mounted) {
@@ -80,7 +93,10 @@ class _GoalContextPageState extends State<GoalContextPage> {
           actions: [
             TextButton(
               onPressed: _save,
-              child: const Text('Save', style: TextStyle(fontWeight: FontWeight.w800)),
+              child: const Text(
+                'Save',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
             ),
           ],
         ),

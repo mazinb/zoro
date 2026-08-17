@@ -22,7 +22,8 @@ class MainScaffold extends StatefulWidget {
   State<MainScaffold> createState() => _MainScaffoldState();
 }
 
-class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver {
+class _MainScaffoldState extends State<MainScaffold>
+    with WidgetsBindingObserver {
   int _index = 0;
   String? _ledgerFocus;
   final ValueNotifier<int> _settingsTabIndex = ValueNotifier<int>(0);
@@ -40,7 +41,9 @@ class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver
   void _onPrivacyInteractionDenied() {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: const Text('Amounts are hidden. On Home, tap the eye icon to show values and edit.'),
+        content: const Text(
+          'Amounts are hidden. On Home, tap the eye icon to show values and edit.',
+        ),
         behavior: SnackBarBehavior.floating,
         action: SnackBarAction(
           label: 'Home',
@@ -81,7 +84,9 @@ class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _notifTapSub = NotificationService.instance.onTap.listen(_handleNotificationPayload);
+    _notifTapSub = NotificationService.instance.onTap.listen(
+      _handleNotificationPayload,
+    );
     // Drain any payload that launched the app from a terminated state.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final pending = NotificationService.instance.consumeLaunchPayload();
@@ -107,7 +112,8 @@ class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused || state == AppLifecycleState.detached) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
       unawaited(widget.model.persistAppStateToDisk());
     }
     if (state == AppLifecycleState.resumed) {
@@ -147,10 +153,12 @@ class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver
   }
 
   void _goToAgentAndOpenHelper() {
-    if (!_trySelectAgentTab(andThen: () {
-      _ledgerFocus = null;
-      _pendingOpenGoalsHelper = true;
-    })) {
+    if (!_trySelectAgentTab(
+      andThen: () {
+        _ledgerFocus = null;
+        _pendingOpenGoalsHelper = true;
+      },
+    )) {
       return;
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -165,6 +173,8 @@ class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver
     switch (payload.kind) {
       case NotificationKind.agentTask:
         if (HermesNotificationIds.isHermesTask(payload.taskId)) {
+          widget.model.pendingHermesCronJobId =
+              HermesNotificationIds.jobIdFromTask(payload.taskId);
           _trySelectAgentTab(andThen: () => _ledgerFocus = null);
           return;
         }
@@ -176,7 +186,10 @@ class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver
           _trySelectAgentTab(andThen: () => _ledgerFocus = null);
           return;
         }
-        _selectShellTab(_ledgerIndex, andThen: () => _ledgerFocus = domain.name);
+        _selectShellTab(
+          _ledgerIndex,
+          andThen: () => _ledgerFocus = domain.name,
+        );
     }
   }
 
@@ -185,8 +198,12 @@ class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver
     final pages = <Widget>[
       CommandCenterTab(
         model: widget.model,
-        onGoToLedger: (section) => _selectShellTab(_ledgerIndex, andThen: () => _ledgerFocus = section),
-        onGoToGoals: () => _trySelectAgentTab(andThen: () => _ledgerFocus = null),
+        onGoToLedger: (section) => _selectShellTab(
+          _ledgerIndex,
+          andThen: () => _ledgerFocus = section,
+        ),
+        onGoToGoals: () =>
+            _trySelectAgentTab(andThen: () => _ledgerFocus = null),
         onOpenGoalsHelper: _goToAgentAndOpenHelper,
       ),
       LedgerTab(
@@ -200,7 +217,9 @@ class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver
         model: widget.model,
         pendingOpenHelper: _pendingOpenGoalsHelper,
         onPendingOpenHelperHandled: () {
-          if (_pendingOpenGoalsHelper) setState(() => _pendingOpenGoalsHelper = false);
+          if (_pendingOpenGoalsHelper) {
+            setState(() => _pendingOpenGoalsHelper = false);
+          }
         },
       ),
       SettingsTab(
@@ -210,9 +229,18 @@ class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver
       ),
     ];
 
-    final bottomOverlayPad = MediaQuery.paddingOf(context).bottom +
-        kBottomNavigationBarHeight +
-        18; // floating pill margins + breathing room
+    // Material 3 NavigationBar is taller than kBottomNavigationBarHeight, so
+    // reserve its real height plus the floating pill's margins or the bar
+    // clips page content (e.g. the Agent composer). While the keyboard is up
+    // the pill is hidden, so the page can run flush to the keyboard instead.
+    final keyboardOpen = MediaQuery.viewInsetsOf(context).bottom > 0;
+    final navBarHeight = Theme.of(context).navigationBarTheme.height ?? 80;
+    final bottomOverlayPad = keyboardOpen
+        ? 0.0
+        : MediaQuery.paddingOf(context).bottom +
+              navBarHeight +
+              LiquidGlassBar.defaultMargin.vertical +
+              8;
 
     return Scaffold(
       extendBody: true,
@@ -220,51 +248,52 @@ class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver
         bottom: false,
         child: Padding(
           padding: EdgeInsets.only(bottom: bottomOverlayPad),
-          child: IndexedStack(
-            index: _index,
-            children: pages,
-          ),
+          child: IndexedStack(index: _index, children: pages),
         ),
       ),
-      bottomNavigationBar: Material(
-        color: Colors.transparent,
-        surfaceTintColor: Colors.transparent,
-        shadowColor: Colors.transparent,
-        elevation: 0,
-        child: SafeArea(
-          top: false,
-          minimum: EdgeInsets.zero,
-          child: LiquidGlassBar(
-            child: NavigationBar(
-              selectedIndex: _index,
-              onDestinationSelected: _onBottomNavSelected,
-              destinations: const [
-                NavigationDestination(
-                  icon: Icon(Icons.dashboard_outlined),
-                  selectedIcon: Icon(Icons.dashboard),
-                  label: 'Home',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.view_agenda_outlined),
-                  selectedIcon: Icon(Icons.view_agenda),
-                  label: 'Ledger',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.library_books_outlined),
-                  selectedIcon: Icon(Icons.library_books),
-                  label: 'Context',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.smart_toy_outlined),
-                  selectedIcon: Icon(Icons.smart_toy),
-                  label: 'Agent',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.settings_outlined),
-                  selectedIcon: Icon(Icons.settings),
-                  label: 'Settings',
-                ),
-              ],
+      bottomNavigationBar: Visibility(
+        visible: !keyboardOpen,
+        maintainState: true,
+        child: Material(
+          color: Colors.transparent,
+          surfaceTintColor: Colors.transparent,
+          shadowColor: Colors.transparent,
+          elevation: 0,
+          child: SafeArea(
+            top: false,
+            minimum: EdgeInsets.zero,
+            child: LiquidGlassBar(
+              child: NavigationBar(
+                selectedIndex: _index,
+                onDestinationSelected: _onBottomNavSelected,
+                destinations: const [
+                  NavigationDestination(
+                    icon: Icon(Icons.dashboard_outlined),
+                    selectedIcon: Icon(Icons.dashboard),
+                    label: 'Home',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.view_agenda_outlined),
+                    selectedIcon: Icon(Icons.view_agenda),
+                    label: 'Ledger',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.library_books_outlined),
+                    selectedIcon: Icon(Icons.library_books),
+                    label: 'Context',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.smart_toy_outlined),
+                    selectedIcon: Icon(Icons.smart_toy),
+                    label: 'Agent',
+                  ),
+                  NavigationDestination(
+                    icon: Icon(Icons.settings_outlined),
+                    selectedIcon: Icon(Icons.settings),
+                    label: 'Settings',
+                  ),
+                ],
+              ),
             ),
           ),
         ),

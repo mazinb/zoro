@@ -11,8 +11,8 @@ class VaultFileType {
     List<String>? filenameContains,
     List<String>? fromContains,
     this.lastUsedAt,
-  })  : filenameContains = filenameContains ?? [],
-        fromContains = fromContains ?? [];
+  }) : filenameContains = filenameContains ?? [],
+       fromContains = fromContains ?? [];
 
   final String id;
   String label;
@@ -22,19 +22,21 @@ class VaultFileType {
   DateTime? lastUsedAt;
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'label': label,
-        'mime': mime,
-        'match': {
-          'filenameContains': filenameContains,
-          'fromContains': fromContains,
-        },
-        if (lastUsedAt != null) 'lastUsedAt': lastUsedAt!.toUtc().toIso8601String(),
-      };
+    'id': id,
+    'label': label,
+    'mime': mime,
+    'match': {
+      'filenameContains': filenameContains,
+      'fromContains': fromContains,
+    },
+    if (lastUsedAt != null) 'lastUsedAt': lastUsedAt!.toUtc().toIso8601String(),
+  };
 
   static VaultFileType fromJson(Map<String, dynamic> m) {
     final match = m['match'];
-    final matchMap = match is Map ? Map<String, dynamic>.from(match) : <String, dynamic>{};
+    final matchMap = match is Map
+        ? Map<String, dynamic>.from(match)
+        : <String, dynamic>{};
     return VaultFileType(
       id: m['id']?.toString() ?? '',
       label: m['label']?.toString() ?? '',
@@ -47,7 +49,9 @@ class VaultFileType {
 
   static List<String> _stringList(Object? v) {
     if (v is! List) return [];
-    return [for (final e in v) e.toString()].where((s) => s.trim().isNotEmpty).toList();
+    return [
+      for (final e in v) e.toString(),
+    ].where((s) => s.trim().isNotEmpty).toList();
   }
 }
 
@@ -58,28 +62,34 @@ class VaultIndex {
   List<VaultFileType> types = [];
 
   static List<VaultFileType> presets() => [
-        VaultFileType(
-          id: 'brokerage',
-          label: 'Brokerage statement',
-          filenameContains: ['IBKR', 'Interactive', 'brokerage', 'Fidelity', 'Schwab'],
-        ),
-        VaultFileType(
-          id: 'bank',
-          label: 'Bank statement',
-          filenameContains: ['statement', 'checking', 'savings'],
-        ),
-        VaultFileType(
-          id: 'tax',
-          label: 'Tax document',
-          filenameContains: ['W-2', 'W2', '1099', 'ITR', 'tax'],
-        ),
-        VaultFileType(
-          id: 'insurance',
-          label: 'Insurance',
-          filenameContains: ['policy', 'insurance', 'premium'],
-        ),
-        VaultFileType(id: 'other', label: 'Other PDF'),
-      ];
+    VaultFileType(
+      id: 'brokerage',
+      label: 'Brokerage statement',
+      filenameContains: [
+        'IBKR',
+        'Interactive',
+        'brokerage',
+        'Fidelity',
+        'Schwab',
+      ],
+    ),
+    VaultFileType(
+      id: 'bank',
+      label: 'Bank statement',
+      filenameContains: ['statement', 'checking', 'savings'],
+    ),
+    VaultFileType(
+      id: 'tax',
+      label: 'Tax document',
+      filenameContains: ['W-2', 'W2', '1099', 'ITR', 'tax'],
+    ),
+    VaultFileType(
+      id: 'insurance',
+      label: 'Insurance',
+      filenameContains: ['policy', 'insurance', 'premium'],
+    ),
+    VaultFileType(id: 'other', label: 'Other PDF'),
+  ];
 
   Future<void> load() async {
     if (!await file.exists()) {
@@ -104,9 +114,9 @@ class VaultIndex {
   Future<void> save() async {
     await file.parent.create(recursive: true);
     await file.writeAsString(
-      const JsonEncoder.withIndent('  ').convert({
-        'fileTypes': types.map((t) => t.toJson()).toList(),
-      }),
+      const JsonEncoder.withIndent(
+        '  ',
+      ).convert({'fileTypes': types.map((t) => t.toJson()).toList()}),
       flush: true,
     );
   }

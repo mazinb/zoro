@@ -39,9 +39,13 @@ class GoalsHelperSectionMeta {
 List<GoalsHelperSectionMeta> goalsHelperSections(AppModel model) {
   final now = DateTime.now();
   final retirement = model.retirementGoal;
-  final corpus = retirement == null ? 0.0 : model.goalEffectiveTargetAmount(retirement);
+  final corpus = retirement == null
+      ? 0.0
+      : model.goalEffectiveTargetAmount(retirement);
   final investPct = model.investPctOfAvailableRounded();
-  final feas = retirement == null ? null : model.retirementInvestFeasibility(retirement);
+  final feas = retirement == null
+      ? null
+      : model.retirementInvestFeasibility(retirement);
   final liabilities = model.liabilities;
 
   return [
@@ -76,10 +80,12 @@ List<GoalsHelperSectionMeta> goalsHelperSections(AppModel model) {
       GoalsHelperSectionMeta(
         id: 'liabilities',
         title: 'Review liabilities',
-        subtitle: '${liabilities.length} loan${liabilities.length == 1 ? "" : "s"} · paydown & rates',
+        subtitle:
+            '${liabilities.length} loan${liabilities.length == 1 ? "" : "s"} · paydown & rates',
         icon: Icons.credit_card_outlined,
         stepCount: liabilitiesGuideSteps(model).length,
-        onOpen: (ctx) => openLiabilitiesStructuredGuide(context: ctx, model: model),
+        onOpen: (ctx) =>
+            openLiabilitiesStructuredGuide(context: ctx, model: model),
       ),
     GoalsHelperSectionMeta(
       id: 'returns',
@@ -87,7 +93,8 @@ List<GoalsHelperSectionMeta> goalsHelperSections(AppModel model) {
       subtitle: 'Expected return % on investments',
       icon: Icons.trending_up,
       stepCount: assetReturnsGuideSteps(model).length,
-      onOpen: (ctx) => openAssetReturnsStructuredGuide(context: ctx, model: model),
+      onOpen: (ctx) =>
+          openAssetReturnsStructuredGuide(context: ctx, model: model),
     ),
     GoalsHelperSectionMeta(
       id: 'assumptions',
@@ -95,14 +102,23 @@ List<GoalsHelperSectionMeta> goalsHelperSections(AppModel model) {
       subtitle: 'Projection returns, inflation, exchange rates',
       icon: Icons.percent_outlined,
       stepCount: assumptionsGuideSteps(model).length,
-      onOpen: (ctx) => openAssumptionsStructuredGuide(context: ctx, model: model),
+      onOpen: (ctx) =>
+          openAssumptionsStructuredGuide(context: ctx, model: model),
     ),
   ];
 }
 
-String _splitSubtitle(AppModel m, GoalFeasibility? feas, int investPct, DateTime now) {
+String _splitSubtitle(
+  AppModel m,
+  GoalFeasibility? feas,
+  int investPct,
+  DateTime now,
+) {
   final date = goalDateLabel(m.retirementGoal?.targetDate);
-  final updated = goalsSectionLastUpdatedLabel(m.allocationTargetLastUpdated, now: now);
+  final updated = goalsSectionLastUpdatedLabel(
+    m.allocationTargetLastUpdated,
+    now: now,
+  );
   final status = feas == null ? '' : '${feas.title} · ';
   return '$status$investPct% invest · $date${updated != null ? " · $updated" : ""}';
 }
@@ -154,19 +170,35 @@ List<StructuredGuideStep> corpusGuideSteps(AppModel model) {
     recurringExpensesMonthly: model.recurringExpensesMonthly,
     safeWithdrawalRatePct: params['swr']!,
   );
-  final previewSurplus = surplusFromCorpusBufferPct(previewCorpus, params['buffer']!);
+  final previewSurplus = surplusFromCorpusBufferPct(
+    previewCorpus,
+    params['buffer']!,
+  );
   final previewTxt = goalMoney(model, previewCorpus);
 
   return [
     StructuredGuideStep(
       id: 'lifestyle',
       prompt: 'Retirement spending vs today',
-      hint: 'Rough picture — we will size the corpus from your ledger expenses.',
+      hint:
+          'Rough picture — we will size the corpus from your ledger expenses.',
       choices: const [
-        StructuredGuideChoice(id: 'life_lower', label: 'Lower — lean / downsized'),
-        StructuredGuideChoice(id: 'life_similar', label: 'About the same as today'),
-        StructuredGuideChoice(id: 'life_higher', label: 'Higher — travel, healthcare, help family'),
-        StructuredGuideChoice(id: 'life_unsure', label: 'Not sure — use a moderate cushion'),
+        StructuredGuideChoice(
+          id: 'life_lower',
+          label: 'Lower — lean / downsized',
+        ),
+        StructuredGuideChoice(
+          id: 'life_similar',
+          label: 'About the same as today',
+        ),
+        StructuredGuideChoice(
+          id: 'life_higher',
+          label: 'Higher — travel, healthcare, help family',
+        ),
+        StructuredGuideChoice(
+          id: 'life_unsure',
+          label: 'Not sure — use a moderate cushion',
+        ),
       ],
     ),
     StructuredGuideStep(
@@ -175,19 +207,38 @@ List<StructuredGuideStep> corpusGuideSteps(AppModel model) {
       choices: const [
         StructuredGuideChoice(id: 'cush_none', label: 'Minimal extra buffer'),
         StructuredGuideChoice(id: 'cush_moderate', label: 'Moderate cushion'),
-        StructuredGuideChoice(id: 'cush_large', label: 'Large cushion — sleep-well money'),
-        StructuredGuideChoice(id: 'cush_unsure', label: 'Not sure — light buffer'),
+        StructuredGuideChoice(
+          id: 'cush_large',
+          label: 'Large cushion — sleep-well money',
+        ),
+        StructuredGuideChoice(
+          id: 'cush_unsure',
+          label: 'Not sure — light buffer',
+        ),
       ],
     ),
     StructuredGuideStep(
       id: 'drawdown_style',
       prompt: 'How conservative should withdrawals be?',
-      hint: 'We translate this to a withdrawal rate for you — no need to pick a %.',
+      hint:
+          'We translate this to a withdrawal rate for you — no need to pick a %.',
       choices: const [
-        StructuredGuideChoice(id: 'draw_conservative', label: 'Very conservative — preserve corpus'),
-        StructuredGuideChoice(id: 'draw_classic', label: 'Balanced — classic planning'),
-        StructuredGuideChoice(id: 'draw_flexible', label: 'Flexible — spend a bit more early'),
-        StructuredGuideChoice(id: 'draw_help', label: 'Help me decide — use balanced default'),
+        StructuredGuideChoice(
+          id: 'draw_conservative',
+          label: 'Very conservative — preserve corpus',
+        ),
+        StructuredGuideChoice(
+          id: 'draw_classic',
+          label: 'Balanced — classic planning',
+        ),
+        StructuredGuideChoice(
+          id: 'draw_flexible',
+          label: 'Flexible — spend a bit more early',
+        ),
+        StructuredGuideChoice(
+          id: 'draw_help',
+          label: 'Help me decide — use balanced default',
+        ),
       ],
     ),
     StructuredGuideStep(
@@ -196,9 +247,14 @@ List<StructuredGuideStep> corpusGuideSteps(AppModel model) {
       choices: [
         StructuredGuideChoice(
           id: 'auto_yes',
-          label: auto ? 'Yes — keep linked to recurring expenses' : 'Yes — link to ledger expenses',
+          label: auto
+              ? 'Yes — keep linked to recurring expenses'
+              : 'Yes — link to ledger expenses',
         ),
-        const StructuredGuideChoice(id: 'auto_no', label: 'No — I may set a custom amount'),
+        const StructuredGuideChoice(
+          id: 'auto_no',
+          label: 'No — I may set a custom amount',
+        ),
         if (model.recurringExpensesMonthly <= 0)
           const StructuredGuideChoice(
             id: 'auto_setup',
@@ -211,10 +267,14 @@ List<StructuredGuideStep> corpusGuideSteps(AppModel model) {
       prompt: previewSurplus > 0.5
           ? 'Suggested corpus: $previewTxt + ${goalMoney(model, previewSurplus)} surplus'
           : 'Suggested corpus: $previewTxt',
-      hint: 'From your answers + ledger expenses. You can accept or optionally override.',
+      hint:
+          'From your answers + ledger expenses. You can accept or optionally override.',
       choices: [
         StructuredGuideChoice(id: 'accept', label: 'Use $previewTxt'),
-        const StructuredGuideChoice(id: 'custom', label: 'Enter a different amount (optional)'),
+        const StructuredGuideChoice(
+          id: 'custom',
+          label: 'Enter a different amount (optional)',
+        ),
       ],
     ),
     StructuredGuideStep(
@@ -229,7 +289,10 @@ List<StructuredGuideStep> corpusGuideSteps(AppModel model) {
   ];
 }
 
-Map<String, Object?> corpusStructuredFromAnswers(AppModel model, StructuredGuideResult result) {
+Map<String, Object?> corpusStructuredFromAnswers(
+  AppModel model,
+  StructuredGuideResult result,
+) {
   final r = model.retirementGoal;
   final params = _corpusParamsFromGuideAnswers(model, result);
   final swr = params['swr']!;
@@ -296,7 +359,9 @@ List<String> corpusPreviewLines(AppModel model, StructuredGuideResult result) {
   final annual = model.recurringExpensesMonthly * 12;
   if (annual > 0 && corpus is num && corpus > 0) {
     final implied = annual / corpus.toDouble() * 100;
-    lines.add('Implied withdrawal from expenses: ${implied.toStringAsFixed(2)}%');
+    lines.add(
+      'Implied withdrawal from expenses: ${implied.toStringAsFixed(2)}%',
+    );
   }
   return lines;
 }
@@ -345,7 +410,10 @@ Future<void> openCorpusStructuredGuide({
         contextMarkdown: structured['contextMarkdown']?.toString() ?? '',
       );
       model.markRetirementCorpusUpdated();
-      model.recordInternalAgentRun(InternalAppAgentIds.goalsRetirementCorpus, structured);
+      model.recordInternalAgentRun(
+        InternalAppAgentIds.goalsRetirementCorpus,
+        structured,
+      );
     },
     reviewTitle: 'Review corpus',
   );
@@ -366,7 +434,9 @@ List<StructuredGuideStep> splitGuideSteps(AppModel model) {
       numericInitial: investMo,
       numericSuffix: '/mo',
       numericMin: 0,
-      hint: required > 0.5 ? 'Need ~${fmt(required)}/mo toward retirement corpus.' : null,
+      hint: required > 0.5
+          ? 'Need ~${fmt(required)}/mo toward retirement corpus.'
+          : null,
     ),
     StructuredGuideStep(
       id: 'savings_monthly',
@@ -375,7 +445,8 @@ List<StructuredGuideStep> splitGuideSteps(AppModel model) {
       numericInitial: savingsMo,
       numericSuffix: '/mo',
       numericMin: 0,
-      hint: 'Free cash after expenses: ${fmt(model.availableAfterExpensesMonthly)}',
+      hint:
+          'Free cash after expenses: ${fmt(model.availableAfterExpensesMonthly)}',
     ),
     StructuredGuideStep(
       id: 'retire_shift',
@@ -391,9 +462,14 @@ List<StructuredGuideStep> splitGuideSteps(AppModel model) {
   ];
 }
 
-Map<String, Object?> splitStructuredFromAnswers(AppModel model, StructuredGuideResult result) {
-  final invest = result.numericFor('invest_monthly') ?? model.allocInvestmentsMonthly;
-  final savings = result.numericFor('savings_monthly') ?? model.allocSavingsMonthly;
+Map<String, Object?> splitStructuredFromAnswers(
+  AppModel model,
+  StructuredGuideResult result,
+) {
+  final invest =
+      result.numericFor('invest_monthly') ?? model.allocInvestmentsMonthly;
+  final savings =
+      result.numericFor('savings_monthly') ?? model.allocSavingsMonthly;
   final avail = model.availableAfterExpensesMonthly;
   final frac = avail > 0 ? (invest / avail).clamp(0.0, 1.0) : 0.0;
 
@@ -414,14 +490,18 @@ Map<String, Object?> splitStructuredFromAnswers(AppModel model, StructuredGuideR
   }
 
   final out = <String, Object?>{
-    'summary': 'Invest ${goalMoney(model, invest)}/mo · savings ${goalMoney(model, savings)}/mo',
+    'summary':
+        'Invest ${goalMoney(model, invest)}/mo · savings ${goalMoney(model, savings)}/mo',
     'allocInvestFraction': frac,
     'allocInvestmentsMonthly': invest,
     'allocSavingsMonthly': savings,
   };
   if (r != null && newDate != null && newDate != r.targetDate) {
     out['goalUpdates'] = [
-      {'goalId': r.id, 'targetDate': newDate.toIso8601String().split('T').first},
+      {
+        'goalId': r.id,
+        'targetDate': newDate.toIso8601String().split('T').first,
+      },
     ];
   }
   return out;
@@ -433,7 +513,9 @@ List<String> splitPreviewLines(AppModel model, StructuredGuideResult result) {
   if (s['summary'] != null) lines.add(s['summary'].toString());
   final frac = s['allocInvestFraction'];
   if (frac is num) {
-    lines.add('${(frac.toDouble() * 100).round()}% of free cash to investments');
+    lines.add(
+      '${(frac.toDouble() * 100).round()}% of free cash to investments',
+    );
   }
   final updates = s['goalUpdates'];
   if (updates is List && updates.isNotEmpty) {
@@ -487,13 +569,20 @@ Future<void> openSplitStructuredGuide({
     onApplyStructured: (structured) {
       _applySplitStructured(model, structured, focusGoalId: r.id);
       model.markRetirementSplitUpdated();
-      model.recordInternalAgentRun(InternalAppAgentIds.goalsRetirementSplit, structured);
+      model.recordInternalAgentRun(
+        InternalAppAgentIds.goalsRetirementSplit,
+        structured,
+      );
     },
     reviewTitle: 'Review invest & retire',
   );
 }
 
-void _applySplitStructured(AppModel model, Map<String, Object?> structured, {String? focusGoalId}) {
+void _applySplitStructured(
+  AppModel model,
+  Map<String, Object?> structured, {
+  String? focusGoalId,
+}) {
   final invest = structured['allocInvestmentsMonthly'];
   final savings = structured['allocSavingsMonthly'];
   if (invest is num && savings is num) {
@@ -504,7 +593,10 @@ void _applySplitStructured(AppModel model, Map<String, Object?> structured, {Str
   } else {
     final frac = structured['allocInvestFraction'];
     if (frac is num) {
-      model.setAllocInvestFraction(frac.toDouble().clamp(0.0, 1.0), quantize: false);
+      model.setAllocInvestFraction(
+        frac.toDouble().clamp(0.0, 1.0),
+        quantize: false,
+      );
     }
   }
   applyGoalsGuideStructured(model, structured, focusGoalId: focusGoalId);
@@ -513,7 +605,11 @@ void _applySplitStructured(AppModel model, Map<String, Object?> structured, {Str
 List<StructuredGuideStep> bucketsGuideSteps(AppModel model) {
   final policy = model.assetsGoalsPolicy;
   final propertyExtras = model.assets
-      .where((a) => a.type == LedgerAssetType.property || a.type == LedgerAssetType.other)
+      .where(
+        (a) =>
+            a.type == LedgerAssetType.property ||
+            a.type == LedgerAssetType.other,
+      )
       .toList();
   final savings = savingsPoolAssets(model.assets, policy).toList();
 
@@ -534,7 +630,8 @@ List<StructuredGuideStep> bucketsGuideSteps(AppModel model) {
           for (final a in propertyExtras)
             StructuredGuideChoice(
               id: 'asset_${a.id}',
-              label: '${a.name} · ${goalMoney(model, model.assetDisplayValue(a))}',
+              label:
+                  '${a.name} · ${goalMoney(model, model.assetDisplayValue(a))}',
             ),
         ],
       ),
@@ -544,7 +641,9 @@ List<StructuredGuideStep> bucketsGuideSteps(AppModel model) {
     StructuredGuideStep(
       id: 'savings_weights',
       prompt: 'Savings across target goals',
-      hint: savings.isEmpty ? 'No savings accounts in ledger yet.' : '${savings.length} savings account(s).',
+      hint: savings.isEmpty
+          ? 'No savings accounts in ledger yet.'
+          : '${savings.length} savings account(s).',
       bullets: const [
         'Auto-balance: weights follow monthly gap to each target.',
         'Even split: same share to every target.',
@@ -560,8 +659,13 @@ List<StructuredGuideStep> bucketsGuideSteps(AppModel model) {
   return steps;
 }
 
-Map<String, Object?> bucketsStructuredFromAnswers(AppModel model, StructuredGuideResult result) {
-  final out = <String, Object?>{'summary': 'Retirement assets and savings allocation'};
+Map<String, Object?> bucketsStructuredFromAnswers(
+  AppModel model,
+  StructuredGuideResult result,
+) {
+  final out = <String, Object?>{
+    'summary': 'Retirement assets and savings allocation',
+  };
   final selected = result.selectedFor('retirement_extras');
   if (selected != null) {
     final extras = <String>{};
@@ -583,7 +687,10 @@ Future<void> openBucketsStructuredGuide({
   final steps = bucketsGuideSteps(model);
   if (steps.isEmpty) {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Add assets in Ledger first'), behavior: SnackBarBehavior.floating),
+      const SnackBar(
+        content: Text('Add assets in Ledger first'),
+        behavior: SnackBarBehavior.floating,
+      ),
     );
     return;
   }
@@ -608,7 +715,8 @@ Future<void> openBucketsStructuredGuide({
     agentId: InternalAppAgentIds.goalsRetirementBuckets,
     formStructured: formStructured,
     formReviewLines: [
-      if (formStructured['summary'] != null) formStructured['summary'].toString(),
+      if (formStructured['summary'] != null)
+        formStructured['summary'].toString(),
     ],
     result: res,
     llmPayload: {
@@ -620,17 +728,24 @@ Future<void> openBucketsStructuredGuide({
             'name': a.name,
             'type': a.type.name,
             'value': model.assetDisplayValue(a),
-            'inRetirement': assetCountsTowardRetirement(a, model.assetsGoalsPolicy),
+            'inRetirement': assetCountsTowardRetirement(
+              a,
+              model.assetsGoalsPolicy,
+            ),
           },
       ],
       'targetGoals': [
-        for (final g in model.targetGoals) {'id': g.id, 'name': g.name, 'savingsWeight': g.savingsWeight},
+        for (final g in model.targetGoals)
+          {'id': g.id, 'name': g.name, 'savingsWeight': g.savingsWeight},
       ],
     },
     onApplyStructured: (structured) {
       applyBucketsStructured(model, structured);
       model.markRetirementBucketsUpdated();
-      model.recordInternalAgentRun(InternalAppAgentIds.goalsRetirementBuckets, structured);
+      model.recordInternalAgentRun(
+        InternalAppAgentIds.goalsRetirementBuckets,
+        structured,
+      );
     },
     reviewTitle: 'Review assets & savings',
   );
@@ -646,7 +761,8 @@ List<StructuredGuideStep> liabilitiesGuideSteps(AppModel model) {
         numericInitial: model.liabilityPaydownMonthly(l),
         numericSuffix: '/mo',
         numericMin: 0,
-        hint: 'Balance ${goalMoney(model, model.liabilityDisplayValue(l))} · rate ${l.interestRatePct.toStringAsFixed(1)}%',
+        hint:
+            'Balance ${goalMoney(model, model.liabilityDisplayValue(l))} · rate ${l.interestRatePct.toStringAsFixed(1)}%',
         bullets: const [
           'Set paydown you will actually make each month.',
           'Use 0 only if you are not paying this down yet.',
@@ -655,7 +771,10 @@ List<StructuredGuideStep> liabilitiesGuideSteps(AppModel model) {
   ];
 }
 
-Map<String, Object?> liabilitiesStructuredFromAnswers(AppModel model, StructuredGuideResult result) {
+Map<String, Object?> liabilitiesStructuredFromAnswers(
+  AppModel model,
+  StructuredGuideResult result,
+) {
   final updates = <Map<String, Object?>>[];
   for (final l in model.liabilities) {
     final pay = result.numericFor('liab_${l.id}');
@@ -669,7 +788,10 @@ Map<String, Object?> liabilitiesStructuredFromAnswers(AppModel model, Structured
   };
 }
 
-void applyLiabilitiesStructured(AppModel model, Map<String, Object?> structured) {
+void applyLiabilitiesStructured(
+  AppModel model,
+  Map<String, Object?> structured,
+) {
   final raw = structured['liabilityUpdates'];
   if (raw is! List) return;
   for (final e in raw) {
@@ -707,7 +829,8 @@ Future<void> openLiabilitiesStructuredGuide({
     agentId: InternalAppAgentIds.goalsReviewLiabilities,
     formStructured: formStructured,
     formReviewLines: [
-      if (formStructured['summary'] != null) formStructured['summary'].toString(),
+      if (formStructured['summary'] != null)
+        formStructured['summary'].toString(),
       for (final u in formStructured['liabilityUpdates'] as List? ?? [])
         if (u is Map)
           '${u['liabilityId']}: ${goalMoney(model, (u['paydownMonthly'] as num?)?.toDouble() ?? 0)}/mo',
@@ -727,7 +850,10 @@ Future<void> openLiabilitiesStructuredGuide({
     },
     onApplyStructured: (structured) {
       applyLiabilitiesStructured(model, structured);
-      model.recordInternalAgentRun(InternalAppAgentIds.goalsReviewLiabilities, structured);
+      model.recordInternalAgentRun(
+        InternalAppAgentIds.goalsReviewLiabilities,
+        structured,
+      );
     },
     reviewTitle: 'Review liabilities',
   );
@@ -742,7 +868,9 @@ List<StructuredGuideStep> assetReturnsGuideSteps(AppModel model) {
       const StructuredGuideStep(
         id: 'none',
         prompt: 'No investment assets in Ledger',
-        choices: [StructuredGuideChoice(id: 'ok', label: 'Add assets in Ledger first')],
+        choices: [
+          StructuredGuideChoice(id: 'ok', label: 'Add assets in Ledger first'),
+        ],
       ),
     ];
   }
@@ -765,7 +893,10 @@ List<StructuredGuideStep> assetReturnsGuideSteps(AppModel model) {
   ];
 }
 
-Map<String, Object?> assetReturnsStructuredFromAnswers(AppModel model, StructuredGuideResult result) {
+Map<String, Object?> assetReturnsStructuredFromAnswers(
+  AppModel model,
+  StructuredGuideResult result,
+) {
   final updates = <Map<String, Object?>>[];
   for (final a in model.assets) {
     final rate = result.numericFor('ret_${a.id}');
@@ -773,10 +904,16 @@ Map<String, Object?> assetReturnsStructuredFromAnswers(AppModel model, Structure
       updates.add({'assetId': a.id, 'returnRatePct': rate});
     }
   }
-  return {'summary': 'Updated return on ${updates.length} asset(s)', 'assetReturnUpdates': updates};
+  return {
+    'summary': 'Updated return on ${updates.length} asset(s)',
+    'assetReturnUpdates': updates,
+  };
 }
 
-void applyAssetReturnsStructured(AppModel model, Map<String, Object?> structured) {
+void applyAssetReturnsStructured(
+  AppModel model,
+  Map<String, Object?> structured,
+) {
   final raw = structured['assetReturnUpdates'];
   if (raw is! List) return;
   for (final e in raw) {
@@ -798,7 +935,10 @@ Future<void> openAssetReturnsStructuredGuide({
   final steps = assetReturnsGuideSteps(model);
   if (steps.length == 1 && steps.first.id == 'none') {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Add investment assets in Ledger'), behavior: SnackBarBehavior.floating),
+      const SnackBar(
+        content: Text('Add investment assets in Ledger'),
+        behavior: SnackBarBehavior.floating,
+      ),
     );
     return;
   }
@@ -809,7 +949,8 @@ Future<void> openAssetReturnsStructuredGuide({
         title: 'Asset returns',
         steps: steps,
         stepCountLabel: '${steps.length} steps',
-        optionalNoteHint: 'Market outlook, rebalancing, tax-advantaged accounts…',
+        optionalNoteHint:
+            'Market outlook, rebalancing, tax-advantaged accounts…',
       ),
     ),
   );
@@ -823,7 +964,8 @@ Future<void> openAssetReturnsStructuredGuide({
     agentId: InternalAppAgentIds.goalsReviewAssetReturns,
     formStructured: formStructured,
     formReviewLines: [
-      if (formStructured['summary'] != null) formStructured['summary'].toString(),
+      if (formStructured['summary'] != null)
+        formStructured['summary'].toString(),
     ],
     result: res,
     llmPayload: {
@@ -837,22 +979,29 @@ Future<void> openAssetReturnsStructuredGuide({
             'value': model.assetDisplayValue(a),
           },
       ],
-      'projectionInvestReturnPctAnnual': model.projectionInvestReturnPctAnnual.map(
-        (k, v) => MapEntry(k.name, v),
-      ),
+      'projectionInvestReturnPctAnnual': model.projectionInvestReturnPctAnnual
+          .map((k, v) => MapEntry(k.name, v)),
     },
     onApplyStructured: (structured) {
       applyAssetReturnsStructured(model, structured);
       final inv = structured['projectionInvestReturnPctAnnual'];
       if (inv is Map) {
         for (final e in inv.entries) {
-          final code = CurrencyCode.values.where((c) => c.name == e.key.toString()).firstOrNull;
+          final code = CurrencyCode.values
+              .where((c) => c.name == e.key.toString())
+              .firstOrNull;
           if (code != null && e.value is num) {
-            model.setProjectionRatesForCurrency(code, investPct: (e.value as num).toDouble());
+            model.setProjectionRatesForCurrency(
+              code,
+              investPct: (e.value as num).toDouble(),
+            );
           }
         }
       }
-      model.recordInternalAgentRun(InternalAppAgentIds.goalsReviewAssetReturns, structured);
+      model.recordInternalAgentRun(
+        InternalAppAgentIds.goalsReviewAssetReturns,
+        structured,
+      );
     },
     reviewTitle: 'Review returns',
   );
@@ -897,7 +1046,8 @@ List<StructuredGuideStep> assumptionsGuideSteps(AppModel model) {
       ),
   ];
   for (final c in [
-    if (model.homeCurrencyQuickPick1 != CurrencyCode.usd) model.homeCurrencyQuickPick1,
+    if (model.homeCurrencyQuickPick1 != CurrencyCode.usd)
+      model.homeCurrencyQuickPick1,
     if (model.homeCurrencyQuickPick2 != null) model.homeCurrencyQuickPick2!,
   ]) {
     final usdPerUnit = model.usdPerUnitResolved(c);
@@ -915,7 +1065,10 @@ List<StructuredGuideStep> assumptionsGuideSteps(AppModel model) {
   return steps;
 }
 
-Map<String, Object?> assumptionsStructuredFromAnswers(AppModel model, StructuredGuideResult result) {
+Map<String, Object?> assumptionsStructuredFromAnswers(
+  AppModel model,
+  StructuredGuideResult result,
+) {
   final projInv = <String, double>{};
   final projSav = <String, double>{};
   final projInf = <String, double>{};
@@ -941,12 +1094,17 @@ Map<String, Object?> assumptionsStructuredFromAnswers(AppModel model, Structured
   };
 }
 
-void applyAssumptionsStructured(AppModel model, Map<String, Object?> structured) {
+void applyAssumptionsStructured(
+  AppModel model,
+  Map<String, Object?> structured,
+) {
   void applyMap(String key, void Function(CurrencyCode c, double v) apply) {
     final raw = structured[key];
     if (raw is! Map) return;
     for (final e in raw.entries) {
-      final code = CurrencyCode.values.where((c) => c.name == e.key.toString()).firstOrNull;
+      final code = CurrencyCode.values
+          .where((c) => c.name == e.key.toString())
+          .firstOrNull;
       if (code == null || e.value is! num) continue;
       apply(code, (e.value as num).toDouble());
     }
@@ -965,7 +1123,9 @@ void applyAssumptionsStructured(AppModel model, Map<String, Object?> structured)
   final fxRaw = structured['fxUsdPerUnit'];
   if (fxRaw is Map) {
     for (final e in fxRaw.entries) {
-      final code = CurrencyCode.values.where((c) => c.name == e.key.toString()).firstOrNull;
+      final code = CurrencyCode.values
+          .where((c) => c.name == e.key.toString())
+          .firstOrNull;
       if (code == null || e.value is! num) continue;
       final unitsPerUsd = (e.value as num).toDouble();
       if (unitsPerUsd > 0) {
@@ -1000,24 +1160,35 @@ Future<void> openAssumptionsStructuredGuide({
     agentId: InternalAppAgentIds.goalsReviewAssumptions,
     formStructured: formStructured,
     formReviewLines: [
-      if (formStructured['summary'] != null) formStructured['summary'].toString(),
+      if (formStructured['summary'] != null)
+        formStructured['summary'].toString(),
     ],
     result: res,
     llmPayload: {
-      'projectionInvestReturnPctAnnual': model.projectionInvestReturnPctAnnual.map((k, v) => MapEntry(k.name, v)),
-      'projectionSavingsReturnPctAnnual': model.projectionSavingsReturnPctAnnual.map((k, v) => MapEntry(k.name, v)),
-      'projectionInflationPctAnnual': model.projectionInflationPctAnnual.map((k, v) => MapEntry(k.name, v)),
+      'projectionInvestReturnPctAnnual': model.projectionInvestReturnPctAnnual
+          .map((k, v) => MapEntry(k.name, v)),
+      'projectionSavingsReturnPctAnnual': model.projectionSavingsReturnPctAnnual
+          .map((k, v) => MapEntry(k.name, v)),
+      'projectionInflationPctAnnual': model.projectionInflationPctAnnual.map(
+        (k, v) => MapEntry(k.name, v),
+      ),
       'fxUsdPerUnit': {
         if (model.homeCurrencyQuickPick1 != CurrencyCode.usd)
-          model.homeCurrencyQuickPick1.name: model.usdPerUnitResolved(model.homeCurrencyQuickPick1),
+          model.homeCurrencyQuickPick1.name: model.usdPerUnitResolved(
+            model.homeCurrencyQuickPick1,
+          ),
         if (model.homeCurrencyQuickPick2 != null)
-          model.homeCurrencyQuickPick2!.name:
-              model.usdPerUnitResolved(model.homeCurrencyQuickPick2!),
+          model.homeCurrencyQuickPick2!.name: model.usdPerUnitResolved(
+            model.homeCurrencyQuickPick2!,
+          ),
       },
     },
     onApplyStructured: (structured) {
       applyAssumptionsStructured(model, structured);
-      model.recordInternalAgentRun(InternalAppAgentIds.goalsReviewAssumptions, structured);
+      model.recordInternalAgentRun(
+        InternalAppAgentIds.goalsReviewAssumptions,
+        structured,
+      );
     },
     reviewTitle: 'Review assumptions',
   );
@@ -1036,7 +1207,10 @@ void applyBucketsStructured(AppModel model, Map<String, Object?> structured) {
     if (targets.isNotEmpty) {
       final w = 1.0 / targets.length;
       for (final g in targets) {
-        model.upsertFinancialGoal(g.copyWith(savingsWeight: w), touchGoalsUpdated: false);
+        model.upsertFinancialGoal(
+          g.copyWith(savingsWeight: w),
+          touchGoalsUpdated: false,
+        );
       }
     }
   }
@@ -1057,7 +1231,10 @@ Future<void> _applyGoalsSection({
     onApplyStructured(formStructured);
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$reviewTitle saved'), behavior: SnackBarBehavior.floating),
+      SnackBar(
+        content: Text('$reviewTitle saved'),
+        behavior: SnackBarBehavior.floating,
+      ),
     );
     return;
   }
@@ -1096,13 +1273,17 @@ List<String> _structuredReviewLines(AppModel model, Map<String, Object?> s) {
   final buf = s['corpusBufferPct'];
   if (buf is num) lines.add('Buffer: ${buf.round()}%');
   final corpus = s['targetAmount'];
-  if (corpus is num) lines.add('Target corpus: ${goalMoney(model, corpus.toDouble())}');
+  if (corpus is num)
+    lines.add('Target corpus: ${goalMoney(model, corpus.toDouble())}');
   final frac = s['allocInvestFraction'];
-  if (frac is num) lines.add('Invest share: ${(frac.toDouble() * 100).round()}%');
+  if (frac is num)
+    lines.add('Invest share: ${(frac.toDouble() * 100).round()}%');
   final inv = s['allocInvestmentsMonthly'];
   final sav = s['allocSavingsMonthly'];
   if (inv is num && sav is num) {
-    lines.add('Invest ${goalMoney(model, inv.toDouble())}/mo · savings ${goalMoney(model, sav.toDouble())}/mo');
+    lines.add(
+      'Invest ${goalMoney(model, inv.toDouble())}/mo · savings ${goalMoney(model, sav.toDouble())}/mo',
+    );
   }
   return lines;
 }
@@ -1128,30 +1309,64 @@ Future<void> _showApplyReview({
   await Navigator.of(context).push<void>(
     MaterialPageRoute(
       builder: (ctx) => Scaffold(
-        appBar: AppBar(title: Text(title, style: const TextStyle(fontWeight: FontWeight.w900))),
+        appBar: AppBar(
+          title: Text(
+            title,
+            style: const TextStyle(fontWeight: FontWeight.w900),
+          ),
+        ),
         body: ListView(
           padding: const EdgeInsets.all(20),
           children: [
             if (llmExplanation != null && llmExplanation.trim().isNotEmpty) ...[
-              Text(llmExplanation, style: const TextStyle(fontWeight: FontWeight.w700, height: 1.35)),
+              Text(
+                llmExplanation,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  height: 1.35,
+                ),
+              ),
               const SizedBox(height: 16),
             ],
-            Text('Assistant suggestion', style: Theme.of(ctx).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900)),
+            Text(
+              'Assistant suggestion',
+              style: Theme.of(
+                ctx,
+              ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
+            ),
             const SizedBox(height: 8),
             for (final line in llmLines)
               if (line.trim().isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 6),
-                  child: Text(line, style: const TextStyle(fontWeight: FontWeight.w700, height: 1.35)),
+                  child: Text(
+                    line,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      height: 1.35,
+                    ),
+                  ),
                 ),
             const SizedBox(height: 16),
-            Text('From your choices', style: Theme.of(ctx).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900)),
+            Text(
+              'From your choices',
+              style: Theme.of(
+                ctx,
+              ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
+            ),
             const SizedBox(height: 8),
             for (final line in formLines)
               if (line.trim().isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 6),
-                  child: Text(line, style: TextStyle(fontWeight: FontWeight.w600, height: 1.35, color: Theme.of(ctx).colorScheme.onSurfaceVariant)),
+                  child: Text(
+                    line,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      height: 1.35,
+                      color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
                 ),
             const SizedBox(height: 24),
             FilledButton(
@@ -1159,7 +1374,10 @@ Future<void> _showApplyReview({
                 onAcceptLlm();
                 Navigator.of(ctx).pop();
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('$title applied'), behavior: SnackBarBehavior.floating),
+                  SnackBar(
+                    content: Text('$title applied'),
+                    behavior: SnackBarBehavior.floating,
+                  ),
                 );
               },
               child: const Text('Accept suggestion'),
@@ -1170,7 +1388,10 @@ Future<void> _showApplyReview({
                 onUseForm();
                 Navigator.of(ctx).pop();
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('$title applied (your choices)'), behavior: SnackBarBehavior.floating),
+                  SnackBar(
+                    content: Text('$title applied (your choices)'),
+                    behavior: SnackBarBehavior.floating,
+                  ),
                 );
               },
               child: const Text('Use original (from form)'),

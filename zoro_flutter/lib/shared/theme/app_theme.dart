@@ -18,19 +18,20 @@ class AppTheme {
 
   static ThemeData get light {
     // Keep cards and M3 “container” roles white in light mode (seed scheme greys them).
-    final scheme = ColorScheme.fromSeed(
-      seedColor: primaryBlue,
-      brightness: Brightness.light,
-      surface: Colors.white,
-    ).copyWith(
-      primary: blue,
-      secondary: blueDark,
-      surfaceContainerLowest: slate50,
-      surfaceContainerLow: Colors.white,
-      surfaceContainer: Colors.white,
-      surfaceContainerHigh: Colors.white,
-      surfaceContainerHighest: Colors.white,
-    );
+    final scheme =
+        ColorScheme.fromSeed(
+          seedColor: primaryBlue,
+          brightness: Brightness.light,
+          surface: Colors.white,
+        ).copyWith(
+          primary: blue,
+          secondary: blueDark,
+          surfaceContainerLowest: slate50,
+          surfaceContainerLow: Colors.white,
+          surfaceContainer: Colors.white,
+          surfaceContainerHigh: Colors.white,
+          surfaceContainerHighest: Colors.white,
+        );
     return ThemeData(
       useMaterial3: true,
       colorScheme: scheme,
@@ -81,15 +82,16 @@ class AppTheme {
   /// Paired with [light]; wired on [MaterialApp.darkTheme]. Keep [ThemeMode.light]
   /// until hardcoded surfaces are migrated (see `TASKS.md` → Dark mode).
   static ThemeData get dark {
-    final scheme = ColorScheme.fromSeed(
-      seedColor: primaryBlue,
-      brightness: Brightness.dark,
-    ).copyWith(
-      primary: blue,
-      onPrimary: Colors.white,
-      secondary: blueLight,
-      onSecondary: slate900,
-    );
+    final scheme =
+        ColorScheme.fromSeed(
+          seedColor: primaryBlue,
+          brightness: Brightness.dark,
+        ).copyWith(
+          primary: blue,
+          onPrimary: Colors.white,
+          secondary: blueLight,
+          onSecondary: slate900,
+        );
     return ThemeData(
       useMaterial3: true,
       colorScheme: scheme,

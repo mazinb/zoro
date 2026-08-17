@@ -15,7 +15,9 @@ Future<void> openSingleExpenseBucketEditorSheet({
   final preset = presetForCountry(AppModel.expensePresetCountry);
   final b = preset.buckets[bucketKey];
   if (b == null) return;
-  final presetCurrency = currencyCodeForPresetCountry(AppModel.expensePresetCountry);
+  final presetCurrency = currencyCodeForPresetCountry(
+    AppModel.expensePresetCountry,
+  );
   final displayCurrency = model.displayCurrency;
   final fx = model.fxUsdPerUnitResolved;
 
@@ -59,7 +61,8 @@ Future<void> openExpenseEstimatesEditorSheet({
     context: context,
     isScrollControlled: true,
     sizesToContent: true,
-    builder: (ctx) => ExpenseEstimatesEditorSheet(model: model, presentingContext: context),
+    builder: (ctx) =>
+        ExpenseEstimatesEditorSheet(model: model, presentingContext: context),
   );
 }
 
@@ -70,10 +73,12 @@ class ExpenseEstimatesEditorPage extends StatefulWidget {
   final AppModel model;
 
   @override
-  State<ExpenseEstimatesEditorPage> createState() => _ExpenseEstimatesEditorPageState();
+  State<ExpenseEstimatesEditorPage> createState() =>
+      _ExpenseEstimatesEditorPageState();
 }
 
-class _ExpenseEstimatesEditorPageState extends State<ExpenseEstimatesEditorPage> {
+class _ExpenseEstimatesEditorPageState
+    extends State<ExpenseEstimatesEditorPage> {
   var _dirty = false;
 
   double _niceStep(double v) {
@@ -82,7 +87,9 @@ class _ExpenseEstimatesEditorPageState extends State<ExpenseEstimatesEditorPage>
     final exp = v == 0 ? 0 : (math.log(v.abs()) / math.ln10).floor();
     final base = mathPow10(exp);
     final scaled = v / base;
-    final snapped = scaled <= 1 ? 1 : (scaled <= 2 ? 2 : (scaled <= 5 ? 5 : 10));
+    final snapped = scaled <= 1
+        ? 1
+        : (scaled <= 2 ? 2 : (scaled <= 5 ? 5 : 10));
     return snapped * base;
   }
 
@@ -98,7 +105,9 @@ class _ExpenseEstimatesEditorPageState extends State<ExpenseEstimatesEditorPage>
   Widget build(BuildContext context) {
     final model = widget.model;
     final preset = presetForCountry(AppModel.expensePresetCountry);
-    final presetCurrency = currencyCodeForPresetCountry(AppModel.expensePresetCountry);
+    final presetCurrency = currencyCodeForPresetCountry(
+      AppModel.expensePresetCountry,
+    );
     final displayCurrency = model.displayCurrency;
     final muted = Theme.of(context).colorScheme.onSurfaceVariant;
 
@@ -129,7 +138,10 @@ class _ExpenseEstimatesEditorPageState extends State<ExpenseEstimatesEditorPage>
               style: TextStyle(color: muted, fontSize: 13),
             ),
             const SizedBox(height: 20),
-            const Text('Monthly buckets', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+            const Text(
+              'Monthly buckets',
+              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+            ),
             const SizedBox(height: 12),
             ...recurringExpenseBucketKeys.map((k) {
               final b = preset.buckets[k]!;
@@ -198,10 +210,12 @@ class ExpenseEstimatesEditorSheet extends StatefulWidget {
   final BuildContext presentingContext;
 
   @override
-  State<ExpenseEstimatesEditorSheet> createState() => _ExpenseEstimatesEditorSheetState();
+  State<ExpenseEstimatesEditorSheet> createState() =>
+      _ExpenseEstimatesEditorSheetState();
 }
 
-class _ExpenseEstimatesEditorSheetState extends State<ExpenseEstimatesEditorSheet> {
+class _ExpenseEstimatesEditorSheetState
+    extends State<ExpenseEstimatesEditorSheet> {
   var _dirty = false;
 
   double _niceStep(double v) {
@@ -209,7 +223,9 @@ class _ExpenseEstimatesEditorSheetState extends State<ExpenseEstimatesEditorShee
     final exp = v == 0 ? 0 : (math.log(v.abs()) / math.ln10).floor();
     final base = _pow10(exp);
     final scaled = v / base;
-    final snapped = scaled <= 1 ? 1 : (scaled <= 2 ? 2 : (scaled <= 5 ? 5 : 10));
+    final snapped = scaled <= 1
+        ? 1
+        : (scaled <= 2 ? 2 : (scaled <= 5 ? 5 : 10));
     return snapped * base;
   }
 
@@ -230,7 +246,9 @@ class _ExpenseEstimatesEditorSheetState extends State<ExpenseEstimatesEditorShee
   Widget build(BuildContext context) {
     final model = widget.model;
     final preset = presetForCountry(AppModel.expensePresetCountry);
-    final presetCurrency = currencyCodeForPresetCountry(AppModel.expensePresetCountry);
+    final presetCurrency = currencyCodeForPresetCountry(
+      AppModel.expensePresetCountry,
+    );
     final displayCurrency = model.displayCurrency;
     final muted = Theme.of(context).colorScheme.onSurfaceVariant;
 
@@ -247,7 +265,10 @@ class _ExpenseEstimatesEditorSheetState extends State<ExpenseEstimatesEditorShee
             Row(
               children: [
                 const Expanded(
-                  child: Text('Expense estimates', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                  child: Text(
+                    'Expense estimates',
+                    style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+                  ),
                 ),
                 IconButton(
                   onPressed: _close,
@@ -265,7 +286,10 @@ class _ExpenseEstimatesEditorSheetState extends State<ExpenseEstimatesEditorShee
               // Cap to a sensible sheet height without tying it to screen %.
               // If content is shorter, the sheet stays compact (sizesToContent).
               constraints: BoxConstraints(
-                maxHeight: math.min(MediaQuery.of(context).size.height - 220, 520),
+                maxHeight: math.min(
+                  MediaQuery.of(context).size.height - 220,
+                  520,
+                ),
               ),
               child: ListView(
                 padding: EdgeInsets.zero,
@@ -321,7 +345,9 @@ class _ExpenseEstimatesEditorSheetState extends State<ExpenseEstimatesEditorShee
                             onLongPressEdit: () async {
                               // Replace the full list sheet with a compact single-bucket sheet.
                               _close();
-                              await Future<void>.delayed(const Duration(milliseconds: 140));
+                              await Future<void>.delayed(
+                                const Duration(milliseconds: 140),
+                              );
                               if (!widget.presentingContext.mounted) return;
                               await _openSingleBucketEditor(
                                 widget.presentingContext,
@@ -346,10 +372,7 @@ class _ExpenseEstimatesEditorSheetState extends State<ExpenseEstimatesEditorShee
               ),
             ),
             const SizedBox(height: 10),
-            FilledButton(
-              onPressed: _close,
-              child: const Text('Done'),
-            ),
+            FilledButton(onPressed: _close, child: const Text('Done')),
           ],
         ),
       ),
@@ -386,10 +409,13 @@ class _EditorBucketRow extends StatefulWidget {
 }
 
 class _EditorBucketRowState extends State<_EditorBucketRow> {
-  late final TextEditingController _ctrl = TextEditingController(text: _fmt(widget.value));
+  late final TextEditingController _ctrl = TextEditingController(
+    text: _fmt(widget.value),
+  );
   final _focus = FocusNode();
 
-  String _fmt(double v) => formatGroupedInteger(v.round(), currency: widget.displayCurrency);
+  String _fmt(double v) =>
+      formatGroupedInteger(v.round(), currency: widget.displayCurrency);
 
   int _parse(String raw) {
     final digits = raw.replaceAll(RegExp(r'[^0-9]'), '');
@@ -446,10 +472,14 @@ class _EditorBucketRowState extends State<_EditorBucketRow> {
                 focusNode: _focus,
                 keyboardType: TextInputType.number,
                 inputFormatters: [
-                  GroupedIntegerTextInputFormatter(currency: widget.displayCurrency),
+                  GroupedIntegerTextInputFormatter(
+                    currency: widget.displayCurrency,
+                  ),
                 ],
                 onChanged: (raw) {
-                  final n = _parse(raw).toDouble().clamp(widget.min, widget.max);
+                  final n = _parse(
+                    raw,
+                  ).toDouble().clamp(widget.min, widget.max);
                   widget.onChanged(n);
                 },
                 decoration: InputDecoration(
@@ -477,7 +507,9 @@ Future<void> _openSingleBucketEditor(
   required double max,
   required ValueChanged<double> onApply,
 }) async {
-  final ctrl = TextEditingController(text: formatGroupedInteger(initialValue.round(), currency: currency));
+  final ctrl = TextEditingController(
+    text: formatGroupedInteger(initialValue.round(), currency: currency),
+  );
   final focus = FocusNode();
   int parse(String raw) {
     final digits = raw.replaceAll(RegExp(r'[^0-9]'), '');
@@ -491,37 +523,44 @@ Future<void> _openSingleBucketEditor(
     sizesToContent: true,
     builder: (ctx) {
       return Padding(
-      padding: const EdgeInsets.only(left: 14, right: 14, top: 10, bottom: 14),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Intentionally compact: one field + Done.
-          TextField(
-            controller: ctrl,
-            focusNode: focus,
-            autofocus: true,
-            keyboardType: TextInputType.number,
-            inputFormatters: [GroupedIntegerTextInputFormatter(currency: currency)],
-            decoration: InputDecoration(
-              labelText: label,
-              prefixText: currency.symbol,
-              border: const OutlineInputBorder(),
-              isDense: true,
+        padding: const EdgeInsets.only(
+          left: 14,
+          right: 14,
+          top: 10,
+          bottom: 14,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Intentionally compact: one field + Done.
+            TextField(
+              controller: ctrl,
+              focusNode: focus,
+              autofocus: true,
+              keyboardType: TextInputType.number,
+              inputFormatters: [
+                GroupedIntegerTextInputFormatter(currency: currency),
+              ],
+              decoration: InputDecoration(
+                labelText: label,
+                prefixText: currency.symbol,
+                border: const OutlineInputBorder(),
+                isDense: true,
+              ),
+              onChanged: (raw) {
+                final n = parse(raw).toDouble().clamp(min, max);
+                onApply(n);
+              },
             ),
-            onChanged: (raw) {
-              final n = parse(raw).toDouble().clamp(min, max);
-              onApply(n);
-            },
-          ),
-          const SizedBox(height: 10),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Done'),
-          ),
-        ],
-      ),
-    );
+            const SizedBox(height: 10),
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Done'),
+            ),
+          ],
+        ),
+      );
     },
   );
 

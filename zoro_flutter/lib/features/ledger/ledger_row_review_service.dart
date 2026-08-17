@@ -11,7 +11,7 @@ import '../../core/state/ledger_rows.dart';
 /// Parallel ledger review for assets or liabilities (one LLM call per row).
 class LedgerRowReviewService {
   LedgerRowReviewService({PromptContextBudgetService? budget})
-      : _budget = budget ?? PromptContextBudgetService();
+    : _budget = budget ?? PromptContextBudgetService();
 
   final PromptContextBudgetService _budget;
 
@@ -27,10 +27,13 @@ Return ONE JSON object only (no markdown fences):
 ''';
 
   static String _ledgerAssetSystem(AppModel model) {
-    final user = model.internalAgentSystemPrompt(InternalAppAgentIds.ledgerReviewAsset).trim();
-    final hints = internalAppAgentDefinitionById(InternalAppAgentIds.ledgerReviewAsset)
-            ?.modelDomainHints
-            .trim() ??
+    final user = model
+        .internalAgentSystemPrompt(InternalAppAgentIds.ledgerReviewAsset)
+        .trim();
+    final hints =
+        internalAppAgentDefinitionById(
+          InternalAppAgentIds.ledgerReviewAsset,
+        )?.modelDomainHints.trim() ??
         '';
     return [
       'You review ONE asset row. Ledger balance is correct.',
@@ -51,11 +54,13 @@ Return ONE JSON object only (no markdown fences):
   }
 
   static String _ledgerLiabilitySystem(AppModel model) {
-    final user =
-        model.internalAgentSystemPrompt(InternalAppAgentIds.ledgerReviewLiability).trim();
-    final hints = internalAppAgentDefinitionById(InternalAppAgentIds.ledgerReviewLiability)
-            ?.modelDomainHints
-            .trim() ??
+    final user = model
+        .internalAgentSystemPrompt(InternalAppAgentIds.ledgerReviewLiability)
+        .trim();
+    final hints =
+        internalAppAgentDefinitionById(
+          InternalAppAgentIds.ledgerReviewLiability,
+        )?.modelDomainHints.trim() ??
         '';
     return [
       'You review ONE liability row. Ledger balance is correct.',
@@ -76,7 +81,9 @@ Return ONE JSON object only (no markdown fences):
     ].join('\n');
   }
 
-  Future<({bool trimmed, String? budgetLine})> reviewAllAssets(AppModel model) async {
+  Future<({bool trimmed, String? budgetLine})> reviewAllAssets(
+    AppModel model,
+  ) async {
     model.clearLedgerAssetReviews();
     var trimmed = false;
     String? budgetLine;
@@ -89,7 +96,8 @@ Return ONE JSON object only (no markdown fences):
       }
     }
     await Future.wait([
-      for (final a in model.assets) _reviewOneAsset(model, a, system, onTrim: () => trimmed = true),
+      for (final a in model.assets)
+        _reviewOneAsset(model, a, system, onTrim: () => trimmed = true),
     ]);
     model.recordInternalAgentRun(InternalAppAgentIds.ledgerReviewAsset, {
       'reviewed': model.assets.length,
@@ -97,7 +105,9 @@ Return ONE JSON object only (no markdown fences):
     return (trimmed: trimmed, budgetLine: budgetLine);
   }
 
-  Future<({bool trimmed, String? budgetLine})> reviewAllLiabilities(AppModel model) async {
+  Future<({bool trimmed, String? budgetLine})> reviewAllLiabilities(
+    AppModel model,
+  ) async {
     model.clearLedgerLiabilityReviews();
     var trimmed = false;
     String? budgetLine;
@@ -158,7 +168,10 @@ Return ONE JSON object only (no markdown fences):
       };
       var user = jsonEncode(payload);
       if (model.activeLlmProvider == LlmProvider.appleFoundation) {
-        final prepared = await _budget.prepareUserPayload(system: system, payload: payload);
+        final prepared = await _budget.prepareUserPayload(
+          system: system,
+          payload: payload,
+        );
         if (prepared.trimmed) onTrim();
         user = prepared.userJson;
       }
@@ -171,7 +184,8 @@ Return ONE JSON object only (no markdown fences):
       );
       final obj = await decodeActiveProviderJsonWithRepair(model, raw);
       var result = RowReviewResult.fromJson(obj);
-      if (result.suggestedComment.trim().isNotEmpty && result.bannerNote.isEmpty) {
+      if (result.suggestedComment.trim().isNotEmpty &&
+          result.bannerNote.isEmpty) {
         result = RowReviewResult(
           level: result.level,
           title: result.title,
@@ -224,7 +238,10 @@ Return ONE JSON object only (no markdown fences):
       };
       var user = jsonEncode(payload);
       if (model.activeLlmProvider == LlmProvider.appleFoundation) {
-        final prepared = await _budget.prepareUserPayload(system: system, payload: payload);
+        final prepared = await _budget.prepareUserPayload(
+          system: system,
+          payload: payload,
+        );
         if (prepared.trimmed) onTrim();
         user = prepared.userJson;
       }

@@ -54,16 +54,32 @@ class ZoroStatusIcon extends StatelessWidget {
             if (feasibility.detail.trim().isNotEmpty)
               Text(
                 feasibility.detail,
-                style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: cs.onSurface),
+                style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 16,
+                  color: cs.onSurface,
+                ),
               )
             else
-              Text(feasibility.title, style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: cs.onSurface)),
+              Text(
+                feasibility.title,
+                style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 16,
+                  color: cs.onSurface,
+                ),
+              ),
             for (final line in extraLines)
               if (line.trim().isNotEmpty) ...[
                 const SizedBox(height: 6),
                 Text(
                   line,
-                  style: TextStyle(fontSize: 14, color: cs.onSurfaceVariant, fontWeight: FontWeight.w600, height: 1.35),
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: cs.onSurfaceVariant,
+                    fontWeight: FontWeight.w600,
+                    height: 1.35,
+                  ),
                 ),
               ],
             if (actionLabel != null && onAction != null) ...[
@@ -73,7 +89,10 @@ class ZoroStatusIcon extends StatelessWidget {
                   Navigator.pop(ctx);
                   onAction!();
                 },
-                child: Text(actionLabel!, style: const TextStyle(fontWeight: FontWeight.w800)),
+                child: Text(
+                  actionLabel!,
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
               ),
             ],
           ],
@@ -120,9 +139,13 @@ class ZoroPlanStatusStrip extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final isBroken = feasibility.level == GoalFeasibilityLevel.broken;
     final fg = isBroken ? cs.error : const Color(0xFFB45309);
-    final line = feasibility.detail.trim().isNotEmpty ? feasibility.detail : feasibility.title;
+    final line = feasibility.detail.trim().isNotEmpty
+        ? feasibility.detail
+        : feasibility.title;
     final showAdjust =
-        isBroken && feasibility.needsDateAdjust && onAdjustRetirementDate != null;
+        isBroken &&
+        feasibility.needsDateAdjust &&
+        onAdjustRetirementDate != null;
 
     return Padding(
       padding: const EdgeInsets.only(top: 10),
@@ -235,17 +258,23 @@ class ZoroStatusBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (title.trim().isEmpty && detail.trim().isEmpty) return const SizedBox.shrink();
+    if (title.trim().isEmpty && detail.trim().isEmpty)
+      return const SizedBox.shrink();
 
     final cs = Theme.of(context).colorScheme;
     final isBroken = level == ZoroStatusLevel.broken;
     final fg = isBroken ? cs.error : const Color(0xFFB45309);
-    final bg = isBroken ? cs.errorContainer.withValues(alpha: 0.15) : cs.surfaceContainerHigh;
+    final bg = isBroken
+        ? cs.errorContainer.withValues(alpha: 0.15)
+        : cs.surfaceContainerHigh;
     final icon = isBroken ? Icons.error_outline : Icons.warning_amber_rounded;
     final line = detail.trim().isNotEmpty ? detail : title;
 
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: compact ? 10 : 12, vertical: compact ? 8 : 9),
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 10 : 12,
+        vertical: compact ? 8 : 9,
+      ),
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(8),
@@ -258,7 +287,12 @@ class ZoroStatusBanner extends StatelessWidget {
           Expanded(
             child: Text(
               line,
-              style: TextStyle(fontSize: compact ? 12 : 13, fontWeight: FontWeight.w700, color: fg, height: 1.25),
+              style: TextStyle(
+                fontSize: compact ? 12 : 13,
+                fontWeight: FontWeight.w700,
+                color: fg,
+                height: 1.25,
+              ),
             ),
           ),
           if (actionLabel != null && onAction != null)
@@ -271,7 +305,13 @@ class ZoroStatusBanner extends StatelessWidget {
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 visualDensity: VisualDensity.compact,
               ),
-              child: Text(actionLabel!, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
+              child: Text(
+                actionLabel!,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 12,
+                ),
+              ),
             ),
         ],
       ),

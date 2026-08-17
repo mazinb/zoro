@@ -16,7 +16,8 @@ class LlmConsentGate {
   ) async {
     // On-device model — no third-party transmission; no consent sheet.
     if (provider == LlmProvider.appleFoundation) {
-      if (model.appleFoundationRuntimeAvailable && !model.appleFoundationEnabled) {
+      if (model.appleFoundationRuntimeAvailable &&
+          !model.appleFoundationEnabled) {
         model.setAppleFoundationEnabled(true);
       }
       return model.appleFoundationRuntimeAvailable;

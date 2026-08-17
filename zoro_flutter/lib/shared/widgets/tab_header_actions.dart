@@ -25,8 +25,10 @@ class TabHeaderActions extends StatelessWidget {
   final VoidCallback? onAssistant;
   final bool guideEnabled;
   final bool assistantEnabled;
+
   /// When set, the ? sheet includes per-tab guide toggles (Settings always passes this).
   final AppModel? howItWorksExtras;
+
   /// When false, the ? sheet hides explanatory bullets but keeps guide toggles.
   final bool howItWorksShowBullets;
   final bool assistantRunning;
@@ -37,7 +39,8 @@ class TabHeaderActions extends StatelessWidget {
     final accent = model.accent;
     final showHelp = help != null && guideEnabled;
     final showAssistant = onAssistant != null && assistantEnabled;
-    final showDummy = showAssistant && model.dummyDataActive && model.dummyDataPristine;
+    final showDummy =
+        showAssistant && model.dummyDataActive && model.dummyDataPristine;
 
     if (!showHelp && !showAssistant) return const SizedBox.shrink();
 
@@ -47,11 +50,11 @@ class TabHeaderActions extends StatelessWidget {
         if (showHelp)
           IconButton.filledTonal(
             onPressed: () => openHowItWorksPage(
-                  context,
-                  help!,
-                  model: howItWorksExtras,
-                  showBullets: howItWorksShowBullets,
-                ),
+              context,
+              help!,
+              model: howItWorksExtras,
+              showBullets: howItWorksShowBullets,
+            ),
             icon: const Icon(Icons.help_outline),
             tooltip: 'How it works',
             style: IconButton.styleFrom(
@@ -65,13 +68,16 @@ class TabHeaderActions extends StatelessWidget {
             onPressed: assistantRunning
                 ? null
                 : (showDummy
-                    ? () => _openDummyDataSheet(context, model: model)
-                    : onAssistant),
+                      ? () => _openDummyDataSheet(context, model: model)
+                      : onAssistant),
             icon: assistantRunning
                 ? SizedBox(
                     width: 22,
                     height: 22,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: accent),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: accent,
+                    ),
                   )
                 : Icon(showDummy ? Icons.bolt_outlined : Icons.auto_awesome),
             tooltip: showDummy ? 'Demo data' : assistantTooltip,
@@ -85,7 +91,10 @@ class TabHeaderActions extends StatelessWidget {
   }
 }
 
-Future<void> _openDummyDataSheet(BuildContext context, {required AppModel model}) async {
+Future<void> _openDummyDataSheet(
+  BuildContext context, {
+  required AppModel model,
+}) async {
   await showLiquidGlassModalBottomSheet<void>(
     context: context,
     sizesToContent: true,
@@ -95,11 +104,17 @@ Future<void> _openDummyDataSheet(BuildContext context, {required AppModel model}
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text('Demo data', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+          const Text(
+            'Demo data',
+            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+          ),
           const SizedBox(height: 6),
           Text(
             'You have seeded demo assets and liabilities. You can clear them anytime as long as you haven’t edited them.',
-            style: TextStyle(color: Theme.of(ctx).colorScheme.onSurfaceVariant, height: 1.35),
+            style: TextStyle(
+              color: Theme.of(ctx).colorScheme.onSurfaceVariant,
+              height: 1.35,
+            ),
           ),
           const SizedBox(height: 12),
           FilledButton(

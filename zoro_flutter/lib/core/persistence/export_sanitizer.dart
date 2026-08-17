@@ -15,11 +15,16 @@ You receive one complete export document as JSON text. Return the same JSON obje
     AppModel model,
     Map<String, dynamic> exportMap,
   ) async {
-    final userPrompt = model.internalAgentSystemPrompt(InternalAppAgentIds.exportSanitizer).trim();
-    final def = internalAppAgentDefinitionById(InternalAppAgentIds.exportSanitizer);
+    final userPrompt = model
+        .internalAgentSystemPrompt(InternalAppAgentIds.exportSanitizer)
+        .trim();
+    final def = internalAppAgentDefinitionById(
+      InternalAppAgentIds.exportSanitizer,
+    );
     final system = [
       if (userPrompt.isNotEmpty) userPrompt else def?.defaultSystemPrompt ?? '',
-      if ((def?.modelDomainHints ?? '').trim().isNotEmpty) def!.modelDomainHints,
+      if ((def?.modelDomainHints ?? '').trim().isNotEmpty)
+        def!.modelDomainHints,
       _codeSystemSuffix,
     ].join('\n');
 

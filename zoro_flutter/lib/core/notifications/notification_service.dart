@@ -38,7 +38,8 @@ class NotificationService {
 
   static final NotificationService instance = NotificationService._();
 
-  final FlutterLocalNotificationsPlugin _plugin = FlutterLocalNotificationsPlugin();
+  final FlutterLocalNotificationsPlugin _plugin =
+      FlutterLocalNotificationsPlugin();
 
   bool _initSucceeded = false;
   bool _tzReady = false;
@@ -78,7 +79,9 @@ class NotificationService {
   /// register plugins after [main]). Unit tests get a single attempt.
   Future<void> init() async {
     if (_initSucceeded) return;
-    final maxAttempts = Platform.environment.containsKey('FLUTTER_TEST') ? 1 : 12;
+    final maxAttempts = Platform.environment.containsKey('FLUTTER_TEST')
+        ? 1
+        : 12;
     for (var attempt = 0; attempt < maxAttempts; attempt++) {
       try {
         await (_initFuture ??= _initImpl());
@@ -121,8 +124,10 @@ class NotificationService {
 
     // Create the Android channel up front (no-op on iOS).
     if (!kIsWeb && Platform.isAndroid) {
-      final androidPlugin = _plugin.resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin>();
+      final androidPlugin = _plugin
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >();
       await androidPlugin?.createNotificationChannel(
         const AndroidNotificationChannel(
           _channelId,
@@ -141,14 +146,18 @@ class NotificationService {
     await init();
     if (kIsWeb) return false;
     if (Platform.isIOS) {
-      final ios = _plugin.resolvePlatformSpecificImplementation<
-          IOSFlutterLocalNotificationsPlugin>();
+      final ios = _plugin
+          .resolvePlatformSpecificImplementation<
+            IOSFlutterLocalNotificationsPlugin
+          >();
       final r = await ios?.checkPermissions();
       return r?.isEnabled ?? false;
     }
     if (Platform.isAndroid) {
-      final android = _plugin.resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin>();
+      final android = _plugin
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >();
       return await android?.areNotificationsEnabled() ?? false;
     }
     return false;
@@ -161,8 +170,10 @@ class NotificationService {
     if (await isAuthorized()) return true;
     if (kIsWeb) return false;
     if (Platform.isIOS) {
-      final ios = _plugin.resolvePlatformSpecificImplementation<
-          IOSFlutterLocalNotificationsPlugin>();
+      final ios = _plugin
+          .resolvePlatformSpecificImplementation<
+            IOSFlutterLocalNotificationsPlugin
+          >();
       if (ios == null) return false;
       final granted = await ios.requestPermissions(
         alert: true,
@@ -172,8 +183,10 @@ class NotificationService {
       return granted ?? false;
     }
     if (Platform.isAndroid) {
-      final android = _plugin.resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin>();
+      final android = _plugin
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >();
       return await android?.requestNotificationsPermission() ?? false;
     }
     return false;
@@ -186,8 +199,10 @@ class NotificationService {
     if (kIsWeb) return NotificationAuthStatus.unsupported;
     try {
       if (Platform.isIOS) {
-        final ios = _plugin.resolvePlatformSpecificImplementation<
-            IOSFlutterLocalNotificationsPlugin>();
+        final ios = _plugin
+            .resolvePlatformSpecificImplementation<
+              IOSFlutterLocalNotificationsPlugin
+            >();
         if (ios == null) return NotificationAuthStatus.unsupported;
         final r = await ios.checkPermissions();
         if (r == null) return NotificationAuthStatus.unknown;
@@ -198,8 +213,10 @@ class NotificationService {
         return NotificationAuthStatus.unknown;
       }
       if (Platform.isAndroid) {
-        final android = _plugin.resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>();
+        final android = _plugin
+            .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin
+            >();
         final enabled = await android?.areNotificationsEnabled() ?? false;
         return enabled
             ? NotificationAuthStatus.authorized
@@ -263,7 +280,9 @@ class NotificationService {
     await init();
     await _plugin.cancel(_reminderSummaryId);
     if (Platform.isAndroid) {
-      _log('Android: deferred $domain reminder until app open (no alarm schedule)');
+      _log(
+        'Android: deferred $domain reminder until app open (no alarm schedule)',
+      );
       return;
     }
     final tzWhen = tz.TZDateTime.from(when, tz.local);
@@ -298,6 +317,50 @@ class NotificationService {
       _defaultDetails(),
       payload: payload,
     );
+  }
+
+  /// One-shot Hermes job (ids 1000–1999). Android skips OS scheduling and
+  /// relies on app-open catch-up in [CronBridge.sync].
+  Future<void> scheduleAgentJob({
+    required int id,
+    required String title,
+    required String body,
+    required DateTime when,
+    required String taskId,
+  }) async {
+    await init();
+    await _plugin.cancel(id);
+    if (Platform.isAndroid) {
+      _log('Android: deferred agent job $taskId until app open');
+      return;
+    }
+    final payload = NotificationPayload.agentTask(taskId: taskId).encode();
+    try {
+      await _plugin.zonedSchedule(
+        id,
+        title,
+        body,
+        tz.TZDateTime.from(when, tz.local),
+        _defaultDetails(),
+        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
+        payload: payload,
+      );
+      _log('agent job $taskId @ $when');
+    } catch (e, st) {
+      _logError('agent job schedule failed ($taskId)', e, st);
+    }
+  }
+
+  Future<void> showAgentJob({
+    required int id,
+    required String title,
+    required String body,
+    required String taskId,
+  }) async {
+    await init();
+    final payload = NotificationPayload.agentTask(taskId: taskId).encode();
+    await _plugin.show(id, title, body, _defaultDetails(), payload: payload);
+    _log('agent job fired $taskId');
   }
 
   /// Cancels every notification we've scheduled. Useful when the master
@@ -347,22 +410,23 @@ class NotificationService {
   }
 
   static String _reminderTitleFor(ReminderDomain d) => switch (d) {
-        ReminderDomain.expenses => 'Expenses need a refresh',
-        ReminderDomain.cashflow => 'Cash flow needs a refresh',
-        ReminderDomain.income => 'Income needs a refresh',
-        ReminderDomain.assets => 'Assets need a refresh',
-        ReminderDomain.liabilities => 'Liabilities need a refresh',
-        ReminderDomain.goals => 'Plan needs a check-in',
-      };
+    ReminderDomain.expenses => 'Expenses need a refresh',
+    ReminderDomain.cashflow => 'Cash flow needs a refresh',
+    ReminderDomain.income => 'Income needs a refresh',
+    ReminderDomain.assets => 'Assets need a refresh',
+    ReminderDomain.liabilities => 'Liabilities need a refresh',
+    ReminderDomain.goals => 'Plan needs a check-in',
+  };
 
   static String _reminderBodyFor(ReminderDomain d) => switch (d) {
-        ReminderDomain.expenses => 'Tap to update your expense estimates.',
-        ReminderDomain.cashflow => 'A new month is here — log your latest cash flow.',
-        ReminderDomain.income => 'Confirm your income lines are still accurate.',
-        ReminderDomain.assets => 'Take a moment to refresh your asset balances.',
-        ReminderDomain.liabilities => 'Update your liability balances.',
-        ReminderDomain.goals => 'Tap to open Agent and review your living plan.',
-      };
+    ReminderDomain.expenses => 'Tap to update your expense estimates.',
+    ReminderDomain.cashflow =>
+      'A new month is here — log your latest cash flow.',
+    ReminderDomain.income => 'Confirm your income lines are still accurate.',
+    ReminderDomain.assets => 'Take a moment to refresh your asset balances.',
+    ReminderDomain.liabilities => 'Update your liability balances.',
+    ReminderDomain.goals => 'Tap to open Agent and review your living plan.',
+  };
 
   static const int _goalMilestoneNotificationId = 901;
   static const int _homeMessageNotificationId = 902;
@@ -407,9 +471,4 @@ void zoroBackgroundNotificationResponse(NotificationResponse response) {
 }
 
 /// Coarse status surfaced to the Settings UI.
-enum NotificationAuthStatus {
-  authorized,
-  denied,
-  unknown,
-  unsupported,
-}
+enum NotificationAuthStatus { authorized, denied, unknown, unsupported }

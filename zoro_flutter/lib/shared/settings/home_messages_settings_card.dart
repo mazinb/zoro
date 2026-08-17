@@ -15,7 +15,8 @@ class HomeMessagesSettingsCard extends StatefulWidget {
   final VoidCallback onOpenHomeSettings;
 
   @override
-  State<HomeMessagesSettingsCard> createState() => _HomeMessagesSettingsCardState();
+  State<HomeMessagesSettingsCard> createState() =>
+      _HomeMessagesSettingsCardState();
 }
 
 class _HomeMessagesSettingsCardState extends State<HomeMessagesSettingsCard> {
@@ -24,7 +25,8 @@ class _HomeMessagesSettingsCardState extends State<HomeMessagesSettingsCard> {
   @override
   void initState() {
     super.initState();
-    _homeLinkRecognizer = TapGestureRecognizer()..onTap = widget.onOpenHomeSettings;
+    _homeLinkRecognizer = TapGestureRecognizer()
+      ..onTap = widget.onOpenHomeSettings;
   }
 
   @override
@@ -57,7 +59,10 @@ class _HomeMessagesSettingsCardState extends State<HomeMessagesSettingsCard> {
           children: [
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
-              title: const Text('Home messages', style: TextStyle(fontWeight: FontWeight.w800)),
+              title: const Text(
+                'Home messages',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
               value: model.homeMessagesEnabled,
               onChanged: model.setHomeMessagesEnabled,
             ),
@@ -70,7 +75,11 @@ class _HomeMessagesSettingsCardState extends State<HomeMessagesSettingsCard> {
               const SizedBox(height: 8),
               Text.rich(
                 TextSpan(
-                  style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 13, height: 1.35),
+                  style: TextStyle(
+                    color: scheme.onSurfaceVariant,
+                    fontSize: 13,
+                    height: 1.35,
+                  ),
                   children: [
                     const TextSpan(text: 'Configure in '),
                     TextSpan(
@@ -91,7 +100,10 @@ class _HomeMessagesSettingsCardState extends State<HomeMessagesSettingsCard> {
                 const SizedBox(height: 8),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: const Text('Notify when ready', style: TextStyle(fontWeight: FontWeight.w800)),
+                  title: const Text(
+                    'Notify when ready',
+                    style: TextStyle(fontWeight: FontWeight.w800),
+                  ),
                   value: model.homeMessagesNotifications,
                   onChanged: model.setHomeMessagesNotifications,
                 ),
@@ -105,10 +117,7 @@ class _HomeMessagesSettingsCardState extends State<HomeMessagesSettingsCard> {
 }
 
 class _HomeMessageCadenceRow extends StatelessWidget {
-  const _HomeMessageCadenceRow({
-    required this.value,
-    required this.onChanged,
-  });
+  const _HomeMessageCadenceRow({required this.value, required this.onChanged});
 
   final HomeMessageCadence value;
   final ValueChanged<HomeMessageCadence> onChanged;
@@ -118,17 +127,17 @@ class _HomeMessageCadenceRow extends StatelessWidget {
     return Row(
       children: [
         const Expanded(
-          child: Text('Schedule', style: TextStyle(fontWeight: FontWeight.w800)),
+          child: Text(
+            'Schedule',
+            style: TextStyle(fontWeight: FontWeight.w800),
+          ),
         ),
         DropdownButton<HomeMessageCadence>(
           value: value,
           isDense: true,
           items: [
             for (final c in HomeMessageCadence.values)
-              DropdownMenuItem(
-                value: c,
-                child: Text(c.label),
-              ),
+              DropdownMenuItem(value: c, child: Text(c.label)),
           ],
           onChanged: (v) {
             if (v == null) return;

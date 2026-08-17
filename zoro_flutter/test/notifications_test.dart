@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zoro_flutter/core/notifications/notification_payload.dart';
 import 'package:zoro_flutter/core/state/app_model.dart';
+
 void main() {
   group('NotificationPayload', () {
     test('encodes/decodes agent task payloads', () {
@@ -28,8 +29,14 @@ void main() {
       expect(NotificationPayload.tryDecode(''), isNull);
       expect(NotificationPayload.tryDecode('not json'), isNull);
       expect(NotificationPayload.tryDecode('{"kind":"unknown"}'), isNull);
-      expect(NotificationPayload.tryDecode('{"kind":"agentTask"}'), isNull); // missing taskId
-      expect(NotificationPayload.tryDecode('{"kind":"reminder","domain":"nope"}'), isNull);
+      expect(
+        NotificationPayload.tryDecode('{"kind":"agentTask"}'),
+        isNull,
+      ); // missing taskId
+      expect(
+        NotificationPayload.tryDecode('{"kind":"reminder","domain":"nope"}'),
+        isNull,
+      );
     });
   });
 
@@ -60,7 +67,13 @@ void main() {
       m.userTouchedExpenses = true;
       m.expenseEstimatesLastUpdated = DateTime(2020, 1, 1);
       m.remindersExpensesCadence = ReminderCadence.monthly;
-      expect(m.isReminderNotifiable(ReminderDomain.expenses, now: DateTime(2030, 6, 15)), isFalse);
+      expect(
+        m.isReminderNotifiable(
+          ReminderDomain.expenses,
+          now: DateTime(2030, 6, 15),
+        ),
+        isFalse,
+      );
     });
 
     test('cadence Off silences a specific domain', () {
@@ -69,24 +82,42 @@ void main() {
       m.userTouchedExpenses = true;
       m.expenseEstimatesLastUpdated = DateTime(2020, 1, 1);
       m.remindersExpensesCadence = ReminderCadence.off;
-      expect(m.isReminderNotifiable(ReminderDomain.expenses, now: DateTime(2030, 6, 15)), isFalse);
+      expect(
+        m.isReminderNotifiable(
+          ReminderDomain.expenses,
+          now: DateTime(2030, 6, 15),
+        ),
+        isFalse,
+      );
     });
 
-    test('domain becomes notifiable once the user touches it and time passes', () {
-      final m = AppModel();
-      m.notificationsEnabled = true;
-      m.remindersExpensesCadence = ReminderCadence.monthly;
-      final now = DateTime(2030, 6, 15);
-      // Brand-new: untouched.
-      expect(m.isReminderNotifiable(ReminderDomain.expenses, now: now), isFalse);
-      // User edits an expense (mutation method sets userTouchedExpenses + last).
-      m.markExpenseEstimatesUpdated();
-      // Same day — not yet overdue.
-      expect(m.isReminderNotifiable(ReminderDomain.expenses, now: DateTime.now()), isFalse);
-      // Roll the clock forward past the next monthly anchor.
-      m.expenseEstimatesLastUpdated = DateTime(2030, 4, 10);
-      expect(m.isReminderNotifiable(ReminderDomain.expenses, now: now), isTrue);
-    });
+    test(
+      'domain becomes notifiable once the user touches it and time passes',
+      () {
+        final m = AppModel();
+        m.notificationsEnabled = true;
+        m.remindersExpensesCadence = ReminderCadence.monthly;
+        final now = DateTime(2030, 6, 15);
+        // Brand-new: untouched.
+        expect(
+          m.isReminderNotifiable(ReminderDomain.expenses, now: now),
+          isFalse,
+        );
+        // User edits an expense (mutation method sets userTouchedExpenses + last).
+        m.markExpenseEstimatesUpdated();
+        // Same day — not yet overdue.
+        expect(
+          m.isReminderNotifiable(ReminderDomain.expenses, now: DateTime.now()),
+          isFalse,
+        );
+        // Roll the clock forward past the next monthly anchor.
+        m.expenseEstimatesLastUpdated = DateTime(2030, 4, 10);
+        expect(
+          m.isReminderNotifiable(ReminderDomain.expenses, now: now),
+          isTrue,
+        );
+      },
+    );
 
     test('cashflow gates on imported months rather than userTouched', () {
       final m = AppModel();
@@ -94,7 +125,10 @@ void main() {
       m.remindersCashflowCadence = ReminderCadence.monthly;
       final now = DateTime(2030, 6, 15);
       // No months imported yet → never overdue for notifications.
-      expect(m.isReminderNotifiable(ReminderDomain.cashflow, now: now), isFalse);
+      expect(
+        m.isReminderNotifiable(ReminderDomain.cashflow, now: now),
+        isFalse,
+      );
     });
   });
 
@@ -107,12 +141,18 @@ void main() {
       // Silence domains outside the test set — seeded dates can otherwise make
       // every row eligible once onboarding is complete.
       final enabled = domains.toSet();
-      if (!enabled.contains(ReminderDomain.expenses)) m.remindersExpensesCadence = ReminderCadence.off;
-      if (!enabled.contains(ReminderDomain.cashflow)) m.remindersCashflowCadence = ReminderCadence.off;
-      if (!enabled.contains(ReminderDomain.income)) m.remindersIncomeCadence = ReminderCadence.off;
-      if (!enabled.contains(ReminderDomain.assets)) m.remindersAssetsCadence = ReminderCadence.off;
-      if (!enabled.contains(ReminderDomain.liabilities)) m.remindersLiabilitiesCadence = ReminderCadence.off;
-      if (!enabled.contains(ReminderDomain.goals)) m.remindersGoalsCadence = ReminderCadence.off;
+      if (!enabled.contains(ReminderDomain.expenses))
+        m.remindersExpensesCadence = ReminderCadence.off;
+      if (!enabled.contains(ReminderDomain.cashflow))
+        m.remindersCashflowCadence = ReminderCadence.off;
+      if (!enabled.contains(ReminderDomain.income))
+        m.remindersIncomeCadence = ReminderCadence.off;
+      if (!enabled.contains(ReminderDomain.assets))
+        m.remindersAssetsCadence = ReminderCadence.off;
+      if (!enabled.contains(ReminderDomain.liabilities))
+        m.remindersLiabilitiesCadence = ReminderCadence.off;
+      if (!enabled.contains(ReminderDomain.goals))
+        m.remindersGoalsCadence = ReminderCadence.off;
       for (final d in domains) {
         switch (d) {
           case ReminderDomain.expenses:
@@ -144,29 +184,50 @@ void main() {
       return m;
     }
 
-    test('canFireDailyReminderNow honors the notify hour and master switch', () {
-      final m = modelWithEligible(domains: {ReminderDomain.expenses});
-      final today = DateTime(2030, 6, 15);
-      // Before 09:00 → gate closed.
-      expect(m.canFireDailyReminderNow(now: DateTime(2030, 6, 15, 8, 59)), isFalse);
-      // 09:00 sharp → gate opens.
-      expect(m.canFireDailyReminderNow(now: DateTime(2030, 6, 15, 9, 0)), isTrue);
-      // Master switch closes the gate.
-      m.notificationsEnabled = false;
-      expect(m.canFireDailyReminderNow(now: today.add(const Duration(hours: 10))), isFalse);
-    });
+    test(
+      'canFireDailyReminderNow honors the notify hour and master switch',
+      () {
+        final m = modelWithEligible(domains: {ReminderDomain.expenses});
+        final today = DateTime(2030, 6, 15);
+        // Before 09:00 → gate closed.
+        expect(
+          m.canFireDailyReminderNow(now: DateTime(2030, 6, 15, 8, 59)),
+          isFalse,
+        );
+        // 09:00 sharp → gate opens.
+        expect(
+          m.canFireDailyReminderNow(now: DateTime(2030, 6, 15, 9, 0)),
+          isTrue,
+        );
+        // Master switch closes the gate.
+        m.notificationsEnabled = false;
+        expect(
+          m.canFireDailyReminderNow(now: today.add(const Duration(hours: 10))),
+          isFalse,
+        );
+      },
+    );
 
     test('blocks a second fire on the same day even with eligible domains', () {
-      final m = modelWithEligible(domains: {ReminderDomain.expenses, ReminderDomain.assets});
+      final m = modelWithEligible(
+        domains: {ReminderDomain.expenses, ReminderDomain.assets},
+      );
       final at = DateTime(2030, 6, 15, 9, 5);
       expect(m.canFireDailyReminderNow(now: at), isTrue);
       m.recordDailyReminderFired(ReminderDomain.expenses, at: at);
-      expect(m.canFireDailyReminderNow(now: DateTime(2030, 6, 15, 23, 59)), isFalse);
+      expect(
+        m.canFireDailyReminderNow(now: DateTime(2030, 6, 15, 23, 59)),
+        isFalse,
+      );
     });
 
     test('rotates to the next eligible domain after midnight', () {
       final m = modelWithEligible(
-        domains: {ReminderDomain.expenses, ReminderDomain.income, ReminderDomain.assets},
+        domains: {
+          ReminderDomain.expenses,
+          ReminderDomain.income,
+          ReminderDomain.assets,
+        },
       );
       final day1 = DateTime(2030, 6, 15, 9, 5);
       // First fire picks the first eligible (Expenses is first in ReminderDomain.values).
@@ -198,31 +259,55 @@ void main() {
       expect(m.nextRotationDomain(now: DateTime(2030, 6, 15, 9, 5)), isNull);
     });
 
-    test('changing notify time resets the once-per-day gate for the new slot', () {
-      final m = modelWithEligible(domains: {ReminderDomain.expenses});
-      m.recordDailyReminderFired(ReminderDomain.expenses, at: DateTime(2030, 6, 15, 9, 5));
-      expect(m.canFireDailyReminderNow(now: DateTime(2030, 6, 15, 12, 0)), isFalse);
+    test(
+      'changing notify time resets the once-per-day gate for the new slot',
+      () {
+        final m = modelWithEligible(domains: {ReminderDomain.expenses});
+        m.recordDailyReminderFired(
+          ReminderDomain.expenses,
+          at: DateTime(2030, 6, 15, 9, 5),
+        );
+        expect(
+          m.canFireDailyReminderNow(now: DateTime(2030, 6, 15, 12, 0)),
+          isFalse,
+        );
 
-      m.setReminderNotifyTime(hour: 14, minute: 30);
-      expect(m.remindersLastFiredOn, isNull);
-      expect(m.remindersScheduledFireOn, isNull);
-      // New slot still in the future — wait.
-      expect(m.canFireDailyReminderNow(now: DateTime(2030, 6, 15, 14, 0)), isFalse);
-      // New slot reached — allowed again on the same calendar day.
-      expect(m.canFireDailyReminderNow(now: DateTime(2030, 6, 15, 14, 35)), isTrue);
-    });
+        m.setReminderNotifyTime(hour: 14, minute: 30);
+        expect(m.remindersLastFiredOn, isNull);
+        expect(m.remindersScheduledFireOn, isNull);
+        // New slot still in the future — wait.
+        expect(
+          m.canFireDailyReminderNow(now: DateTime(2030, 6, 15, 14, 0)),
+          isFalse,
+        );
+        // New slot reached — allowed again on the same calendar day.
+        expect(
+          m.canFireDailyReminderNow(now: DateTime(2030, 6, 15, 14, 35)),
+          isTrue,
+        );
+      },
+    );
 
     test('gate defers until today OS slot, then reopens for catch-up', () {
       final m = modelWithEligible(domains: {ReminderDomain.expenses});
       m.remindersScheduledFireOn = DateTime(2030, 6, 15);
       m.remindersPendingDomain = ReminderDomain.expenses;
       // Before today's notify hour — wait for the OS schedule.
-      expect(m.canFireDailyReminderNow(now: DateTime(2030, 6, 15, 8, 59)), isFalse);
+      expect(
+        m.canFireDailyReminderNow(now: DateTime(2030, 6, 15, 8, 59)),
+        isFalse,
+      );
       // After the slot — allow Dart fallback if iOS never delivered.
-      expect(m.canFireDailyReminderNow(now: DateTime(2030, 6, 15, 9, 5)), isTrue);
+      expect(
+        m.canFireDailyReminderNow(now: DateTime(2030, 6, 15, 9, 5)),
+        isTrue,
+      );
       // Future pending day — still wait.
       m.remindersScheduledFireOn = DateTime(2030, 6, 16);
-      expect(m.canFireDailyReminderNow(now: DateTime(2030, 6, 15, 10, 0)), isFalse);
+      expect(
+        m.canFireDailyReminderNow(now: DateTime(2030, 6, 15, 10, 0)),
+        isFalse,
+      );
     });
   });
 }

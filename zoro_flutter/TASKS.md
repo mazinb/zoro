@@ -11,7 +11,14 @@ Privacy-first finance on device. Production API: **getzoro.com**. On-device stor
 - [x] **Onboarding (v1)** — 3-step first-run: USD + 2 FX picks, income (salary/bonus/RSU/tax), 4× expense MCQ + optional Apple on-device note. Tab ? how-it-works + Reddit footer.
 - [x] **Onboarding demo ledger** — optional demo assets/liabilities (condo, US brokerage, India fund, cash, mortgage, car loan) via Apple on-device customization from onboarding currencies; clear untouched rows from header bolt. Expense estimate currency picker (USD + FX picks); `expenseEstimateCurrency` on export/import.
 - [ ] **Onboarding (v2)** — split slider, retirement date vs invest /mo (Goals editor retire panel).
-- [ ] **Phase 1 remainder** — mailbox backend, Hermes contract doc, agent tests.
+- [x] **Phase 1 Agent surface** — Agent chat is primary; retirement plan, inbox, PDF import, and private mailbox moved behind chat actions. Chat prefers Apple on-device Intelligence, then Cloud AI / BYO key.
+- [x] **Phase 1 turn status prototype** — one-shot replies show pulsing thinking, switch to an amber long-wait state after 28s, and retain a failed state on errors.
+- [x] **Phase 1 chat UX (Telegram-like)** — reverse scrollable bubble thread, pinned composer, Claim email + Inbox actions; streaming edits still later.
+- [x] **Phase 1 chat history + slash commands** — transcript persists in `hermes_home/chat/history.json` (400-turn cap) with day dividers and timestamps; `/plan /inbox /mailbox /fetch /import /clear /help` run locally from the composer menu or `/` autocomplete.
+- [x] **Phase 1 mailbox backend** — email claim + app deep link, service-role-only tables, Resend inbound PDF retrieval, on-device pickup/ack, and 48h purge are implemented. Production deploy must expose the claim page and configure `RESEND_INBOUND_WEBHOOK_SECRET`.
+- [x] **Phase 1 remainder** — Hermes contract doc (`docs/hermes-runtime-contract.md`), DocumentStore/MCP/cron tests, legal/privacy copy, layout v3 README, Plan export includes `hermes_home` retirement markdown.
+- [x] **Phase 2 Hermes host** — loopback MCP JSON-RPC (`ZoroMcpHost`), `AGENTS.md` / `SOUL.md` / `config.yaml`, cron dir → `NotificationService` (ids 1000–1999), Agent jobs toggle, handshake status in Settings. Chat uses Hermes when `presence == ready`, otherwise on-device/Cloud LLM.
+- [x] **Phase 3 skill packs** — bundled `assets/skills/finance/*/SKILL.md` copied into `hermes_home/skills` without clobbering; matcher caps 3 skills; Settings helpers hide when the replacing pack is installed.
 
 ---
 

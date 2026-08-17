@@ -5,7 +5,12 @@ import 'package:flutter/material.dart';
 import '../../core/constants/web_expenses_income.dart';
 
 class ExpenseDonutSegment {
-  const ExpenseDonutSegment({required this.key, required this.label, required this.value, required this.color});
+  const ExpenseDonutSegment({
+    required this.key,
+    required this.label,
+    required this.value,
+    required this.color,
+  });
 
   final String key;
   final String label;
@@ -55,10 +60,7 @@ class ExpenseDonutChart extends StatelessWidget {
       width: size,
       height: size,
       child: CustomPaint(
-        painter: _DonutPainter(
-          segments: segments,
-          strokeWidth: strokeWidth,
-        ),
+        painter: _DonutPainter(segments: segments, strokeWidth: strokeWidth),
         child: Center(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -66,13 +68,21 @@ class ExpenseDonutChart extends StatelessWidget {
               Text(
                 centerTitle,
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 15, height: 1.1),
+                style: const TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 15,
+                  height: 1.1,
+                ),
               ),
               const SizedBox(height: 4),
               Text(
                 centerSubtitle,
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 11, color: Color(0xFF64748B), fontWeight: FontWeight.w600),
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: Color(0xFF64748B),
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ],
           ),
@@ -120,7 +130,8 @@ class _DonutPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _DonutPainter oldDelegate) {
-    return oldDelegate.segments != segments || oldDelegate.strokeWidth != strokeWidth;
+    return oldDelegate.segments != segments ||
+        oldDelegate.strokeWidth != strokeWidth;
   }
 }
 
@@ -133,7 +144,14 @@ List<ExpenseDonutSegment> expenseDonutSegmentsFromPreset(
     final v = expenseBuckets[k] ?? 0;
     if (v <= 0) continue;
     final label = _shortExpenseLabel(k);
-    out.add(ExpenseDonutSegment(key: k, label: label, value: v, color: bucketColorHighContrast(k)));
+    out.add(
+      ExpenseDonutSegment(
+        key: k,
+        label: label,
+        value: v,
+        color: bucketColorHighContrast(k),
+      ),
+    );
   }
   return out;
 }

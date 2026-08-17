@@ -4,13 +4,18 @@ import '../../core/state/internal_app_agent_definition.dart';
 import '../../shared/guided_mcq/guided_mcq_config.dart';
 
 abstract final class GoalsExpenseEstimatorConfig {
-  static GuidedMcqConfig forGoal({required AppModel model, required String goalId}) {
+  static GuidedMcqConfig forGoal({
+    required AppModel model,
+    required String goalId,
+  }) {
     final g = model.financialGoalById(goalId);
     final title = g == null
         ? 'Estimate expenses'
         : g.isRetirement
-            ? 'Retirement expenses'
-            : (g.name.trim().isEmpty ? 'Goal expenses' : '${g.name.trim()} expenses');
+        ? 'Retirement expenses'
+        : (g.name.trim().isEmpty
+              ? 'Goal expenses'
+              : '${g.name.trim()} expenses');
 
     return GuidedMcqConfig(
       internalAgentId: InternalAppAgentIds.goalsExpenseEstimator,

@@ -29,6 +29,29 @@ abstract final class InternalAppAgentIds {
 
   static const exportSanitizer = 'export_sanitizer';
   static const homeSummaryHelper = 'home_summary_helper';
+
+  /// Settings helpers hidden once the matching skill pack is installed.
+  static const replacedBySkill = <String, String>{
+    goalsRetirementCorpus: 'retirement-plan',
+    goalsRetirementSplit: 'retirement-plan',
+    goalsRetirementBuckets: 'retirement-plan',
+    goalsReviewAssumptions: 'retirement-plan',
+    goalsReviewLiabilities: 'retirement-plan',
+    goalsReviewAssetReturns: 'retirement-plan',
+    goalsExpenseEstimator: 'expense-calibration',
+    ledgerAddAssets: 'ledger-from-statement',
+    ledgerAddLiabilities: 'ledger-from-statement',
+    ledgerAddActualExpenses: 'ledger-from-statement',
+    ledgerReviewAsset: 'ledger-review',
+    ledgerReviewLiability: 'ledger-review',
+    ledgerOrchestrator: 'expense-calibration',
+    assetContext: 'update-context',
+    liabilityContext: 'update-context',
+    expenseBucketContext: 'update-context',
+    monthCashflowContext: 'update-context',
+    contextOrchestrator: 'update-context',
+    homeSummaryHelper: 'home-briefing',
+  };
 }
 
 /// Registry entry for Settings → App helpers. Add rows here to surface new built-in helpers.
@@ -79,7 +102,8 @@ Use the six-month average as the benchmark. Suggest higher or lower monthly buck
         'Cash tab helper: compares 6 months of actuals to estimates and suggests updated monthly buckets with Apply.',
     infoContextSent:
         'Six completed months of spending, current expense bucket estimates, and totals in display currency.',
-    modelDomainHints: 'Return expenseBuckets with all keys from payload.bucketKeys.',
+    modelDomainHints:
+        'Return expenseBuckets with all keys from payload.bucketKeys.',
   ),
   InternalAppAgentDefinition(
     id: InternalAppAgentIds.ledgerReviewAsset,
@@ -118,7 +142,8 @@ Interest rate on the ledger card and cashflow paydowns are handled separately.
 ''',
     infoWhatItDoes:
         'Checks each liability context note for amount consistency — not naming or rate.',
-    infoContextSent: 'Per liability: name, type, balance, rate, comment, and context note.',
+    infoContextSent:
+        'Per liability: name, type, balance, rate, comment, and context note.',
     modelDomainHints: '',
   ),
   InternalAppAgentDefinition(
@@ -150,8 +175,7 @@ If the user is adding new rows and a row duplicates an existing asset (same inst
         'Reads the uploaded file (image / PDF) and extracts new asset rows for the ledger.',
     infoContextSent:
         'The file the user picked (image bytes or PDF) plus the existing asset list (name, type, total) so duplicates can be skipped.',
-    modelDomainHints:
-        'Asset types: savings, investments, property, other.',
+    modelDomainHints: 'Asset types: savings, investments, property, other.',
   ),
   InternalAppAgentDefinition(
     id: InternalAppAgentIds.ledgerAddLiabilities,
@@ -320,7 +344,8 @@ Improve the context note for one asset. Ledger balance is correct.
 
 Explain holdings, institution, and how amounts in the note sum to ledgerTotal in accountCurrency (convert with FX when the note uses another currency). Flag under/over amounts in context only.
 ''',
-    infoWhatItDoes: 'Parallel review of asset context notes with suggested updates.',
+    infoWhatItDoes:
+        'Parallel review of asset context notes with suggested updates.',
     infoContextSent: 'Asset ledger fields + existing context markdown.',
     modelDomainHints: '',
   ),
@@ -334,7 +359,8 @@ Improve the context note for one debt. Ledger balance and rate field are correct
 
 Capture lender, rate terms, payment amount and timing, and anything special (intro rate, balloon).
 ''',
-    infoWhatItDoes: 'Parallel review of liability context notes with suggested updates.',
+    infoWhatItDoes:
+        'Parallel review of liability context notes with suggested updates.',
     infoContextSent: 'Liability ledger fields + existing context markdown.',
     modelDomainHints: '',
   ),
@@ -364,9 +390,12 @@ Synthesis (structured block required):
 
 targetAmount = annual recurring expenses × 12 ÷ (SWR/100) × (1 + buffer/100). Use payload recurringExpensesMonthly.
 ''',
-    infoWhatItDoes: 'MCQ for safe withdrawal rate and corpus buffer; computes corpus from ledger expenses.',
-    infoContextSent: 'Recurring monthly expenses, current SWR/buffer, computed corpus preview.',
-    modelDomainHints: 'Planner: max 5 questions. Synth: include all structured fields.',
+    infoWhatItDoes:
+        'MCQ for safe withdrawal rate and corpus buffer; computes corpus from ledger expenses.',
+    infoContextSent:
+        'Recurring monthly expenses, current SWR/buffer, computed corpus preview.',
+    modelDomainHints:
+        'Planner: max 5 questions. Synth: include all structured fields.',
   ),
   InternalAppAgentDefinition(
     id: InternalAppAgentIds.goalsRetirementSplit,
@@ -390,8 +419,10 @@ Return JSON only:
 allocInvestFraction is 0–1 share of availableAfterExpensesMonthly to investments.
 Only include goalUpdates when changing targetDate for focusGoalId.
 ''',
-    infoWhatItDoes: 'Optional LLM pass when the user adds a note on the invest/savings & date section.',
-    infoContextSent: 'Current split, required monthly savings, retire-by date, and MCQ answers.',
+    infoWhatItDoes:
+        'Optional LLM pass when the user adds a note on the invest/savings & date section.',
+    infoContextSent:
+        'Current split, required monthly savings, retire-by date, and MCQ answers.',
     modelDomainHints: 'Synth only — user already answered fixed MCQs.',
   ),
   InternalAppAgentDefinition(
@@ -413,9 +444,12 @@ Return JSON only:
 
 Use asset ids from payload.assets. Investment accounts already count toward retirement by default.
 ''',
-    infoWhatItDoes: 'Optional LLM pass for retirement asset inclusion and savings pool weighting.',
-    infoContextSent: 'Ledger assets, current retirementExtraAssetIds, target goal weights, MCQ answers.',
-    modelDomainHints: 'Synth only — deterministic apply when optional note is empty.',
+    infoWhatItDoes:
+        'Optional LLM pass for retirement asset inclusion and savings pool weighting.',
+    infoContextSent:
+        'Ledger assets, current retirementExtraAssetIds, target goal weights, MCQ answers.',
+    modelDomainHints:
+        'Synth only — deterministic apply when optional note is empty.',
   ),
   InternalAppAgentDefinition(
     id: InternalAppAgentIds.goalsReviewLiabilities,
@@ -435,7 +469,8 @@ Return JSON only:
 
 Use liability ids from payload.liabilities. Do not change balances or interest rates unless the note requires it.
 ''',
-    infoWhatItDoes: 'Optional LLM pass for loan paydown amounts after structured numeric steps.',
+    infoWhatItDoes:
+        'Optional LLM pass for loan paydown amounts after structured numeric steps.',
     infoContextSent: 'Liability balances, rates, current paydown, MCQ answers.',
     modelDomainHints: 'Synth only.',
   ),
@@ -456,8 +491,10 @@ Return JSON only:
 
 Use asset ids from payload.assets. returnRatePct is annual percent (-20 to 50).
 ''',
-    infoWhatItDoes: 'Optional LLM pass for per-asset return assumptions used in projections.',
-    infoContextSent: 'Investment assets, current return rates, projection defaults.',
+    infoWhatItDoes:
+        'Optional LLM pass for per-asset return assumptions used in projections.',
+    infoContextSent:
+        'Investment assets, current return rates, projection defaults.',
     modelDomainHints: 'Synth only.',
   ),
   InternalAppAgentDefinition(
@@ -479,7 +516,8 @@ Return JSON only:
 
 fxUsdPerUnit values are USD per 1 unit of foreign currency (same as app storage). Use currency keys from payload.
 ''',
-    infoWhatItDoes: 'Optional LLM pass for interest, inflation, and exchange rate assumptions.',
+    infoWhatItDoes:
+        'Optional LLM pass for interest, inflation, and exchange rate assumptions.',
     infoContextSent: 'Current projection maps and FX overrides.',
     modelDomainHints: 'Synth only.',
   ),
@@ -505,14 +543,17 @@ Synthesis (structured block required):
 
 Only include bucket keys from payload.bucketKeys. Amounts are monthly in display currency.
 ''',
-    infoWhatItDoes: 'AI proposes monthly expense bucket estimates; user reviews before updating the ledger.',
-    infoContextSent: 'Goal name/kind, current bucket estimates, recurring total — compact, no full asset list.',
-    modelDomainHints: 'Planner: max 5 questions. Synth: expenseBuckets object with proposed monthly values.',
+    infoWhatItDoes:
+        'AI proposes monthly expense bucket estimates; user reviews before updating the ledger.',
+    infoContextSent:
+        'Goal name/kind, current bucket estimates, recurring total — compact, no full asset list.',
+    modelDomainHints:
+        'Planner: max 5 questions. Synth: expenseBuckets object with proposed monthly values.',
   ),
   InternalAppAgentDefinition(
     id: InternalAppAgentIds.homeSummaryHelper,
     title: 'Home briefing',
-    listSubtitle: 'Coming as a Hermes skill',
+    listSubtitle: 'Coming as an agent skill',
     icon: Icons.wb_sunny_outlined,
     defaultSystemPrompt: '''
 You rotate through one area of the user's finances each day (assets, liabilities, cash flow, context notes, or goals).
@@ -535,7 +576,8 @@ Redact bank names, brokerage names, account numbers, and other identifying finan
 
 Keep numeric amounts, dates, stable row ids, and structure unchanged. Use neutral placeholders such as "Bank A" or "Investment account" where a label must remain readable.
 ''',
-    infoWhatItDoes: 'Optional pass before saving an export — scrubs institution names from string fields.',
+    infoWhatItDoes:
+        'Optional pass before saving an export — scrubs institution names from string fields.',
     infoContextSent: 'The full export document as text (structure preserved).',
     modelDomainHints: '',
   ),

@@ -14,20 +14,35 @@ void main() {
 
   test('recordLlmRequest accumulates tokens by provider', () {
     final model = AppModel();
-    model.recordLlmRequest(provider: LlmProvider.appleFoundation, model: 'system', tokensUsed: 120);
-    model.recordLlmRequest(provider: LlmProvider.zoroCloud, model: 'gemini', tokensUsed: 80);
-    model.recordLlmRequest(provider: LlmProvider.openai, model: 'gpt-4o', tokensUsed: 40);
+    model.recordLlmRequest(
+      provider: LlmProvider.appleFoundation,
+      model: 'system',
+      tokensUsed: 120,
+    );
+    model.recordLlmRequest(
+      provider: LlmProvider.zoroCloud,
+      model: 'gemini',
+      tokensUsed: 80,
+    );
+    model.recordLlmRequest(
+      provider: LlmProvider.openai,
+      model: 'gpt-4o',
+      tokensUsed: 40,
+    );
     expect(model.overallTokensUsed, 240);
     expect(model.onDeviceTokensUsed, 120);
     expect(model.cloudTokensUsed, 80);
     expect(model.byoKeyTokensUsed, 40);
   });
 
-  test('recordImportRequest stores cloud tokens under zoroCloud import key', () {
-    final model = AppModel();
-    model.recordImportRequest(cloud: true, tokensUsed: 900);
-    expect(model.cloudTokensUsed, 900);
-    expect(model.overallTokensUsed, 900);
-    expect(model.onDeviceTokensUsed, 0);
-  });
+  test(
+    'recordImportRequest stores cloud tokens under zoroCloud import key',
+    () {
+      final model = AppModel();
+      model.recordImportRequest(cloud: true, tokensUsed: 900);
+      expect(model.cloudTokensUsed, 900);
+      expect(model.overallTokensUsed, 900);
+      expect(model.onDeviceTokensUsed, 0);
+    },
+  );
 }

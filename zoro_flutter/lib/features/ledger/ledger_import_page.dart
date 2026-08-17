@@ -15,6 +15,7 @@ import '../../shared/widgets/liquid_glass.dart';
 import '../../core/state/internal_app_agent_definition.dart';
 import '../../core/state/ledger_rows.dart';
 import '../../core/state/monthly_cashflow_entry.dart';
+
 enum LedgerImportKind { asset, liability, cashflow }
 
 enum _LedgerImportPickerKind { photos, files }
@@ -34,6 +35,7 @@ class LedgerImportPage extends StatefulWidget {
     required this.kind,
     this.editAssetId,
     this.editLiabilityId,
+
     /// Weak tie-break only — cashflow `monthKey` must come from the document.
     this.cashflowEditorHintMonthKey,
   });
@@ -56,6 +58,7 @@ class LedgerImportPage extends StatefulWidget {
 
 class _LedgerImportPageState extends State<LedgerImportPage> {
   bool _busy = false;
+
   /// True while the PDF password [AlertDialog] is showing — hide the indeterminate bar behind it.
   bool _pdfPasswordDialogOpen = false;
   String? _error;
@@ -88,18 +91,18 @@ class _LedgerImportPageState extends State<LedgerImportPage> {
   bool get _isRowEditMode => _editingAsset || _editingLiability;
 
   String get _kindApiValue => switch (widget.kind) {
-        LedgerImportKind.asset => 'asset',
-        LedgerImportKind.liability => 'liability',
-        LedgerImportKind.cashflow => 'cashflow',
-      };
+    LedgerImportKind.asset => 'asset',
+    LedgerImportKind.liability => 'liability',
+    LedgerImportKind.cashflow => 'cashflow',
+  };
 
   String get _title => switch (widget.kind) {
-    LedgerImportKind.asset => _editingAsset
-        ? 'Update asset from import'
-        : 'Import asset(s)',
-    LedgerImportKind.liability => _editingLiability
-        ? 'Update liability from import'
-        : 'Import liability(s)',
+    LedgerImportKind.asset =>
+      _editingAsset ? 'Update asset from import' : 'Import asset(s)',
+    LedgerImportKind.liability =>
+      _editingLiability
+          ? 'Update liability from import'
+          : 'Import liability(s)',
     LedgerImportKind.cashflow => 'Import cashflow',
   };
 
@@ -398,7 +401,9 @@ Infer **monthKey** from the document or statement period; use this hint only if 
                   ),
                   enabled: cloudOk,
                   onTap: cloudOk
-                      ? () => Navigator.of(ctx).pop(_LedgerImportPickerKind.photos)
+                      ? () => Navigator.of(
+                          ctx,
+                        ).pop(_LedgerImportPickerKind.photos)
                       : null,
                 ),
                 ListTile(
@@ -491,7 +496,9 @@ Infer **monthKey** from the document or statement period; use this hint only if 
   Future<void> _runLlmFromSavedBundle() async {
     final bundle = _ingestBundle;
     if (bundle == null) {
-      setState(() => _error = 'Nothing imported on-device yet. Pick a file first.');
+      setState(
+        () => _error = 'Nothing imported on-device yet. Pick a file first.',
+      );
       return;
     }
 
@@ -515,7 +522,8 @@ Infer **monthKey** from the document or statement period; use this hint only if 
         if (!ok) {
           if (mounted) {
             setState(() {
-              _error = 'Cloud AI is required for this import. Allow it in Settings → Usage.';
+              _error =
+                  'Cloud AI is required for this import. Allow it in Settings → Usage.';
               _stage = _LedgerImportStage.localReady;
             });
           }
@@ -561,7 +569,8 @@ Infer **monthKey** from the document or statement period; use this hint only if 
           final currencyCountry = _cleanCountry(mm['currencyCountry']);
           final comment = (mm['comment']?.toString() ?? '').trim();
           final ctx = mm['contextMarkdown']?.toString();
-          final rateRaw = mm['returnRatePct'] ?? mm['interestRatePct'] ?? mm['ratePct'];
+          final rateRaw =
+              mm['returnRatePct'] ?? mm['interestRatePct'] ?? mm['ratePct'];
           final returnRatePct = rateRaw is num
               ? rateRaw.toDouble()
               : double.tryParse(rateRaw?.toString() ?? '') ?? 0;
@@ -876,10 +885,8 @@ Infer **monthKey** from the document or statement period; use this hint only if 
     return null;
   }
 
-  String _fmtMoney(double v) => formatGroupedInteger(
-        v.round(),
-        currency: widget.model.displayCurrency,
-      );
+  String _fmtMoney(double v) =>
+      formatGroupedInteger(v.round(), currency: widget.model.displayCurrency);
 
   static String _truncate(String? s, [int max = 360]) {
     final t = (s ?? '').trim();
@@ -900,7 +907,9 @@ Infer **monthKey** from the document or statement period; use this hint only if 
       label: before?.label ?? parsed.label,
       comment: parsed.comment,
       contextMarkdown: parsed.contextMarkdown,
-      returnRatePct: parsed.returnRatePct > 0 ? parsed.returnRatePct : (before?.returnRatePct ?? 0),
+      returnRatePct: parsed.returnRatePct > 0
+          ? parsed.returnRatePct
+          : (before?.returnRatePct ?? 0),
     );
   }
 
@@ -966,8 +975,7 @@ Infer **monthKey** from the document or statement period; use this hint only if 
     }
   }
 
-  bool _sameStr(String? a, String? b) =>
-      (a ?? '').trim() == (b ?? '').trim();
+  bool _sameStr(String? a, String? b) => (a ?? '').trim() == (b ?? '').trim();
 
   Widget _diffRow(
     BuildContext ctx,
@@ -976,8 +984,7 @@ Infer **monthKey** from the document or statement period; use this hint only if 
     String after, {
     bool truncate = false,
   }) {
-    final beforeDisp =
-        truncate ? _truncate(before) : (before ?? '').trim();
+    final beforeDisp = truncate ? _truncate(before) : (before ?? '').trim();
     final afterDisp = truncate ? _truncate(after) : after.trim();
     final changed = !_sameStr(beforeDisp, afterDisp);
     final scheme = Theme.of(ctx).colorScheme;
@@ -1027,7 +1034,12 @@ Infer **monthKey** from the document or statement period; use this hint only if 
         return [
           _diffRow(ctx, 'Name', before?.name, after.name),
           _diffRow(ctx, 'Type', before?.type.label, after.type.label),
-          _diffRow(ctx, 'Currency', before?.currencyCountry, after.currencyCountry),
+          _diffRow(
+            ctx,
+            'Currency',
+            before?.currencyCountry,
+            after.currencyCountry,
+          ),
           _diffRow(
             ctx,
             'Total',
@@ -1055,7 +1067,12 @@ Infer **monthKey** from the document or statement period; use this hint only if 
         return [
           _diffRow(ctx, 'Name', before?.name, after.name),
           _diffRow(ctx, 'Type', before?.type.label, after.type.label),
-          _diffRow(ctx, 'Currency', before?.currencyCountry, after.currencyCountry),
+          _diffRow(
+            ctx,
+            'Currency',
+            before?.currencyCountry,
+            after.currencyCountry,
+          ),
           _diffRow(
             ctx,
             'Total',
@@ -1103,10 +1120,13 @@ Infer **monthKey** from the document or statement period; use this hint only if 
           }
         }
       } else {
-        if (!m.isPro && (m.assets.length + m.liabilities.length + rows.length) > 10) {
+        if (!m.isPro &&
+            (m.assets.length + m.liabilities.length + rows.length) > 10) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Free plan limit: 10 total assets + liabilities. Upgrade to add more.'),
+              content: Text(
+                'Free plan limit: 10 total assets + liabilities. Upgrade to add more.',
+              ),
               behavior: SnackBarBehavior.floating,
             ),
           );
@@ -1126,8 +1146,9 @@ Infer **monthKey** from the document or statement period; use this hint only if 
       if (rows.isEmpty) return;
       if (widget.editLiabilityId != null) {
         final l = rows.first;
-        final idx =
-            m.liabilities.indexWhere((x) => x.id == widget.editLiabilityId);
+        final idx = m.liabilities.indexWhere(
+          (x) => x.id == widget.editLiabilityId,
+        );
         if (idx >= 0) {
           m.replaceLiability(idx, l);
           final md = (l.contextMarkdown ?? '').trim();
@@ -1136,10 +1157,13 @@ Infer **monthKey** from the document or statement period; use this hint only if 
           }
         }
       } else {
-        if (!m.isPro && (m.assets.length + m.liabilities.length + rows.length) > 10) {
+        if (!m.isPro &&
+            (m.assets.length + m.liabilities.length + rows.length) > 10) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Free plan limit: 10 total assets + liabilities. Upgrade to add more.'),
+              content: Text(
+                'Free plan limit: 10 total assets + liabilities. Upgrade to add more.',
+              ),
               behavior: SnackBarBehavior.floating,
             ),
           );
@@ -1162,7 +1186,9 @@ Infer **monthKey** from the document or statement period; use this hint only if 
         if (!allowed.contains(entry.monthKey)) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Free plan limit: last 6 months of cash flow. Upgrade to import older months.'),
+              content: Text(
+                'Free plan limit: last 6 months of cash flow. Upgrade to import older months.',
+              ),
               behavior: SnackBarBehavior.floating,
             ),
           );
@@ -1446,11 +1472,7 @@ Infer **monthKey** from the document or statement period; use this hint only if 
                 title: 'Context / assumptions',
                 child: Text(
                   _contextPreviewMarkdown!.trim(),
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: muted,
-                    height: 1.3,
-                  ),
+                  style: TextStyle(fontSize: 12, color: muted, height: 1.3),
                 ),
               ),
             ..._comparisonPreviewBlocks(context),
@@ -1472,10 +1494,7 @@ Infer **monthKey** from the document or statement period; use this hint only if 
                           children: [
                             Text(
                               '${a.currencyCountry} · ${a.type.label}',
-                              style: TextStyle(
-                                color: muted,
-                                fontSize: 12,
-                              ),
+                              style: TextStyle(color: muted, fontSize: 12),
                             ),
                             if (a.comment.trim().isNotEmpty)
                               Padding(
@@ -1529,10 +1548,7 @@ Infer **monthKey** from the document or statement period; use this hint only if 
                           children: [
                             Text(
                               '${l.currencyCountry} · ${l.type.label}',
-                              style: TextStyle(
-                                color: muted,
-                                fontSize: 12,
-                              ),
+                              style: TextStyle(color: muted, fontSize: 12),
                             ),
                             if (l.comment.trim().isNotEmpty)
                               Padding(
@@ -1583,7 +1599,11 @@ Infer **monthKey** from the document or statement period; use this hint only if 
                     _kv(context, 'Closing', _cashflowPreview!.closingBalance),
                     _kv(context, 'Earned', _cashflowPreview!.monthlyEarned),
                     _kv(context, 'Saved', _cashflowPreview!.outflowToCashFd),
-                    _kv(context, 'Invested', _cashflowPreview!.outflowToInvested),
+                    _kv(
+                      context,
+                      'Invested',
+                      _cashflowPreview!.outflowToInvested,
+                    ),
                     _kv(context, 'Spending', _cashflowPreview!.monthlySpending),
                     if (_cashflowPreview!.comment.trim().isNotEmpty) ...[
                       const SizedBox(height: 8),
@@ -1630,10 +1650,7 @@ Infer **monthKey** from the document or statement period; use this hint only if 
       child: Row(
         children: [
           Expanded(
-            child: Text(
-              label,
-              style: TextStyle(color: muted),
-            ),
+            child: Text(label, style: TextStyle(color: muted)),
           ),
           Text(
             v.toStringAsFixed(0),

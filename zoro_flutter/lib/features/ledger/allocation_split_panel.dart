@@ -36,7 +36,11 @@ class AllocationSplitPanel extends StatelessWidget {
                 child: Center(
                   child: Text(
                     headline,
-                    style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: cs.onSurface),
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 16,
+                      color: cs.onSurface,
+                    ),
                   ),
                 ),
               ),
@@ -50,7 +54,8 @@ class AllocationSplitPanel extends StatelessWidget {
                 visualDensity: VisualDensity.compact,
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                onPressed: () => openGoalsAllocationSheet(context: context, model: m),
+                onPressed: () =>
+                    openGoalsAllocationSheet(context: context, model: m),
               ),
             ],
           ),
@@ -125,18 +130,29 @@ class _EditableFlowAmount extends StatelessWidget {
     final next = await showDialog<double>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Text('$label /mo', style: const TextStyle(fontWeight: FontWeight.w900)),
+        title: Text(
+          '$label /mo',
+          style: const TextStyle(fontWeight: FontWeight.w900),
+        ),
         content: TextField(
           controller: ctrl,
           autofocus: true,
           keyboardType: TextInputType.number,
-          decoration: const InputDecoration(labelText: 'Monthly amount', border: OutlineInputBorder()),
-          onSubmitted: (_) => Navigator.pop(ctx, goalParseGroupedAmount(ctrl.text)),
+          decoration: const InputDecoration(
+            labelText: 'Monthly amount',
+            border: OutlineInputBorder(),
+          ),
+          onSubmitted: (_) =>
+              Navigator.pop(ctx, goalParseGroupedAmount(ctrl.text)),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
           FilledButton(
-            onPressed: () => Navigator.pop(ctx, goalParseGroupedAmount(ctrl.text)),
+            onPressed: () =>
+                Navigator.pop(ctx, goalParseGroupedAmount(ctrl.text)),
             child: const Text('Update'),
           ),
         ],
@@ -160,12 +176,30 @@ class _EditableFlowAmount extends StatelessWidget {
           child: Column(
             crossAxisAlignment: align,
             children: [
-              Text(label, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: cs.onSurfaceVariant)),
-              Text('$display/mo', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: accent)),
+              Text(
+                label,
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                  color: cs.onSurfaceVariant,
+                ),
+              ),
+              Text(
+                '$display/mo',
+                style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 14,
+                  color: accent,
+                ),
+              ),
               if (!hide)
                 Text(
                   'Tap to update',
-                  style: TextStyle(fontSize: 10, color: cs.onSurfaceVariant, fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: cs.onSurfaceVariant,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
             ],
           ),

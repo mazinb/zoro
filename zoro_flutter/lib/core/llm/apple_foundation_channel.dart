@@ -13,12 +13,14 @@ class AppleFoundationCapabilities {
   });
 
   final bool available;
+
   /// Short line when [available] is false; omit in UI when null.
   final String? disabledReason;
   final int? minOsVersionMajor;
   final int? minOsVersionMinor;
 
-  static const AppleFoundationCapabilities unsupported = AppleFoundationCapabilities(available: false);
+  static const AppleFoundationCapabilities unsupported =
+      AppleFoundationCapabilities(available: false);
 
   static AppleFoundationCapabilities fromMethodResult(Object? raw) {
     if (raw is! Map) return unsupported;
@@ -49,8 +51,10 @@ class AppleFoundationChannel {
   AppleFoundationChannel({
     MethodChannel? iosChannel,
     MethodChannel? androidChannel,
-  })  : _iosChannel = iosChannel ?? const MethodChannel('zoro/apple_foundation_models'),
-        _androidChannel = androidChannel ?? const MethodChannel('zoro/android_gemini_nano');
+  }) : _iosChannel =
+           iosChannel ?? const MethodChannel('zoro/apple_foundation_models'),
+       _androidChannel =
+           androidChannel ?? const MethodChannel('zoro/android_gemini_nano');
 
   final MethodChannel _iosChannel;
   final MethodChannel _androidChannel;
@@ -116,7 +120,10 @@ class AppleFoundationChannel {
     return (contextSize: 0, reservedForOutput: 2048);
   }
 
-  Future<int> countTokens({required String system, required String user}) async {
+  Future<int> countTokens({
+    required String system,
+    required String user,
+  }) async {
     if (!Platform.isIOS && !Platform.isAndroid) {
       return ((system.length + user.length) / 4).ceil();
     }
@@ -152,7 +159,9 @@ class AppleFoundationChannel {
     int? maxOutputTokens,
   }) async {
     if (!Platform.isIOS && !Platform.isAndroid) {
-      throw const AppleFoundationChannelException('On-device model is not available on this platform.');
+      throw const AppleFoundationChannelException(
+        'On-device model is not available on this platform.',
+      );
     }
     try {
       final raw = await _channel.invokeMethod<String>(
@@ -165,11 +174,15 @@ class AppleFoundationChannel {
       );
       final text = raw?.trim() ?? '';
       if (text.isEmpty) {
-        throw const AppleFoundationChannelException('Model returned empty text.');
+        throw const AppleFoundationChannelException(
+          'Model returned empty text.',
+        );
       }
       return text;
     } on MissingPluginException {
-      throw const AppleFoundationChannelException('On-device model is not available in this build.');
+      throw const AppleFoundationChannelException(
+        'On-device model is not available in this build.',
+      );
     } on PlatformException catch (e) {
       throw AppleFoundationChannelException(e.message ?? e.code);
     }

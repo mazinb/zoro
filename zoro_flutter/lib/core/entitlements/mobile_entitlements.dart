@@ -22,9 +22,11 @@ class MobileEntitlements {
   static const int onboardingImportAllowance = 20;
 
   final String deviceId;
+
   /// Server flag; use [effectiveIsPro] for gating features.
   final bool isPro;
   final String? proExpiresAtIso;
+
   /// Legacy pack count (`floor(tokenBalance / tokensPerPack)`).
   final int creditsBalance;
   final int tokenBalance;
@@ -36,12 +38,15 @@ class MobileEntitlements {
   final String updatedAtIso;
 
   /// Paid period end + [proGraceDays]; if no expiry, uses [isPro].
-  bool get effectiveIsPro => computeEffectiveIsPro(isPro: isPro, proExpiresAtIso: proExpiresAtIso);
+  bool get effectiveIsPro =>
+      computeEffectiveIsPro(isPro: isPro, proExpiresAtIso: proExpiresAtIso);
 
-  int get onboardingImportsRemaining =>
-      onboardingImportsEligible
-          ? (onboardingImportAllowance - onboardingImportsUsed).clamp(0, onboardingImportAllowance)
-          : 0;
+  int get onboardingImportsRemaining => onboardingImportsEligible
+      ? (onboardingImportAllowance - onboardingImportsUsed).clamp(
+          0,
+          onboardingImportAllowance,
+        )
+      : 0;
 
   static bool computeEffectiveIsPro({
     required bool isPro,
@@ -100,7 +105,9 @@ class MobileEntitlements {
     final tokensUsedTotal = TokenBilling.parseCount(m['tokensUsedTotal']);
     final freeAiMonthKey = m['freeAiMonthKey']?.toString();
     final freeAiUsed = m['freeAiUsed'] == true;
-    final onboardingImportsUsed = TokenBilling.parseCount(m['onboardingImportsUsed']);
+    final onboardingImportsUsed = TokenBilling.parseCount(
+      m['onboardingImportsUsed'],
+    );
     final onboardingImportsEligible = m['onboardingImportsEligible'] != false;
     final updatedAt = (m['updatedAt'] ?? '').toString();
     if (updatedAt.trim().isEmpty) return null;

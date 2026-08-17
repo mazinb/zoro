@@ -69,7 +69,8 @@ AssetContextHealth assessAssetContextHealth({
     return AssetContextHealth(
       level: ContextHealthLevel.broken,
       title: 'Context doesn\'t match balance',
-      detail: 'Described holdings sum to about \$${explained.toStringAsFixed(0)} vs ledger \$${displayValue.toStringAsFixed(0)}.',
+      detail:
+          'Described holdings sum to about \$${explained.toStringAsFixed(0)} vs ledger \$${displayValue.toStringAsFixed(0)}.',
     );
   }
 
@@ -77,7 +78,8 @@ AssetContextHealth assessAssetContextHealth({
     return AssetContextHealth(
       level: ContextHealthLevel.caution,
       title: 'Context may be incomplete',
-      detail: 'Explained amounts are short of the account total — note what\'s missing.',
+      detail:
+          'Explained amounts are short of the account total — note what\'s missing.',
     );
   }
 

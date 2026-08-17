@@ -19,35 +19,53 @@ class HowItWorksGuidesPanel extends StatelessWidget {
         children: [
           Text(
             'How-to guides',
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
+            style: Theme.of(
+              context,
+            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
           ),
           const SizedBox(height: 4),
           Text(
             'Turn off to hide ? on that tab. Settings always keeps ? so you can change these.',
-            style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13, height: 1.35),
+            style: TextStyle(
+              color: cs.onSurfaceVariant,
+              fontSize: 13,
+              height: 1.35,
+            ),
           ),
           const SizedBox(height: 4),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
-            title: const Text('Ledger', style: TextStyle(fontWeight: FontWeight.w800)),
+            title: const Text(
+              'Ledger',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
             value: model.guideEnabledLedger,
             onChanged: model.setGuideEnabledLedger,
           ),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
-            title: const Text('Context', style: TextStyle(fontWeight: FontWeight.w800)),
+            title: const Text(
+              'Context',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
             value: model.guideEnabledContext,
             onChanged: model.setGuideEnabledContext,
           ),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
-            title: const Text('Agent', style: TextStyle(fontWeight: FontWeight.w800)),
+            title: const Text(
+              'Agent',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
             value: model.guideEnabledGoals,
             onChanged: model.setGuideEnabledGoals,
           ),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
-            title: const Text('Settings', style: TextStyle(fontWeight: FontWeight.w800)),
+            title: const Text(
+              'Settings',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
             value: model.guideEnabledSettings,
             onChanged: model.setGuideEnabledSettings,
           ),

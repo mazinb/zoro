@@ -13,7 +13,8 @@ class PromptContextBudget {
   final int reservedForOutput;
   final int tokenCount;
 
-  int get usableInput => (contextSize - reservedForOutput).clamp(0, contextSize);
+  int get usableInput =>
+      (contextSize - reservedForOutput).clamp(0, contextSize);
 
   double get usageFraction => contextSize <= 0 ? 0 : tokenCount / contextSize;
 
@@ -23,7 +24,7 @@ class PromptContextBudget {
 /// Measures and optionally trims MCQ payload for on-device Apple model.
 class PromptContextBudgetService {
   PromptContextBudgetService({AppleFoundationChannel? channel})
-      : _channel = channel ?? AppleFoundationChannel();
+    : _channel = channel ?? AppleFoundationChannel();
 
   final AppleFoundationChannel _channel;
 
@@ -112,12 +113,7 @@ class PromptContextBudgetService {
       if (assets is! List) return;
       working['assets'] = [
         for (final a in assets)
-          if (a is Map)
-            {
-              'id': a['id'],
-              'name': a['name'],
-              'value': a['value'],
-            },
+          if (a is Map) {'id': a['id'], 'name': a['name'], 'value': a['value']},
       ];
     }
 
@@ -128,7 +124,12 @@ class PromptContextBudgetService {
     }
 
     var trimmed = false;
-    for (final step in [truncateMarkdownFields, dropQaFreeText, shrinkAssets, capGoals]) {
+    for (final step in [
+      truncateMarkdownFields,
+      dropQaFreeText,
+      shrinkAssets,
+      capGoals,
+    ]) {
       step();
       userJson = jsonEncode(working);
       budget = await measure(system: system, user: userJson);

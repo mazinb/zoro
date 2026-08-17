@@ -18,7 +18,8 @@ class AppleSubscriptionStore {
 
   static Future<bool> isAvailable() async {
     if (!Platform.isIOS) return false;
-    _cachedAvailable ??= await _channel.invokeMethod<bool>('isAvailable') ?? false;
+    _cachedAvailable ??=
+        await _channel.invokeMethod<bool>('isAvailable') ?? false;
     return _cachedAvailable!;
   }
 

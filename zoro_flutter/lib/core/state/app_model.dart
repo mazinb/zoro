@@ -4,6 +4,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../legal/legal_urls.dart';
 
@@ -25,7 +26,10 @@ import '../persistence/app_state_codec.dart' as app_state;
 import '../persistence/app_state_store.dart';
 import '../home/home_summary_focus_domain.dart';
 import '../agent/agent_workspace.dart';
+import '../agent/hermes_home_writer.dart';
 import '../agent/mailbox_client.dart';
+import '../agent/mcp/zoro_mcp_host.dart';
+import '../agent/mcp/zoro_mcp_tools.dart';
 import '../agent/retirement_migration.dart';
 import '../agent/retirement_plan_codec.dart';
 import '../api/zoro_api.dart';
@@ -70,7 +74,8 @@ class NetWorthProjectionYearBreakdown {
   }
 
   @override
-  int get hashCode => Object.hash(startingBalance, surplusPrincipal, surplusReturns);
+  int get hashCode =>
+      Object.hash(startingBalance, surplusPrincipal, surplusReturns);
 }
 
 class AppModel extends ChangeNotifier {
@@ -108,8 +113,10 @@ class AppModel extends ChangeNotifier {
   MobileEntitlements? mobileEntitlements;
 
   final AgentWorkspace agentWorkspace = AgentWorkspace();
+  ZoroMcpHost? mcpHost;
   String retirementMarkdownCache = '';
   DateTime? agentPlanLastCommitAt;
+  String? pendingHermesCronJobId;
 
   bool helperEnabledLedger = true;
   bool helperEnabledContext = true;
@@ -182,9 +189,31 @@ class AppModel extends ChangeNotifier {
         final g = retirementGoal;
         if (g != null) applyDocToGoal(g, doc);
       },
+      loadSkillAsset: rootBundle.loadString,
     );
     retirementMarkdownCache = await agentWorkspace.retirementMarkdown();
     agentPlanLastCommitAt = await agentWorkspace.loadPlanUpdatedAt();
+    await _startMcpHost();
+  }
+
+  Future<void> _startMcpHost() async {
+    try {
+      await mcpHost?.stop();
+      final token = McpLoopbackToken.mint();
+      await agentWorkspace.vault.writeMcpLoopbackToken(token);
+      final host = ZoroMcpHost(
+        tools: ZoroMcpTools(workspace: agentWorkspace, model: this),
+        token: token,
+      );
+      final port = await host.start();
+      mcpHost = host;
+      await HermesHomeWriter.writeConfig(
+        support: agentWorkspace.home,
+        mcpPort: port,
+      );
+    } catch (_) {
+      mcpHost = null;
+    }
   }
 
   Future<void> fetchAgentMailbox() async {
@@ -250,7 +279,10 @@ class AppModel extends ChangeNotifier {
     if (existing.trim().isNotEmpty) return;
     final g = retirementGoal;
     if (g == null) return;
-    final seeded = seedRetirementMarkdown(goal: g, investMonthly: allocInvestmentsMonthly);
+    final seeded = seedRetirementMarkdown(
+      goal: g,
+      investMonthly: allocInvestmentsMonthly,
+    );
     await commitRetirementPlan(markdown: seeded, reason: 'import seed');
   }
 
@@ -284,7 +316,10 @@ class AppModel extends ChangeNotifier {
 
   /// After IAP purchase/restore, prefer the latest entitlements from [iap],
   /// otherwise poll the server until the purchase is reflected (or timeout).
-  Future<void> applyEntitlementsFromIap(IapService iap, {Duration timeout = const Duration(seconds: 45)}) async {
+  Future<void> applyEntitlementsFromIap(
+    IapService iap, {
+    Duration timeout = const Duration(seconds: 45),
+  }) async {
     final before = mobileEntitlements;
     final deadline = DateTime.now().add(timeout);
     while (DateTime.now().isBefore(deadline)) {
@@ -409,7 +444,9 @@ class AppModel extends ChangeNotifier {
   List<HomeSummaryFocusDomain> get homeSummaryHelperIncludedDomains =>
       homeSummaryParseIncludedIds(homeSummaryHelperIncludedDomainIds);
 
-  void setHomeSummaryHelperIncludedDomains(Iterable<HomeSummaryFocusDomain> domains) {
+  void setHomeSummaryHelperIncludedDomains(
+    Iterable<HomeSummaryFocusDomain> domains,
+  ) {
     final ordered = homeSummaryDomainsInCanonicalOrder(domains);
     if (ordered.isEmpty) return;
     final next = [for (final d in ordered) d.id];
@@ -484,7 +521,10 @@ class AppModel extends ChangeNotifier {
 
   /// Import path: replace ledger data only (assets, liabilities, cashflow, etc.).
   Future<void> applyImportedLedger(Map<String, dynamic> ledger) async {
-    _applyAppStateMap({'formatVersion': app_state.kAppStateFormatVersion, 'ledger': ledger});
+    _applyAppStateMap({
+      'formatVersion': app_state.kAppStateFormatVersion,
+      'ledger': ledger,
+    });
     await AppStateStore.saveLedger(ledger);
     notifyListeners();
   }
@@ -561,7 +601,9 @@ class AppModel extends ChangeNotifier {
         var anyPositive = false;
         for (final k in expenseBucketKeys) {
           final v = eb[k];
-          final d = v is num ? v.toDouble() : double.tryParse(v?.toString() ?? '');
+          final d = v is num
+              ? v.toDouble()
+              : double.tryParse(v?.toString() ?? '');
           if (d == null) continue;
           if (d > 0.005) anyPositive = true;
           if (d > maxV) maxV = d;
@@ -577,7 +619,9 @@ class AppModel extends ChangeNotifier {
         final key = e.key.toString();
         if (!expenseBucketKeys.contains(key)) continue;
         final v = e.value;
-        final d = v is num ? v.toDouble() : double.tryParse(v?.toString() ?? '');
+        final d = v is num
+            ? v.toDouble()
+            : double.tryParse(v?.toString() ?? '');
         if (d != null) {
           setExpenseBucket(key, d);
         }
@@ -588,7 +632,10 @@ class AppModel extends ChangeNotifier {
       for (final e in ectx.entries) {
         final key = e.key.toString();
         if (!expenseBucketKeys.contains(key)) continue;
-        setExpenseBucketContextMarkdown(bucketKey: key, markdown: e.value?.toString() ?? '');
+        setExpenseBucketContextMarkdown(
+          bucketKey: key,
+          markdown: e.value?.toString() ?? '',
+        );
       }
     }
     final mc = L['monthlyCashflowByMonth'];
@@ -604,7 +651,9 @@ class AppModel extends ChangeNotifier {
     }
     if (L.containsKey('effectiveTaxRatePct')) {
       final tax = L['effectiveTaxRatePct'];
-      effectiveTaxRatePct = tax == null ? null : (tax is num ? tax.toDouble() : double.tryParse(tax.toString()));
+      effectiveTaxRatePct = tax == null
+          ? null
+          : (tax is num ? tax.toDouble() : double.tryParse(tax.toString()));
     }
     final fx = L['fxUsdPerUnitOverride'];
     if (fx is Map) {
@@ -612,7 +661,9 @@ class AppModel extends ChangeNotifier {
         for (final c in CurrencyCode.values) {
           if (c.name == e.key.toString()) {
             final v = e.value;
-            final d = v is num ? v.toDouble() : double.tryParse(v?.toString() ?? '');
+            final d = v is num
+                ? v.toDouble()
+                : double.tryParse(v?.toString() ?? '');
             if (d != null) _fxUsdPerUnitOverride[c] = d;
             break;
           }
@@ -632,7 +683,10 @@ class AppModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> applyImportedSettings(Map<String, dynamic> settings, {required bool replace}) async {
+  Future<void> applyImportedSettings(
+    Map<String, dynamic> settings, {
+    required bool replace,
+  }) async {
     final snap = buildPersistedSnapshot();
     if (replace) {
       snap['settings'] = settings;
@@ -678,7 +732,10 @@ class AppModel extends ChangeNotifier {
   String? _pendingLlmCompletionModel;
   int? _pendingLlmCompletionTokens;
 
-  void setPendingLlmCompletionMetadata({required String model, int? tokensUsed}) {
+  void setPendingLlmCompletionMetadata({
+    required String model,
+    int? tokensUsed,
+  }) {
     _pendingLlmCompletionModel = model;
     _pendingLlmCompletionTokens = tokensUsed;
   }
@@ -689,7 +746,9 @@ class AppModel extends ChangeNotifier {
     String? model,
     int? tokensUsed,
   }) {
-    internalAgentLastStructuredById[agentId] = Map<String, Object?>.from(structured);
+    internalAgentLastStructuredById[agentId] = Map<String, Object?>.from(
+      structured,
+    );
     internalAgentLastRunById[agentId] = DateTime.now().toUtc();
     final resolvedModel = model ?? _pendingLlmCompletionModel;
     final resolvedTokens = tokensUsed ?? _pendingLlmCompletionTokens;
@@ -753,7 +812,10 @@ class AppModel extends ChangeNotifier {
     RowReviewResult? result,
     bool? bannerDismissed,
   }) {
-    final slot = ledgerLiabilityReviewById.putIfAbsent(liabilityId, RowReviewSlot.new);
+    final slot = ledgerLiabilityReviewById.putIfAbsent(
+      liabilityId,
+      RowReviewSlot.new,
+    );
     if (reviewing != null) slot.reviewing = reviewing;
     if (result != null) slot.result = result;
     if (bannerDismissed != null) slot.bannerDismissed = bannerDismissed;
@@ -779,7 +841,10 @@ class AppModel extends ChangeNotifier {
     RowReviewResult? result,
     bool? bannerDismissed,
   }) {
-    final slot = contextLiabilityReviewById.putIfAbsent(liabilityId, RowReviewSlot.new);
+    final slot = contextLiabilityReviewById.putIfAbsent(
+      liabilityId,
+      RowReviewSlot.new,
+    );
     if (reviewing != null) slot.reviewing = reviewing;
     if (result != null) slot.result = result;
     if (bannerDismissed != null) slot.bannerDismissed = bannerDismissed;
@@ -817,14 +882,21 @@ class AppModel extends ChangeNotifier {
   }
 
   void applyContextAssetReview(String assetId) {
-    final md = contextAssetReviewById[assetId]?.result?.suggestedContextMarkdown.trim() ?? '';
+    final md =
+        contextAssetReviewById[assetId]?.result?.suggestedContextMarkdown
+            .trim() ??
+        '';
     if (md.isEmpty) return;
     setAssetContextMarkdown(assetId: assetId, markdown: md);
   }
 
   void applyContextLiabilityReview(String liabilityId) {
     final md =
-        contextLiabilityReviewById[liabilityId]?.result?.suggestedContextMarkdown.trim() ?? '';
+        contextLiabilityReviewById[liabilityId]
+            ?.result
+            ?.suggestedContextMarkdown
+            .trim() ??
+        '';
     if (md.isEmpty) return;
     setLiabilityContextMarkdown(liabilityId: liabilityId, markdown: md);
   }
@@ -878,7 +950,8 @@ class AppModel extends ChangeNotifier {
 
   bool get canUseCloudImport => hasCloudImportConsent && cloudImportEnabled;
 
-  int get cloudImportRequestCount => llmRequestsByModelKey[importRequestKeyCloud] ?? 0;
+  int get cloudImportRequestCount =>
+      llmRequestsByModelKey[importRequestKeyCloud] ?? 0;
 
   int get cloudAiRequestCount =>
       cloudImportRequestCount + llmRequestCountFor(LlmProvider.zoroCloud);
@@ -887,7 +960,8 @@ class AppModel extends ChangeNotifier {
       llmRequestsByModelKey[importRequestKeyOnDevice] ?? 0;
 
   /// All on-device Apple Foundation calls (imports + helpers).
-  int get onDeviceRequestCount => llmRequestCountFor(LlmProvider.appleFoundation);
+  int get onDeviceRequestCount =>
+      llmRequestCountFor(LlmProvider.appleFoundation);
 
   /// On-device helper calls (excludes import keys).
   int get onDeviceHelperRequestCount {
@@ -943,21 +1017,29 @@ class AppModel extends ChangeNotifier {
     final id = deviceId?.trim();
     if (id == null || id.isEmpty) return;
     try {
-      await _api.revokeMobileAiConsent(deviceId: id, provider: cloudImportConsentKey);
+      await _api.revokeMobileAiConsent(
+        deviceId: id,
+        provider: cloudImportConsentKey,
+      );
     } catch (_) {}
     llmProviderConsents.remove(cloudImportConsentKey);
     _scheduleAppStatePersist();
     notifyListeners();
   }
 
-  void recordImportRequest({required bool cloud, int? tokensUsed, Map<String, dynamic>? entitlementsApiBody}) {
+  void recordImportRequest({
+    required bool cloud,
+    int? tokensUsed,
+    Map<String, dynamic>? entitlementsApiBody,
+  }) {
     final key = cloud ? importRequestKeyCloud : importRequestKeyOnDevice;
     llmRequestsByModelKey[key] = (llmRequestsByModelKey[key] ?? 0) + 1;
     final t = tokensUsed ?? 0;
     if (t > 0) {
       llmTokensByModelKey[key] = (llmTokensByModelKey[key] ?? 0) + t;
     }
-    if (entitlementsApiBody != null) applyMobileEntitlementsBody(entitlementsApiBody);
+    if (entitlementsApiBody != null)
+      applyMobileEntitlementsBody(entitlementsApiBody);
     _scheduleAppStatePersist();
     notifyListeners();
   }
@@ -973,15 +1055,18 @@ class AppModel extends ChangeNotifier {
     } catch (_) {}
   }
 
-  AppleFoundationCapabilities _appleFoundationCaps = AppleFoundationCapabilities.unsupported;
-  final AppleFoundationChannel _appleFoundationChannel = AppleFoundationChannel();
+  AppleFoundationCapabilities _appleFoundationCaps =
+      AppleFoundationCapabilities.unsupported;
+  final AppleFoundationChannel _appleFoundationChannel =
+      AppleFoundationChannel();
 
   static const String appleOnDeviceApiKeySentinel = '__zoro_ondevice_apple__';
   static const String zoroCloudApiKeySentinel = '__zoro_cloud__';
 
   bool get appleFoundationRuntimeAvailable => _appleFoundationCaps.available;
 
-  String? get appleFoundationDisabledReason => _appleFoundationCaps.disabledReason;
+  String? get appleFoundationDisabledReason =>
+      _appleFoundationCaps.disabledReason;
 
   Future<void> refreshAppleFoundationCapabilities() async {
     _appleFoundationCaps = await _appleFoundationChannel.getCapabilities();
@@ -994,21 +1079,21 @@ class AppModel extends ChangeNotifier {
   }
 
   bool isLlmProviderConfigured(LlmProvider provider) => switch (provider) {
-        LlmProvider.appleFoundation => appleFoundationRuntimeAvailable,
-        LlmProvider.zoroCloud => canUseCloudImport,
-        LlmProvider.openai => (openAiApiKey ?? '').trim().isNotEmpty,
-        LlmProvider.anthropic => (anthropicApiKey ?? '').trim().isNotEmpty,
-        LlmProvider.gemini => (geminiApiKey ?? '').trim().isNotEmpty,
-      };
+    LlmProvider.appleFoundation => appleFoundationRuntimeAvailable,
+    LlmProvider.zoroCloud => canUseCloudImport,
+    LlmProvider.openai => (openAiApiKey ?? '').trim().isNotEmpty,
+    LlmProvider.anthropic => (anthropicApiKey ?? '').trim().isNotEmpty,
+    LlmProvider.gemini => (geminiApiKey ?? '').trim().isNotEmpty,
+  };
 
   /// Provider can be chosen in UI (may still need first-use consent).
   bool canSelectLlmProvider(LlmProvider provider) => switch (provider) {
-        LlmProvider.appleFoundation => appleFoundationRuntimeAvailable,
-        LlmProvider.zoroCloud => canUseCloudImport,
-        LlmProvider.openai => (openAiApiKey ?? '').trim().isNotEmpty,
-        LlmProvider.anthropic => (anthropicApiKey ?? '').trim().isNotEmpty,
-        LlmProvider.gemini => (geminiApiKey ?? '').trim().isNotEmpty,
-      };
+    LlmProvider.appleFoundation => appleFoundationRuntimeAvailable,
+    LlmProvider.zoroCloud => canUseCloudImport,
+    LlmProvider.openai => (openAiApiKey ?? '').trim().isNotEmpty,
+    LlmProvider.anthropic => (anthropicApiKey ?? '').trim().isNotEmpty,
+    LlmProvider.gemini => (geminiApiKey ?? '').trim().isNotEmpty,
+  };
 
   bool isLlmProviderReady(LlmProvider provider) {
     if (!isLlmProviderConfigured(provider)) return false;
@@ -1019,7 +1104,8 @@ class AppModel extends ChangeNotifier {
   Future<void> grantLlmProviderConsent(LlmProvider provider) async {
     final at = DateTime.now().toUtc().toIso8601String();
     llmProviderConsents[provider.name] = at;
-    if (provider == LlmProvider.appleFoundation && appleFoundationRuntimeAvailable) {
+    if (provider == LlmProvider.appleFoundation &&
+        appleFoundationRuntimeAvailable) {
       setAppleFoundationEnabled(true);
       activeLlmProvider = LlmProvider.appleFoundation;
     }
@@ -1028,7 +1114,10 @@ class AppModel extends ChangeNotifier {
     unawaited(_recordLlmConsentToServer(provider, at));
   }
 
-  Future<void> _recordLlmConsentToServer(LlmProvider provider, String consentedAtIso) async {
+  Future<void> _recordLlmConsentToServer(
+    LlmProvider provider,
+    String consentedAtIso,
+  ) async {
     final id = deviceId?.trim();
     if (id == null || id.isEmpty) return;
     try {
@@ -1235,7 +1324,8 @@ class AppModel extends ChangeNotifier {
   }
 
   void setSecondHomeCurrency(CurrencyCode? next) {
-    if (next != null && (next == CurrencyCode.usd || next == homeCurrencyQuickPick1)) {
+    if (next != null &&
+        (next == CurrencyCode.usd || next == homeCurrencyQuickPick1)) {
       return;
     }
     final prev = homeCurrencyQuickPick2;
@@ -1289,8 +1379,8 @@ class AppModel extends ChangeNotifier {
   }
 
   Map<CurrencyCode, double> get fxUsdPerUnitResolved => {
-        for (final c in CurrencyCode.values) c: usdPerUnitResolved(c),
-      };
+    for (final c in CurrencyCode.values) c: usdPerUnitResolved(c),
+  };
 
   void setFxUsdPerUnitOverride(CurrencyCode currency, double? usdPerUnit) {
     if (currency == CurrencyCode.usd) return;
@@ -1346,9 +1436,12 @@ class AppModel extends ChangeNotifier {
     double? savingsPct,
     double? inflationPct,
   }) {
-    if (investPct != null) projectionInvestReturnPctAnnual[c] = investPct.clamp(-20.0, 50.0);
-    if (savingsPct != null) projectionSavingsReturnPctAnnual[c] = savingsPct.clamp(-20.0, 50.0);
-    if (inflationPct != null) projectionInflationPctAnnual[c] = inflationPct.clamp(-5.0, 50.0);
+    if (investPct != null)
+      projectionInvestReturnPctAnnual[c] = investPct.clamp(-20.0, 50.0);
+    if (savingsPct != null)
+      projectionSavingsReturnPctAnnual[c] = savingsPct.clamp(-20.0, 50.0);
+    if (inflationPct != null)
+      projectionInflationPctAnnual[c] = inflationPct.clamp(-5.0, 50.0);
     _scheduleAppStatePersist();
     notifyListeners();
   }
@@ -1363,8 +1456,13 @@ class AppModel extends ChangeNotifier {
     final rInf = (projectionInflationPctAnnual[cur] ?? 0) / 100.0;
     final rBlendNominal = f * ri + (1 - f) * rs;
     // Real growth on the balance (contributions stay nominal / simplified).
-    final rGrow = rInf >= 0 ? ((1 + rBlendNominal) / (1 + rInf)) - 1 : rBlendNominal;
-    final annualAdd = (availableAfterExpensesMonthly * 12).clamp(0, double.infinity);
+    final rGrow = rInf >= 0
+        ? ((1 + rBlendNominal) / (1 + rInf)) - 1
+        : rBlendNominal;
+    final annualAdd = (availableAfterExpensesMonthly * 12).clamp(
+      0,
+      double.infinity,
+    );
     var balance = nw0;
     final out = <double>[balance];
     for (var y = 1; y <= 10; y++) {
@@ -1375,7 +1473,10 @@ class AppModel extends ChangeNotifier {
   }
 
   /// Decomposes [series]\[[yearIndex]\]: nominal today’s NW, new money, and all returns (incl. on starting capital).
-  NetWorthProjectionYearBreakdown projectionYearBreakdown(int yearIndex, List<double> series) {
+  NetWorthProjectionYearBreakdown projectionYearBreakdown(
+    int yearIndex,
+    List<double> series,
+  ) {
     if (yearIndex < 0 || yearIndex >= series.length) {
       return const NetWorthProjectionYearBreakdown(
         startingBalance: 0,
@@ -1393,7 +1494,10 @@ class AppModel extends ChangeNotifier {
       );
     }
 
-    final annualAdd = (availableAfterExpensesMonthly * 12).clamp(0, double.infinity);
+    final annualAdd = (availableAfterExpensesMonthly * 12).clamp(
+      0,
+      double.infinity,
+    );
     final y = yearIndex;
     final remainder = target - nw0;
     if (remainder <= 1e-9) {
@@ -1406,7 +1510,9 @@ class AppModel extends ChangeNotifier {
 
     final rawPrincipal = y * annualAdd;
     final surplusPrincipal = math.min(rawPrincipal, remainder).toDouble();
-    final surplusReturns = (remainder - surplusPrincipal).clamp(0.0, double.infinity).toDouble();
+    final surplusReturns = (remainder - surplusPrincipal)
+        .clamp(0.0, double.infinity)
+        .toDouble();
 
     return NetWorthProjectionYearBreakdown(
       startingBalance: nw0,
@@ -1588,7 +1694,8 @@ class AppModel extends ChangeNotifier {
 
   /// Expenses (mirrors web buckets). Amounts are in [expenseEstimateCurrency] (or [displayCurrency] when null).
   late Map<String, double> expenseBuckets = {
-    for (final k in expenseBucketKeys) k: presetForCountry(expensePresetCountry).buckets[k]!.value,
+    for (final k in expenseBucketKeys)
+      k: presetForCountry(expensePresetCountry).buckets[k]!.value,
   };
 
   /// Optional context per expense bucket key (UI-only).
@@ -1643,7 +1750,8 @@ class AppModel extends ChangeNotifier {
   }
 
   /// Latest month “Saved” outflow from cashflow (maps to Goals savings slice).
-  double get latestCashSavedMonthly => latestCashflowEntry?.outflowToCashFd ?? 0;
+  double get latestCashSavedMonthly =>
+      latestCashflowEntry?.outflowToCashFd ?? 0;
 
   bool isPrimaryCashAsset(LedgerAssetRow r) =>
       primaryIncomeAssetId != null && r.id == primaryIncomeAssetId;
@@ -1657,7 +1765,10 @@ class AppModel extends ChangeNotifier {
     if (primaryCashBalanceIsMirrored(r)) {
       return latestCashClosingBalanceDisplay ?? 0;
     }
-    return moneyInDisplayCurrency(r.total, currencyCodeForPresetCountry(r.currencyCountry));
+    return moneyInDisplayCurrency(
+      r.total,
+      currencyCodeForPresetCountry(r.currencyCountry),
+    );
   }
 
   void _sortAssetsByDisplayValueDescending() {
@@ -1737,7 +1848,9 @@ class AppModel extends ChangeNotifier {
     reverseInvestmentCreditsForMonth(monthKey);
     final e = monthlyEntryFor(monthKey);
     if (e == null) return false;
-    final next = newLinesRaw.map((x) => x.clone()..amountAppliedToAssets = 0).toList();
+    final next = newLinesRaw
+        .map((x) => x.clone()..amountAppliedToAssets = 0)
+        .toList();
     e.investmentLines
       ..clear()
       ..addAll(next);
@@ -1755,7 +1868,10 @@ class AppModel extends ChangeNotifier {
     return complete;
   }
 
-  void _applyDisplayDeltaToLiabilityTotal(String liabilityId, double deltaDisplay) {
+  void _applyDisplayDeltaToLiabilityTotal(
+    String liabilityId,
+    double deltaDisplay,
+  ) {
     final l = liabilityById(liabilityId);
     if (l == null || deltaDisplay.abs() < 0.005) return;
     final to = currencyCodeForPresetCountry(l.currencyCountry);
@@ -1848,9 +1964,8 @@ class AppModel extends ChangeNotifier {
   String corpusBacktestDebtSeriesId = kDefaultCashFdSeriesId;
   int? corpusBacktestStartYear;
 
-  AssetsGoalsPolicy get assetsGoalsPolicy => AssetsGoalsPolicy(
-        retirementExtraAssetIds: retirementExtraAssetIds,
-      );
+  AssetsGoalsPolicy get assetsGoalsPolicy =>
+      AssetsGoalsPolicy(retirementExtraAssetIds: retirementExtraAssetIds);
 
   void setRetirementExtraAssetIds(Set<String> ids) {
     retirementExtraAssetIds
@@ -1864,7 +1979,8 @@ class AppModel extends ChangeNotifier {
   void setRetirementAssetIncluded(String assetId, bool included) {
     final a = assetById(assetId);
     if (a == null) return;
-    if (a.type != LedgerAssetType.property && a.type != LedgerAssetType.other) return;
+    if (a.type != LedgerAssetType.property && a.type != LedgerAssetType.other)
+      return;
     final changed = included
         ? retirementExtraAssetIds.add(assetId)
         : retirementExtraAssetIds.remove(assetId);
@@ -1887,7 +2003,8 @@ class AppModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  bool isRetirementExtraAsset(String assetId) => retirementExtraAssetIds.contains(assetId);
+  bool isRetirementExtraAsset(String assetId) =>
+      retirementExtraAssetIds.contains(assetId);
 
   void setTargetSavingsWeight(String goalId, double weight) {
     final ix = financialGoals.indexWhere((g) => g.id == goalId);
@@ -1946,17 +2063,19 @@ class AppModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  double liabilityDisplayValue(LedgerLiabilityRow l) =>
-      moneyInDisplayCurrency(l.total, currencyCodeForPresetCountry(l.currencyCountry));
+  double liabilityDisplayValue(LedgerLiabilityRow l) => moneyInDisplayCurrency(
+    l.total,
+    currencyCodeForPresetCountry(l.currencyCountry),
+  );
 
   List<LiabilityAllocationInput> get _liabilityAllocationInputs => [
-        for (final l in liabilities)
-          LiabilityAllocationInput(
-            id: l.id,
-            interestRatePct: l.interestRatePct,
-            balance: liabilityDisplayValue(l),
-          ),
-      ];
+    for (final l in liabilities)
+      LiabilityAllocationInput(
+        id: l.id,
+        interestRatePct: l.interestRatePct,
+        balance: liabilityDisplayValue(l),
+      ),
+  ];
 
   double get totalLiabilityPaydownMonthly {
     var sum = 0.0;
@@ -1970,10 +2089,16 @@ class AppModel extends ChangeNotifier {
   double get liabilityPaydownPoolMonthly => totalLiabilityPaydownMonthly;
 
   double get savingsCashBufferMonthly =>
-      (allocSavingsMonthly - totalLiabilityPaydownMonthly).clamp(0, allocSavingsMonthly);
+      (allocSavingsMonthly - totalLiabilityPaydownMonthly).clamp(
+        0,
+        allocSavingsMonthly,
+      );
 
   double get savingsMonthlyForTargetsPool =>
-      (allocSavingsMonthly - totalLiabilityPaydownMonthly).clamp(0, allocSavingsMonthly);
+      (allocSavingsMonthly - totalLiabilityPaydownMonthly).clamp(
+        0,
+        allocSavingsMonthly,
+      );
 
   Map<String, double> normalizedLiabilityPaydownShares() {
     if (liabilities.isEmpty) return {};
@@ -1985,10 +2110,13 @@ class AppModel extends ChangeNotifier {
       final even = 1.0 / liabilities.length;
       return {for (final l in liabilities) l.id: even};
     }
-    return {for (final l in liabilities) l.id: l.paydownWeight.clamp(0.0, 1e6) / sum};
+    return {
+      for (final l in liabilities) l.id: l.paydownWeight.clamp(0.0, 1e6) / sum,
+    };
   }
 
-  double liabilityPaydownMonthly(LedgerLiabilityRow l) => l.paydownMonthly.clamp(0, double.infinity);
+  double liabilityPaydownMonthly(LedgerLiabilityRow l) =>
+      l.paydownMonthly.clamp(0, double.infinity);
 
   /// Fixes persisted or seeded assets that share the same id (breaks context / cashflow links).
   void repairDuplicateAssetIds({bool notify = true}) {
@@ -2097,7 +2225,8 @@ class AppModel extends ChangeNotifier {
       final factor = (othersPay - cut) / othersPay;
       for (var i = 0; i < liabilities.length; i++) {
         if (liabilities[i].id == liabilityId) continue;
-        liabilities[i].paydownMonthly = (liabilities[i].paydownMonthly * factor).clamp(0, double.infinity);
+        liabilities[i].paydownMonthly = (liabilities[i].paydownMonthly * factor)
+            .clamp(0, double.infinity);
       }
       over -= cut;
       othersPay *= factor;
@@ -2109,7 +2238,9 @@ class AppModel extends ChangeNotifier {
       allocInvestmentsMonthly -= investCut;
       allocSavingsMonthly += investCut;
       if (avail > 0) {
-        allocInvestFraction = _quantizeAllocInvestFraction(allocInvestmentsMonthly / avail);
+        allocInvestFraction = _quantizeAllocInvestFraction(
+          allocInvestmentsMonthly / avail,
+        );
       }
       over -= investCut;
     }
@@ -2131,7 +2262,9 @@ class AppModel extends ChangeNotifier {
 
   void autoAllocateLiabilityPaydownWeights() {
     if (liabilities.isEmpty) return;
-    final shares = computeLiabilityPaydownShares(liabilities: _liabilityAllocationInputs);
+    final shares = computeLiabilityPaydownShares(
+      liabilities: _liabilityAllocationInputs,
+    );
     final budget = (allocSavingsMonthly * 0.5).clamp(0, allocSavingsMonthly);
     for (var i = 0; i < liabilities.length; i++) {
       final l = liabilities[i];
@@ -2164,7 +2297,20 @@ class AppModel extends ChangeNotifier {
     if (months == null) return null;
     final now = DateTime.now();
     final paid = DateTime(now.year, now.month + months, now.day);
-    const names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const names = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
     return '${names[paid.month - 1]} ${paid.year}';
   }
 
@@ -2205,9 +2351,9 @@ class AppModel extends ChangeNotifier {
   }
 
   double get savingsOverflowToRetirementMonthly => savingsOverflowToRetirement(
-        allocSavingsMonthly: savingsMonthlyForTargetsPool,
-        totalTargetRequiredMonthly: totalTargetRequiredMonthly,
-      );
+    allocSavingsMonthly: savingsMonthlyForTargetsPool,
+    totalTargetRequiredMonthly: totalTargetRequiredMonthly,
+  );
 
   /// Monthly invest slice from the Goals split slider (retire-by / need math).
   double investMonthlyForRetirement() => allocInvestmentsMonthly;
@@ -2244,7 +2390,9 @@ class AppModel extends ChangeNotifier {
       final g = financialGoals[i];
       if (!g.linkedAssetIds.contains(removedAssetId)) continue;
       financialGoals[i] = g.copyWith(
-        linkedAssetIds: g.linkedAssetIds.where((id) => id != removedAssetId).toList(),
+        linkedAssetIds: g.linkedAssetIds
+            .where((id) => id != removedAssetId)
+            .toList(),
       );
       touched = true;
     }
@@ -2257,7 +2405,8 @@ class AppModel extends ChangeNotifier {
         .where((a) => assetCountsTowardRetirement(a, policy))
         .fold<double>(
           0,
-          (s, a) => s + retirementBalanceFromAsset(a, assetDisplayValue, policy),
+          (s, a) =>
+              s + retirementBalanceFromAsset(a, assetDisplayValue, policy),
         );
   }
 
@@ -2289,7 +2438,8 @@ class AppModel extends ChangeNotifier {
     return {for (final e in weights.entries) e.key: e.value / sum};
   }
 
-  Map<String, double> normalizedGoalSavingsShares() => normalizedTargetSavingsShares();
+  Map<String, double> normalizedGoalSavingsShares() =>
+      normalizedTargetSavingsShares();
 
   double savingsMonthlyForGoal(FinancialGoal goal) {
     if (goal.isRetirement) return investMonthlyForRetirement();
@@ -2307,12 +2457,17 @@ class AppModel extends ChangeNotifier {
     }
   }
 
-  void upsertFinancialGoal(FinancialGoal goal, {bool touchGoalsUpdated = true}) {
+  void upsertFinancialGoal(
+    FinancialGoal goal, {
+    bool touchGoalsUpdated = true,
+  }) {
     final ix = financialGoals.indexWhere((g) => g.id == goal.id);
     final prev = ix >= 0 ? financialGoals[ix] : null;
     var next = goal;
     if (prev != null) {
-      if (next.targetDate != null && prev.targetDate == null && next.timelineStart == null) {
+      if (next.targetDate != null &&
+          prev.targetDate == null &&
+          next.timelineStart == null) {
         next = next.copyWith(timelineStart: DateTime.now());
       }
       if (next.isRetirement) {
@@ -2379,15 +2534,18 @@ class AppModel extends ChangeNotifier {
     );
   }
 
-  double goalRetirementCorpusBaseAmount(FinancialGoal goal) => goalRetirementCorpusBase(
+  double goalRetirementCorpusBaseAmount(FinancialGoal goal) =>
+      goalRetirementCorpusBase(
         goal: goal,
         recurringExpensesMonthly: recurringExpensesMonthly,
       );
 
-  double goalRetirementSurplus(FinancialGoal goal) => goal.corpusSurplus.clamp(0, double.infinity);
+  double goalRetirementSurplus(FinancialGoal goal) =>
+      goal.corpusSurplus.clamp(0, double.infinity);
 
   /// Stored surplus only (not inflated on save).
-  double goalRetirementSurplusTotal(FinancialGoal goal) => goalRetirementSurplus(goal);
+  double goalRetirementSurplusTotal(FinancialGoal goal) =>
+      goalRetirementSurplus(goal);
 
   FinancialGoal retirementGoalWithSurplusAfterCorpusChange(
     FinancialGoal goal,
@@ -2489,7 +2647,10 @@ class AppModel extends ChangeNotifier {
   }
 
   /// Invest slice vs retirement need: caution if max slider fixes it; broken otherwise.
-  GoalFeasibility retirementInvestFeasibility(FinancialGoal goal, {DateTime? now}) {
+  GoalFeasibility retirementInvestFeasibility(
+    FinancialGoal goal, {
+    DateTime? now,
+  }) {
     String fmt(double v) => formatCurrencyDisplay(v, currency: displayCurrency);
     final required = goalRequiredMonthlySavingsFor(goal, now: now);
     final allocated = allocInvestmentsMonthly;
@@ -2629,8 +2790,9 @@ class AppModel extends ChangeNotifier {
   HistoricalReturnSeries? historicalSeriesById(String id) =>
       historicalReturnSeriesById(historicalReturnSeries, id);
 
-  List<HistoricalReturnSeries> historicalSeriesForClass(HistoricalAssetClass assetClass) =>
-      historicalReturnSeriesForClass(historicalReturnSeries, assetClass);
+  List<HistoricalReturnSeries> historicalSeriesForClass(
+    HistoricalAssetClass assetClass,
+  ) => historicalReturnSeriesForClass(historicalReturnSeries, assetClass);
 
   void setCorpusBacktestEquityPct(double pct) {
     final next = pct.clamp(0, 100);
@@ -2642,11 +2804,15 @@ class AppModel extends ChangeNotifier {
 
   void setCorpusBacktestSeriesIds({String? equityId, String? debtId}) {
     var changed = false;
-    if (equityId != null && equityId.isNotEmpty && corpusBacktestEquitySeriesId != equityId) {
+    if (equityId != null &&
+        equityId.isNotEmpty &&
+        corpusBacktestEquitySeriesId != equityId) {
       corpusBacktestEquitySeriesId = equityId;
       changed = true;
     }
-    if (debtId != null && debtId.isNotEmpty && corpusBacktestDebtSeriesId != debtId) {
+    if (debtId != null &&
+        debtId.isNotEmpty &&
+        corpusBacktestDebtSeriesId != debtId) {
       corpusBacktestDebtSeriesId = debtId;
       changed = true;
     }
@@ -2662,7 +2828,9 @@ class AppModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  void mergeHistoricalReturnSeriesFromImport(Iterable<HistoricalReturnSeries> incoming) {
+  void mergeHistoricalReturnSeriesFromImport(
+    Iterable<HistoricalReturnSeries> incoming,
+  ) {
     final merged = mergeHistoricalReturnSeries(
       stored: historicalReturnSeries,
       incoming: incoming,
@@ -2674,10 +2842,14 @@ class AppModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> replaceHistoricalReturnSeriesFromImport(List<HistoricalReturnSeries> incoming) async {
+  Future<void> replaceHistoricalReturnSeriesFromImport(
+    List<HistoricalReturnSeries> incoming,
+  ) async {
     historicalReturnSeries
       ..clear()
-      ..addAll(mergeHistoricalReturnSeries(stored: const [], incoming: incoming));
+      ..addAll(
+        mergeHistoricalReturnSeries(stored: const [], incoming: incoming),
+      );
     _scheduleAppStatePersist();
     notifyListeners();
   }
@@ -2686,9 +2858,11 @@ class AppModel extends ChangeNotifier {
     ensureDefaultHistoricalReturns();
     final r = retirementGoal;
     if (r == null) return null;
-    final equity = historicalSeriesById(corpusBacktestEquitySeriesId) ??
+    final equity =
+        historicalSeriesById(corpusBacktestEquitySeriesId) ??
         historicalSeriesById(kDefaultUsSp500SeriesId);
-    final debt = historicalSeriesById(corpusBacktestDebtSeriesId) ??
+    final debt =
+        historicalSeriesById(corpusBacktestDebtSeriesId) ??
         historicalSeriesById(kDefaultCashFdSeriesId);
     if (equity == null || debt == null) return null;
     final swr = safeWithdrawalRatePct ?? r.safeWithdrawalRatePct;
@@ -2699,7 +2873,9 @@ class AppModel extends ChangeNotifier {
           )
         : goalRetirementCorpusBaseAmount(r);
     if (initial <= 0.5) return null;
-    final expenseMonthly = r.corpusAutoFromExpenses ? recurringExpensesMonthly : initial * swr / 100 / 12;
+    final expenseMonthly = r.corpusAutoFromExpenses
+        ? recurringExpensesMonthly
+        : initial * swr / 100 / 12;
     final inflation = projectionInflationPctAnnual[displayCurrency] ?? 0;
     return runCorpusBacktest(
       initialCorpus: initial,
@@ -2721,10 +2897,14 @@ class AppModel extends ChangeNotifier {
     if (r == null) return;
     var next = r;
     if (safeWithdrawalRatePct != null) {
-      next = next.copyWith(safeWithdrawalRatePct: clampWithdrawalRatePct(safeWithdrawalRatePct));
+      next = next.copyWith(
+        safeWithdrawalRatePct: clampWithdrawalRatePct(safeWithdrawalRatePct),
+      );
     }
     if (corpusBufferPct != null) {
-      next = next.copyWith(corpusBufferPct: clampCorpusBufferPct(corpusBufferPct));
+      next = next.copyWith(
+        corpusBufferPct: clampCorpusBufferPct(corpusBufferPct),
+      );
     }
     if (corpusAutoFromExpenses != null) {
       next = next.copyWith(corpusAutoFromExpenses: corpusAutoFromExpenses);
@@ -2859,7 +3039,8 @@ class AppModel extends ChangeNotifier {
   /// Month keys that have cashflow data, newest-first (YYYY-MM).
   /// Safe for long histories (e.g. 12+ months).
   List<String> monthKeysWithCashflowData({int? limit}) {
-    final keys = monthlyCashflowByMonth.keys.toList()..sort((a, b) => b.compareTo(a));
+    final keys = monthlyCashflowByMonth.keys.toList()
+      ..sort((a, b) => b.compareTo(a));
     if (limit != null && keys.length > limit) {
       return keys.take(limit).toList();
     }
@@ -2872,7 +3053,21 @@ class AppModel extends ChangeNotifier {
     final y = int.tryParse(parts[0]);
     final m = int.tryParse(parts[1]);
     if (y == null || m == null) return key;
-    const names = ['', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const names = [
+      '',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
     if (m < 1 || m > 12) return key;
     return '${names[m]} $y';
   }
@@ -2902,7 +3097,9 @@ class AppModel extends ChangeNotifier {
   }
 
   void setApiKey({required LlmProvider provider, String? key}) {
-    if (provider == LlmProvider.appleFoundation || provider == LlmProvider.zoroCloud) return;
+    if (provider == LlmProvider.appleFoundation ||
+        provider == LlmProvider.zoroCloud)
+      return;
     final trimmed = (key ?? '').trim();
     final v = trimmed.isEmpty ? null : trimmed;
     switch (provider) {
@@ -2990,7 +3187,8 @@ class AppModel extends ChangeNotifier {
     return null;
   }
 
-  String get llmAssistantUnavailableMessage => PlatformAi.helperUnavailableMessage(
+  String get llmAssistantUnavailableMessage =>
+      PlatformAi.helperUnavailableMessage(
         appleFoundationRuntimeAvailable: appleFoundationRuntimeAvailable,
         appleFoundationEnabled: appleFoundationEnabled,
         hasAnyApiKey: hasAnyApiKey,
@@ -2999,24 +3197,26 @@ class AppModel extends ChangeNotifier {
       );
 
   String? apiKeyFor(LlmProvider provider) => switch (provider) {
-        LlmProvider.appleFoundation =>
-          appleFoundationRuntimeAvailable ? appleOnDeviceApiKeySentinel : null,
-        LlmProvider.zoroCloud => canUseCloudImport ? zoroCloudApiKeySentinel : null,
-        LlmProvider.openai => openAiApiKey,
-        LlmProvider.anthropic => anthropicApiKey,
-        LlmProvider.gemini => geminiApiKey,
-      };
+    LlmProvider.appleFoundation =>
+      appleFoundationRuntimeAvailable ? appleOnDeviceApiKeySentinel : null,
+    LlmProvider.zoroCloud => canUseCloudImport ? zoroCloudApiKeySentinel : null,
+    LlmProvider.openai => openAiApiKey,
+    LlmProvider.anthropic => anthropicApiKey,
+    LlmProvider.gemini => geminiApiKey,
+  };
 
   String modelFor(LlmProvider provider) => switch (provider) {
-        LlmProvider.appleFoundation => 'apple-on-device',
-        LlmProvider.zoroCloud => 'zoro-cloud',
-        LlmProvider.openai => openAiModel,
-        LlmProvider.anthropic => anthropicModel,
-        LlmProvider.gemini => geminiModel,
-      };
+    LlmProvider.appleFoundation => 'apple-on-device',
+    LlmProvider.zoroCloud => 'zoro-cloud',
+    LlmProvider.openai => openAiModel,
+    LlmProvider.anthropic => anthropicModel,
+    LlmProvider.gemini => geminiModel,
+  };
 
   void setModelFor(LlmProvider provider, String model) {
-    if (provider == LlmProvider.appleFoundation || provider == LlmProvider.zoroCloud) return;
+    if (provider == LlmProvider.appleFoundation ||
+        provider == LlmProvider.zoroCloud)
+      return;
     final next = model.trim();
     if (next.isEmpty) return;
     switch (provider) {
@@ -3036,7 +3236,8 @@ class AppModel extends ChangeNotifier {
 
   // Temperature removed: some models/providers reject non-default values.
 
-  bool get hasAnyApiKey => openAiApiKey != null || anthropicApiKey != null || geminiApiKey != null;
+  bool get hasAnyApiKey =>
+      openAiApiKey != null || anthropicApiKey != null || geminiApiKey != null;
 
   void _onReminderCadenceChanged() {
     _scheduleAppStatePersist();
@@ -3079,7 +3280,10 @@ class AppModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setRemindersQuarterlySchedule({required int monthInQuarter, required int day}) {
+  void setRemindersQuarterlySchedule({
+    required int monthInQuarter,
+    required int day,
+  }) {
     final m = monthInQuarter.clamp(1, 3);
     final d = day.clamp(1, 31);
     if (remindersQuarterMonthInQuarter == m && remindersQuarterDay == d) return;
@@ -3169,8 +3373,12 @@ class AppModel extends ChangeNotifier {
       case HomeMessageCadence.daily:
         return today.isAfter(lastDay);
       case HomeMessageCadence.weekly:
-        final thisWeekStart = today.subtract(Duration(days: today.weekday - DateTime.monday));
-        final lastWeekStart = lastDay.subtract(Duration(days: lastDay.weekday - DateTime.monday));
+        final thisWeekStart = today.subtract(
+          Duration(days: today.weekday - DateTime.monday),
+        );
+        final lastWeekStart = lastDay.subtract(
+          Duration(days: lastDay.weekday - DateTime.monday),
+        );
         return thisWeekStart.isAfter(lastWeekStart);
       case HomeMessageCadence.monthly:
         return today.year != lastDay.year || today.month != lastDay.month;
@@ -3207,13 +3415,13 @@ class AppModel extends ChangeNotifier {
 
   /// Returns the cadence configured for [d].
   ReminderCadence reminderCadenceFor(ReminderDomain d) => switch (d) {
-        ReminderDomain.expenses => remindersExpensesCadence,
-        ReminderDomain.cashflow => remindersCashflowCadence,
-        ReminderDomain.income => remindersIncomeCadence,
-        ReminderDomain.assets => remindersAssetsCadence,
-        ReminderDomain.liabilities => remindersLiabilitiesCadence,
-        ReminderDomain.goals => remindersGoalsCadence,
-      };
+    ReminderDomain.expenses => remindersExpensesCadence,
+    ReminderDomain.cashflow => remindersCashflowCadence,
+    ReminderDomain.income => remindersIncomeCadence,
+    ReminderDomain.assets => remindersAssetsCadence,
+    ReminderDomain.liabilities => remindersLiabilitiesCadence,
+    ReminderDomain.goals => remindersGoalsCadence,
+  };
 
   /// True once the user has moved past the seeded first-run state (any ledger
   /// edit or imported cash-flow month). Matches when Home "blue" overdue rows
@@ -3235,9 +3443,9 @@ class AppModel extends ChangeNotifier {
   }
 
   List<ReminderDomain> schedulableReminderDomains() => [
-        for (final d in ReminderDomain.values)
-          if (isReminderSchedulable(d)) d,
-      ];
+    for (final d in ReminderDomain.values)
+      if (isReminderSchedulable(d)) d,
+  ];
 
   /// Rotation pick for OS scheduling when nothing is overdue yet.
   ReminderDomain? nextSchedulableRotationDomain() {
@@ -3257,22 +3465,22 @@ class AppModel extends ChangeNotifier {
   /// Per-domain content check (used in tests). Notifications gate on
   /// [remindersOnboardingComplete] plus the same overdue anchors as Home.
   bool userHasContentFor(ReminderDomain d) => switch (d) {
-        ReminderDomain.expenses => userTouchedExpenses,
-        ReminderDomain.cashflow => monthlyCashflowByMonth.isNotEmpty,
-        ReminderDomain.income => userTouchedIncome,
-        ReminderDomain.assets => userTouchedAssets,
-        ReminderDomain.liabilities => userTouchedLiabilities,
-        ReminderDomain.goals => financialGoals.isNotEmpty,
-      };
+    ReminderDomain.expenses => userTouchedExpenses,
+    ReminderDomain.cashflow => monthlyCashflowByMonth.isNotEmpty,
+    ReminderDomain.income => userTouchedIncome,
+    ReminderDomain.assets => userTouchedAssets,
+    ReminderDomain.liabilities => userTouchedLiabilities,
+    ReminderDomain.goals => financialGoals.isNotEmpty,
+  };
 
   bool _reviewOverdueFor(ReminderDomain d, DateTime now) => switch (d) {
-        ReminderDomain.expenses => expensesReviewOverdueAt(now),
-        ReminderDomain.cashflow => cashflowReviewOverdueAt(now),
-        ReminderDomain.income => incomeReviewOverdueAt(now),
-        ReminderDomain.assets => assetsReviewOverdueAt(now),
-        ReminderDomain.liabilities => liabilitiesReviewOverdueAt(now),
-        ReminderDomain.goals => goalsReviewOverdueAt(now),
-      };
+    ReminderDomain.expenses => expensesReviewOverdueAt(now),
+    ReminderDomain.cashflow => cashflowReviewOverdueAt(now),
+    ReminderDomain.income => incomeReviewOverdueAt(now),
+    ReminderDomain.assets => assetsReviewOverdueAt(now),
+    ReminderDomain.liabilities => liabilitiesReviewOverdueAt(now),
+    ReminderDomain.goals => goalsReviewOverdueAt(now),
+  };
 
   /// Eligibility predicate for the daily rotation. Domain-only checks: master
   /// switch on, cadence ≠ Off, user actually has content, and review is
@@ -3315,13 +3523,23 @@ class AppModel extends ChangeNotifier {
     final n = (now ?? DateTime.now()).toLocal();
     final last = remindersLastFiredOn;
     if (last != null && _isSameLocalDay(last, n)) return false;
-    final slot = DateTime(n.year, n.month, n.day, reminderNotifyHour, reminderNotifyMinute);
+    final slot = DateTime(
+      n.year,
+      n.month,
+      n.day,
+      reminderNotifyHour,
+      reminderNotifyMinute,
+    );
     if (n.isBefore(slot)) return false;
 
     final pending = remindersScheduledFireOn;
     if (pending != null) {
       final pendingLocal = pending.toLocal();
-      final pendingDay = DateTime(pendingLocal.year, pendingLocal.month, pendingLocal.day);
+      final pendingDay = DateTime(
+        pendingLocal.year,
+        pendingLocal.month,
+        pendingLocal.day,
+      );
       final today = DateTime(n.year, n.month, n.day);
       if (pendingDay.isAfter(today)) return false;
       if (pendingDay == today && n.isBefore(slot)) return false;
@@ -3364,7 +3582,8 @@ class AppModel extends ChangeNotifier {
   /// Returns the domain that fired, or `null` when nothing was posted.
   // (moved to `app_model_notifications.dart`)
 
-  CurrencyCode get expenseCurrencyResolved => expenseEstimateCurrency ?? displayCurrency;
+  CurrencyCode get expenseCurrencyResolved =>
+      expenseEstimateCurrency ?? displayCurrency;
 
   double expenseBucketInDisplayCurrency(String key) {
     final raw = expenseBuckets[key] ?? 0;
@@ -3379,18 +3598,58 @@ class AppModel extends ChangeNotifier {
     final expenseFrom = expenseCurrencyResolved;
     expenseBuckets = {
       for (final e in expenseBuckets.entries)
-        e.key: convertCurrency(value: e.value, from: expenseFrom, to: next, usdPerUnitOverrides: fx),
+        e.key: convertCurrency(
+          value: e.value,
+          from: expenseFrom,
+          to: next,
+          usdPerUnitOverrides: fx,
+        ),
     };
     expenseEstimateCurrency = next;
     for (final e in monthlyCashflowByMonth.values) {
-      e.openingBalance = convertCurrency(value: e.openingBalance, from: from, to: next, usdPerUnitOverrides: fx);
-      e.closingBalance = convertCurrency(value: e.closingBalance, from: from, to: next, usdPerUnitOverrides: fx);
-      e.monthlyEarned = convertCurrency(value: e.monthlyEarned, from: from, to: next, usdPerUnitOverrides: fx);
-      e.outflowToCashFd = convertCurrency(value: e.outflowToCashFd, from: from, to: next, usdPerUnitOverrides: fx);
-      e.outflowToInvested = convertCurrency(value: e.outflowToInvested, from: from, to: next, usdPerUnitOverrides: fx);
-      e.monthlySpending = convertCurrency(value: e.monthlySpending, from: from, to: next, usdPerUnitOverrides: fx);
+      e.openingBalance = convertCurrency(
+        value: e.openingBalance,
+        from: from,
+        to: next,
+        usdPerUnitOverrides: fx,
+      );
+      e.closingBalance = convertCurrency(
+        value: e.closingBalance,
+        from: from,
+        to: next,
+        usdPerUnitOverrides: fx,
+      );
+      e.monthlyEarned = convertCurrency(
+        value: e.monthlyEarned,
+        from: from,
+        to: next,
+        usdPerUnitOverrides: fx,
+      );
+      e.outflowToCashFd = convertCurrency(
+        value: e.outflowToCashFd,
+        from: from,
+        to: next,
+        usdPerUnitOverrides: fx,
+      );
+      e.outflowToInvested = convertCurrency(
+        value: e.outflowToInvested,
+        from: from,
+        to: next,
+        usdPerUnitOverrides: fx,
+      );
+      e.monthlySpending = convertCurrency(
+        value: e.monthlySpending,
+        from: from,
+        to: next,
+        usdPerUnitOverrides: fx,
+      );
       for (final il in e.investmentLines) {
-        il.amount = convertCurrency(value: il.amount, from: from, to: next, usdPerUnitOverrides: fx);
+        il.amount = convertCurrency(
+          value: il.amount,
+          from: from,
+          to: next,
+          usdPerUnitOverrides: fx,
+        );
         il.amountAppliedToAssets = convertCurrency(
           value: il.amountAppliedToAssets,
           from: from,
@@ -3399,7 +3658,12 @@ class AppModel extends ChangeNotifier {
         );
       }
       for (final sl in e.savingsLines) {
-        sl.amount = convertCurrency(value: sl.amount, from: from, to: next, usdPerUnitOverrides: fx);
+        sl.amount = convertCurrency(
+          value: sl.amount,
+          from: from,
+          to: next,
+          usdPerUnitOverrides: fx,
+        );
         sl.amountApplied = convertCurrency(
           value: sl.amountApplied,
           from: from,
@@ -3424,21 +3688,31 @@ class AppModel extends ChangeNotifier {
 
   String moneyDisplay(double v, CurrencyCode from, {int? decimals}) {
     final converted = moneyInDisplayCurrency(v, from);
-    return formatMoney(converted, currency: displayCurrency, decimals: decimals);
+    return formatMoney(
+      converted,
+      currency: displayCurrency,
+      decimals: decimals,
+    );
   }
 
   double get totalAssetsDisplay =>
       assets.fold<double>(0, (s, r) => s + assetDisplayValue(r));
 
   double get totalLiabilitiesDisplay => liabilities.fold<double>(
-        0,
-        (s, r) => s + moneyInDisplayCurrency(r.total, currencyCodeForPresetCountry(r.currencyCountry)),
-      );
+    0,
+    (s, r) =>
+        s +
+        moneyInDisplayCurrency(
+          r.total,
+          currencyCodeForPresetCountry(r.currencyCountry),
+        ),
+  );
 
   double get netWorthDisplay => totalAssetsDisplay - totalLiabilitiesDisplay;
 
-  String get defaultLedgerCurrencyCountry =>
-      incomeLines.isEmpty ? expensePresetCountry : incomeLines.first.currencyCountry;
+  String get defaultLedgerCurrencyCountry => incomeLines.isEmpty
+      ? expensePresetCountry
+      : incomeLines.first.currencyCountry;
 
   bool addAsset(LedgerAssetRow row) {
     if (!isPro && (assets.length + liabilities.length) >= 10) {
@@ -3522,7 +3796,8 @@ class AppModel extends ChangeNotifier {
   void addIncomeLine({String? defaultCurrencyCountry}) {
     incomeLines.add(
       CashflowIncomeLine.blank(
-        defaultCurrencyCountry: defaultCurrencyCountry ?? defaultLedgerCurrencyCountry,
+        defaultCurrencyCountry:
+            defaultCurrencyCountry ?? defaultLedgerCurrencyCountry,
       ),
     );
     incomeLastUpdated = DateTime.now();
@@ -3684,7 +3959,10 @@ class AppModel extends ChangeNotifier {
       setExpenseBucket(e.key, e.value);
     }
     if (expenseContextNote != null && expenseContextNote.trim().isNotEmpty) {
-      setExpenseBucketContextMarkdown(bucketKey: 'other', markdown: expenseContextNote.trim());
+      setExpenseBucketContextMarkdown(
+        bucketKey: 'other',
+        markdown: expenseContextNote.trim(),
+      );
     }
     markExpenseEstimatesUpdated();
     if (markOnboardingComplete) {
@@ -3711,8 +3989,14 @@ class AppModel extends ChangeNotifier {
 
   void clearDemoLedgerSetupInProgress() => setDemoLedgerSetupInProgress(false);
 
-  void setExpenseBucketContextMarkdown({required String bucketKey, required String markdown}) {
-    expenseBucketContextMarkdown = {...expenseBucketContextMarkdown, bucketKey: markdown};
+  void setExpenseBucketContextMarkdown({
+    required String bucketKey,
+    required String markdown,
+  }) {
+    expenseBucketContextMarkdown = {
+      ...expenseBucketContextMarkdown,
+      bucketKey: markdown,
+    };
     _touchContextNoteSaved(contextKeyBucket(bucketKey));
     _scheduleAppStatePersist();
     notifyListeners();
@@ -3739,7 +4023,8 @@ class AppModel extends ChangeNotifier {
     return spendInBandColor;
   }
 
-  MonthlyCashflowEntry? monthlyEntryFor(String monthKey) => monthlyCashflowByMonth[monthKey];
+  MonthlyCashflowEntry? monthlyEntryFor(String monthKey) =>
+      monthlyCashflowByMonth[monthKey];
 
   void upsertMonthlyCashflow(MonthlyCashflowEntry entry) {
     if (!isPro) {
@@ -3766,7 +4051,10 @@ class AppModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setMonthlyCashflowContextMarkdown({required String monthKey, required String markdown}) {
+  void setMonthlyCashflowContextMarkdown({
+    required String monthKey,
+    required String markdown,
+  }) {
     final e = monthlyCashflowByMonth[monthKey];
     if (e == null) return;
     e.contextMarkdown = markdown.trim();
@@ -3788,7 +4076,10 @@ class AppModel extends ChangeNotifier {
     return null;
   }
 
-  void setAssetContextMarkdown({required String assetId, required String markdown}) {
+  void setAssetContextMarkdown({
+    required String assetId,
+    required String markdown,
+  }) {
     final matches = <int>[
       for (var i = 0; i < assets.length; i++)
         if (assets[i].id == assetId) i,
@@ -3809,7 +4100,10 @@ class AppModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setLiabilityContextMarkdown({required String liabilityId, required String markdown}) {
+  void setLiabilityContextMarkdown({
+    required String liabilityId,
+    required String markdown,
+  }) {
     final idx = liabilities.indexWhere((l) => l.id == liabilityId);
     if (idx < 0) return;
     liabilities[idx].contextMarkdown = markdown;
@@ -3820,7 +4114,10 @@ class AppModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setMonthlyEntryContextMarkdown({required String monthKey, required String markdown}) {
+  void setMonthlyEntryContextMarkdown({
+    required String monthKey,
+    required String markdown,
+  }) {
     final e = monthlyCashflowByMonth[monthKey];
     if (e == null) return;
     e.contextMarkdown = markdown;
@@ -3846,7 +4143,11 @@ class AppModel extends ChangeNotifier {
     return _quarterlyAnchorFor(prevY, prevQ);
   }
 
-  bool _isOverdue({required DateTime now, required DateTime? last, required ReminderCadence cadence}) {
+  bool _isOverdue({
+    required DateTime now,
+    required DateTime? last,
+    required ReminderCadence cadence,
+  }) {
     if (cadence == ReminderCadence.off) return false;
     switch (cadence) {
       case ReminderCadence.monthly:
@@ -3871,23 +4172,40 @@ class AppModel extends ChangeNotifier {
   bool get expensesReviewOverdue => expensesReviewOverdueAt(DateTime.now());
   bool get incomeReviewOverdue => incomeReviewOverdueAt(DateTime.now());
   bool get assetsReviewOverdue => assetsReviewOverdueAt(DateTime.now());
-  bool get liabilitiesReviewOverdue => liabilitiesReviewOverdueAt(DateTime.now());
+  bool get liabilitiesReviewOverdue =>
+      liabilitiesReviewOverdueAt(DateTime.now());
 
-  bool expensesReviewOverdueAt(DateTime now) =>
-      _isOverdue(now: now, last: expenseEstimatesLastUpdated, cadence: remindersExpensesCadence);
+  bool expensesReviewOverdueAt(DateTime now) => _isOverdue(
+    now: now,
+    last: expenseEstimatesLastUpdated,
+    cadence: remindersExpensesCadence,
+  );
 
-  bool incomeReviewOverdueAt(DateTime now) =>
-      _isOverdue(now: now, last: incomeLastUpdated, cadence: remindersIncomeCadence);
+  bool incomeReviewOverdueAt(DateTime now) => _isOverdue(
+    now: now,
+    last: incomeLastUpdated,
+    cadence: remindersIncomeCadence,
+  );
 
-  bool assetsReviewOverdueAt(DateTime now) =>
-      _isOverdue(now: now, last: assetsLastReviewed, cadence: remindersAssetsCadence);
+  bool assetsReviewOverdueAt(DateTime now) => _isOverdue(
+    now: now,
+    last: assetsLastReviewed,
+    cadence: remindersAssetsCadence,
+  );
 
-  bool liabilitiesReviewOverdueAt(DateTime now) =>
-      _isOverdue(now: now, last: liabilitiesLastReviewed, cadence: remindersLiabilitiesCadence);
+  bool liabilitiesReviewOverdueAt(DateTime now) => _isOverdue(
+    now: now,
+    last: liabilitiesLastReviewed,
+    cadence: remindersLiabilitiesCadence,
+  );
 
   bool goalsReviewOverdueAt(DateTime now) {
     if (goalsLastUpdated == null) return false;
-    return _isOverdue(now: now, last: goalsLastUpdated, cadence: remindersGoalsCadence);
+    return _isOverdue(
+      now: now,
+      last: goalsLastUpdated,
+      cadence: remindersGoalsCadence,
+    );
   }
 
   /// Latest change across retirement helper sections and goal edits.
@@ -3898,6 +4216,7 @@ class AppModel extends ChangeNotifier {
       final b = best;
       if (b == null || d.isAfter(b)) best = d;
     }
+
     consider(agentPlanLastCommitAt);
     consider(retirementCorpusLastUpdated);
     consider(allocationTargetLastUpdated);
@@ -3983,8 +4302,13 @@ class AppModel extends ChangeNotifier {
   }
 
   /// Mean monthly outflows to invested / cash-FD over months with entries (for $ compare).
-  ({double invested, double cashFd})? averageAllocationOutflows(Iterable<String> monthKeys) {
-    final entries = monthKeys.map(monthlyEntryFor).whereType<MonthlyCashflowEntry>().toList();
+  ({double invested, double cashFd})? averageAllocationOutflows(
+    Iterable<String> monthKeys,
+  ) {
+    final entries = monthKeys
+        .map(monthlyEntryFor)
+        .whereType<MonthlyCashflowEntry>()
+        .toList();
     if (entries.isEmpty) return null;
     var inv = 0.0, cash = 0.0;
     for (final e in entries) {
@@ -4009,7 +4333,9 @@ class AppModel extends ChangeNotifier {
   void _captureDummySeedSnapshot() {
     dummySeedSnapshot = {
       'assets': assets.map(app_state.encodeLedgerAssetRow).toList(),
-      'liabilities': liabilities.map(app_state.encodeLedgerLiabilityRow).toList(),
+      'liabilities': liabilities
+          .map(app_state.encodeLedgerLiabilityRow)
+          .toList(),
     };
   }
 
@@ -4025,7 +4351,8 @@ class AppModel extends ChangeNotifier {
       if (id == null) return false;
       final cur = assetById(id);
       if (cur == null) return false;
-      if (app_state.encodeLedgerAssetRow(cur).toString() != a.toString()) return false;
+      if (app_state.encodeLedgerAssetRow(cur).toString() != a.toString())
+        return false;
     }
     for (final l in liabsRaw) {
       if (l is! Map) return false;
@@ -4033,7 +4360,8 @@ class AppModel extends ChangeNotifier {
       if (id == null) return false;
       final cur = liabilityById(id);
       if (cur == null) return false;
-      if (app_state.encodeLedgerLiabilityRow(cur).toString() != l.toString()) return false;
+      if (app_state.encodeLedgerLiabilityRow(cur).toString() != l.toString())
+        return false;
     }
     return true;
   }
@@ -4070,7 +4398,8 @@ class AppModel extends ChangeNotifier {
         if (id == null) continue;
         final cur = liabilityById(id);
         if (cur == null) continue;
-        if (app_state.encodeLedgerLiabilityRow(cur).toString() == l.toString()) {
+        if (app_state.encodeLedgerLiabilityRow(cur).toString() ==
+            l.toString()) {
           liabilities.removeWhere((x) => x.id == id);
         }
       }
@@ -4093,7 +4422,8 @@ class AppModel extends ChangeNotifier {
     if (t > 0) {
       llmTokensByModelKey[key] = (llmTokensByModelKey[key] ?? 0) + t;
     }
-    if (entitlementsApiBody != null) applyMobileEntitlementsBody(entitlementsApiBody);
+    if (entitlementsApiBody != null)
+      applyMobileEntitlementsBody(entitlementsApiBody);
     _scheduleAppStatePersist();
     notifyListeners();
   }
@@ -4114,13 +4444,22 @@ class AppModel extends ChangeNotifier {
     return total;
   }
 
-  int get onDeviceTokensUsed => _sumIntMapWithPrefix(llmTokensByModelKey, '${LlmProvider.appleFoundation.name}:');
+  int get onDeviceTokensUsed => _sumIntMapWithPrefix(
+    llmTokensByModelKey,
+    '${LlmProvider.appleFoundation.name}:',
+  );
 
-  int get cloudTokensUsed => _sumIntMapWithPrefix(llmTokensByModelKey, '${LlmProvider.zoroCloud.name}:');
+  int get cloudTokensUsed => _sumIntMapWithPrefix(
+    llmTokensByModelKey,
+    '${LlmProvider.zoroCloud.name}:',
+  );
 
   int get byoKeyTokensUsed =>
       _sumIntMapWithPrefix(llmTokensByModelKey, '${LlmProvider.openai.name}:') +
-      _sumIntMapWithPrefix(llmTokensByModelKey, '${LlmProvider.anthropic.name}:') +
+      _sumIntMapWithPrefix(
+        llmTokensByModelKey,
+        '${LlmProvider.anthropic.name}:',
+      ) +
       _sumIntMapWithPrefix(llmTokensByModelKey, '${LlmProvider.gemini.name}:');
 
   /// Total helper LLM calls recorded for [provider] (all models).
@@ -4134,7 +4473,9 @@ class AppModel extends ChangeNotifier {
   }
 
   /// Per-model call counts for [provider], highest count first.
-  List<({String model, int count})> llmRequestBreakdownFor(LlmProvider provider) {
+  List<({String model, int count})> llmRequestBreakdownFor(
+    LlmProvider provider,
+  ) {
     final prefix = '${provider.name}:';
     final rows = <({String model, int count})>[];
     for (final e in llmRequestsByModelKey.entries) {
@@ -4153,7 +4494,8 @@ class AppModel extends ChangeNotifier {
     incomeLines.clear();
     monthlyCashflowByMonth.clear();
     expenseBuckets = {
-      for (final k in expenseBucketKeys) k: presetForCountry(expensePresetCountry).buckets[k]!.value,
+      for (final k in expenseBucketKeys)
+        k: presetForCountry(expensePresetCountry).buckets[k]!.value,
     };
     expenseBucketContextMarkdown = {for (final k in expenseBucketKeys) k: ''};
     primaryIncomeAssetId = null;
@@ -4189,14 +4531,14 @@ class AppModel extends ChangeNotifier {
   }
 
   double get totalIncomeAnnualDisplay => incomeLines.fold<double>(
-        0,
-        (s, line) =>
-            s +
-            moneyInDisplayCurrency(
-              line.annualAmount,
-              currencyCodeForIncomeLineCurrency(line.currencyCountry),
-            ),
-      );
+    0,
+    (s, line) =>
+        s +
+        moneyInDisplayCurrency(
+          line.annualAmount,
+          currencyCodeForIncomeLineCurrency(line.currencyCountry),
+        ),
+  );
 
   double get taxesAnnualDisplay {
     final rate = (effectiveTaxRatePct ?? 0).clamp(0, 100) / 100.0;
@@ -4265,17 +4607,23 @@ class AppModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  double predictedMonthlyForExpenseBucket(String k) => expenseBucketInDisplayCurrency(k);
+  double predictedMonthlyForExpenseBucket(String k) =>
+      expenseBucketInDisplayCurrency(k);
 
   void setAllocInvestFraction(double f, {bool quantize = true}) {
-    allocInvestFraction = quantize ? _quantizeAllocInvestFraction(f) : f.clamp(0.0, 1.0);
+    allocInvestFraction = quantize
+        ? _quantizeAllocInvestFraction(f)
+        : f.clamp(0.0, 1.0);
     allocationTargetLastUpdated = DateTime.now();
     syncAllocationsFromFraction();
     _scheduleAppStatePersist();
   }
 
   /// Sets invest/savings monthly amounts exactly; headline % follows these amounts.
-  void setAllocationMonthlyExact({required double investMonthly, required double savingsMonthly}) {
+  void setAllocationMonthlyExact({
+    required double investMonthly,
+    required double savingsMonthly,
+  }) {
     final avail = availableAfterExpensesMonthly;
     if (avail <= 0) {
       allocInvestFraction = 0;
@@ -4320,7 +4668,8 @@ class AppModel extends ChangeNotifier {
     if (total <= allocSavingsMonthly + 1e-6 || total <= 0) return;
     final factor = allocSavingsMonthly / total;
     for (var i = 0; i < liabilities.length; i++) {
-      liabilities[i].paydownMonthly = (liabilities[i].paydownMonthly * factor).clamp(0, double.infinity);
+      liabilities[i].paydownMonthly = (liabilities[i].paydownMonthly * factor)
+          .clamp(0, double.infinity);
     }
   }
 
@@ -4397,7 +4746,9 @@ class AppModel extends ChangeNotifier {
         'homeSummaryText': homeSummaryText,
         'homeSummaryHelperLastRunDayKey': homeSummaryHelperLastRunDayKey,
         'homeSummaryHelperRotationIndex': homeSummaryHelperRotationIndex,
-        'homeSummaryHelperIncludedDomainIds': List<String>.from(homeSummaryHelperIncludedDomainIds),
+        'homeSummaryHelperIncludedDomainIds': List<String>.from(
+          homeSummaryHelperIncludedDomainIds,
+        ),
         'homeMessagesEnabled': homeMessagesEnabled,
         'homeMessagesNotify': homeMessagesNotifications,
         'homeMessagesCadence': homeMessagesCadence.name,
@@ -4417,9 +4768,15 @@ class AppModel extends ChangeNotifier {
         'goalsTimeProgressNotifications': goalsTimeProgressNotifications,
         'goalsTimeMilestonesFired': goalsTimeMilestonesFired,
         'goalsLastUpdated': goalsLastUpdated?.toUtc().toIso8601String(),
-        'retirementCorpusLastUpdated': retirementCorpusLastUpdated?.toUtc().toIso8601String(),
-        'retirementBucketsLastUpdated': retirementBucketsLastUpdated?.toUtc().toIso8601String(),
-        'goalsReviewAcknowledgedAt': goalsReviewAcknowledgedAt?.toUtc().toIso8601String(),
+        'retirementCorpusLastUpdated': retirementCorpusLastUpdated
+            ?.toUtc()
+            .toIso8601String(),
+        'retirementBucketsLastUpdated': retirementBucketsLastUpdated
+            ?.toUtc()
+            .toIso8601String(),
+        'goalsReviewAcknowledgedAt': goalsReviewAcknowledgedAt
+            ?.toUtc()
+            .toIso8601String(),
         'remindersMonthlyDayOfMonth': remindersMonthlyDayOfMonth,
         'remindersQuarterMonthInQuarter': remindersQuarterMonthInQuarter,
         'remindersQuarterDay': remindersQuarterDay,
@@ -4440,20 +4797,29 @@ class AppModel extends ChangeNotifier {
         'ledgerDisplayCurrency': displayCurrency.name,
         'expenseEstimateCurrency': expenseCurrencyResolved.name,
         'assets': assets.map(app_state.encodeLedgerAssetRow).toList(),
-        'liabilities': liabilities.map(app_state.encodeLedgerLiabilityRow).toList(),
+        'liabilities': liabilities
+            .map(app_state.encodeLedgerLiabilityRow)
+            .toList(),
         'incomeLines': incomeLines.map(app_state.encodeIncomeLine).toList(),
         'expenseBuckets': expenseBuckets,
         'expenseBucketContextMarkdown': expenseBucketContextMarkdown,
         'monthlyCashflowByMonth': {
-          for (final e in monthlyCashflowByMonth.entries) e.key: app_state.encodeMonthlyCashflowEntry(e.value),
+          for (final e in monthlyCashflowByMonth.entries)
+            e.key: app_state.encodeMonthlyCashflowEntry(e.value),
         },
         'primaryIncomeAssetId': primaryIncomeAssetId,
         'effectiveTaxRatePct': effectiveTaxRatePct,
         'incomeLastUpdated': incomeLastUpdated?.toUtc().toIso8601String(),
-        'expenseEstimatesLastUpdated': expenseEstimatesLastUpdated?.toUtc().toIso8601String(),
-        'allocationTargetLastUpdated': allocationTargetLastUpdated?.toUtc().toIso8601String(),
+        'expenseEstimatesLastUpdated': expenseEstimatesLastUpdated
+            ?.toUtc()
+            .toIso8601String(),
+        'allocationTargetLastUpdated': allocationTargetLastUpdated
+            ?.toUtc()
+            .toIso8601String(),
         'assetsLastReviewed': assetsLastReviewed?.toUtc().toIso8601String(),
-        'liabilitiesLastReviewed': liabilitiesLastReviewed?.toUtc().toIso8601String(),
+        'liabilitiesLastReviewed': liabilitiesLastReviewed
+            ?.toUtc()
+            .toIso8601String(),
         'allocInvestFraction': allocInvestFraction,
         'allocInvestmentsMonthly': allocInvestmentsMonthly,
         'allocSavingsMonthly': allocSavingsMonthly,
@@ -4462,27 +4828,40 @@ class AppModel extends ChangeNotifier {
         'retirementExtraAssetIds': retirementExtraAssetIds.toList(),
         'corpusBacktest': app_state.encodeCorpusBacktestBlock(this),
         if (historicalReturnSeries.any((s) => !s.builtin))
-          'historicalReturnSeries':
-              historicalReturnSeries.where((s) => !s.builtin).map(encodeHistoricalReturnSeries).toList(),
+          'historicalReturnSeries': historicalReturnSeries
+              .where((s) => !s.builtin)
+              .map(encodeHistoricalReturnSeries)
+              .toList(),
         'fxUsdPerUnitOverride': {
           for (final e in _fxUsdPerUnitOverride.entries) e.key.name: e.value,
         },
-        'projectionInvestReturnPctAnnual': app_state.encodeProjectionMap(projectionInvestReturnPctAnnual),
-        'projectionSavingsReturnPctAnnual': app_state.encodeProjectionMap(projectionSavingsReturnPctAnnual),
-        'projectionInflationPctAnnual': app_state.encodeProjectionMap(projectionInflationPctAnnual),
+        'projectionInvestReturnPctAnnual': app_state.encodeProjectionMap(
+          projectionInvestReturnPctAnnual,
+        ),
+        'projectionSavingsReturnPctAnnual': app_state.encodeProjectionMap(
+          projectionSavingsReturnPctAnnual,
+        ),
+        'projectionInflationPctAnnual': app_state.encodeProjectionMap(
+          projectionInflationPctAnnual,
+        ),
       },
       'context': {
         'noteSavedAtUtc': {
-          for (final e in contextNoteSavedAtUtc.entries) e.key: e.value.toUtc().millisecondsSinceEpoch,
+          for (final e in contextNoteSavedAtUtc.entries)
+            e.key: e.value.toUtc().millisecondsSinceEpoch,
         },
       },
       'internalAgents': {
-        'systemPromptById': Map<String, String>.from(_internalAgentSystemPromptById),
+        'systemPromptById': Map<String, String>.from(
+          _internalAgentSystemPromptById,
+        ),
         'lastStructuredById': {
-          for (final e in internalAgentLastStructuredById.entries) e.key: app_state.tryJsonSafeEncode(e.value),
+          for (final e in internalAgentLastStructuredById.entries)
+            e.key: app_state.tryJsonSafeEncode(e.value),
         },
         'lastRunById': {
-          for (final e in internalAgentLastRunById.entries) e.key: e.value.toUtc().millisecondsSinceEpoch,
+          for (final e in internalAgentLastRunById.entries)
+            e.key: e.value.toUtc().millisecondsSinceEpoch,
         },
         'lastModelById': Map<String, String>.from(internalAgentLastModelById),
         'lastTokensById': {
@@ -4541,14 +4920,19 @@ class AppModel extends ChangeNotifier {
       final usage = s['llmRequestsByModelKey'];
       if (usage is Map) {
         llmRequestsByModelKey = {
-          for (final e in usage.entries) e.key.toString(): (e.value is num ? (e.value as num).round() : int.tryParse(e.value.toString()) ?? 0),
+          for (final e in usage.entries)
+            e.key.toString(): (e.value is num
+                ? (e.value as num).round()
+                : int.tryParse(e.value.toString()) ?? 0),
         };
       }
       final tokenUsage = s['llmTokensByModelKey'];
       if (tokenUsage is Map) {
         llmTokensByModelKey = {
           for (final e in tokenUsage.entries)
-            e.key.toString(): (e.value is num ? (e.value as num).round() : int.tryParse(e.value.toString()) ?? 0),
+            e.key.toString(): (e.value is num
+                ? (e.value as num).round()
+                : int.tryParse(e.value.toString()) ?? 0),
         };
       }
       if (s.containsKey('helperEnabledLedger')) {
@@ -4586,9 +4970,11 @@ class AppModel extends ChangeNotifier {
       final h = s['homeSummaryText']?.toString();
       if (h != null) homeSummaryText = h;
       final hDay = s['homeSummaryHelperLastRunDayKey']?.toString().trim();
-      if (hDay != null && hDay.isNotEmpty) homeSummaryHelperLastRunDayKey = hDay;
+      if (hDay != null && hDay.isNotEmpty)
+        homeSummaryHelperLastRunDayKey = hDay;
       final hRot = s['homeSummaryHelperRotationIndex'];
-      if (hRot is num) homeSummaryHelperRotationIndex = hRot.round().clamp(0, 999999);
+      if (hRot is num)
+        homeSummaryHelperRotationIndex = hRot.round().clamp(0, 999999);
       final hDomains = s['homeSummaryHelperIncludedDomainIds'];
       if (hDomains is List) {
         homeSummaryHelperIncludedDomainIds = [
@@ -4609,7 +4995,8 @@ class AppModel extends ChangeNotifier {
       }
       final hCad = s['homeMessagesCadence']?.toString();
       if (hCad != null) {
-        homeMessagesCadence = HomeMessageCadenceUi.tryParse(hCad) ?? HomeMessageCadence.daily;
+        homeMessagesCadence =
+            HomeMessageCadenceUi.tryParse(hCad) ?? HomeMessageCadence.daily;
       }
       final dc = s['displayCurrency']?.toString();
       if (dc != null) {
@@ -4675,17 +5062,30 @@ class AppModel extends ChangeNotifier {
         }
       }
       app_state.decodeNotificationsBlock(this, s['notifications']);
-      remindersExpensesCadence = app_state.reminderCadenceFromJson(s['remindersExpensesCadence']);
-      remindersCashflowCadence = app_state.reminderCadenceFromJson(s['remindersCashflowCadence']);
-      remindersIncomeCadence = app_state.reminderCadenceFromJson(s['remindersIncomeCadence']);
-      remindersAssetsCadence = app_state.reminderCadenceFromJson(s['remindersAssetsCadence']);
-      remindersLiabilitiesCadence = app_state.reminderCadenceFromJson(s['remindersLiabilitiesCadence']);
-      remindersGoalsCadence = app_state.reminderCadenceFromJson(s['remindersGoalsCadence']);
+      remindersExpensesCadence = app_state.reminderCadenceFromJson(
+        s['remindersExpensesCadence'],
+      );
+      remindersCashflowCadence = app_state.reminderCadenceFromJson(
+        s['remindersCashflowCadence'],
+      );
+      remindersIncomeCadence = app_state.reminderCadenceFromJson(
+        s['remindersIncomeCadence'],
+      );
+      remindersAssetsCadence = app_state.reminderCadenceFromJson(
+        s['remindersAssetsCadence'],
+      );
+      remindersLiabilitiesCadence = app_state.reminderCadenceFromJson(
+        s['remindersLiabilitiesCadence'],
+      );
+      remindersGoalsCadence = app_state.reminderCadenceFromJson(
+        s['remindersGoalsCadence'],
+      );
       if (s.containsKey('promptAutoAllocateOnNewGoal')) {
         promptAutoAllocateOnNewGoal = s['promptAutoAllocateOnNewGoal'] != false;
       }
       if (s.containsKey('goalsTimeProgressNotifications')) {
-        goalsTimeProgressNotifications = s['goalsTimeProgressNotifications'] != false;
+        goalsTimeProgressNotifications =
+            s['goalsTimeProgressNotifications'] != false;
       }
       final gmf = s['goalsTimeMilestonesFired'];
       if (gmf is Map) {
@@ -4700,9 +5100,15 @@ class AppModel extends ChangeNotifier {
         }
       }
       goalsLastUpdated = app_state.dateTimeFromJsonField(s['goalsLastUpdated']);
-      retirementCorpusLastUpdated = app_state.dateTimeFromJsonField(s['retirementCorpusLastUpdated']);
-      retirementBucketsLastUpdated = app_state.dateTimeFromJsonField(s['retirementBucketsLastUpdated']);
-      goalsReviewAcknowledgedAt = app_state.dateTimeFromJsonField(s['goalsReviewAcknowledgedAt']);
+      retirementCorpusLastUpdated = app_state.dateTimeFromJsonField(
+        s['retirementCorpusLastUpdated'],
+      );
+      retirementBucketsLastUpdated = app_state.dateTimeFromJsonField(
+        s['retirementBucketsLastUpdated'],
+      );
+      goalsReviewAcknowledgedAt = app_state.dateTimeFromJsonField(
+        s['goalsReviewAcknowledgedAt'],
+      );
       final md = s['remindersMonthlyDayOfMonth'];
       if (md is int) remindersMonthlyDayOfMonth = md.clamp(1, 28);
       if (md is num) remindersMonthlyDayOfMonth = md.round().clamp(1, 28);
@@ -4739,7 +5145,8 @@ class AppModel extends ChangeNotifier {
           ..clear()
           ..addAll([
             for (final e in assetsRaw)
-              if (app_state.decodeLedgerAssetRow(e) != null) app_state.decodeLedgerAssetRow(e)!,
+              if (app_state.decodeLedgerAssetRow(e) != null)
+                app_state.decodeLedgerAssetRow(e)!,
           ]);
         repairDuplicateAssetIds(notify: false);
       }
@@ -4749,7 +5156,8 @@ class AppModel extends ChangeNotifier {
           ..clear()
           ..addAll([
             for (final e in liabRaw)
-              if (app_state.decodeLedgerLiabilityRow(e) != null) app_state.decodeLedgerLiabilityRow(e)!,
+              if (app_state.decodeLedgerLiabilityRow(e) != null)
+                app_state.decodeLedgerLiabilityRow(e)!,
           ]);
         repairDuplicateLiabilityIds(notify: false);
       }
@@ -4759,7 +5167,8 @@ class AppModel extends ChangeNotifier {
           ..clear()
           ..addAll([
             for (final e in incRaw)
-              if (app_state.decodeIncomeLine(e) != null) app_state.decodeIncomeLine(e)!,
+              if (app_state.decodeIncomeLine(e) != null)
+                app_state.decodeIncomeLine(e)!,
           ]);
       }
       CurrencyCode? importExpenseCurrency;
@@ -4776,7 +5185,9 @@ class AppModel extends ChangeNotifier {
       if (eb is Map) {
         for (final k in expenseBucketKeys) {
           final v = eb[k];
-          final d = v is num ? v.toDouble() : double.tryParse(v?.toString() ?? '');
+          final d = v is num
+              ? v.toDouble()
+              : double.tryParse(v?.toString() ?? '');
           if (d != null) expenseBuckets[k] = d;
         }
         var bucketCurrency = importExpenseCurrency ?? importLedgerCurrency;
@@ -4820,13 +5231,25 @@ class AppModel extends ChangeNotifier {
       primaryIncomeAssetId = (pid == null || pid.isEmpty) ? null : pid;
       if (L.containsKey('effectiveTaxRatePct')) {
         final tax = L['effectiveTaxRatePct'];
-        effectiveTaxRatePct = tax == null ? null : (tax is num ? tax.toDouble() : double.tryParse(tax.toString()));
+        effectiveTaxRatePct = tax == null
+            ? null
+            : (tax is num ? tax.toDouble() : double.tryParse(tax.toString()));
       }
-      incomeLastUpdated = app_state.dateTimeFromJsonField(L['incomeLastUpdated']);
-      expenseEstimatesLastUpdated = app_state.dateTimeFromJsonField(L['expenseEstimatesLastUpdated']);
-      allocationTargetLastUpdated = app_state.dateTimeFromJsonField(L['allocationTargetLastUpdated']);
-      assetsLastReviewed = app_state.dateTimeFromJsonField(L['assetsLastReviewed']);
-      liabilitiesLastReviewed = app_state.dateTimeFromJsonField(L['liabilitiesLastReviewed']);
+      incomeLastUpdated = app_state.dateTimeFromJsonField(
+        L['incomeLastUpdated'],
+      );
+      expenseEstimatesLastUpdated = app_state.dateTimeFromJsonField(
+        L['expenseEstimatesLastUpdated'],
+      );
+      allocationTargetLastUpdated = app_state.dateTimeFromJsonField(
+        L['allocationTargetLastUpdated'],
+      );
+      assetsLastReviewed = app_state.dateTimeFromJsonField(
+        L['assetsLastReviewed'],
+      );
+      liabilitiesLastReviewed = app_state.dateTimeFromJsonField(
+        L['liabilitiesLastReviewed'],
+      );
       final aif = L['allocInvestFraction'];
       if (aif is num) allocInvestFraction = aif.toDouble();
       final aim = L['allocInvestmentsMonthly'];
@@ -4842,7 +5265,8 @@ class AppModel extends ChangeNotifier {
           final id = e.toString().trim();
           if (id.isNotEmpty) retirementExtraAssetIds.add(id);
         }
-      } else if (!L.containsKey('retirementExtraAssetIds') && assetsRaw is List) {
+      } else if (!L.containsKey('retirementExtraAssetIds') &&
+          assetsRaw is List) {
         for (final e in assetsRaw) {
           if (e is! Map) continue;
           final m = Map<String, dynamic>.from(e);
@@ -4850,19 +5274,22 @@ class AppModel extends ChangeNotifier {
           final id = m['id']?.toString();
           if (id == null || id.isEmpty) continue;
           final type = LedgerAssetTypeUi.fromApi(m['type']?.toString());
-          if (type == LedgerAssetType.property || type == LedgerAssetType.other) {
+          if (type == LedgerAssetType.property ||
+              type == LedgerAssetType.other) {
             retirementExtraAssetIds.add(id);
           }
         }
         if (L['propertyInRetirement'] == true) {
           for (final a in assets) {
-            if (a.type == LedgerAssetType.property) retirementExtraAssetIds.add(a.id);
+            if (a.type == LedgerAssetType.property)
+              retirementExtraAssetIds.add(a.id);
           }
         }
         final oam = L['otherAssetsMode']?.toString();
         if (oam == 'retirement' || oam == 'split') {
           for (final a in assets) {
-            if (a.type == LedgerAssetType.other) retirementExtraAssetIds.add(a.id);
+            if (a.type == LedgerAssetType.other)
+              retirementExtraAssetIds.add(a.id);
           }
         }
       }
@@ -4880,25 +5307,63 @@ class AppModel extends ChangeNotifier {
           }
           if (c == null || c == CurrencyCode.usd) continue;
           final v = e.value;
-          final d = v is num ? v.toDouble() : double.tryParse(v?.toString() ?? '');
+          final d = v is num
+              ? v.toDouble()
+              : double.tryParse(v?.toString() ?? '');
           if (d != null && d > 0) _fxUsdPerUnitOverride[c] = d;
         }
       }
 
       // Convert imported cashflow/allocation amounts (not expense buckets — those use [expenseEstimateCurrency]).
-      if (importLedgerCurrency != null && importLedgerCurrency != displayCurrency) {
+      if (importLedgerCurrency != null &&
+          importLedgerCurrency != displayCurrency) {
         final from = importLedgerCurrency;
         final to = displayCurrency;
         final resolvedFx = fxUsdPerUnitResolved;
         for (final e in monthlyCashflowByMonth.values) {
-          e.openingBalance = convertCurrency(value: e.openingBalance, from: from, to: to, usdPerUnitOverrides: resolvedFx);
-          e.closingBalance = convertCurrency(value: e.closingBalance, from: from, to: to, usdPerUnitOverrides: resolvedFx);
-          e.monthlyEarned = convertCurrency(value: e.monthlyEarned, from: from, to: to, usdPerUnitOverrides: resolvedFx);
-          e.outflowToCashFd = convertCurrency(value: e.outflowToCashFd, from: from, to: to, usdPerUnitOverrides: resolvedFx);
-          e.outflowToInvested = convertCurrency(value: e.outflowToInvested, from: from, to: to, usdPerUnitOverrides: resolvedFx);
-          e.monthlySpending = convertCurrency(value: e.monthlySpending, from: from, to: to, usdPerUnitOverrides: resolvedFx);
+          e.openingBalance = convertCurrency(
+            value: e.openingBalance,
+            from: from,
+            to: to,
+            usdPerUnitOverrides: resolvedFx,
+          );
+          e.closingBalance = convertCurrency(
+            value: e.closingBalance,
+            from: from,
+            to: to,
+            usdPerUnitOverrides: resolvedFx,
+          );
+          e.monthlyEarned = convertCurrency(
+            value: e.monthlyEarned,
+            from: from,
+            to: to,
+            usdPerUnitOverrides: resolvedFx,
+          );
+          e.outflowToCashFd = convertCurrency(
+            value: e.outflowToCashFd,
+            from: from,
+            to: to,
+            usdPerUnitOverrides: resolvedFx,
+          );
+          e.outflowToInvested = convertCurrency(
+            value: e.outflowToInvested,
+            from: from,
+            to: to,
+            usdPerUnitOverrides: resolvedFx,
+          );
+          e.monthlySpending = convertCurrency(
+            value: e.monthlySpending,
+            from: from,
+            to: to,
+            usdPerUnitOverrides: resolvedFx,
+          );
           for (final il in e.investmentLines) {
-            il.amount = convertCurrency(value: il.amount, from: from, to: to, usdPerUnitOverrides: resolvedFx);
+            il.amount = convertCurrency(
+              value: il.amount,
+              from: from,
+              to: to,
+              usdPerUnitOverrides: resolvedFx,
+            );
             il.amountAppliedToAssets = convertCurrency(
               value: il.amountAppliedToAssets,
               from: from,
@@ -4907,7 +5372,12 @@ class AppModel extends ChangeNotifier {
             );
           }
           for (final sl in e.savingsLines) {
-            sl.amount = convertCurrency(value: sl.amount, from: from, to: to, usdPerUnitOverrides: resolvedFx);
+            sl.amount = convertCurrency(
+              value: sl.amount,
+              from: from,
+              to: to,
+              usdPerUnitOverrides: resolvedFx,
+            );
             sl.amountApplied = convertCurrency(
               value: sl.amountApplied,
               from: from,
@@ -4916,15 +5386,32 @@ class AppModel extends ChangeNotifier {
             );
           }
         }
-        allocInvestmentsMonthly =
-            convertCurrency(value: allocInvestmentsMonthly, from: from, to: to, usdPerUnitOverrides: resolvedFx);
-        allocSavingsMonthly =
-            convertCurrency(value: allocSavingsMonthly, from: from, to: to, usdPerUnitOverrides: resolvedFx);
+        allocInvestmentsMonthly = convertCurrency(
+          value: allocInvestmentsMonthly,
+          from: from,
+          to: to,
+          usdPerUnitOverrides: resolvedFx,
+        );
+        allocSavingsMonthly = convertCurrency(
+          value: allocSavingsMonthly,
+          from: from,
+          to: to,
+          usdPerUnitOverrides: resolvedFx,
+        );
       }
 
-      app_state.decodeProjectionMap(projectionInvestReturnPctAnnual, L['projectionInvestReturnPctAnnual']);
-      app_state.decodeProjectionMap(projectionSavingsReturnPctAnnual, L['projectionSavingsReturnPctAnnual']);
-      app_state.decodeProjectionMap(projectionInflationPctAnnual, L['projectionInflationPctAnnual']);
+      app_state.decodeProjectionMap(
+        projectionInvestReturnPctAnnual,
+        L['projectionInvestReturnPctAnnual'],
+      );
+      app_state.decodeProjectionMap(
+        projectionSavingsReturnPctAnnual,
+        L['projectionSavingsReturnPctAnnual'],
+      );
+      app_state.decodeProjectionMap(
+        projectionInflationPctAnnual,
+        L['projectionInflationPctAnnual'],
+      );
       historicalReturnSeries.clear();
       final hrs = L['historicalReturnSeries'];
       if (hrs is List) {
@@ -4946,9 +5433,11 @@ class AppModel extends ChangeNotifier {
         for (final e in at.entries) {
           final ms = e.value;
           if (ms is int) {
-            contextNoteSavedAtUtc[e.key.toString()] = DateTime.fromMillisecondsSinceEpoch(ms, isUtc: true);
+            contextNoteSavedAtUtc[e.key.toString()] =
+                DateTime.fromMillisecondsSinceEpoch(ms, isUtc: true);
           } else if (ms is num) {
-            contextNoteSavedAtUtc[e.key.toString()] = DateTime.fromMillisecondsSinceEpoch(ms.round(), isUtc: true);
+            contextNoteSavedAtUtc[e.key.toString()] =
+                DateTime.fromMillisecondsSinceEpoch(ms.round(), isUtc: true);
           }
         }
       }
@@ -4965,7 +5454,8 @@ class AppModel extends ChangeNotifier {
       final sp = im['systemPromptById'];
       if (sp is Map) {
         for (final e in sp.entries) {
-          _internalAgentSystemPromptById[e.key.toString()] = e.value?.toString() ?? '';
+          _internalAgentSystemPromptById[e.key.toString()] =
+              e.value?.toString() ?? '';
         }
       }
       final st = im['lastStructuredById'];
@@ -4975,7 +5465,9 @@ class AppModel extends ChangeNotifier {
           final val = e.value;
           if (val is Map) {
             final m = Map<String, dynamic>.from(val);
-            internalAgentLastStructuredById[key] = m.map((k, v) => MapEntry(k.toString(), v as Object?));
+            internalAgentLastStructuredById[key] = m.map(
+              (k, v) => MapEntry(k.toString(), v as Object?),
+            );
           }
         }
       }
@@ -4984,9 +5476,11 @@ class AppModel extends ChangeNotifier {
         for (final e in lr.entries) {
           final ms = e.value;
           if (ms is int) {
-            internalAgentLastRunById[e.key.toString()] = DateTime.fromMillisecondsSinceEpoch(ms, isUtc: true);
+            internalAgentLastRunById[e.key.toString()] =
+                DateTime.fromMillisecondsSinceEpoch(ms, isUtc: true);
           } else if (ms is num) {
-            internalAgentLastRunById[e.key.toString()] = DateTime.fromMillisecondsSinceEpoch(ms.round(), isUtc: true);
+            internalAgentLastRunById[e.key.toString()] =
+                DateTime.fromMillisecondsSinceEpoch(ms.round(), isUtc: true);
           }
         }
       }
@@ -5038,8 +5532,15 @@ class AppModel extends ChangeNotifier {
 }
 
 /// Human-readable "Last updated …" for reminder rows; [lastCalendarDay] is normalized to date-only.
-String relativeLastUpdatedLabel({required DateTime lastCalendarDay, required DateTime now}) {
-  final d = DateTime(lastCalendarDay.year, lastCalendarDay.month, lastCalendarDay.day);
+String relativeLastUpdatedLabel({
+  required DateTime lastCalendarDay,
+  required DateTime now,
+}) {
+  final d = DateTime(
+    lastCalendarDay.year,
+    lastCalendarDay.month,
+    lastCalendarDay.day,
+  );
   final t = DateTime(now.year, now.month, now.day);
   if (!d.isBefore(t)) return 'Last updated today';
   final days = t.difference(d).inDays;
@@ -5059,12 +5560,13 @@ enum HomeMessageCadence { daily, weekly, monthly }
 
 extension HomeMessageCadenceUi on HomeMessageCadence {
   String get label => switch (this) {
-        HomeMessageCadence.daily => 'Daily',
-        HomeMessageCadence.weekly => 'Weekly',
-        HomeMessageCadence.monthly => 'Monthly',
-      };
+    HomeMessageCadence.daily => 'Daily',
+    HomeMessageCadence.weekly => 'Weekly',
+    HomeMessageCadence.monthly => 'Monthly',
+  };
 
-  static HomeMessageCadence? tryParse(String? raw) => switch (raw?.trim().toLowerCase()) {
+  static HomeMessageCadence? tryParse(String? raw) =>
+      switch (raw?.trim().toLowerCase()) {
         'daily' => HomeMessageCadence.daily,
         'weekly' => HomeMessageCadence.weekly,
         'monthly' => HomeMessageCadence.monthly,
@@ -5077,12 +5579,12 @@ extension HomeMessageCadenceUi on HomeMessageCadence {
 enum ReminderDomain { expenses, cashflow, income, assets, liabilities, goals }
 
 String reminderDomainLabel(ReminderDomain d) => switch (d) {
-      ReminderDomain.expenses => 'Expenses',
-      ReminderDomain.cashflow => 'Cash flow',
-      ReminderDomain.income => 'Income',
-      ReminderDomain.assets => 'Assets',
-      ReminderDomain.liabilities => 'Liabilities',
-      ReminderDomain.goals => 'Plan',
-    };
+  ReminderDomain.expenses => 'Expenses',
+  ReminderDomain.cashflow => 'Cash flow',
+  ReminderDomain.income => 'Income',
+  ReminderDomain.assets => 'Assets',
+  ReminderDomain.liabilities => 'Liabilities',
+  ReminderDomain.goals => 'Plan',
+};
 
 enum LlmProvider { appleFoundation, zoroCloud, openai, anthropic, gemini }

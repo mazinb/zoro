@@ -76,7 +76,7 @@ export function newClaimNonce(): string {
 }
 
 export function inboundDomain(): string {
-  return (process.env.MAILBOX_INBOUND_DOMAIN || 'inbox.getzoro.com').replace(/^@/, '').trim();
+  return (process.env.MAILBOX_INBOUND_DOMAIN || 'getzoro.com').replace(/^@/, '').trim();
 }
 
 export function retentionHours(): number {
@@ -114,6 +114,7 @@ export function parseRecipientList(to: unknown): string[] {
 }
 
 export type InboundAttachment = {
+  attachmentId?: string;
   fileName: string;
   mime: string;
   contentBase64?: string;
@@ -122,6 +123,7 @@ export type InboundAttachment = {
 
 export function parseResendInbound(payload: unknown): {
   eventId: string;
+  emailId: string;
   from: string;
   to: string[];
   subject: string;
@@ -136,6 +138,10 @@ export function parseResendInbound(payload: unknown): {
     (typeof data.id === 'string' && data.id) ||
     (typeof root.id === 'string' && root.id) ||
     '';
+  const emailId =
+    (typeof data.email_id === 'string' && data.email_id) ||
+    (typeof data.id === 'string' && data.id) ||
+    '';
   const fromRaw = typeof data.from === 'string' ? data.from : '';
   const subject = typeof data.subject === 'string' ? data.subject : '';
   const to = parseRecipientList(data.to);
@@ -144,6 +150,12 @@ export function parseResendInbound(payload: unknown): {
   for (const a of attsRaw) {
     if (!a || typeof a !== 'object') continue;
     const o = a as Record<string, unknown>;
+    const attachmentId =
+      typeof o.id === 'string'
+        ? o.id
+        : typeof o.attachment_id === 'string'
+          ? o.attachment_id
+          : undefined;
     const fileName = String(o.filename ?? o.fileName ?? o.name ?? 'attachment.pdf');
     const mime = String(o.content_type ?? o.contentType ?? o.mime ?? '');
     const contentBase64 = typeof o.content === 'string' ? o.content : typeof o.data === 'string' ? o.data : undefined;
@@ -153,10 +165,17 @@ export function parseResendInbound(payload: unknown): {
         : typeof o.url === 'string'
           ? o.url
           : undefined;
-    attachments.push({ fileName, mime, contentBase64, downloadUrl });
+    attachments.push({ attachmentId, fileName, mime, contentBase64, downloadUrl });
   }
   if (!fromRaw || to.length === 0) return null;
-  return { eventId: eventId || `evt_${Date.now()}`, from: extractEmailAddress(fromRaw), to, subject, attachments };
+  return {
+    eventId: eventId || emailId || `evt_${Date.now()}`,
+    emailId,
+    from: extractEmailAddress(fromRaw),
+    to,
+    subject,
+    attachments,
+  };
 }
 
 export async function ensureDevice(supabase: SupabaseClient, deviceId: string): Promise<void> {

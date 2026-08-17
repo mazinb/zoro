@@ -58,7 +58,14 @@ class HowItWorksPage extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('• ', style: TextStyle(color: accent, fontWeight: FontWeight.w900, fontSize: 16)),
+                  Text(
+                    '• ',
+                    style: TextStyle(
+                      color: accent,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 16,
+                    ),
+                  ),
                   Expanded(
                     child: Text(
                       b,
@@ -87,7 +94,10 @@ class HowItWorksPage extends StatelessWidget {
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: Text(content.title, style: const TextStyle(fontWeight: FontWeight.w900)),
+        title: Text(
+          content.title,
+          style: const TextStyle(fontWeight: FontWeight.w900),
+        ),
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
@@ -107,14 +117,14 @@ class HowItWorksPage extends StatelessWidget {
                 child: m == null
                     ? ListView(
                         padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-                        children: [
-                          if (showBullets) _bulletPanel(context),
-                        ],
+                        children: [if (showBullets) _bulletPanel(context)],
                       )
                     : ListenableBuilder(
                         listenable: m,
                         builder: (context, _) {
-                          final bulletsOn = showBullets && _bulletsVisibleForContent(m, content);
+                          final bulletsOn =
+                              showBullets &&
+                              _bulletsVisibleForContent(m, content);
                           return ListView(
                             padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
                             children: [
@@ -150,11 +160,15 @@ class HowItWorksPage extends StatelessWidget {
 }
 
 bool _bulletsVisibleForContent(AppModel model, HowItWorksContent content) {
-  if (identical(content, TabHelpContent.ledger)) return model.guideEnabledLedger;
-  if (identical(content, TabHelpContent.context)) return model.guideEnabledContext;
-  if (identical(content, TabHelpContent.goals) || identical(content, TabHelpContent.agent)) {
+  if (identical(content, TabHelpContent.ledger))
+    return model.guideEnabledLedger;
+  if (identical(content, TabHelpContent.context))
+    return model.guideEnabledContext;
+  if (identical(content, TabHelpContent.goals) ||
+      identical(content, TabHelpContent.agent)) {
     return model.guideEnabledGoals;
   }
-  if (identical(content, TabHelpContent.settings)) return model.guideEnabledSettings;
+  if (identical(content, TabHelpContent.settings))
+    return model.guideEnabledSettings;
   return true;
 }

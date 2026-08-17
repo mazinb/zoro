@@ -63,10 +63,10 @@ class _DataTransferPaneState extends State<DataTransferPane> {
       AppStateTransfer.listContextExportPicksForGroup(_m, _contextGroup);
 
   List<DataExportPick> get _activePicks => switch (_exportKind) {
-        DataExportKind.ledger when _ledgerPart => _ledgerPartItems,
-        DataExportKind.context => _contextItems,
-        _ => const [],
-      };
+    DataExportKind.ledger when _ledgerPart => _ledgerPartItems,
+    DataExportKind.context => _contextItems,
+    _ => const [],
+  };
 
   bool get _needsItemPick => _ledgerPart || _needsContextPick;
 
@@ -191,7 +191,11 @@ class _DataTransferPaneState extends State<DataTransferPane> {
           requestConsent: LlmConsentGate.requester(context, _m),
         );
         if (!ready) {
-          if (mounted) setState(() => _status = 'AI redaction needs a configured model and your permission.');
+          if (mounted)
+            setState(
+              () => _status =
+                  'AI redaction needs a configured model and your permission.',
+            );
           return null;
         }
         map = await ExportSanitizer.sanitizeExportMap(_m, map);
@@ -227,7 +231,12 @@ class _DataTransferPaneState extends State<DataTransferPane> {
   Future<void> _viewExport() async {
     final text = await _ensureExportJson();
     if (text == null || !mounted) return;
-    showDataJsonViewer(context, title: 'Export', jsonText: text, subtitle: '${text.length} chars');
+    showDataJsonViewer(
+      context,
+      title: 'Export',
+      jsonText: text,
+      subtitle: '${text.length} chars',
+    );
   }
 
   Future<void> _copyExport() async {
@@ -318,7 +327,8 @@ class _DataTransferPaneState extends State<DataTransferPane> {
   Future<void> _applyImport(ImportApplyMode mode) async {
     final root = _importRoot;
     if (root == null) return;
-    if (mode == ImportApplyMode.merge && _importAnalysis?.supportsMerge != true) {
+    if (mode == ImportApplyMode.merge &&
+        _importAnalysis?.supportsMerge != true) {
       setState(() => _status = 'Save not available');
       return;
     }
@@ -341,11 +351,14 @@ class _DataTransferPaneState extends State<DataTransferPane> {
   }
 
   Future<void> _openSanitizerPrompt() async {
-    final def = internalAppAgentDefinitionById(InternalAppAgentIds.exportSanitizer);
+    final def = internalAppAgentDefinitionById(
+      InternalAppAgentIds.exportSanitizer,
+    );
     if (def == null) return;
     await Navigator.of(context).push<void>(
       MaterialPageRoute(
-        builder: (ctx) => InternalAgentPromptEditorPage(definition: def, model: _m),
+        builder: (ctx) =>
+            InternalAgentPromptEditorPage(definition: def, model: _m),
       ),
     );
   }
@@ -374,7 +387,8 @@ class _DataTransferPaneState extends State<DataTransferPane> {
   }
 
   Widget _threeButtonRow({
-    required List<({String label, VoidCallback? onPressed, bool filled})> actions,
+    required List<({String label, VoidCallback? onPressed, bool filled})>
+    actions,
   }) {
     return Row(
       children: [
@@ -400,7 +414,10 @@ class _DataTransferPaneState extends State<DataTransferPane> {
     return DropdownButtonFormField<String>(
       initialValue: _exportKind,
       isExpanded: true,
-      decoration: const InputDecoration(labelText: 'Export', border: OutlineInputBorder()),
+      decoration: const InputDecoration(
+        labelText: 'Export',
+        border: OutlineInputBorder(),
+      ),
       items: [
         for (final k in DataExportKind.all)
           DropdownMenuItem(value: k, child: Text(DataExportKind.label(k))),
@@ -413,7 +430,10 @@ class _DataTransferPaneState extends State<DataTransferPane> {
     return DropdownButtonFormField<String>(
       initialValue: _ledgerScope,
       isExpanded: true,
-      decoration: const InputDecoration(labelText: 'Scope', border: OutlineInputBorder()),
+      decoration: const InputDecoration(
+        labelText: 'Scope',
+        border: OutlineInputBorder(),
+      ),
       items: [
         for (final s in LedgerExportScope.all)
           DropdownMenuItem(value: s, child: Text(LedgerExportScope.label(s))),
@@ -426,7 +446,10 @@ class _DataTransferPaneState extends State<DataTransferPane> {
     return DropdownButtonFormField<String>(
       initialValue: _ledgerPartGroup,
       isExpanded: true,
-      decoration: const InputDecoration(labelText: 'Area', border: OutlineInputBorder()),
+      decoration: const InputDecoration(
+        labelText: 'Area',
+        border: OutlineInputBorder(),
+      ),
       items: [
         for (final g in LedgerPartGroup.all)
           DropdownMenuItem(value: g, child: Text(LedgerPartGroup.label(g))),
@@ -439,7 +462,10 @@ class _DataTransferPaneState extends State<DataTransferPane> {
     return DropdownButtonFormField<String>(
       initialValue: _contextGroup,
       isExpanded: true,
-      decoration: const InputDecoration(labelText: 'Area', border: OutlineInputBorder()),
+      decoration: const InputDecoration(
+        labelText: 'Area',
+        border: OutlineInputBorder(),
+      ),
       items: [
         for (final g in ContextExportGroup.all)
           DropdownMenuItem(value: g, child: Text(ContextExportGroup.label(g))),
@@ -461,7 +487,10 @@ class _DataTransferPaneState extends State<DataTransferPane> {
       return DropdownButtonFormField<String>(
         initialValue: items.isEmpty ? null : _pickId,
         isExpanded: true,
-        decoration: InputDecoration(labelText: label, border: const OutlineInputBorder()),
+        decoration: InputDecoration(
+          labelText: label,
+          border: const OutlineInputBorder(),
+        ),
         items: [
           for (final p in items)
             DropdownMenuItem(
@@ -472,18 +501,25 @@ class _DataTransferPaneState extends State<DataTransferPane> {
         onChanged: disabled || items.isEmpty
             ? null
             : (v) => setState(() {
-                  _pickId = v;
-                  _invalidateExportCache();
-                }),
+                _pickId = v;
+                _invalidateExportCache();
+              }),
       );
     }
 
     return InputDecorator(
-      decoration: InputDecoration(labelText: label, border: const OutlineInputBorder()),
+      decoration: InputDecoration(
+        labelText: label,
+        border: const OutlineInputBorder(),
+      ),
       child: InkWell(
         onTap: disabled || items.isEmpty
             ? null
-            : () => _openItemPicker(title: sheetTitle, items: items, selectedId: _pickId),
+            : () => _openItemPicker(
+                title: sheetTitle,
+                items: items,
+                selectedId: _pickId,
+              ),
         child: Row(
           children: [
             Expanded(
@@ -497,7 +533,11 @@ class _DataTransferPaneState extends State<DataTransferPane> {
                 ),
               ),
             ),
-            Icon(Icons.unfold_more, color: Theme.of(context).colorScheme.onSurfaceVariant, size: 20),
+            Icon(
+              Icons.unfold_more,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              size: 20,
+            ),
           ],
         ),
       ),
@@ -512,7 +552,10 @@ class _DataTransferPaneState extends State<DataTransferPane> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text('${text.length} chars', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12)),
+        Text(
+          '${text.length} chars',
+          style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12),
+        ),
         const SizedBox(height: 6),
         Container(
           constraints: const BoxConstraints(maxHeight: 140),
@@ -525,7 +568,12 @@ class _DataTransferPaneState extends State<DataTransferPane> {
           child: SingleChildScrollView(
             child: SelectableText(
               preview,
-              style: TextStyle(fontFamily: 'Menlo', fontSize: 10, height: 1.35, color: cs.onSurface),
+              style: TextStyle(
+                fontFamily: 'Menlo',
+                fontSize: 10,
+                height: 1.35,
+                color: cs.onSurface,
+              ),
             ),
           ),
         ),
@@ -543,9 +591,9 @@ class _DataTransferPaneState extends State<DataTransferPane> {
           onChanged: _busy || _hasImport
               ? null
               : (v) => setState(() {
-                    _redact = v;
-                    _invalidateExportCache();
-                  }),
+                  _redact = v;
+                  _invalidateExportCache();
+                }),
         ),
         IconButton(
           icon: const Icon(Icons.info_outline, size: 22),
@@ -585,9 +633,9 @@ class _DataTransferPaneState extends State<DataTransferPane> {
           onPressed: _busy
               ? null
               : () => setState(() {
-                    _clearImport();
-                    _status = null;
-                  }),
+                  _clearImport();
+                  _status = null;
+                }),
         ),
       ],
     );
@@ -616,7 +664,10 @@ class _DataTransferPaneState extends State<DataTransferPane> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Text('Export / import', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                  const Text(
+                    'Export / import',
+                    style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+                  ),
                   const SizedBox(height: 6),
                   Text(
                     'Locked on Free. Upgrade to Pro to upload/download and import/export your data.',
@@ -626,7 +677,8 @@ class _DataTransferPaneState extends State<DataTransferPane> {
                   FilledButton(
                     onPressed: () {
                       // Nudge users to Settings → Usage tab.
-                      final tab = context.findAncestorWidgetOfExactType<SettingsTab>();
+                      final tab = context
+                          .findAncestorWidgetOfExactType<SettingsTab>();
                       if (tab == null) return;
                       final l = tab.tabIndexListenable;
                       if (l is ValueNotifier<int>) {
@@ -646,7 +698,8 @@ class _DataTransferPaneState extends State<DataTransferPane> {
     if (_needsContextPick) _syncContextPick();
 
     final canSave = _hasImport && (_importAnalysis?.supportsMerge ?? false);
-    final canReplace = _hasImport && (_importAnalysis?.supportsReplace ?? false);
+    final canReplace =
+        _hasImport && (_importAnalysis?.supportsReplace ?? false);
 
     return ListView(
       padding: EdgeInsets.zero,
@@ -682,9 +735,21 @@ class _DataTransferPaneState extends State<DataTransferPane> {
           const SizedBox(height: 12),
           _threeButtonRow(
             actions: [
-              (label: 'View', onPressed: _busy || !_canExport ? null : _viewExport, filled: false),
-              (label: 'Copy', onPressed: _busy || !_canExport ? null : _copyExport, filled: false),
-              (label: 'Download', onPressed: _busy || !_canExport ? null : _downloadExport, filled: true),
+              (
+                label: 'View',
+                onPressed: _busy || !_canExport ? null : _viewExport,
+                filled: false,
+              ),
+              (
+                label: 'Copy',
+                onPressed: _busy || !_canExport ? null : _copyExport,
+                filled: false,
+              ),
+              (
+                label: 'Download',
+                onPressed: _busy || !_canExport ? null : _downloadExport,
+                filled: true,
+              ),
             ],
           ),
           if (_exportJson != null) ...[
@@ -697,23 +762,39 @@ class _DataTransferPaneState extends State<DataTransferPane> {
           const SizedBox(height: 12),
           _threeButtonRow(
             actions: [
-              (label: 'View', onPressed: _busy ? null : _viewImport, filled: false),
-              (label: 'Save', onPressed: canSave && !_busy ? () => _applyImport(ImportApplyMode.merge) : null, filled: true),
-              (label: 'Replace', onPressed: canReplace && !_busy ? () => _applyImport(ImportApplyMode.replace) : null, filled: false),
+              (
+                label: 'View',
+                onPressed: _busy ? null : _viewImport,
+                filled: false,
+              ),
+              (
+                label: 'Save',
+                onPressed: canSave && !_busy
+                    ? () => _applyImport(ImportApplyMode.merge)
+                    : null,
+                filled: true,
+              ),
+              (
+                label: 'Replace',
+                onPressed: canReplace && !_busy
+                    ? () => _applyImport(ImportApplyMode.replace)
+                    : null,
+                filled: false,
+              ),
             ],
           ),
         ],
-        if (!_hasImport) ...[
-          const SizedBox(height: 16),
-          _importFileRow(),
-        ],
+        if (!_hasImport) ...[const SizedBox(height: 16), _importFileRow()],
         if (_busy) ...[
           const SizedBox(height: 20),
           const Center(child: CircularProgressIndicator()),
         ],
         if (_status != null) ...[
           const SizedBox(height: 12),
-          Text(_status!, style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13)),
+          Text(
+            _status!,
+            style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13),
+          ),
         ],
       ],
     );
@@ -757,7 +838,9 @@ class _ExportItemPickerSheetState extends State<_ExportItemPickerSheet> {
     setState(() {
       _filtered = q.isEmpty
           ? widget.items
-          : widget.items.where((p) => p.label.toLowerCase().contains(q)).toList();
+          : widget.items
+                .where((p) => p.label.toLowerCase().contains(q))
+                .toList();
     });
   }
 
@@ -771,7 +854,12 @@ class _ExportItemPickerSheetState extends State<_ExportItemPickerSheet> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(widget.title, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+          Text(
+            widget.title,
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+          ),
           const SizedBox(height: 12),
           TextField(
             controller: _search,
@@ -788,7 +876,12 @@ class _ExportItemPickerSheetState extends State<_ExportItemPickerSheet> {
             child: _filtered.isEmpty
                 ? Padding(
                     padding: const EdgeInsets.all(24),
-                    child: Text('No matches', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                    child: Text(
+                      'No matches',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
                   )
                 : ListView.builder(
                     shrinkWrap: true,

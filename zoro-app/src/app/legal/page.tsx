@@ -128,7 +128,7 @@ function TermsOfUse() {
   return (
     <>
       <h2>Terms of Use</h2>
-      <p><strong>Last updated:</strong> June 9, 2026</p>
+      <p><strong>Last updated:</strong> August 17, 2026</p>
 
       <p>
         These Terms of Use (&quot;Terms&quot;) govern your use of the Zoro mobile application,
@@ -337,7 +337,7 @@ function PrivacyPolicy() {
   return (
     <>
       <h2>Privacy Policy</h2>
-      <p><strong>Last updated:</strong> June 7, 2026</p>
+      <p><strong>Last updated:</strong> August 17, 2026</p>
 
       <p>
         This Privacy Policy explains how Zoro (&quot;we&quot;, &quot;us&quot;) handles information
@@ -375,6 +375,19 @@ function PrivacyPolicy() {
         <li>Local reminders (handled by your device, not our servers)</li>
         <li>Export/import of your ledger file for your own backup</li>
         <li>AI-assisted import and helpers when you explicitly grant permission</li>
+        <li>
+          Optional private agent mailbox: statement PDFs you forward are held briefly as
+          opaque files, pulled to your phone, then deleted. We do not OCR attachments
+          on the server.
+        </li>
+        <li>
+          File-type PDF passwords and mailbox credentials are stored in the device
+          Keychain/Keystore, not in app JSON or exports.
+        </li>
+        <li>
+          Optional on-device agent runtime (Hermes) and local notification jobs use the
+          same local notification channel as check-ins — not remote push (no APNs/FCM).
+        </li>
       </ul>
 
       <h3>2a. Third-party AI services (mobile app)</h3>

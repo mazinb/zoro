@@ -17,8 +17,8 @@ describe('mailbox helpers', () => {
   });
 
   it('parses recipient lists', () => {
-    expect(parseRecipientList(['zoro-abc@inbox.getzoro.com', 'Name <other@x.com>'])).toEqual([
-      'zoro-abc@inbox.getzoro.com',
+    expect(parseRecipientList(['zoro-abc@getzoro.com', 'Name <other@x.com>'])).toEqual([
+      'zoro-abc@getzoro.com',
       'other@x.com',
     ]);
   });
@@ -43,13 +43,21 @@ describe('mailbox helpers', () => {
       data: {
         id: 'evt_1',
         from: 'Ada <ada@example.com>',
-        to: ['zoro-abc@inbox.getzoro.com'],
+        to: ['zoro-abc@getzoro.com'],
         subject: 'Statement',
-        attachments: [{ filename: 'ibkr.pdf', content_type: 'application/pdf', content: 'JVBERi0=' }],
+        attachments: [
+          {
+            id: 'att_1',
+            filename: 'ibkr.pdf',
+            content_type: 'application/pdf',
+          },
+        ],
       },
     });
     expect(parsed?.from).toBe('ada@example.com');
-    expect(parsed?.to).toEqual(['zoro-abc@inbox.getzoro.com']);
+    expect(parsed?.to).toEqual(['zoro-abc@getzoro.com']);
+    expect(parsed?.emailId).toBe('evt_1');
+    expect(parsed?.attachments[0].attachmentId).toBe('att_1');
     expect(parsed?.attachments[0].fileName).toBe('ibkr.pdf');
   });
 

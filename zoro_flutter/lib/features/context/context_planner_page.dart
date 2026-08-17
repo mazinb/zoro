@@ -6,7 +6,10 @@ import '../../shared/guided_mcq/guided_mcq_page.dart';
 import 'context_planner_config.dart';
 
 class ContextPlannerResult {
-  const ContextPlannerResult({required this.contextMarkdown, required this.structured});
+  const ContextPlannerResult({
+    required this.contextMarkdown,
+    required this.structured,
+  });
 
   final String contextMarkdown;
   final Map<String, Object?> structured;
@@ -14,7 +17,11 @@ class ContextPlannerResult {
 
 /// Guided MCQ flow for context notes (assets, liabilities, buckets, months).
 class ContextPlannerPage extends StatelessWidget {
-  const ContextPlannerPage({super.key, required this.model, required this.config});
+  const ContextPlannerPage({
+    super.key,
+    required this.model,
+    required this.config,
+  });
 
   final AppModel model;
   final ContextPlannerConfig config;
@@ -29,10 +36,7 @@ class ContextPlannerPage extends StatelessWidget {
       missingTargetMessage: config.missingTargetMessage,
     );
 
-    return GuidedMcqPage(
-      model: model,
-      config: mcq,
-    );
+    return GuidedMcqPage(model: model, config: mcq);
   }
 }
 
@@ -49,5 +53,8 @@ Future<ContextPlannerResult?> pushContextPlanner(
     ),
   );
   if (res == null) return null;
-  return ContextPlannerResult(contextMarkdown: res.contextMarkdown, structured: res.structured);
+  return ContextPlannerResult(
+    contextMarkdown: res.contextMarkdown,
+    structured: res.structured,
+  );
 }

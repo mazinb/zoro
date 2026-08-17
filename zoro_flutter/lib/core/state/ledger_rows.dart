@@ -21,21 +21,19 @@ String newLedgerRowId(String prefix) {
   return '$prefix-${DateTime.now().microsecondsSinceEpoch}-$seq';
 }
 
-enum LedgerAssetType {
-  savings,
-  investments,
-  property,
-  other,
-}
+enum LedgerAssetType { savings, investments, property, other }
 
 /// How an asset balance counts toward goals (no double counting across buckets).
 enum AssetGoalsBucket {
   /// Investment accounts — retirement corpus only.
   retirement,
+
   /// Cash / savings — target goals unless id is in [AssetsGoalsPolicy.retirementExtraAssetIds].
   savings,
+
   /// Real estate — retirement only when id is in [AssetsGoalsPolicy.retirementExtraAssetIds].
   property,
+
   /// Other — retirement only when id is in [AssetsGoalsPolicy.retirementExtraAssetIds].
   both,
 }
@@ -49,32 +47,32 @@ class AssetsGoalsPolicy {
 
 extension LedgerAssetTypeUi on LedgerAssetType {
   String get label => switch (this) {
-        LedgerAssetType.savings => 'Savings',
-        LedgerAssetType.investments => 'Investments',
-        LedgerAssetType.property => 'Property',
-        LedgerAssetType.other => 'Other',
-      };
+    LedgerAssetType.savings => 'Savings',
+    LedgerAssetType.investments => 'Investments',
+    LedgerAssetType.property => 'Property',
+    LedgerAssetType.other => 'Other',
+  };
 
   String get apiValue => switch (this) {
-        LedgerAssetType.savings => 'savings',
-        LedgerAssetType.investments => 'investments',
-        LedgerAssetType.property => 'property',
-        LedgerAssetType.other => 'other',
-      };
+    LedgerAssetType.savings => 'savings',
+    LedgerAssetType.investments => 'investments',
+    LedgerAssetType.property => 'property',
+    LedgerAssetType.other => 'other',
+  };
 
   AssetGoalsBucket get defaultGoalsBucket => switch (this) {
-        LedgerAssetType.savings => AssetGoalsBucket.savings,
-        LedgerAssetType.investments => AssetGoalsBucket.retirement,
-        LedgerAssetType.property => AssetGoalsBucket.property,
-        LedgerAssetType.other => AssetGoalsBucket.both,
-      };
+    LedgerAssetType.savings => AssetGoalsBucket.savings,
+    LedgerAssetType.investments => AssetGoalsBucket.retirement,
+    LedgerAssetType.property => AssetGoalsBucket.property,
+    LedgerAssetType.other => AssetGoalsBucket.both,
+  };
 
   IconData get icon => switch (this) {
-        LedgerAssetType.savings => Icons.savings_outlined,
-        LedgerAssetType.investments => Icons.trending_up,
-        LedgerAssetType.property => Icons.apartment,
-        LedgerAssetType.other => Icons.category_outlined,
-      };
+    LedgerAssetType.savings => Icons.savings_outlined,
+    LedgerAssetType.investments => Icons.trending_up,
+    LedgerAssetType.property => Icons.apartment,
+    LedgerAssetType.other => Icons.category_outlined,
+  };
 
   static LedgerAssetType fromApi(String? raw) {
     switch (raw) {
@@ -95,28 +93,28 @@ extension LedgerAssetTypeUi on LedgerAssetType {
 
 extension LedgerLiabilityTypeUi on LedgerLiabilityType {
   String get label => switch (this) {
-        LedgerLiabilityType.personalLoan => 'Personal loan',
-        LedgerLiabilityType.carLoan => 'Car loan',
-        LedgerLiabilityType.creditCard => 'Credit card',
-        LedgerLiabilityType.mortgage => 'Mortgage',
-        LedgerLiabilityType.other => 'Other',
-      };
+    LedgerLiabilityType.personalLoan => 'Personal loan',
+    LedgerLiabilityType.carLoan => 'Car loan',
+    LedgerLiabilityType.creditCard => 'Credit card',
+    LedgerLiabilityType.mortgage => 'Mortgage',
+    LedgerLiabilityType.other => 'Other',
+  };
 
   String get apiValue => switch (this) {
-        LedgerLiabilityType.personalLoan => 'personal_loan',
-        LedgerLiabilityType.carLoan => 'car_loan',
-        LedgerLiabilityType.creditCard => 'credit_card',
-        LedgerLiabilityType.mortgage => 'mortgage',
-        LedgerLiabilityType.other => 'other',
-      };
+    LedgerLiabilityType.personalLoan => 'personal_loan',
+    LedgerLiabilityType.carLoan => 'car_loan',
+    LedgerLiabilityType.creditCard => 'credit_card',
+    LedgerLiabilityType.mortgage => 'mortgage',
+    LedgerLiabilityType.other => 'other',
+  };
 
   IconData get icon => switch (this) {
-        LedgerLiabilityType.personalLoan => Icons.person_outline,
-        LedgerLiabilityType.carLoan => Icons.directions_car_outlined,
-        LedgerLiabilityType.creditCard => Icons.credit_card,
-        LedgerLiabilityType.mortgage => Icons.home_work_outlined,
-        LedgerLiabilityType.other => Icons.receipt_long,
-      };
+    LedgerLiabilityType.personalLoan => Icons.person_outline,
+    LedgerLiabilityType.carLoan => Icons.directions_car_outlined,
+    LedgerLiabilityType.creditCard => Icons.credit_card,
+    LedgerLiabilityType.mortgage => Icons.home_work_outlined,
+    LedgerLiabilityType.other => Icons.receipt_long,
+  };
 
   static LedgerLiabilityType fromApi(String? raw) {
     switch (raw) {
@@ -135,13 +133,7 @@ extension LedgerLiabilityTypeUi on LedgerLiabilityType {
   }
 }
 
-enum LedgerLiabilityType {
-  personalLoan,
-  carLoan,
-  creditCard,
-  mortgage,
-  other,
-}
+enum LedgerLiabilityType { personalLoan, carLoan, creditCard, mortgage, other }
 
 class LedgerAssetRow {
   LedgerAssetRow({
@@ -170,16 +162,16 @@ class LedgerAssetRow {
   double returnRatePct;
 
   LedgerAssetRow clone() => LedgerAssetRow(
-        id: id,
-        type: type,
-        currencyCountry: currencyCountry,
-        name: name,
-        total: total,
-        label: label,
-        comment: comment,
-        contextMarkdown: contextMarkdown,
-        returnRatePct: returnRatePct,
-      );
+    id: id,
+    type: type,
+    currencyCountry: currencyCountry,
+    name: name,
+    total: total,
+    label: label,
+    comment: comment,
+    contextMarkdown: contextMarkdown,
+    returnRatePct: returnRatePct,
+  );
 
   factory LedgerAssetRow.blank({required String defaultCurrencyCountry}) {
     return LedgerAssetRow(
@@ -227,17 +219,17 @@ class LedgerLiabilityRow {
   double paydownMonthly;
 
   LedgerLiabilityRow clone() => LedgerLiabilityRow(
-        id: id,
-        type: type,
-        name: name,
-        currencyCountry: currencyCountry,
-        total: total,
-        comment: comment,
-        contextMarkdown: contextMarkdown,
-        interestRatePct: interestRatePct,
-        paydownWeight: paydownWeight,
-        paydownMonthly: paydownMonthly,
-      );
+    id: id,
+    type: type,
+    name: name,
+    currencyCountry: currencyCountry,
+    total: total,
+    comment: comment,
+    contextMarkdown: contextMarkdown,
+    interestRatePct: interestRatePct,
+    paydownWeight: paydownWeight,
+    paydownMonthly: paydownMonthly,
+  );
 
   factory LedgerLiabilityRow.blank({required String defaultCurrencyCountry}) {
     return LedgerLiabilityRow(

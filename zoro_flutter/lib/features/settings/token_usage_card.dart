@@ -6,11 +6,7 @@ import '../../core/state/app_model.dart';
 
 /// Overall token usage. On-device and BYO keys are tracked locally and not billed.
 class TokenUsageCard extends StatelessWidget {
-  const TokenUsageCard({
-    super.key,
-    required this.model,
-    this.showTitle = true,
-  });
+  const TokenUsageCard({super.key, required this.model, this.showTitle = true});
 
   final AppModel model;
   final bool showTitle;
@@ -21,7 +17,11 @@ class TokenUsageCard extends StatelessWidget {
       listenable: model,
       builder: (context, _) {
         final cs = Theme.of(context).colorScheme;
-        final muted = TextStyle(color: cs.onSurfaceVariant, fontSize: 13, height: 1.35);
+        final muted = TextStyle(
+          color: cs.onSurfaceVariant,
+          fontSize: 13,
+          height: 1.35,
+        );
         final billed = model.serverTokensUsedTotal;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -29,13 +29,19 @@ class TokenUsageCard extends StatelessWidget {
             if (showTitle) ...[
               Text(
                 'Token usage',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
               ),
               const SizedBox(height: 10),
             ],
             _row(context, 'Overall', model.overallTokensUsed),
             const SizedBox(height: 6),
-            _row(context, PlatformAi.onDeviceSettingsTitle, model.onDeviceTokensUsed),
+            _row(
+              context,
+              PlatformAi.onDeviceSettingsTitle,
+              model.onDeviceTokensUsed,
+            ),
             const SizedBox(height: 6),
             _row(context, 'Cloud AI', model.cloudTokensUsed),
             if (model.byoKeyTokensUsed > 0) ...[
@@ -61,7 +67,10 @@ class TokenUsageCard extends StatelessWidget {
     return Row(
       children: [
         Expanded(
-          child: Text(label, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+          child: Text(
+            label,
+            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+          ),
         ),
         Text(
           '${TokenBilling.formatCount(tokens)} tokens',

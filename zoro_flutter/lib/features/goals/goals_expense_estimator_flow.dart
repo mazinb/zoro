@@ -20,7 +20,10 @@ Future<void> openGoalExpenseEstimator({
       fullscreenDialog: true,
       builder: (ctx) => GuidedMcqPage(
         model: model,
-        config: GoalsExpenseEstimatorConfig.forGoal(model: model, goalId: goalId),
+        config: GoalsExpenseEstimatorConfig.forGoal(
+          model: model,
+          goalId: goalId,
+        ),
       ),
     ),
   );
@@ -64,18 +67,30 @@ class GoalsExpenseEstimatorReviewPage extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Review expenses', style: TextStyle(fontWeight: FontWeight.w900)),
+        title: const Text(
+          'Review expenses',
+          style: TextStyle(fontWeight: FontWeight.w900),
+        ),
       ),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
           if (summary.isNotEmpty)
-            Text(summary, style: const TextStyle(fontWeight: FontWeight.w700, height: 1.35)),
+            Text(
+              summary,
+              style: const TextStyle(fontWeight: FontWeight.w700, height: 1.35),
+            ),
           const SizedBox(height: 16),
-          Text('Bucket updates', style: TextStyle(fontWeight: FontWeight.w900, color: cs.onSurface)),
+          Text(
+            'Bucket updates',
+            style: TextStyle(fontWeight: FontWeight.w900, color: cs.onSurface),
+          ),
           const SizedBox(height: 8),
           if (proposed.isEmpty)
-            Text('No bucket changes proposed.', style: TextStyle(color: cs.onSurfaceVariant))
+            Text(
+              'No bucket changes proposed.',
+              style: TextStyle(color: cs.onSurfaceVariant),
+            )
           else
             LiquidGlassPanel(
               padding: const EdgeInsets.all(14),
@@ -89,7 +104,9 @@ class GoalsExpenseEstimatorReviewPage extends StatelessWidget {
                           Expanded(
                             child: Text(
                               expenseBucketLabel(e.key),
-                              style: const TextStyle(fontWeight: FontWeight.w800),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                              ),
                             ),
                           ),
                           Text(
@@ -99,7 +116,10 @@ class GoalsExpenseEstimatorReviewPage extends StatelessWidget {
                           const SizedBox(width: 8),
                           Text(
                             'was ${_fmt(model, model.expenseBuckets[e.key] ?? 0, hide)}',
-                            style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant),
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: cs.onSurfaceVariant,
+                            ),
                           ),
                         ],
                       ),
@@ -118,7 +138,10 @@ class GoalsExpenseEstimatorReviewPage extends StatelessWidget {
                       contextMarkdown: result.contextMarkdown,
                       goalId: goalId,
                     );
-                    model.recordInternalAgentRun(InternalAppAgentIds.goalsExpenseEstimator, result.structured);
+                    model.recordInternalAgentRun(
+                      InternalAppAgentIds.goalsExpenseEstimator,
+                      result.structured,
+                    );
                     Navigator.of(context).pop();
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(

@@ -209,7 +209,8 @@ class _ContextEditorPageState extends State<ContextEditorPage> {
   String _markdownFromModel() {
     final m = widget.model;
     return switch (widget.kind) {
-      ContextKind.asset => m.assetById(widget.plannerAssetId!)?.contextMarkdown ?? '',
+      ContextKind.asset =>
+        m.assetById(widget.plannerAssetId!)?.contextMarkdown ?? '',
       ContextKind.liability =>
         m.liabilityById(widget.plannerLiabilityId!)?.contextMarkdown ?? '',
       ContextKind.bucket =>
@@ -289,10 +290,14 @@ class _ContextEditorPageState extends State<ContextEditorPage> {
     final svc = ContextRowReviewService();
     try {
       final RowReviewResult? result = switch (widget.kind) {
-        ContextKind.asset =>
-          await svc.reviewOneAsset(m, widget.plannerAssetId!),
-        ContextKind.liability =>
-          await svc.reviewOneLiability(m, widget.plannerLiabilityId!),
+        ContextKind.asset => await svc.reviewOneAsset(
+          m,
+          widget.plannerAssetId!,
+        ),
+        ContextKind.liability => await svc.reviewOneLiability(
+          m,
+          widget.plannerLiabilityId!,
+        ),
         _ => null,
       };
       if (!mounted) return;
@@ -317,7 +322,9 @@ class _ContextEditorPageState extends State<ContextEditorPage> {
       } else if (result != null && !result.isOk) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(result.detail.isNotEmpty ? result.detail : result.title),
+            content: Text(
+              result.detail.isNotEmpty ? result.detail : result.title,
+            ),
             behavior: SnackBarBehavior.floating,
             duration: const Duration(seconds: 5),
           ),
@@ -333,7 +340,10 @@ class _ContextEditorPageState extends State<ContextEditorPage> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.toString()), behavior: SnackBarBehavior.floating),
+        SnackBar(
+          content: Text(e.toString()),
+          behavior: SnackBarBehavior.floating,
+        ),
       );
     } finally {
       if (mounted) setState(() => _contextRefreshRunning = false);
@@ -489,7 +499,8 @@ class _ContextEditorPageState extends State<ContextEditorPage> {
         user: user,
         attachments: bundle.attachments,
         maxOutputTokens: 1800,
-        preferJsonObjectOutput: provider == LlmProvider.openai || provider == LlmProvider.zoroCloud,
+        preferJsonObjectOutput:
+            provider == LlmProvider.openai || provider == LlmProvider.zoroCloud,
         zoroApi: provider == LlmProvider.zoroCloud ? m.api : null,
         zoroDeviceId: provider == LlmProvider.zoroCloud ? m.deviceId : null,
         onboardingPhase: m.inSetupImportPhase,
@@ -638,7 +649,8 @@ class _ContextEditorPageState extends State<ContextEditorPage> {
 
   Widget _previewAssistantBar() {
     if (!widget._hasPlanner) return const SizedBox.shrink();
-    final canRefresh = widget.kind == ContextKind.asset ||
+    final canRefresh =
+        widget.kind == ContextKind.asset ||
         widget.kind == ContextKind.liability;
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
@@ -693,7 +705,10 @@ class _ContextEditorPageState extends State<ContextEditorPage> {
                       TextButton(onPressed: _save, child: const Text('Save')),
                     ]
                   : [
-                      TextButton(onPressed: _openEdit, child: const Text('Edit')),
+                      TextButton(
+                        onPressed: _openEdit,
+                        child: const Text('Edit'),
+                      ),
                     ],
             ),
             body: SafeArea(

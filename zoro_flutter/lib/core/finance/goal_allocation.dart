@@ -2,10 +2,7 @@ import '../state/financial_goals.dart';
 import 'goals_calculator.dart';
 
 class GoalAllocationInput {
-  const GoalAllocationInput({
-    required this.id,
-    required this.requiredMonthly,
-  });
+  const GoalAllocationInput({required this.id, required this.requiredMonthly});
 
   final String id;
   final double requiredMonthly;
@@ -47,7 +44,9 @@ Map<String, double> computeLiabilityPaydownShares({
   required List<LiabilityAllocationInput> liabilities,
 }) {
   if (liabilities.isEmpty) return {};
-  final active = liabilities.where((l) => l.balance > 0 && l.interestRatePct > 0).toList();
+  final active = liabilities
+      .where((l) => l.balance > 0 && l.interestRatePct > 0)
+      .toList();
   if (active.isEmpty) {
     final withBalance = liabilities.where((l) => l.balance > 0).toList();
     if (withBalance.isEmpty) return {};
@@ -87,7 +86,8 @@ double savingsForTargetsAfterLiabilities({
   required List<LiabilityAllocationInput> liabilities,
   double liabilityPaydownCapFraction = 0.5,
 }) {
-  if (allocSavingsMonthly <= 0 || liabilities.isEmpty) return allocSavingsMonthly;
+  if (allocSavingsMonthly <= 0 || liabilities.isEmpty)
+    return allocSavingsMonthly;
   final shares = computeLiabilityPaydownShares(liabilities: liabilities);
   if (shares.isEmpty) return allocSavingsMonthly;
   final cap = allocSavingsMonthly * liabilityPaydownCapFraction.clamp(0.0, 1.0);
@@ -99,5 +99,8 @@ double savingsOverflowToRetirement({
   required double allocSavingsMonthly,
   required double totalTargetRequiredMonthly,
 }) {
-  return (allocSavingsMonthly - totalTargetRequiredMonthly).clamp(0, double.infinity);
+  return (allocSavingsMonthly - totalTargetRequiredMonthly).clamp(
+    0,
+    double.infinity,
+  );
 }

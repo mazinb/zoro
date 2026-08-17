@@ -19,19 +19,20 @@ class DocIndexEntry {
   final String skill;
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'title': title,
-        'headRev': headRev,
-        'updatedAt': updatedAt.toUtc().toIso8601String(),
-        if (skill.isNotEmpty) 'skill': skill,
-      };
+    'id': id,
+    'title': title,
+    'headRev': headRev,
+    'updatedAt': updatedAt.toUtc().toIso8601String(),
+    if (skill.isNotEmpty) 'skill': skill,
+  };
 
   static DocIndexEntry fromJson(Map<String, dynamic> m) {
     return DocIndexEntry(
       id: m['id']?.toString() ?? '',
       title: m['title']?.toString() ?? '',
       headRev: (m['headRev'] as num?)?.toInt() ?? 0,
-      updatedAt: DateTime.tryParse(m['updatedAt']?.toString() ?? '')?.toUtc() ??
+      updatedAt:
+          DateTime.tryParse(m['updatedAt']?.toString() ?? '')?.toUtc() ??
           DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
       skill: m['skill']?.toString() ?? '',
     );
@@ -61,7 +62,8 @@ class DocumentStore {
 
   Directory get _root => Directory('${home.path}/${HermesHomePaths.rootDir}');
   Directory get _docs => Directory('${home.path}/${HermesHomePaths.docsDir}');
-  Directory get _revs => Directory('${home.path}/${HermesHomePaths.revisionsDir}');
+  Directory get _revs =>
+      Directory('${home.path}/${HermesHomePaths.revisionsDir}');
   File get _indexFile => File('${home.path}/${HermesHomePaths.docsIndexFile}');
   File get _logFile => File('${home.path}/${HermesHomePaths.logFile}');
 
@@ -80,7 +82,8 @@ class DocumentStore {
 
   File _revFile(String id, int rev) => File('${_revDir(id).path}/$rev.md');
 
-  static String _safe(String id) => id.replaceAll(RegExp(r'[^a-zA-Z0-9_.\-]'), '_');
+  static String _safe(String id) =>
+      id.replaceAll(RegExp(r'[^a-zA-Z0-9_.\-]'), '_');
 
   Future<List<DocIndexEntry>> listDocs() async {
     await ensureLayout();
@@ -146,7 +149,9 @@ class DocumentStore {
 
     final entry = DocIndexEntry(
       id: id,
-      title: title.isNotEmpty ? title : (existing?.title.isNotEmpty == true ? existing!.title : id),
+      title: title.isNotEmpty
+          ? title
+          : (existing?.title.isNotEmpty == true ? existing!.title : id),
       headRev: nextRev,
       updatedAt: now,
       skill: skill.isNotEmpty ? skill : (existing?.skill ?? ''),
@@ -173,7 +178,8 @@ class DocumentStore {
       out.add(
         DocRevisionMeta(
           rev: rev,
-          utc: DateTime.tryParse(row['utc']?.toString() ?? '')?.toUtc() ??
+          utc:
+              DateTime.tryParse(row['utc']?.toString() ?? '')?.toUtc() ??
               DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
           author: row['author']?.toString() ?? '',
           reason: row['reason']?.toString() ?? '',
@@ -224,12 +230,18 @@ class DocumentStore {
   Future<void> _upsertIndex(DocIndexEntry entry) async {
     final all = await _readIndex();
     final next = [...all.where((e) => e.id != entry.id), entry];
-    await _writeJson(_indexFile, {'docs': next.map((e) => e.toJson()).toList()});
+    await _writeJson(_indexFile, {
+      'docs': next.map((e) => e.toJson()).toList(),
+    });
   }
 
   Future<void> _appendLog(Map<String, dynamic> row) async {
     await _logFile.parent.create(recursive: true);
-    await _logFile.writeAsString('${jsonEncode(row)}\n', mode: FileMode.append, flush: true);
+    await _logFile.writeAsString(
+      '${jsonEncode(row)}\n',
+      mode: FileMode.append,
+      flush: true,
+    );
   }
 
   Future<List<Map<String, dynamic>>> _readLog() async {
@@ -250,7 +262,29 @@ class DocumentStore {
   Future<void> _writeJson(File f, Object value) async {
     await f.parent.create(recursive: true);
     final tmp = File('${f.path}.${DateTime.now().microsecondsSinceEpoch}.tmp');
-    await tmp.writeAsString(const JsonEncoder.withIndent('  ').convert(value), flush: true);
+    await tmp.writeAsString(
+      const JsonEncoder.withIndent('  ').convert(value),
+      flush: true,
+    );
     await tmp.rename(f.path);
+  }
+
+  /// Minimal unified diff of [from] → [to]. Enough for the Agent UI.
+  static String unifiedDiff(String from, String to, {String path = 'doc.md'}) {
+    final a = from.split('\n');
+    final b = to.split('\n');
+    final buf = StringBuffer('--- a/$path\n+++ b/$path\n');
+    final max = a.length > b.length ? a.length : b.length;
+    for (var i = 0; i < max; i++) {
+      final left = i < a.length ? a[i] : null;
+      final right = i < b.length ? b[i] : null;
+      if (left == right) {
+        if (left != null) buf.writeln(' $left');
+      } else {
+        if (left != null) buf.writeln('-$left');
+        if (right != null) buf.writeln('+$right');
+      }
+    }
+    return buf.toString();
   }
 }

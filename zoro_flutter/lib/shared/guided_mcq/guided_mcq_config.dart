@@ -12,13 +12,20 @@ class GuidedMcqConfig {
 
   final String internalAgentId;
   final String title;
-  final Map<String, Object?> Function(AppModel model, List<Map<String, Object?>> qaHistory) buildPayload;
+  final Map<String, Object?> Function(
+    AppModel model,
+    List<Map<String, Object?>> qaHistory,
+  )
+  buildPayload;
   final bool Function(AppModel model)? isTargetMissing;
   final String missingTargetMessage;
 }
 
 class GuidedMcqResult {
-  const GuidedMcqResult({required this.contextMarkdown, required this.structured});
+  const GuidedMcqResult({
+    required this.contextMarkdown,
+    required this.structured,
+  });
 
   final String contextMarkdown;
   final Map<String, Object?> structured;

@@ -1,23 +1,16 @@
 /// Daily rotation topics for the on-device Home summary helper.
-enum HomeSummaryFocusDomain {
-  assets,
-  liabilities,
-  cashflow,
-  context,
-  goals,
-}
+enum HomeSummaryFocusDomain { assets, liabilities, cashflow, context, goals }
 
 extension HomeSummaryFocusDomainX on HomeSummaryFocusDomain {
   String get id => name;
 
   String get label => switch (this) {
-        HomeSummaryFocusDomain.assets => 'Assets',
-        HomeSummaryFocusDomain.liabilities => 'Liabilities',
-        HomeSummaryFocusDomain.cashflow => 'Cash flow',
-        HomeSummaryFocusDomain.context => 'Context',
-        HomeSummaryFocusDomain.goals => 'Plan',
-      };
-
+    HomeSummaryFocusDomain.assets => 'Assets',
+    HomeSummaryFocusDomain.liabilities => 'Liabilities',
+    HomeSummaryFocusDomain.cashflow => 'Cash flow',
+    HomeSummaryFocusDomain.context => 'Context',
+    HomeSummaryFocusDomain.goals => 'Plan',
+  };
 }
 
 HomeSummaryFocusDomain? homeSummaryFocusDomainFromId(String? raw) {
@@ -30,14 +23,19 @@ HomeSummaryFocusDomain? homeSummaryFocusDomainFromId(String? raw) {
 
 const _homeSummaryDefaultIncluded = HomeSummaryFocusDomain.values;
 
-List<HomeSummaryFocusDomain> homeSummaryParseIncludedIds(Iterable<String>? ids) {
-  if (ids == null) return List<HomeSummaryFocusDomain>.from(_homeSummaryDefaultIncluded);
+List<HomeSummaryFocusDomain> homeSummaryParseIncludedIds(
+  Iterable<String>? ids,
+) {
+  if (ids == null)
+    return List<HomeSummaryFocusDomain>.from(_homeSummaryDefaultIncluded);
   final out = <HomeSummaryFocusDomain>[];
   for (final id in ids) {
     final d = homeSummaryFocusDomainFromId(id);
     if (d != null && !out.contains(d)) out.add(d);
   }
-  return out.isEmpty ? List<HomeSummaryFocusDomain>.from(_homeSummaryDefaultIncluded) : out;
+  return out.isEmpty
+      ? List<HomeSummaryFocusDomain>.from(_homeSummaryDefaultIncluded)
+      : out;
 }
 
 String homeSummaryCalendarDayKey(DateTime d) {
@@ -59,7 +57,9 @@ HomeSummaryFocusDomain homeSummaryDomainAtRotationIndex(
 List<HomeSummaryFocusDomain> homeSummaryDomainsInCanonicalOrder(
   Iterable<HomeSummaryFocusDomain> domains,
 ) {
-  final selected = domains is Set<HomeSummaryFocusDomain> ? domains : domains.toSet();
+  final selected = domains is Set<HomeSummaryFocusDomain>
+      ? domains
+      : domains.toSet();
   return [
     for (final d in HomeSummaryFocusDomain.values)
       if (selected.contains(d)) d,

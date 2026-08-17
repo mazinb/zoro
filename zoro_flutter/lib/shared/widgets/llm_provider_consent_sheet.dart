@@ -38,7 +38,9 @@ class LlmProviderConsentSheet extends StatelessWidget {
           children: [
             Text(
               'Allow ${info.displayName}?',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 10),
             Text(
@@ -47,11 +49,24 @@ class LlmProviderConsentSheet extends StatelessWidget {
               style: TextStyle(color: cs.onSurfaceVariant, height: 1.4),
             ),
             const SizedBox(height: 16),
-            Text('Who receives your data', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900)),
+            Text(
+              'Who receives your data',
+              style: Theme.of(
+                context,
+              ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
+            ),
             const SizedBox(height: 6),
-            Text(info.recipientDescription, style: TextStyle(color: cs.onSurfaceVariant, height: 1.35)),
+            Text(
+              info.recipientDescription,
+              style: TextStyle(color: cs.onSurfaceVariant, height: 1.35),
+            ),
             const SizedBox(height: 14),
-            Text('What may be sent', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900)),
+            Text(
+              'What may be sent',
+              style: Theme.of(
+                context,
+              ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
+            ),
             const SizedBox(height: 6),
             for (final item in info.dataSent)
               Padding(
@@ -59,15 +74,37 @@ class LlmProviderConsentSheet extends StatelessWidget {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('• ', style: TextStyle(color: cs.onSurfaceVariant, height: 1.35)),
-                    Expanded(child: Text(item, style: TextStyle(color: cs.onSurfaceVariant, height: 1.35))),
+                    Text(
+                      '• ',
+                      style: TextStyle(
+                        color: cs.onSurfaceVariant,
+                        height: 1.35,
+                      ),
+                    ),
+                    Expanded(
+                      child: Text(
+                        item,
+                        style: TextStyle(
+                          color: cs.onSurfaceVariant,
+                          height: 1.35,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),
             const SizedBox(height: 10),
-            Text('Where it is processed', style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900)),
+            Text(
+              'Where it is processed',
+              style: Theme.of(
+                context,
+              ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
+            ),
             const SizedBox(height: 6),
-            Text(info.processingLocation, style: TextStyle(color: cs.onSurfaceVariant, height: 1.35)),
+            Text(
+              info.processingLocation,
+              style: TextStyle(color: cs.onSurfaceVariant, height: 1.35),
+            ),
             const SizedBox(height: 14),
             Wrap(
               spacing: 8,

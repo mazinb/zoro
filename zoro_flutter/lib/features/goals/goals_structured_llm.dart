@@ -26,10 +26,7 @@ Future<Map<String, Object?>?> synthesizeGoalsSectionWithLlm({
   final system = model.internalAgentSystemPrompt(agentId);
   final qa = [
     for (final a in answers)
-      {
-        'questionId': a.questionId,
-        'selected': a.selectedIds.toList(),
-      },
+      {'questionId': a.questionId, 'selected': a.selectedIds.toList()},
   ];
   final user = jsonEncode({
     'optionalNote': optionalNote,
@@ -47,5 +44,7 @@ Future<Map<String, Object?>?> synthesizeGoalsSectionWithLlm({
   );
 
   final obj = await decodeActiveProviderJsonWithRepair(model, raw);
-  return Map<String, Object?>.from(obj.map((k, v) => MapEntry(k.toString(), v)));
+  return Map<String, Object?>.from(
+    obj.map((k, v) => MapEntry(k.toString(), v)),
+  );
 }

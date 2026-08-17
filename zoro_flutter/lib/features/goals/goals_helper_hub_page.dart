@@ -29,7 +29,8 @@ class GoalsHelperHubPage extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final accent = m.accent;
     final now = DateTime.now();
-    final needsExpenses = !m.userTouchedExpenses || m.recurringExpensesMonthly <= 0;
+    final needsExpenses =
+        !m.userTouchedExpenses || m.recurringExpensesMonthly <= 0;
     final planAt = m.retirementPlanLastUpdatedAt();
     final lastLine = planAt == null
         ? 'Not updated yet'
@@ -42,10 +43,17 @@ class GoalsHelperHubPage extends StatelessWidget {
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Goals helper', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17)),
+            const Text(
+              'Goals helper',
+              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 17),
+            ),
             Text(
               lastLine,
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: cs.onSurfaceVariant),
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: cs.onSurfaceVariant,
+              ),
             ),
           ],
         ),
@@ -65,10 +73,7 @@ class GoalsHelperHubPage extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
             children: [
               if (needsExpenses) ...[
-                _ExpenseSetupCard(
-                  model: m,
-                  accent: accent,
-                ),
+                _ExpenseSetupCard(model: m, accent: accent),
                 const SizedBox(height: 12),
               ],
               for (final s in sections) ...[
@@ -106,7 +111,11 @@ class _ExpenseSetupCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         onTap: r == null
             ? null
-            : () => openGoalExpenseEstimator(context: context, model: model, goalId: r.id),
+            : () => openGoalExpenseEstimator(
+                context: context,
+                model: model,
+                goalId: r.id,
+              ),
         child: LiquidGlassPanel(
           padding: const EdgeInsets.all(14),
           child: Row(
@@ -117,11 +126,20 @@ class _ExpenseSetupCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Set up expenses first', style: TextStyle(fontWeight: FontWeight.w900, color: cs.onSurface)),
+                    Text(
+                      'Set up expenses first',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w900,
+                        color: cs.onSurface,
+                      ),
+                    ),
                     const SizedBox(height: 4),
                     Text(
                       'Corpus needs monthly expense estimates from Ledger.',
-                      style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: cs.onSurfaceVariant,
+                      ),
                     ),
                   ],
                 ),
@@ -170,16 +188,30 @@ class _HelperSectionCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title, style: TextStyle(fontWeight: FontWeight.w900, color: cs.onSurface)),
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontWeight: FontWeight.w900,
+                        color: cs.onSurface,
+                      ),
+                    ),
                     const SizedBox(height: 4),
                     Text(
                       subtitle,
-                      style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant, height: 1.3),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: cs.onSurfaceVariant,
+                        height: 1.3,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       '$stepCount step${stepCount == 1 ? "" : "s"}',
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: accent),
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: accent,
+                      ),
                     ),
                   ],
                 ),

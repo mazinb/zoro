@@ -7,6 +7,7 @@ import '../../core/llm/llm_consent_gate.dart';
 import '../../core/state/app_model.dart';
 import '../../core/state/internal_app_agent_definition.dart';
 import '../../core/state/ledger_rows.dart';
+
 enum LedgerOrchestratorSection { assets, liabilities, expenses }
 
 class LedgerOrchestratorPage extends StatefulWidget {
@@ -65,7 +66,7 @@ Rules:
             'type': a.type.apiValue,
             'name': a.name,
             'total': m.assetDisplayValue(a),
-          }
+          },
       ],
       'liabilities': [
         for (final l in m.liabilities)
@@ -74,14 +75,14 @@ Rules:
             'type': l.type.apiValue,
             'name': l.name,
             'total': l.total,
-          }
+          },
       ],
       'recentMonths': [
         for (final mk in AppModel.recentMonthKeys(count: 6))
           {
             'monthKey': mk,
             'monthlySpending': m.monthlyEntryFor(mk)?.monthlySpending,
-          }
+          },
       ],
       'note':
           'recentMonths: six completed months; first entry is previous calendar month (not current month-to-date).',
@@ -89,7 +90,9 @@ Rules:
   }
 
   String _systemPrompt() {
-    final user = widget.model.internalAgentSystemPrompt(InternalAppAgentIds.ledgerOrchestrator).trim();
+    final user = widget.model
+        .internalAgentSystemPrompt(InternalAppAgentIds.ledgerOrchestrator)
+        .trim();
     return '$_system\n\n---\n\nUser instructions:\n$user\n';
   }
 
@@ -125,9 +128,10 @@ Rules:
       final message = obj['message']?.toString().trim();
       const s = LedgerOrchestratorSection.expenses;
 
-      widget.model.recordInternalAgentRun(InternalAppAgentIds.ledgerOrchestrator, {
-        'summary': message ?? '',
-      });
+      widget.model.recordInternalAgentRun(
+        InternalAppAgentIds.ledgerOrchestrator,
+        {'summary': message ?? ''},
+      );
 
       setState(() {
         _loading = false;
@@ -148,7 +152,10 @@ Rules:
     widget.onPickSection(s);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(_message ?? 'Ok'), behavior: SnackBarBehavior.floating),
+      SnackBar(
+        content: Text(_message ?? 'Ok'),
+        behavior: SnackBarBehavior.floating,
+      ),
     );
     Navigator.of(context).pop();
   }
@@ -168,31 +175,35 @@ Rules:
         child: _loading
             ? const Center(child: CircularProgressIndicator())
             : _error != null
-                ? Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
-                      const SizedBox(height: 16),
-                      FilledButton(onPressed: _run, child: const Text('Try again')),
-                    ],
-                  )
-                : Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(
-                        _message ?? '',
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.onSurface,
-                          fontWeight: FontWeight.w800,
-                          height: 1.35,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      FilledButton(onPressed: _go, child: const Text('Go')),
-                    ],
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    _error!,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
                   ),
+                  const SizedBox(height: 16),
+                  FilledButton(onPressed: _run, child: const Text('Try again')),
+                ],
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    _message ?? '',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurface,
+                      fontWeight: FontWeight.w800,
+                      height: 1.35,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  FilledButton(onPressed: _go, child: const Text('Go')),
+                ],
+              ),
       ),
     );
   }
 }
-

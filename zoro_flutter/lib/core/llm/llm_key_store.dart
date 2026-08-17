@@ -3,20 +3,26 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../state/app_model.dart';
 
 class LlmKeyStore {
-  LlmKeyStore({FlutterSecureStorage? storage}) : _storage = storage ?? const FlutterSecureStorage();
+  LlmKeyStore({FlutterSecureStorage? storage})
+    : _storage = storage ?? const FlutterSecureStorage();
 
   final FlutterSecureStorage _storage;
 
   static String _keyName(LlmProvider p) => switch (p) {
-        LlmProvider.appleFoundation => throw StateError('No API key slot for on-device model'),
-        LlmProvider.zoroCloud => throw StateError('No API key slot for Zoro Cloud AI'),
-        LlmProvider.openai => 'llm_openai_api_key',
-        LlmProvider.anthropic => 'llm_anthropic_api_key',
-        LlmProvider.gemini => 'llm_gemini_api_key',
-      };
+    LlmProvider.appleFoundation => throw StateError(
+      'No API key slot for on-device model',
+    ),
+    LlmProvider.zoroCloud => throw StateError(
+      'No API key slot for Zoro Cloud AI',
+    ),
+    LlmProvider.openai => 'llm_openai_api_key',
+    LlmProvider.anthropic => 'llm_anthropic_api_key',
+    LlmProvider.gemini => 'llm_gemini_api_key',
+  };
 
   Future<String?> readKey(LlmProvider provider) async {
-    if (provider == LlmProvider.appleFoundation || provider == LlmProvider.zoroCloud) {
+    if (provider == LlmProvider.appleFoundation ||
+        provider == LlmProvider.zoroCloud) {
       return null;
     }
     final v = await _storage.read(key: _keyName(provider));
@@ -25,7 +31,9 @@ class LlmKeyStore {
   }
 
   Future<void> writeKey({required LlmProvider provider, String? value}) async {
-    if (provider == LlmProvider.appleFoundation || provider == LlmProvider.zoroCloud) return;
+    if (provider == LlmProvider.appleFoundation ||
+        provider == LlmProvider.zoroCloud)
+      return;
     final trimmed = (value ?? '').trim();
     if (trimmed.isEmpty) {
       await _storage.delete(key: _keyName(provider));
@@ -37,11 +45,11 @@ class LlmKeyStore {
   Future<Map<LlmProvider, String>> readAll() async {
     final out = <LlmProvider, String>{};
     for (final p in LlmProvider.values) {
-      if (p == LlmProvider.appleFoundation || p == LlmProvider.zoroCloud) continue;
+      if (p == LlmProvider.appleFoundation || p == LlmProvider.zoroCloud)
+        continue;
       final v = await readKey(p);
       if (v != null) out[p] = v;
     }
     return out;
   }
 }
-

@@ -20,7 +20,8 @@ const List<CurrencyCode> kDisplayCurrencyPickerOptions = [
 ];
 
 /// Ledger asset/liability currency dropdown (all supported codes).
-const List<CurrencyCode> kLedgerCurrencyPickerOptions = kDisplayCurrencyPickerOptions;
+const List<CurrencyCode> kLedgerCurrencyPickerOptions =
+    kDisplayCurrencyPickerOptions;
 
 /// Resolves stored ledger `currencyCountry` (ISO code or legacy country name).
 CurrencyCode ledgerCurrencyCodeFromRaw(String raw) =>
@@ -30,7 +31,8 @@ CurrencyCode ledgerCurrencyCodeFromRaw(String raw) =>
 String ledgerCurrencyStorageValue(CurrencyCode c) => c.code;
 
 /// Picker value for a stored ledger currency (normalizes legacy country names).
-String ledgerCurrencyPickerValue(String raw) => ledgerCurrencyCodeFromRaw(raw).code;
+String ledgerCurrencyPickerValue(String raw) =>
+    ledgerCurrencyCodeFromRaw(raw).code;
 
 /// Compact dropdown label, e.g. "🇭🇰 HKD (H$)".
 String ledgerCurrencyPickerLabel(CurrencyCode c) {

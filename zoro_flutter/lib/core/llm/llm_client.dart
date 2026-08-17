@@ -25,7 +25,11 @@ class LlmAttachment {
 }
 
 class LlmCompleteResult {
-  const LlmCompleteResult({required this.text, this.tokensUsed, this.entitlementsApiBody});
+  const LlmCompleteResult({
+    required this.text,
+    this.tokensUsed,
+    this.entitlementsApiBody,
+  });
 
   final String text;
   final int? tokensUsed;
@@ -36,8 +40,8 @@ class LlmClient {
   LlmClient({
     http.Client? httpClient,
     AppleFoundationChannel? appleFoundationChannel,
-  })  : _http = httpClient ?? http.Client(),
-        _apple = appleFoundationChannel ?? AppleFoundationChannel();
+  }) : _http = httpClient ?? http.Client(),
+       _apple = appleFoundationChannel ?? AppleFoundationChannel();
 
   final http.Client _http;
   final AppleFoundationChannel _apple;
@@ -58,7 +62,9 @@ class LlmClient {
     switch (provider) {
       case LlmProvider.appleFoundation:
         if (attachments.isNotEmpty) {
-          throw const LlmException('Attachments are not supported with on-device model yet.');
+          throw const LlmException(
+            'Attachments are not supported with on-device model yet.',
+          );
         }
         try {
           final text = await _apple.complete(
@@ -66,20 +72,30 @@ class LlmClient {
             user: user,
             maxOutputTokens: maxOutputTokens,
           );
-          final inputTokens = await _apple.countTokens(system: system, user: user);
+          final inputTokens = await _apple.countTokens(
+            system: system,
+            user: user,
+          );
           final outputEstimate = (text.length / 4).ceil();
-          return LlmCompleteResult(text: text, tokensUsed: inputTokens + outputEstimate);
+          return LlmCompleteResult(
+            text: text,
+            tokensUsed: inputTokens + outputEstimate,
+          );
         } on AppleFoundationChannelException catch (e) {
           throw LlmException(e.message);
         }
       case LlmProvider.zoroCloud:
         if (attachments.isNotEmpty) {
-          throw const LlmException('Attachments are not supported with Cloud AI helpers yet.');
+          throw const LlmException(
+            'Attachments are not supported with Cloud AI helpers yet.',
+          );
         }
         final deviceId = zoroDeviceId?.trim();
         final api = zoroApi;
         if (deviceId == null || deviceId.isEmpty || api == null) {
-          throw const LlmException('Cloud AI is unavailable. Turn it on in Settings → Usage.');
+          throw const LlmException(
+            'Cloud AI is unavailable. Turn it on in Settings → Usage.',
+          );
         }
         try {
           final body = await api.assistantComplete(
@@ -186,11 +202,18 @@ class LlmClient {
         {'role': 'user', 'content': userContent},
       ],
     };
-    _applyOpenAiOutputTokenLimit(requestBody, model: model, maxOutputTokens: maxOutputTokens);
+    _applyOpenAiOutputTokenLimit(
+      requestBody,
+      model: model,
+      maxOutputTokens: maxOutputTokens,
+    );
     if (preferJsonObjectOutput) {
       requestBody['response_format'] = {'type': 'json_object'};
     }
-    return _postOpenAiChatCompletionWithTokenFallback(apiKey: apiKey, requestBody: requestBody);
+    return _postOpenAiChatCompletionWithTokenFallback(
+      apiKey: apiKey,
+      requestBody: requestBody,
+    );
   }
 
   static bool _openAiPrefersMaxCompletionTokens(String model) {
@@ -220,7 +243,8 @@ class LlmClient {
     if (total is num) return total.round();
     final prompt = m['prompt_tokens'];
     final completion = m['completion_tokens'];
-    if (prompt is num && completion is num) return prompt.round() + completion.round();
+    if (prompt is num && completion is num)
+      return prompt.round() + completion.round();
     return null;
   }
 
@@ -229,26 +253,32 @@ class LlmClient {
     required Map<String, dynamic> requestBody,
   }) async {
     Future<http.Response> post() => _http.post(
-          Uri.parse('https://api.openai.com/v1/chat/completions'),
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer $apiKey',
-          },
-          body: jsonEncode(requestBody),
-        );
+      Uri.parse('https://api.openai.com/v1/chat/completions'),
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer $apiKey',
+      },
+      body: jsonEncode(requestBody),
+    );
 
     var res = await post();
     var body = _decodeJson(res.body);
     if (res.statusCode == 400) {
       final msg = body['error']?['message']?.toString().toLowerCase() ?? '';
-      final swapped = _swapOpenAiTokenParamOn400(requestBody, errorMessage: msg);
+      final swapped = _swapOpenAiTokenParamOn400(
+        requestBody,
+        errorMessage: msg,
+      );
       if (swapped) {
         res = await post();
         body = _decodeJson(res.body);
       }
     }
     if (res.statusCode < 200 || res.statusCode >= 300) {
-      final msg = body['error']?['message']?.toString() ?? body['error']?.toString() ?? 'OpenAI request failed';
+      final msg =
+          body['error']?['message']?.toString() ??
+          body['error']?.toString() ??
+          'OpenAI request failed';
       throw LlmException(msg, statusCode: res.statusCode);
     }
     final choices = body['choices'];
@@ -265,8 +295,12 @@ class LlmClient {
   }
 
   /// Returns true if the request body was modified for a retry.
-  static bool _swapOpenAiTokenParamOn400(Map<String, dynamic> requestBody, {required String errorMessage}) {
-    if (requestBody.containsKey('max_tokens') && errorMessage.contains('max_completion_tokens')) {
+  static bool _swapOpenAiTokenParamOn400(
+    Map<String, dynamic> requestBody, {
+    required String errorMessage,
+  }) {
+    if (requestBody.containsKey('max_tokens') &&
+        errorMessage.contains('max_completion_tokens')) {
       final v = requestBody.remove('max_tokens');
       requestBody['max_completion_tokens'] = v;
       return true;
@@ -330,7 +364,10 @@ class LlmClient {
     );
     final body = _decodeJson(res.body);
     if (res.statusCode < 200 || res.statusCode >= 300) {
-      final msg = body['error']?['message']?.toString() ?? body['error']?.toString() ?? 'Anthropic request failed';
+      final msg =
+          body['error']?['message']?.toString() ??
+          body['error']?.toString() ??
+          'Anthropic request failed';
       throw LlmException(msg, statusCode: res.statusCode);
     }
     final content = body['content'];
@@ -370,10 +407,7 @@ class LlmClient {
       {'text': '$system\n\n---\n\n$user'},
       for (final a in attachments)
         {
-          'inlineData': {
-            'mimeType': a.mimeType,
-            'data': base64Encode(a.bytes),
-          },
+          'inlineData': {'mimeType': a.mimeType, 'data': base64Encode(a.bytes)},
         },
     ];
     final generationConfig = <String, Object?>{
@@ -388,16 +422,17 @@ class LlmClient {
         'contents': [
           {
             'role': 'user',
-            'parts': [
-              ...parts,
-            ],
-          }
+            'parts': [...parts],
+          },
         ],
       }),
     );
     final body = _decodeJson(res.body);
     if (res.statusCode < 200 || res.statusCode >= 300) {
-      final msg = body['error']?['message']?.toString() ?? body['error']?.toString() ?? 'Gemini request failed';
+      final msg =
+          body['error']?['message']?.toString() ??
+          body['error']?.toString() ??
+          'Gemini request failed';
       throw LlmException(msg, statusCode: res.statusCode);
     }
     final candidates = body['candidates'];
@@ -444,6 +479,6 @@ class LlmException implements Exception {
   final int? statusCode;
 
   @override
-  String toString() => statusCode == null ? message : '$message (HTTP $statusCode)';
+  String toString() =>
+      statusCode == null ? message : '$message (HTTP $statusCode)';
 }
-

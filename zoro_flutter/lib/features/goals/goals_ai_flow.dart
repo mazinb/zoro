@@ -9,8 +9,5 @@ Future<void> openGoalsAiAssistant({
   required AppModel model,
 }) async {
   model.ensureRetirementGoal();
-  await openGoalsHelperHub(
-    context: context,
-    model: model,
-  );
+  await openGoalsHelperHub(context: context, model: model);
 }

@@ -9,12 +9,12 @@ List<LlmProvider> llmProvidersReady(AppModel model) {
 }
 
 String shortLlmLabel(LlmProvider p) => switch (p) {
-      LlmProvider.appleFoundation => 'On-device',
-      LlmProvider.zoroCloud => 'Cloud AI',
-      LlmProvider.openai => 'OpenAI',
-      LlmProvider.anthropic => 'Anthropic',
-      LlmProvider.gemini => 'Gemini',
-    };
+  LlmProvider.appleFoundation => 'On-device',
+  LlmProvider.zoroCloud => 'Cloud AI',
+  LlmProvider.openai => 'OpenAI',
+  LlmProvider.anthropic => 'Anthropic',
+  LlmProvider.gemini => 'Gemini',
+};
 
 /// One line suggesting other models (for import / large-context errors).
 String? otherLlmSuggestionLine(AppModel model, {required LlmProvider current}) {
@@ -27,11 +27,11 @@ String? otherLlmSuggestionLine(AppModel model, {required LlmProvider current}) {
 bool messageLooksLikeContextOrTokenLimit(String message) {
   final m = message.toLowerCase();
   return m.contains('context') &&
-          (m.contains('exceed') ||
-              m.contains('window') ||
-              m.contains('too long') ||
-              m.contains('length') ||
-              m.contains('token'));
+      (m.contains('exceed') ||
+          m.contains('window') ||
+          m.contains('too long') ||
+          m.contains('length') ||
+          m.contains('token'));
 }
 
 bool messageLooksLikeJsonOrDecodeIssue(String message) {

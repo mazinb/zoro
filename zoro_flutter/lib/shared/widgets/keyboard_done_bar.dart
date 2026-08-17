@@ -37,7 +37,8 @@ class KeyboardDoneBarOverlay extends StatelessWidget {
               children: [
                 const Spacer(),
                 TextButton(
-                  onPressed: onDone ??
+                  onPressed:
+                      onDone ??
                       () => FocusManager.instance.primaryFocus?.unfocus(),
                   style: TextButton.styleFrom(
                     foregroundColor: cs.primary,

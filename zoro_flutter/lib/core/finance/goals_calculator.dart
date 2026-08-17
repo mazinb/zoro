@@ -58,11 +58,10 @@ double computeRetirementCorpus({
   required double recurringExpensesMonthly,
   required double safeWithdrawalRatePct,
   required double corpusBufferPct,
-}) =>
-    computeRetirementCorpusBase(
-      recurringExpensesMonthly: recurringExpensesMonthly,
-      safeWithdrawalRatePct: safeWithdrawalRatePct,
-    );
+}) => computeRetirementCorpusBase(
+  recurringExpensesMonthly: recurringExpensesMonthly,
+  safeWithdrawalRatePct: safeWithdrawalRatePct,
+);
 
 /// Surplus from agent buffer % of base corpus.
 double surplusFromCorpusBufferPct(double baseCorpus, double corpusBufferPct) {
@@ -99,10 +98,14 @@ double goalEffectiveTarget({
   required FinancialGoal goal,
   required double recurringExpensesMonthly,
 }) {
-  return goalRetirementCorpusBase(goal: goal, recurringExpensesMonthly: recurringExpensesMonthly);
+  return goalRetirementCorpusBase(
+    goal: goal,
+    recurringExpensesMonthly: recurringExpensesMonthly,
+  );
 }
 
-double monthlyRateFromAnnualPct(double annualReturnPct) => annualReturnPct / 100 / 12;
+double monthlyRateFromAnnualPct(double annualReturnPct) =>
+    annualReturnPct / 100 / 12;
 
 /// Future value of [months] monthly invest contributions at [annualReturnPct].
 double futureValueOfMonthlyContributions({
@@ -157,8 +160,7 @@ double requiredMonthlyToReachTarget({
 DateTime shiftRetirementTargetDate({
   required DateTime baseDate,
   required int yearsDelta,
-}) =>
-    DateTime(baseDate.year + yearsDelta, baseDate.month, baseDate.day);
+}) => DateTime(baseDate.year + yearsDelta, baseDate.month, baseDate.day);
 
 /// Extra surplus from [yearsDelta] of invest /mo at [annualReturnPct].
 double retirementSurplusDeltaForYears({
@@ -228,7 +230,8 @@ GoalFeasibility assessGoalFeasibility({
     return GoalFeasibility(
       level: GoalFeasibilityLevel.broken,
       title: 'Short',
-      detail: 'Need ${fmt(requiredMonthly)}/mo · have ${fmt(totalSavingsMonthly)}/mo',
+      detail:
+          'Need ${fmt(requiredMonthly)}/mo · have ${fmt(totalSavingsMonthly)}/mo',
     );
   }
 
@@ -290,7 +293,11 @@ double? goalTimeProgressFraction({
 }) {
   if (timelineStart == null || targetDate == null) return null;
   final n = now ?? DateTime.now();
-  final start = DateTime(timelineStart.year, timelineStart.month, timelineStart.day);
+  final start = DateTime(
+    timelineStart.year,
+    timelineStart.month,
+    timelineStart.day,
+  );
   final end = DateTime(targetDate.year, targetDate.month, targetDate.day);
   final today = DateTime(n.year, n.month, n.day);
   if (!end.isAfter(start)) return null;

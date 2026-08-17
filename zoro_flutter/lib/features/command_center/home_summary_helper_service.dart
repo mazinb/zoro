@@ -51,8 +51,17 @@ If privacyHideAmounts is true, avoid dollar amounts and speak in general terms.
       }
     }
 
-    final focus = homeSummaryDomainAtRotationIndex(enabled, model.homeSummaryHelperRotationIndex);
-    final run = _runOnce(model, provider: provider, focus: focus, dayKey: dayKey, now: n);
+    final focus = homeSummaryDomainAtRotationIndex(
+      enabled,
+      model.homeSummaryHelperRotationIndex,
+    );
+    final run = _runOnce(
+      model,
+      provider: provider,
+      focus: focus,
+      dayKey: dayKey,
+      now: n,
+    );
     _inFlight = run;
     try {
       return await run;
@@ -113,8 +122,7 @@ If privacyHideAmounts is true, avoid dollar amounts and speak in general terms.
         'dayKey': dayKey,
         'text': text,
       });
-      if (model.notificationsEnabled &&
-          model.shouldNotifyHomeMessageNow(now)) {
+      if (model.notificationsEnabled && model.shouldNotifyHomeMessageNow(now)) {
         model.markHomeMessageNotified(now);
         unawaited(
           NotificationService.instance.showHomeMessageReady(
@@ -143,10 +151,13 @@ If privacyHideAmounts is true, avoid dollar amounts and speak in general terms.
   }
 
   String _systemPrompt(AppModel model) {
-    final user = model.internalAgentSystemPrompt(InternalAppAgentIds.homeSummaryHelper).trim();
-    final hints = internalAppAgentDefinitionById(InternalAppAgentIds.homeSummaryHelper)
-            ?.modelDomainHints
-            .trim() ??
+    final user = model
+        .internalAgentSystemPrompt(InternalAppAgentIds.homeSummaryHelper)
+        .trim();
+    final hints =
+        internalAppAgentDefinitionById(
+          InternalAppAgentIds.homeSummaryHelper,
+        )?.modelDomainHints.trim() ??
         '';
     return [
       'You write the daily Home screen note for a personal finance app.',
@@ -159,7 +170,11 @@ If privacyHideAmounts is true, avoid dollar amounts and speak in general terms.
     ].join('\n');
   }
 
-  Map<String, Object?> _payload(AppModel model, HomeSummaryFocusDomain focus, {required DateTime now}) {
+  Map<String, Object?> _payload(
+    AppModel model,
+    HomeSummaryFocusDomain focus, {
+    required DateTime now,
+  }) {
     final base = <String, Object?>{
       'focus': focus.id,
       'focusLabel': focus.label,
@@ -188,7 +203,8 @@ If privacyHideAmounts is true, avoid dollar amounts and speak in general terms.
         return {
           ...base,
           'totalLiabilitiesDisplay': model.totalLiabilitiesDisplay,
-          'liabilitiesLastReviewed': model.liabilitiesLastReviewed?.toIso8601String(),
+          'liabilitiesLastReviewed': model.liabilitiesLastReviewed
+              ?.toIso8601String(),
           'reviewOverdue': model.liabilitiesReviewOverdueAt(now),
           'rows': [
             for (final l in model.liabilities.take(6))
@@ -216,10 +232,12 @@ If privacyHideAmounts is true, avoid dollar amounts and speak in general terms.
         final missingAssets = <String>[];
         final missingLiabilities = <String>[];
         for (final a in model.assets) {
-          if ((a.contextMarkdown ?? '').trim().isEmpty) missingAssets.add(a.name);
+          if ((a.contextMarkdown ?? '').trim().isEmpty)
+            missingAssets.add(a.name);
         }
         for (final l in model.liabilities) {
-          if ((l.contextMarkdown ?? '').trim().isEmpty) missingLiabilities.add(l.name);
+          if ((l.contextMarkdown ?? '').trim().isEmpty)
+            missingLiabilities.add(l.name);
         }
         return {
           ...base,
@@ -230,7 +248,10 @@ If privacyHideAmounts is true, avoid dollar amounts and speak in general terms.
         };
       case HomeSummaryFocusDomain.goals:
         final r = model.retirementGoal;
-        final targets = model.financialGoals.where((g) => !g.isRetirement).take(6).toList();
+        final targets = model.financialGoals
+            .where((g) => !g.isRetirement)
+            .take(6)
+            .toList();
         return {
           ...base,
           'retirement': r == null
@@ -243,7 +264,9 @@ If privacyHideAmounts is true, avoid dollar amounts and speak in general terms.
                   'corpusAutoFromExpenses': r.corpusAutoFromExpenses,
                   'investMonthly': model.allocInvestmentsMonthly,
                   'savingsMonthly': model.allocSavingsMonthly,
-                  'planLastUpdated': model.retirementPlanLastUpdatedAt()?.toIso8601String(),
+                  'planLastUpdated': model
+                      .retirementPlanLastUpdatedAt()
+                      ?.toIso8601String(),
                 },
           'targetGoals': [
             for (final g in targets)
@@ -258,9 +281,15 @@ If privacyHideAmounts is true, avoid dollar amounts and speak in general terms.
     }
   }
 
-  Map<String, Object?> _liabilityRowPayload(AppModel model, LedgerLiabilityRow row) {
+  Map<String, Object?> _liabilityRowPayload(
+    AppModel model,
+    LedgerLiabilityRow row,
+  ) {
     final accountCurrency = currencyCodeForPresetCountry(row.currencyCountry);
-    final totalDisplay = model.moneyInDisplayCurrency(row.total, accountCurrency);
+    final totalDisplay = model.moneyInDisplayCurrency(
+      row.total,
+      accountCurrency,
+    );
     return {
       'name': row.name,
       'type': row.type.apiValue,
@@ -268,8 +297,14 @@ If privacyHideAmounts is true, avoid dollar amounts and speak in general terms.
       'ledgerTotal': row.total,
       'totalDisplay': totalDisplay,
       if (!model.privacyHideAmounts) ...{
-        'ledgerTotalFormatted': formatCurrencyDisplay(row.total, currency: accountCurrency),
-        'totalDisplayFormatted': formatCurrencyDisplay(totalDisplay, currency: model.displayCurrency),
+        'ledgerTotalFormatted': formatCurrencyDisplay(
+          row.total,
+          currency: accountCurrency,
+        ),
+        'totalDisplayFormatted': formatCurrencyDisplay(
+          totalDisplay,
+          currency: model.displayCurrency,
+        ),
       },
       'hasContext': (row.contextMarkdown ?? '').trim().isNotEmpty,
     };
@@ -277,7 +312,13 @@ If privacyHideAmounts is true, avoid dollar amounts and speak in general terms.
 
   Map<String, Object?> _shrinkPayload(Map<String, Object?> payload) {
     final copy = Map<String, Object?>.from(payload);
-    for (final key in ['rows', 'recentMonths', 'missingAssetContext', 'missingLiabilityContext', 'targetGoals']) {
+    for (final key in [
+      'rows',
+      'recentMonths',
+      'missingAssetContext',
+      'missingLiabilityContext',
+      'targetGoals',
+    ]) {
       final v = copy[key];
       if (v is List && v.length > 4) {
         copy[key] = v.take(4).toList();

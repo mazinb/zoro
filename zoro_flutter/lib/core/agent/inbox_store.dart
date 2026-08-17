@@ -28,29 +28,30 @@ class InboxItem {
   String remoteId;
 
   Map<String, dynamic> toJson() => {
-        'id': id,
-        'fileName': fileName,
-        'receivedAt': receivedAt.toUtc().toIso8601String(),
-        'from': from,
-        'subject': subject,
-        'localRelPath': localRelPath,
-        'confirmed': confirmed,
-        'fileTypeId': fileTypeId,
-        'remoteId': remoteId,
-      };
+    'id': id,
+    'fileName': fileName,
+    'receivedAt': receivedAt.toUtc().toIso8601String(),
+    'from': from,
+    'subject': subject,
+    'localRelPath': localRelPath,
+    'confirmed': confirmed,
+    'fileTypeId': fileTypeId,
+    'remoteId': remoteId,
+  };
 
   static InboxItem fromJson(Map<String, dynamic> m) => InboxItem(
-        id: m['id']?.toString() ?? '',
-        fileName: m['fileName']?.toString() ?? '',
-        receivedAt: DateTime.tryParse(m['receivedAt']?.toString() ?? '')?.toUtc() ??
-            DateTime.now().toUtc(),
-        from: m['from']?.toString() ?? '',
-        subject: m['subject']?.toString() ?? '',
-        localRelPath: m['localRelPath']?.toString() ?? '',
-        confirmed: m['confirmed'] == true,
-        fileTypeId: m['fileTypeId']?.toString() ?? '',
-        remoteId: m['remoteId']?.toString() ?? '',
-      );
+    id: m['id']?.toString() ?? '',
+    fileName: m['fileName']?.toString() ?? '',
+    receivedAt:
+        DateTime.tryParse(m['receivedAt']?.toString() ?? '')?.toUtc() ??
+        DateTime.now().toUtc(),
+    from: m['from']?.toString() ?? '',
+    subject: m['subject']?.toString() ?? '',
+    localRelPath: m['localRelPath']?.toString() ?? '',
+    confirmed: m['confirmed'] == true,
+    fileTypeId: m['fileTypeId']?.toString() ?? '',
+    remoteId: m['remoteId']?.toString() ?? '',
+  );
 }
 
 class InboxStore {
@@ -58,8 +59,10 @@ class InboxStore {
 
   final Directory home;
 
-  Directory get _files => Directory('${home.path}/${HermesHomePaths.inboxFilesDir}');
-  File get _messages => File('${home.path}/${HermesHomePaths.inboxMessagesFile}');
+  Directory get _files =>
+      Directory('${home.path}/${HermesHomePaths.inboxFilesDir}');
+  File get _messages =>
+      File('${home.path}/${HermesHomePaths.inboxMessagesFile}');
 
   Future<void> ensure() async {
     await _files.create(recursive: true);
@@ -130,9 +133,9 @@ class InboxStore {
   Future<void> _writeAll(List<InboxItem> items) async {
     await _messages.parent.create(recursive: true);
     await _messages.writeAsString(
-      const JsonEncoder.withIndent('  ').convert({
-        'items': items.map((e) => e.toJson()).toList(),
-      }),
+      const JsonEncoder.withIndent(
+        '  ',
+      ).convert({'items': items.map((e) => e.toJson()).toList()}),
       flush: true,
     );
   }

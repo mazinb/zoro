@@ -48,7 +48,11 @@ class LedgerCardSubtitle extends StatelessWidget {
               behavior: HitTestBehavior.opaque,
               child: Padding(
                 padding: const EdgeInsets.only(left: 4),
-                child: Icon(Icons.close, size: 14, color: fg.withValues(alpha: 0.85)),
+                child: Icon(
+                  Icons.close,
+                  size: 14,
+                  color: fg.withValues(alpha: 0.85),
+                ),
               ),
             ),
         ],

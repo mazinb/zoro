@@ -11,16 +11,16 @@ import '../../core/state/ledger_rows.dart';
 
 /// Country preset names aligned with [tryCurrencyCodeForPresetCountry].
 String presetCountryForCurrency(CurrencyCode c) => switch (c) {
-      CurrencyCode.thb => 'Thailand',
-      CurrencyCode.inr => 'India',
-      CurrencyCode.usd => 'US',
-      CurrencyCode.aed => 'UAE',
-      CurrencyCode.sgd => 'Singapore',
-      CurrencyCode.aud => 'Australia',
-      CurrencyCode.eur => 'Euro',
-      CurrencyCode.jpy => 'Japan',
-      CurrencyCode.hkd => 'Hong Kong',
-    };
+  CurrencyCode.thb => 'Thailand',
+  CurrencyCode.inr => 'India',
+  CurrencyCode.usd => 'US',
+  CurrencyCode.aed => 'UAE',
+  CurrencyCode.sgd => 'Singapore',
+  CurrencyCode.aud => 'Australia',
+  CurrencyCode.eur => 'Euro',
+  CurrencyCode.jpy => 'Japan',
+  CurrencyCode.hkd => 'Hong Kong',
+};
 
 /// Template rows used when Apple on-device is unavailable.
 class OnboardingDummyTemplates {
@@ -66,7 +66,8 @@ class OnboardingDummyTemplates {
           )
         : enabledCurrencies.toSet();
     final primaryCountry = presetCountryForCurrency(primaryCurrency);
-    final secondary = secondaryCurrency ??
+    final secondary =
+        secondaryCurrency ??
         secondaryCurrencyIn(enabled, primaryCurrency: primaryCurrency);
 
     final assets = <Map<String, Object?>>[
@@ -155,7 +156,10 @@ class OnboardingDummyTemplates {
         'currencyCountry': 'Thailand',
         'name': 'Thailand equity fund',
         'total': 1200000,
-        'contextMarkdown': _regionalInvestmentContext('Thailand', CurrencyCode.thb),
+        'contextMarkdown': _regionalInvestmentContext(
+          'Thailand',
+          CurrencyCode.thb,
+        ),
       };
     }
     return null;
@@ -187,63 +191,64 @@ class OnboardingDummyTemplates {
   }
 
   static String _propertyName(String country) => switch (country) {
-        'Thailand' => 'Bangkok Condo',
-        'UAE' => 'Dubai apartment',
-        _ => 'Primary residence',
-      };
+    'Thailand' => 'Bangkok Condo',
+    'UAE' => 'Dubai apartment',
+    _ => 'Primary residence',
+  };
 
   static double _propertyTotal(String country) => switch (country) {
-        'US' => 650000.0,
-        'Thailand' => 9500000.0,
-        'India' => 4200000.0,
-        'UAE' => 2800000.0,
-        'Singapore' => 1200000.0,
-        'Hong Kong' => 8500000.0,
-        _ => 420000.0,
-      };
+    'US' => 650000.0,
+    'Thailand' => 9500000.0,
+    'India' => 4200000.0,
+    'UAE' => 2800000.0,
+    'Singapore' => 1200000.0,
+    'Hong Kong' => 8500000.0,
+    _ => 420000.0,
+  };
 
   static String _regionalInvestmentName(String country) => switch (country) {
-        'UAE' => 'UAE savings',
-        'Singapore' => 'Singapore brokerage',
-        'Thailand' => 'Thailand equity fund',
-        'Euro' => 'Eurozone index fund',
-        'Japan' => 'Japan index fund',
-        'Australia' => 'Australia index fund',
-        'Hong Kong' => 'Hong Kong equities',
-        _ => 'Regional investments',
-      };
+    'UAE' => 'UAE savings',
+    'Singapore' => 'Singapore brokerage',
+    'Thailand' => 'Thailand equity fund',
+    'Euro' => 'Eurozone index fund',
+    'Japan' => 'Japan index fund',
+    'Australia' => 'Australia index fund',
+    'Hong Kong' => 'Hong Kong equities',
+    _ => 'Regional investments',
+  };
 
   static double _regionalInvestmentTotal(String country) => switch (country) {
-        'UAE' => 180000.0,
-        'Thailand' => 1200000.0,
-        'Singapore' => 95000.0,
-        'India' => 2000000.0,
-        _ => 120000.0,
-      };
+    'UAE' => 180000.0,
+    'Thailand' => 1200000.0,
+    'Singapore' => 95000.0,
+    'India' => 2000000.0,
+    _ => 120000.0,
+  };
 
   static double _cashTotal(String country) => switch (country) {
-        'US' => 25000.0,
-        'UAE' => 45000.0,
-        'India' => 150000.0,
-        'Singapore' => 30000.0,
-        _ => 25000.0,
-      };
+    'US' => 25000.0,
+    'UAE' => 45000.0,
+    'India' => 150000.0,
+    'Singapore' => 30000.0,
+    _ => 25000.0,
+  };
 
   static double _mortgageTotal(String country) => switch (country) {
-        'Thailand' => 4200000.0,
-        'India' => 2800000.0,
-        'UAE' => 1900000.0,
-        _ => 320000.0,
-      };
+    'Thailand' => 4200000.0,
+    'India' => 2800000.0,
+    'UAE' => 1900000.0,
+    _ => 320000.0,
+  };
 
   static double _carLoanTotal(String country) => switch (country) {
-        'Thailand' => 750000.0,
-        'India' => 450000.0,
-        'UAE' => 95000.0,
-        _ => 28000.0,
-      };
+    'Thailand' => 750000.0,
+    'India' => 450000.0,
+    'UAE' => 95000.0,
+    _ => 28000.0,
+  };
 
-  static String _condoContext(String country) => '''## Primary residence
+  static String _condoContext(String country) =>
+      '''## Primary residence
 
 ### Details
 - Country: $country
@@ -348,15 +353,20 @@ List<LedgerAssetRow> _assetsFromMaps(
     final id = m['id']?.toString();
     if (id == null || !templateById.containsKey(id)) continue;
     final template = templateById[id]!;
-    final type = LedgerAssetTypeUi.fromApi(m['type']?.toString() ?? template['type']?.toString());
-    var country = m['currencyCountry']?.toString() ?? template['currencyCountry']?.toString() ?? 'US';
+    final type = LedgerAssetTypeUi.fromApi(
+      m['type']?.toString() ?? template['type']?.toString(),
+    );
+    var country =
+        m['currencyCountry']?.toString() ??
+        template['currencyCountry']?.toString() ??
+        'US';
     if (id == SeedLedgerIds.assetUsBrokerage) country = 'US';
     final totalRaw = m['total'];
     final total = totalRaw is num
         ? totalRaw.toDouble()
         : double.tryParse(totalRaw?.toString() ?? '') ??
-            (template['total'] as num?)?.toDouble() ??
-            0;
+              (template['total'] as num?)?.toDouble() ??
+              0;
     out.add(
       LedgerAssetRow(
         id: id,
@@ -366,7 +376,9 @@ List<LedgerAssetRow> _assetsFromMaps(
         total: total,
         label: '',
         comment: '',
-        contextMarkdown: m['contextMarkdown']?.toString() ?? template['contextMarkdown']?.toString(),
+        contextMarkdown:
+            m['contextMarkdown']?.toString() ??
+            template['contextMarkdown']?.toString(),
       ),
     );
   }
@@ -400,7 +412,9 @@ List<LedgerLiabilityRow> _liabilitiesFromMaps(List<Map<String, dynamic>> maps) {
         ? totalRaw.toDouble()
         : double.tryParse(totalRaw?.toString() ?? '') ?? 0;
     final ir = m['interestRatePct'];
-    final interest = ir is num ? ir.toDouble() : double.tryParse(ir?.toString() ?? '') ?? 0;
+    final interest = ir is num
+        ? ir.toDouble()
+        : double.tryParse(ir?.toString() ?? '') ?? 0;
     out.add(
       LedgerLiabilityRow(
         id: id,
@@ -425,7 +439,11 @@ Future<bool> synthesizeDummyLedgerWithApple(
   Iterable<CurrencyCode>? enabledCurrencies,
 }) async {
   if (!model.appleFoundationRuntimeAvailable) return false;
-  if (!await LlmConsentGate.ensure(context, model, LlmProvider.appleFoundation)) {
+  if (!await LlmConsentGate.ensure(
+    context,
+    model,
+    LlmProvider.appleFoundation,
+  )) {
     return false;
   }
   final enabled = OnboardingDummyTemplates.enabledCurrencies(
@@ -443,9 +461,13 @@ Future<bool> synthesizeDummyLedgerWithApple(
     'secondaryCurrencyCountry': secondaryCurrency == null
         ? null
         : presetCountryForCurrency(secondaryCurrency),
-    'enabledCurrencyCountries': [for (final c in enabled) presetCountryForCurrency(c)],
+    'enabledCurrencyCountries': [
+      for (final c in enabled) presetCountryForCurrency(c),
+    ],
     'templateAssets': templates,
-    'templateLiabilities': OnboardingDummyTemplates.liabilityTemplates(primaryCurrency),
+    'templateLiabilities': OnboardingDummyTemplates.liabilityTemplates(
+      primaryCurrency,
+    ),
   };
   try {
     const provider = LlmProvider.appleFoundation;
@@ -458,19 +480,27 @@ Future<bool> synthesizeDummyLedgerWithApple(
       user: jsonEncode(payload),
       maxOutputTokens: 2500,
     );
-    model.recordLlmRequest(provider: provider, model: modelName, tokensUsed: result.tokensUsed);
+    model.recordLlmRequest(
+      provider: provider,
+      model: modelName,
+      tokensUsed: result.tokensUsed,
+    );
     final obj = decodeLlmJsonObject(result.text);
     final assetsRaw = obj['assets'];
     final liabsRaw = obj['liabilities'];
     if (assetsRaw is! List || liabsRaw is! List) return false;
 
-    final assetMaps = [for (final e in assetsRaw) if (e is Map) Map<String, dynamic>.from(e)];
-    final liabMaps = [for (final e in liabsRaw) if (e is Map) Map<String, dynamic>.from(e)];
+    final assetMaps = [
+      for (final e in assetsRaw)
+        if (e is Map) Map<String, dynamic>.from(e),
+    ];
+    final liabMaps = [
+      for (final e in liabsRaw)
+        if (e is Map) Map<String, dynamic>.from(e),
+    ];
 
     _removeSeededDemoRows(model);
-    model.assets.addAll(
-      _assetsFromMaps(assetMaps, templates: templates),
-    );
+    model.assets.addAll(_assetsFromMaps(assetMaps, templates: templates));
     model.liabilities.addAll(_liabilitiesFromMaps(liabMaps));
     _finishDemoLedgerSetup(model);
     return true;
@@ -504,7 +534,9 @@ void applyFallbackDummyLedger(
   );
   model.liabilities.addAll(
     _liabilitiesFromMaps(
-      OnboardingDummyTemplates.liabilityTemplates(primaryCurrency).cast<Map<String, dynamic>>(),
+      OnboardingDummyTemplates.liabilityTemplates(
+        primaryCurrency,
+      ).cast<Map<String, dynamic>>(),
     ),
   );
   _finishDemoLedgerSetup(model);
@@ -551,7 +583,9 @@ void stageDemoLedgerPlaceholders(
       ),
     );
   }
-  for (final t in OnboardingDummyTemplates.liabilityTemplates(primaryCurrency)) {
+  for (final t in OnboardingDummyTemplates.liabilityTemplates(
+    primaryCurrency,
+  )) {
     model.liabilities.add(
       LedgerLiabilityRow(
         id: t['id']! as String,

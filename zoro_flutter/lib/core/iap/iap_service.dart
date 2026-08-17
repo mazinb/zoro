@@ -6,10 +6,7 @@ import '../api/zoro_api.dart';
 import '../entitlements/mobile_entitlements.dart';
 
 class IapCatalog {
-  const IapCatalog({
-    required this.proMonthly,
-    required this.credit1,
-  });
+  const IapCatalog({required this.proMonthly, required this.credit1});
 
   final ProductDetails? proMonthly;
   final ProductDetails? credit1;
@@ -18,11 +15,9 @@ class IapCatalog {
 }
 
 class IapService {
-  IapService({
-    required ZoroApi api,
-    InAppPurchase? iap,
-  })  : _api = api,
-        _iap = iap ?? InAppPurchase.instance;
+  IapService({required ZoroApi api, InAppPurchase? iap})
+    : _api = api,
+      _iap = iap ?? InAppPurchase.instance;
 
   final ZoroApi _api;
   final InAppPurchase _iap;
@@ -56,15 +51,19 @@ class IapService {
     ProductDetails? pro;
     ProductDetails? credit;
     for (final p in resp.productDetails) {
-      if (p.id.contains('pro_monthly') || p.id.endsWith('.pro_monthly')) pro = p;
+      if (p.id.contains('pro_monthly') || p.id.endsWith('.pro_monthly'))
+        pro = p;
       if (p.id.contains('credit_1') || p.id.endsWith('.credit_1')) credit = p;
     }
     _catalog = IapCatalog(proMonthly: pro, credit1: credit);
 
     // Listen to purchase updates once.
-    _sub ??= _iap.purchaseStream.listen(_onPurchaseUpdate, onError: (e) {
-      _lastError = e.toString();
-    });
+    _sub ??= _iap.purchaseStream.listen(
+      _onPurchaseUpdate,
+      onError: (e) {
+        _lastError = e.toString();
+      },
+    );
   }
 
   void dispose() {
@@ -80,7 +79,10 @@ class IapService {
       final purchaseParam = PurchaseParam(productDetails: product);
       // credit_1 is consumable; pro_monthly is subscription.
       if (product.id.contains('credit')) {
-        await _iap.buyConsumable(purchaseParam: purchaseParam, autoConsume: true);
+        await _iap.buyConsumable(
+          purchaseParam: purchaseParam,
+          autoConsume: true,
+        );
       } else {
         await _iap.buyNonConsumable(purchaseParam: purchaseParam);
       }
@@ -109,7 +111,8 @@ class IapService {
       }
 
       // Purchased or restored.
-      if (p.status == PurchaseStatus.purchased || p.status == PurchaseStatus.restored) {
+      if (p.status == PurchaseStatus.purchased ||
+          p.status == PurchaseStatus.restored) {
         try {
           // Record purchase + let backend update entitlements (currently best-effort; receipt verification can be added).
           await _api.recordMobileIap(
@@ -160,4 +163,3 @@ class IapService {
     onEntitlementsUpdated?.call(entitlements);
   }
 }
-

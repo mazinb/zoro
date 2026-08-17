@@ -10,7 +10,8 @@ bool get _shouldLogPersistErrors =>
 /// Persists app state as a manifest plus linked JSON files under application support.
 class AppStateStore {
   /// Loads a monolithic map for [AppModel.applyPersistedSnapshot].
-  static Future<Map<String, dynamic>?> load() => AppStateSplitStore.loadAsMonolithic();
+  static Future<Map<String, dynamic>?> load() =>
+      AppStateSplitStore.loadAsMonolithic();
 
   /// Saves from the in-memory monolithic snapshot produced by [AppModel.buildPersistedSnapshot].
   static Future<void> save(Map<String, dynamic> root) async {

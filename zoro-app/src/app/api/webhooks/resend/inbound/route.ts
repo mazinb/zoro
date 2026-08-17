@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
 
   for (const att of parsed.attachments) {
     if (considered >= MAX_PDFS_PER_MAIL) break;
-    const bytes = await loadAttachmentBytes(att);
+    const bytes = await loadAttachmentBytes(att, parsed.emailId);
     if (!bytes) continue;
     considered += 1;
     if (bytes.byteLength > MAX_PDF_BYTES) continue;
@@ -118,9 +118,10 @@ export async function POST(request: NextRequest) {
 }
 
 async function loadAttachmentBytes(att: {
+  attachmentId?: string;
   contentBase64?: string;
   downloadUrl?: string;
-}): Promise<Uint8Array | null> {
+}, emailId: string): Promise<Uint8Array | null> {
   if (att.contentBase64) {
     try {
       return Uint8Array.from(Buffer.from(att.contentBase64, 'base64'));
@@ -128,9 +129,25 @@ async function loadAttachmentBytes(att: {
       return null;
     }
   }
-  if (!att.downloadUrl) return null;
+  let downloadUrl = att.downloadUrl;
+  if (!downloadUrl && emailId && att.attachmentId) {
+    const apiKey = process.env.RESEND_API_KEY?.trim();
+    if (!apiKey) return null;
+    try {
+      const metadata = await fetch(
+        `https://api.resend.com/emails/receiving/${encodeURIComponent(emailId)}/attachments/${encodeURIComponent(att.attachmentId)}`,
+        { headers: { Authorization: `Bearer ${apiKey}` } },
+      );
+      if (!metadata.ok) return null;
+      const data = (await metadata.json()) as { download_url?: string };
+      downloadUrl = data.download_url;
+    } catch {
+      return null;
+    }
+  }
+  if (!downloadUrl) return null;
   try {
-    const res = await fetch(att.downloadUrl);
+    const res = await fetch(downloadUrl);
     if (!res.ok) return null;
     return new Uint8Array(await res.arrayBuffer());
   } catch {

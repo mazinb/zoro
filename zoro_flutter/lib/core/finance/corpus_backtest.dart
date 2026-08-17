@@ -57,8 +57,12 @@ List<CorpusBacktestYearRow> simulateCorpusBacktest({
 }) {
   final eqW = equityPct.clamp(0, 100) / 100;
   final debtW = 1 - eqW;
-  final overlap = equitySeries.years.toSet().intersection(debtSeries.years.toSet()).toList()..sort();
-  final years = startYear == null ? overlap : overlap.where((y) => y >= startYear).toList();
+  final overlap =
+      equitySeries.years.toSet().intersection(debtSeries.years.toSet()).toList()
+        ..sort();
+  final years = startYear == null
+      ? overlap
+      : overlap.where((y) => y >= startYear).toList();
   var corpus = initialCorpus;
   final rows = <CorpusBacktestYearRow>[];
   final inf = (inflationPctAnnual / 100).clamp(-0.5, 2.0);
@@ -71,7 +75,10 @@ List<CorpusBacktestYearRow> simulateCorpusBacktest({
     final blended = eqW * eqRet + debtW * debtRet;
     final corpusStart = corpus;
     final depleted = corpusStart + 0.5 < annualExpense;
-    final afterWithdrawal = (corpusStart - annualExpense).clamp(0, double.infinity);
+    final afterWithdrawal = (corpusStart - annualExpense).clamp(
+      0,
+      double.infinity,
+    );
     final corpusEnd = depleted ? 0.0 : afterWithdrawal * (1 + blended / 100);
     rows.add(
       CorpusBacktestYearRow(
@@ -111,7 +118,11 @@ CorpusBacktestResult runCorpusBacktest({
     equityPct: equityPct,
     startYear: startYear,
   );
-  final firstDepletion = rows.where((r) => r.depleted).map((r) => r.year).cast<int?>().firstOrNull;
+  final firstDepletion = rows
+      .where((r) => r.depleted)
+      .map((r) => r.year)
+      .cast<int?>()
+      .firstOrNull;
   final survived = rows.isNotEmpty && firstDepletion == null;
   return CorpusBacktestResult(
     initialCorpus: initialCorpus,

@@ -19,7 +19,11 @@ class ContextPlannerConfig {
   final String internalAgentId;
   final String title;
   final String initialMarkdown;
-  final Map<String, Object?> Function(AppModel model, List<Map<String, Object?>> qaHistory) buildPayload;
+  final Map<String, Object?> Function(
+    AppModel model,
+    List<Map<String, Object?>> qaHistory,
+  )
+  buildPayload;
   final bool Function(AppModel model) isTargetMissing;
   final String missingTargetMessage;
 
@@ -43,10 +47,7 @@ class ContextPlannerConfig {
         final row = m.assetById(assetId);
         if (row == null) return {'qaHistory': qa};
         return {
-          'asset': {
-            ...assetReviewLedgerPayload(m, row),
-            'label': row.label,
-          },
+          'asset': {...assetReviewLedgerPayload(m, row), 'label': row.label},
           'existingContextMarkdown': initialMarkdown,
           'contextLastUpdated': m.contextNoteLastUpdatedIso(key),
           'qaHistory': qa,
@@ -89,9 +90,16 @@ class ContextPlannerConfig {
     required String bucketKey,
     required String initialMarkdown,
   }) {
-    final label = presetForCountry(AppModel.expensePresetCountry).buckets[bucketKey]?.label ?? bucketKey;
-    final monthly = model.expenseBuckets[bucketKey] ??
-        presetForCountry(AppModel.expensePresetCountry).buckets[bucketKey]?.value ??
+    final label =
+        presetForCountry(
+          AppModel.expensePresetCountry,
+        ).buckets[bucketKey]?.label ??
+        bucketKey;
+    final monthly =
+        model.expenseBuckets[bucketKey] ??
+        presetForCountry(
+          AppModel.expensePresetCountry,
+        ).buckets[bucketKey]?.value ??
         0.0;
     final key = AppModel.contextKeyBucket(bucketKey);
     return ContextPlannerConfig(
@@ -107,7 +115,10 @@ class ContextPlannerConfig {
             'label': label,
             'monthlyEstimate': monthly,
             'currency': m.displayCurrency.name,
-            'monthlyFormatted': formatCurrencyDisplay(monthly, currency: m.displayCurrency),
+            'monthlyFormatted': formatCurrencyDisplay(
+              monthly,
+              currency: m.displayCurrency,
+            ),
           },
           'existingContextMarkdown': initialMarkdown,
           'contextLastUpdated': m.contextNoteLastUpdatedIso(key),

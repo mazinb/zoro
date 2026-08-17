@@ -5,10 +5,7 @@ import 'package:zoro_flutter/core/state/app_model.dart';
 void main() {
   group('homeSummaryCalendarDayKey', () {
     test('formats local calendar day', () {
-      expect(
-        homeSummaryCalendarDayKey(DateTime(2026, 5, 29)),
-        '2026-05-29',
-      );
+      expect(homeSummaryCalendarDayKey(DateTime(2026, 5, 29)), '2026-05-29');
     });
   });
 
@@ -18,9 +15,18 @@ void main() {
         HomeSummaryFocusDomain.assets,
         HomeSummaryFocusDomain.goals,
       ];
-      expect(homeSummaryDomainAtRotationIndex(enabled, 0), HomeSummaryFocusDomain.assets);
-      expect(homeSummaryDomainAtRotationIndex(enabled, 1), HomeSummaryFocusDomain.goals);
-      expect(homeSummaryDomainAtRotationIndex(enabled, 2), HomeSummaryFocusDomain.assets);
+      expect(
+        homeSummaryDomainAtRotationIndex(enabled, 0),
+        HomeSummaryFocusDomain.assets,
+      );
+      expect(
+        homeSummaryDomainAtRotationIndex(enabled, 1),
+        HomeSummaryFocusDomain.goals,
+      );
+      expect(
+        homeSummaryDomainAtRotationIndex(enabled, 2),
+        HomeSummaryFocusDomain.assets,
+      );
     });
   });
 
@@ -41,18 +47,27 @@ void main() {
 
     test('shouldRunHomeSummaryHelperNow respects enabled and cadence', () {
       final model = AppModel();
-      expect(model.shouldRunHomeSummaryHelperNow(DateTime(2026, 6, 2)), isFalse);
+      expect(
+        model.shouldRunHomeSummaryHelperNow(DateTime(2026, 6, 2)),
+        isFalse,
+      );
 
       model.homeMessagesEnabled = true;
       expect(model.shouldRunHomeSummaryHelperNow(DateTime(2026, 6, 2)), isTrue);
 
       model.markHomeSummaryHelperRan('2026-06-02');
-      expect(model.shouldRunHomeSummaryHelperNow(DateTime(2026, 6, 2)), isFalse);
+      expect(
+        model.shouldRunHomeSummaryHelperNow(DateTime(2026, 6, 2)),
+        isFalse,
+      );
       expect(model.shouldRunHomeSummaryHelperNow(DateTime(2026, 6, 3)), isTrue);
 
       model.homeMessagesCadence = HomeMessageCadence.weekly;
       model.markHomeSummaryHelperRan('2026-06-03');
-      expect(model.shouldRunHomeSummaryHelperNow(DateTime(2026, 6, 4)), isFalse);
+      expect(
+        model.shouldRunHomeSummaryHelperNow(DateTime(2026, 6, 4)),
+        isFalse,
+      );
       expect(model.shouldRunHomeSummaryHelperNow(DateTime(2026, 6, 9)), isTrue);
     });
 

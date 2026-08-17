@@ -11,7 +11,12 @@ import '../../shared/widgets/liquid_glass.dart';
 import 'guided_mcq_config.dart';
 
 class _Q {
-  _Q({required this.questionId, required this.prompt, required this.choices, required this.allowMultiple});
+  _Q({
+    required this.questionId,
+    required this.prompt,
+    required this.choices,
+    required this.allowMultiple,
+  });
 
   final String questionId;
   final String prompt;
@@ -20,7 +25,11 @@ class _Q {
 }
 
 class _Answered {
-  _Answered({required this.q, required this.selectedIds, required this.freeText});
+  _Answered({
+    required this.q,
+    required this.selectedIds,
+    required this.freeText,
+  });
 
   final _Q q;
   final Set<String> selectedIds;
@@ -38,7 +47,8 @@ class GuidedMcqPage extends StatefulWidget {
   State<GuidedMcqPage> createState() => _GuidedMcqPageState();
 }
 
-class _GuidedMcqPageState extends State<GuidedMcqPage> with SingleTickerProviderStateMixin {
+class _GuidedMcqPageState extends State<GuidedMcqPage>
+    with SingleTickerProviderStateMixin {
   final _done = <_Answered>[];
   _Q? _current;
 
@@ -58,8 +68,14 @@ class _GuidedMcqPageState extends State<GuidedMcqPage> with SingleTickerProvider
   void initState() {
     super.initState();
     _optionalNoteCtrl = TextEditingController();
-    _tickController = AnimationController(vsync: this, duration: const Duration(milliseconds: 550));
-    _tickScale = CurvedAnimation(parent: _tickController, curve: Curves.elasticOut);
+    _tickController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 550),
+    );
+    _tickScale = CurvedAnimation(
+      parent: _tickController,
+      curve: Curves.elasticOut,
+    );
     _runPlanner();
   }
 
@@ -122,7 +138,9 @@ Merge subject data, existingContextMarkdown, and qaHistory. The structured block
 
   String _plannerSystem() {
     final def = internalAppAgentDefinitionById(widget.config.internalAgentId);
-    final user = widget.model.internalAgentSystemPrompt(widget.config.internalAgentId).trim();
+    final user = widget.model
+        .internalAgentSystemPrompt(widget.config.internalAgentId)
+        .trim();
     final hints = def?.modelDomainHints.trim() ?? '';
     return [
       _plannerOrchestrator,
@@ -141,7 +159,10 @@ Merge subject data, existingContextMarkdown, and qaHistory. The structured block
     if (m.activeLlmProvider != LlmProvider.appleFoundation) {
       return jsonEncode(payload);
     }
-    final prepared = await _budgetService.prepareUserPayload(system: system, payload: payload);
+    final prepared = await _budgetService.prepareUserPayload(
+      system: system,
+      payload: payload,
+    );
     if (prepared.trimmed) {
       _setStateIfMounted(() => _contextTrimmed = true);
     }
@@ -150,7 +171,9 @@ Merge subject data, existingContextMarkdown, and qaHistory. The structured block
 
   String _synthSystem() {
     final def = internalAppAgentDefinitionById(widget.config.internalAgentId);
-    final user = widget.model.internalAgentSystemPrompt(widget.config.internalAgentId).trim();
+    final user = widget.model
+        .internalAgentSystemPrompt(widget.config.internalAgentId)
+        .trim();
     final hints = def?.modelDomainHints.trim() ?? '';
     return [
       _synthOrchestrator,
@@ -245,7 +268,12 @@ Merge subject data, existingContextMarkdown, and qaHistory. The structured block
         _optionalNoteCtrl.clear();
         _setStateIfMounted(() {
           _loading = false;
-          _current = _Q(questionId: qid, prompt: prompt, choices: choices, allowMultiple: allowMulti);
+          _current = _Q(
+            questionId: qid,
+            prompt: prompt,
+            choices: choices,
+            allowMultiple: allowMulti,
+          );
           _selected.clear();
         });
         return;
@@ -304,7 +332,9 @@ Merge subject data, existingContextMarkdown, and qaHistory. The structured block
       Map<String, Object?> structured = {};
       final s = obj['structured'];
       if (s is Map) {
-        structured = Map<String, Object?>.from(s.map((k, v) => MapEntry(k.toString(), v)));
+        structured = Map<String, Object?>.from(
+          s.map((k, v) => MapEntry(k.toString(), v)),
+        );
       }
       if (md.isEmpty) {
         _setStateIfMounted(() {
@@ -326,7 +356,10 @@ Merge subject data, existingContextMarkdown, and qaHistory. The structured block
     }
   }
 
-  Future<void> _playSuccessAndPop(String md, Map<String, Object?> structured) async {
+  Future<void> _playSuccessAndPop(
+    String md,
+    Map<String, Object?> structured,
+  ) async {
     _setStateIfMounted(() {
       _success = true;
       _current = null;
@@ -334,9 +367,14 @@ Merge subject data, existingContextMarkdown, and qaHistory. The structured block
     _tickController.forward(from: 0);
     await Future<void>.delayed(const Duration(milliseconds: 1100));
     if (!mounted) return;
-    widget.model.recordInternalAgentRun(widget.config.internalAgentId, structured);
+    widget.model.recordInternalAgentRun(
+      widget.config.internalAgentId,
+      structured,
+    );
     if (!mounted) return;
-    Navigator.of(context).pop(GuidedMcqResult(contextMarkdown: md, structured: structured));
+    Navigator.of(
+      context,
+    ).pop(GuidedMcqResult(contextMarkdown: md, structured: structured));
   }
 
   void _onContinue() {
@@ -352,11 +390,13 @@ Merge subject data, existingContextMarkdown, and qaHistory. The structured block
       return;
     }
 
-    _done.add(_Answered(
-      q: _current!,
-      selectedIds: Set<String>.from(_selected),
-      freeText: note,
-    ));
+    _done.add(
+      _Answered(
+        q: _current!,
+        selectedIds: Set<String>.from(_selected),
+        freeText: note,
+      ),
+    );
     setState(() {
       _current = null;
       _selected.clear();
@@ -387,8 +427,14 @@ Merge subject data, existingContextMarkdown, and qaHistory. The structured block
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.config.title, style: const TextStyle(fontWeight: FontWeight.w900)),
-        leading: IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.of(context).pop()),
+        title: Text(
+          widget.config.title,
+          style: const TextStyle(fontWeight: FontWeight.w900),
+        ),
+        leading: IconButton(
+          icon: const Icon(Icons.close),
+          onPressed: () => Navigator.of(context).pop(),
+        ),
       ),
       body: Stack(
         children: [
@@ -399,7 +445,11 @@ Merge subject data, existingContextMarkdown, and qaHistory. The structured block
               child: Center(
                 child: ScaleTransition(
                   scale: _tickScale,
-                  child: Icon(Icons.check_circle_rounded, size: 88, color: accent),
+                  child: Icon(
+                    Icons.check_circle_rounded,
+                    size: 88,
+                    color: accent,
+                  ),
                 ),
               ),
             ),
@@ -420,7 +470,10 @@ Merge subject data, existingContextMarkdown, and qaHistory. The structured block
           children: [
             Text(_error!, style: TextStyle(color: cs.error)),
             const SizedBox(height: 16),
-            FilledButton(onPressed: _runPlanner, child: const Text('Try again')),
+            FilledButton(
+              onPressed: _runPlanner,
+              child: const Text('Try again'),
+            ),
           ],
         ),
       );
@@ -451,7 +504,13 @@ Merge subject data, existingContextMarkdown, and qaHistory. The structured block
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             child: Row(
               children: [
-                Text('Step $stepNum', style: TextStyle(fontWeight: FontWeight.w900, color: cs.onSurfaceVariant)),
+                Text(
+                  'Step $stepNum',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    color: cs.onSurfaceVariant,
+                  ),
+                ),
                 const Spacer(),
                 for (var i = 0; i < _done.length; i++)
                   Padding(
@@ -462,7 +521,14 @@ Merge subject data, existingContextMarkdown, and qaHistory. The structured block
                       child: CircleAvatar(
                         radius: 14,
                         backgroundColor: accent.withValues(alpha: 0.15),
-                        child: Text('${i + 1}', style: TextStyle(color: accent, fontSize: 12, fontWeight: FontWeight.w900)),
+                        child: Text(
+                          '${i + 1}',
+                          style: TextStyle(
+                            color: accent,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -471,18 +537,34 @@ Merge subject data, existingContextMarkdown, and qaHistory. The structured block
                   child: CircleAvatar(
                     radius: 14,
                     backgroundColor: accent,
-                    child: Text('$stepNum', style: TextStyle(color: cs.onPrimary, fontSize: 12, fontWeight: FontWeight.w900)),
+                    child: Text(
+                      '$stepNum',
+                      style: TextStyle(
+                        color: cs.onPrimary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
                   ),
                 ),
               ],
             ),
           ),
           const SizedBox(height: 14),
-          Text(q.prompt, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900)),
+          Text(
+            q.prompt,
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+          ),
           const SizedBox(height: 6),
           Text(
             q.allowMultiple ? 'Select all that apply' : 'Pick one',
-            style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12, fontWeight: FontWeight.w600),
+            style: TextStyle(
+              color: cs.onSurfaceVariant,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           const SizedBox(height: 12),
           Expanded(
@@ -492,7 +574,10 @@ Merge subject data, existingContextMarkdown, and qaHistory. The structured block
                   Padding(
                     padding: const EdgeInsets.only(bottom: 8),
                     child: FilterChip(
-                      label: Text(c['label'] ?? '', style: const TextStyle(fontWeight: FontWeight.w700)),
+                      label: Text(
+                        c['label'] ?? '',
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
                       selected: _selected.contains(c['id']),
                       onSelected: (on) {
                         setState(() {

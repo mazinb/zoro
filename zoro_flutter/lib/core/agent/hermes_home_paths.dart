@@ -3,6 +3,9 @@ abstract final class HermesHomePaths {
   static const rootDir = 'hermes_home';
 
   static const noBundledSkillsFile = 'hermes_home/.no-bundled-skills';
+  static const configFile = 'hermes_home/config.yaml';
+  static const agentsFile = 'hermes_home/AGENTS.md';
+  static const soulFile = 'hermes_home/SOUL.md';
   static const identityFile = 'hermes_home/identity.json';
   static const vaultIndexFile = 'hermes_home/vault_index.json';
   static const docsDir = 'hermes_home/docs';
@@ -14,6 +17,8 @@ abstract final class HermesHomePaths {
   static const skillsDir = 'hermes_home/skills';
   static const skillsManifestFile = 'hermes_home/skills/_manifest.json';
   static const cronDir = 'hermes_home/cron';
+  static const chatDir = 'hermes_home/chat';
+  static const chatHistoryFile = 'hermes_home/chat/history.json';
   static const logFile = 'hermes_home/log/agent.jsonl';
 
   static const retirementDocId = 'retirement';

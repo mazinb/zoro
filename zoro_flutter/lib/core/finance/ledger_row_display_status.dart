@@ -5,7 +5,10 @@ import 'currency.dart';
 import 'row_review_result.dart';
 
 /// Cashflow savings/invest amounts **applied** to this asset (Cash tab linking only).
-RowReviewResult? cashflowLinkedCautionForAsset(AppModel model, LedgerAssetRow row) {
+RowReviewResult? cashflowLinkedCautionForAsset(
+  AppModel model,
+  LedgerAssetRow row,
+) {
   final credits = cashflowCreditsForAsset(model, row.id);
   if (!credits.hasCredits) return null;
   final amt = formatCurrencyDisplay(
@@ -22,7 +25,10 @@ RowReviewResult? cashflowLinkedCautionForAsset(AppModel model, LedgerAssetRow ro
   );
 }
 
-RowReviewResult? cashflowLinkedCautionForLiability(AppModel model, LedgerLiabilityRow row) {
+RowReviewResult? cashflowLinkedCautionForLiability(
+  AppModel model,
+  LedgerLiabilityRow row,
+) {
   var total = 0.0;
   for (final mk in model.monthKeysWithCashflowData()) {
     final e = model.monthlyEntryFor(mk);
@@ -45,10 +51,10 @@ RowReviewResult? cashflowLinkedCautionForLiability(AppModel model, LedgerLiabili
 }
 
 int _rank(RowReviewLevel l) => switch (l) {
-      RowReviewLevel.ok => 0,
-      RowReviewLevel.caution => 1,
-      RowReviewLevel.broken => 2,
-    };
+  RowReviewLevel.ok => 0,
+  RowReviewLevel.caution => 1,
+  RowReviewLevel.broken => 2,
+};
 
 /// Prefer the stricter of two statuses (for icon + subtitle).
 RowReviewResult? mergeRowReviewResults(RowReviewResult? a, RowReviewResult? b) {

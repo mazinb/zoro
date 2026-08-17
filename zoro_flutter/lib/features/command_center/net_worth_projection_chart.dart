@@ -23,7 +23,8 @@ class NetWorthProjectionBarChart extends StatefulWidget {
   final ValueChanged<int> onTapYear;
 
   @override
-  State<NetWorthProjectionBarChart> createState() => _NetWorthProjectionBarChartState();
+  State<NetWorthProjectionBarChart> createState() =>
+      _NetWorthProjectionBarChartState();
 }
 
 class _NetWorthProjectionBarChartState extends State<NetWorthProjectionBarChart>
@@ -58,11 +59,16 @@ class _NetWorthProjectionBarChartState extends State<NetWorthProjectionBarChart>
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, c) {
-        final w = c.maxWidth.isFinite && c.maxWidth > 0 ? c.maxWidth : MediaQuery.sizeOf(context).width;
+        final w = c.maxWidth.isFinite && c.maxWidth > 0
+            ? c.maxWidth
+            : MediaQuery.sizeOf(context).width;
         const h = 300.0;
         final maxVal = widget.series.isEmpty
             ? 1.0
-            : widget.series.map((e) => e.clamp(0, double.infinity)).reduce(math.max).toDouble();
+            : widget.series
+                  .map((e) => e.clamp(0, double.infinity))
+                  .reduce(math.max)
+                  .toDouble();
         return AnimatedBuilder(
           animation: _fill,
           builder: (context, _) {
@@ -75,9 +81,15 @@ class _NetWorthProjectionBarChartState extends State<NetWorthProjectionBarChart>
                   final n = widget.series.length;
                   if (n == 0) return;
                   const pad = 8.0;
-                  final innerW = ((w - 2 * pad).clamp(1.0, double.infinity)).toDouble();
+                  final innerW = ((w - 2 * pad).clamp(
+                    1.0,
+                    double.infinity,
+                  )).toDouble();
                   final barW = innerW / n;
-                  final i = ((d.localPosition.dx - pad) / barW).floor().clamp(0, n - 1);
+                  final i = ((d.localPosition.dx - pad) / barW).floor().clamp(
+                    0,
+                    n - 1,
+                  );
                   widget.onTapYear(i);
                 },
                 child: CustomPaint(
@@ -88,7 +100,9 @@ class _NetWorthProjectionBarChartState extends State<NetWorthProjectionBarChart>
                     selectedYearIndex: widget.selectedYearIndex,
                     selectionBreakdown: widget.selectionBreakdown,
                     fillProgress: _fill.value,
-                    barStroke: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.35),
+                    barStroke: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withValues(alpha: 0.35),
                     barPrimary: Theme.of(context).colorScheme.primary,
                   ),
                 ),
@@ -194,7 +208,10 @@ class _ProjectionBarPainter extends CustomPainter {
     }
 
     canvas.drawRRect(
-      RRect.fromRectAndRadius(Rect.fromLTWH(x, baseY - totalH, barInnerW, totalH), _r),
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(x, baseY - totalH, barInnerW, totalH),
+        _r,
+      ),
       Paint()
         ..color = barStroke
         ..style = PaintingStyle.stroke
@@ -226,7 +243,9 @@ class _ProjectionBarPainter extends CustomPainter {
 
       if (isSel && selectionBreakdown != null && h > 1e-6) {
         final b = selectionBreakdown!;
-        final nw0 = series.isNotEmpty ? series[0].clamp(0, double.infinity) : 0.0;
+        final nw0 = series.isNotEmpty
+            ? series[0].clamp(0, double.infinity)
+            : 0.0;
         late final double hLight;
         late final double hBlue;
         late final double hGreen;
@@ -247,7 +266,16 @@ class _ProjectionBarPainter extends CustomPainter {
             hGreen = hRem;
           }
         }
-        _paintThreeStack(canvas, barInnerX, barInnerW, baseY, h, hLight, hBlue, hGreen);
+        _paintThreeStack(
+          canvas,
+          barInnerX,
+          barInnerW,
+          baseY,
+          h,
+          hLight,
+          hBlue,
+          hGreen,
+        );
         continue;
       }
 

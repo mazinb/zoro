@@ -17,7 +17,9 @@ void main() {
     expect(countries, isNot(contains('Thailand')));
     expect(countries, contains('UAE'));
 
-    final india = templates.where((t) => t['id'] == SeedLedgerIds.assetIndiaIndex);
+    final india = templates.where(
+      (t) => t['id'] == SeedLedgerIds.assetIndiaIndex,
+    );
     expect(india, isNotEmpty);
     expect(india.first['name'], 'UAE savings');
     expect(india.first['currencyCountry'], 'UAE');
@@ -28,7 +30,9 @@ void main() {
       primaryCurrency: CurrencyCode.usd,
       enabledCurrencies: {CurrencyCode.usd, CurrencyCode.inr},
     );
-    final india = templates.singleWhere((t) => t['id'] == SeedLedgerIds.assetIndiaIndex);
+    final india = templates.singleWhere(
+      (t) => t['id'] == SeedLedgerIds.assetIndiaIndex,
+    );
     expect(india['name'], 'India Index Fund');
     expect(india['currencyCountry'], 'India');
   });
@@ -38,7 +42,9 @@ void main() {
       primaryCurrency: CurrencyCode.usd,
       enabledCurrencies: {CurrencyCode.usd, CurrencyCode.thb},
     );
-    final cash = templates.singleWhere((t) => t['id'] == SeedLedgerIds.assetThaiCash);
+    final cash = templates.singleWhere(
+      (t) => t['id'] == SeedLedgerIds.assetThaiCash,
+    );
     expect(cash['currencyCountry'], 'Thailand');
   });
 
@@ -47,7 +53,9 @@ void main() {
       primaryCurrency: CurrencyCode.aed,
       enabledCurrencies: {CurrencyCode.aed},
     );
-    final brokerage = templates.singleWhere((t) => t['id'] == SeedLedgerIds.assetUsBrokerage);
+    final brokerage = templates.singleWhere(
+      (t) => t['id'] == SeedLedgerIds.assetUsBrokerage,
+    );
     expect(brokerage['currencyCountry'], 'US');
   });
 }

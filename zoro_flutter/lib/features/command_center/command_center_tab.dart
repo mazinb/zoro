@@ -19,6 +19,7 @@ class CommandCenterTab extends StatefulWidget {
     required this.onGoToLedger,
     this.onGoToGoals,
     this.onOpenGoalsHelper,
+
     /// When set (e.g. in tests), reminder copy and overdue highlighting use this instead of [DateTime.now].
     this.previewNowForReminders,
   });
@@ -33,7 +34,8 @@ class CommandCenterTab extends StatefulWidget {
   State<CommandCenterTab> createState() => _CommandCenterTabState();
 }
 
-class _CommandCenterTabState extends State<CommandCenterTab> with TickerProviderStateMixin {
+class _CommandCenterTabState extends State<CommandCenterTab>
+    with TickerProviderStateMixin {
   SankeyNode? _selectedNode;
   bool _expanded = false;
   _SelectedKind? _selectedKind;
@@ -75,7 +77,11 @@ class _CommandCenterTabState extends State<CommandCenterTab> with TickerProvider
     }
   }
 
-  Widget _projectionCaption(BuildContext context, List<double> series, bool hideNet) {
+  Widget _projectionCaption(
+    BuildContext context,
+    List<double> series,
+    bool hideNet,
+  ) {
     final baseStyle = TextStyle(
       color: Theme.of(context).colorScheme.onSurfaceVariant,
       fontWeight: FontWeight.w800,
@@ -91,9 +97,18 @@ class _CommandCenterTabState extends State<CommandCenterTab> with TickerProvider
 
     final b = widget.model.projectionYearBreakdown(y, series);
     final total = series[y];
-    final totalM = formatCurrencyDisplay(total, currency: widget.model.displayCurrency);
-    final savedM = formatCurrencyDisplay(b.surplusPrincipal, currency: widget.model.displayCurrency);
-    final retM = formatCurrencyDisplay(b.surplusReturns, currency: widget.model.displayCurrency);
+    final totalM = formatCurrencyDisplay(
+      total,
+      currency: widget.model.displayCurrency,
+    );
+    final savedM = formatCurrencyDisplay(
+      b.surplusPrincipal,
+      currency: widget.model.displayCurrency,
+    );
+    final retM = formatCurrencyDisplay(
+      b.surplusReturns,
+      currency: widget.model.displayCurrency,
+    );
     final label = y == 0 ? 'Now' : 'Year $y';
 
     if (hideNet) {
@@ -105,7 +120,11 @@ class _CommandCenterTabState extends State<CommandCenterTab> with TickerProvider
     }
 
     if (y == 0) {
-      return Text('$label • $totalM', textAlign: TextAlign.center, style: baseStyle);
+      return Text(
+        '$label • $totalM',
+        textAlign: TextAlign.center,
+        style: baseStyle,
+      );
     }
 
     return Text.rich(
@@ -116,12 +135,18 @@ class _CommandCenterTabState extends State<CommandCenterTab> with TickerProvider
           const TextSpan(text: ' · '),
           TextSpan(
             text: savedM,
-            style: TextStyle(color: Theme.of(context).colorScheme.primary, fontWeight: FontWeight.w900),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.primary,
+              fontWeight: FontWeight.w900,
+            ),
           ),
           const TextSpan(text: ' · '),
           TextSpan(
             text: retM,
-            style: const TextStyle(color: Color(0xFF10B981), fontWeight: FontWeight.w900),
+            style: const TextStyle(
+              color: Color(0xFF10B981),
+              fontWeight: FontWeight.w900,
+            ),
           ),
         ],
       ),
@@ -130,7 +155,11 @@ class _CommandCenterTabState extends State<CommandCenterTab> with TickerProvider
   }
 
   /// Subtitle under the hero net worth when 10-year projection is on: year-10 surplus vs returns (bar key colors).
-  Widget _tenYearProjectionSubtitle(BuildContext context, List<double> projSeries, bool hideNet) {
+  Widget _tenYearProjectionSubtitle(
+    BuildContext context,
+    List<double> projSeries,
+    bool hideNet,
+  ) {
     final meta = TextStyle(
       color: Theme.of(context).colorScheme.outline,
       fontSize: 11,
@@ -155,8 +184,14 @@ class _CommandCenterTabState extends State<CommandCenterTab> with TickerProvider
     }
     final year10Index = projSeries.length - 1;
     final b = widget.model.projectionYearBreakdown(year10Index, projSeries);
-    final savedM = formatCurrencyDisplay(b.surplusPrincipal, currency: widget.model.displayCurrency);
-    final retM = formatCurrencyDisplay(b.surplusReturns, currency: widget.model.displayCurrency);
+    final savedM = formatCurrencyDisplay(
+      b.surplusPrincipal,
+      currency: widget.model.displayCurrency,
+    );
+    final retM = formatCurrencyDisplay(
+      b.surplusReturns,
+      currency: widget.model.displayCurrency,
+    );
 
     if (hideNet) {
       return Text(
@@ -188,10 +223,15 @@ class _CommandCenterTabState extends State<CommandCenterTab> with TickerProvider
   @override
   Widget build(BuildContext context) {
     final sankey = _SankeyModel.fromApp(widget.model);
-    final showExpenseDetails = !_tenYearProjection && _selectedKind == _SelectedKind.expenses && _expanded;
+    final showExpenseDetails =
+        !_tenYearProjection &&
+        _selectedKind == _SelectedKind.expenses &&
+        _expanded;
     final hideNet = widget.model.privacyHideAmounts;
     final projSeries = widget.model.netWorthProjection11Y();
-    final projected10 = projSeries.isNotEmpty ? projSeries.last : widget.model.netWorthDisplay;
+    final projected10 = projSeries.isNotEmpty
+        ? projSeries.last
+        : widget.model.netWorthDisplay;
     final now = widget.previewNowForReminders ?? DateTime.now();
     final cs = Theme.of(context).colorScheme;
     final reminders = <_ReminderItem>[
@@ -235,7 +275,10 @@ class _CommandCenterTabState extends State<CommandCenterTab> with TickerProvider
         _ReminderItem(
           rowKey: const ValueKey<String>('reminder-goals'),
           title: 'Plan',
-          detail: _lastUpdatedDetail(widget.model.retirementPlanLastUpdatedAt(), now),
+          detail: _lastUpdatedDetail(
+            widget.model.retirementPlanLastUpdatedAt(),
+            now,
+          ),
           onTap: widget.onGoToGoals ?? widget.onOpenGoalsHelper ?? () {},
           icon: Icons.smart_toy_outlined,
           overdue: widget.model.goalsReviewOverdueAt(now),
@@ -256,9 +299,8 @@ class _CommandCenterTabState extends State<CommandCenterTab> with TickerProvider
                     alignment: Alignment.centerLeft,
                     child: Text(
                       'Home',
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.w900,
-                          ),
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(fontWeight: FontWeight.w900),
                     ),
                   ),
                 ),
@@ -274,24 +316,43 @@ class _CommandCenterTabState extends State<CommandCenterTab> with TickerProvider
                             for (final c in options)
                               ButtonSegment(
                                 value: c,
-                                label: Text(c == CurrencyCode.usd ? 'USD' : c.code),
+                                label: Text(
+                                  c == CurrencyCode.usd ? 'USD' : c.code,
+                                ),
                               ),
                           ],
                           selected: {widget.model.displayCurrency},
-                          onSelectionChanged: (s) => widget.model.setDisplayCurrency(s.first),
+                          onSelectionChanged: (s) =>
+                              widget.model.setDisplayCurrency(s.first),
                           style: ButtonStyle(
-                            minimumSize: const WidgetStatePropertyAll(Size(0, 44)),
-                            padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 12, vertical: 12)),
+                            minimumSize: const WidgetStatePropertyAll(
+                              Size(0, 44),
+                            ),
+                            padding: const WidgetStatePropertyAll(
+                              EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 12,
+                              ),
+                            ),
                             tapTargetSize: MaterialTapTargetSize.padded,
-                            side: WidgetStatePropertyAll(BorderSide(color: cs.outlineVariant)),
-                            backgroundColor: WidgetStateProperty.resolveWith((states) {
+                            side: WidgetStatePropertyAll(
+                              BorderSide(color: cs.outlineVariant),
+                            ),
+                            backgroundColor: WidgetStateProperty.resolveWith((
+                              states,
+                            ) {
                               if (states.contains(WidgetState.selected)) {
-                                return widget.model.accent.withValues(alpha: 0.12);
+                                return widget.model.accent.withValues(
+                                  alpha: 0.12,
+                                );
                               }
                               return cs.surfaceContainerHigh;
                             }),
-                            foregroundColor: WidgetStateProperty.resolveWith((states) {
-                              if (states.contains(WidgetState.selected)) return widget.model.accent;
+                            foregroundColor: WidgetStateProperty.resolveWith((
+                              states,
+                            ) {
+                              if (states.contains(WidgetState.selected))
+                                return widget.model.accent;
                               return cs.onSurfaceVariant;
                             }),
                           ),
@@ -321,12 +382,16 @@ class _CommandCenterTabState extends State<CommandCenterTab> with TickerProvider
                           hideNet
                               ? maskSensitiveNumberString(
                                   formatCurrencyDisplay(
-                                    _tenYearProjection ? projected10 : widget.model.netWorthDisplay,
+                                    _tenYearProjection
+                                        ? projected10
+                                        : widget.model.netWorthDisplay,
                                     currency: widget.model.displayCurrency,
                                   ),
                                 )
                               : formatCurrencyDisplay(
-                                  _tenYearProjection ? projected10 : widget.model.netWorthDisplay,
+                                  _tenYearProjection
+                                      ? projected10
+                                      : widget.model.netWorthDisplay,
                                   currency: widget.model.displayCurrency,
                                 ),
                           textAlign: TextAlign.center,
@@ -334,20 +399,26 @@ class _CommandCenterTabState extends State<CommandCenterTab> with TickerProvider
                             fontWeight: FontWeight.w900,
                             fontSize: 26,
                             height: 1.1,
-                            color: hideNet ? cs.outline.withValues(alpha: 0.9) : cs.onSurface,
+                            color: hideNet
+                                ? cs.outline.withValues(alpha: 0.9)
+                                : cs.onSurface,
                           ),
                         ),
                         const SizedBox(height: 2),
                         _tenYearProjection
-                            ? _tenYearProjectionSubtitle(context, projSeries, hideNet)
+                            ? _tenYearProjectionSubtitle(
+                                context,
+                                projSeries,
+                                hideNet,
+                              )
                             : Text(
                                 hideNet
                                     ? maskSensitiveNumberString(
                                         'Assets ${formatCurrencyDisplay(widget.model.totalAssetsDisplay, currency: widget.model.displayCurrency)} • '
-                                            'Liabilities ${formatCurrencyDisplay(widget.model.totalLiabilitiesDisplay, currency: widget.model.displayCurrency)}',
+                                        'Liabilities ${formatCurrencyDisplay(widget.model.totalLiabilitiesDisplay, currency: widget.model.displayCurrency)}',
                                       )
                                     : 'Assets ${formatCurrencyDisplay(widget.model.totalAssetsDisplay, currency: widget.model.displayCurrency)} • '
-                                        'Liabilities ${formatCurrencyDisplay(widget.model.totalLiabilitiesDisplay, currency: widget.model.displayCurrency)}',
+                                          'Liabilities ${formatCurrencyDisplay(widget.model.totalLiabilitiesDisplay, currency: widget.model.displayCurrency)}',
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
                                   color: cs.outline,
@@ -360,16 +431,26 @@ class _CommandCenterTabState extends State<CommandCenterTab> with TickerProvider
                     ),
                   ),
                   IconButton.filledTonal(
-                    onPressed: () => widget.model.setPrivacyHideAmounts(!widget.model.privacyHideAmounts),
+                    onPressed: () => widget.model.setPrivacyHideAmounts(
+                      !widget.model.privacyHideAmounts,
+                    ),
                     tooltip: hideNet ? 'Show amounts' : 'Hide amounts',
                     visualDensity: VisualDensity.compact,
                     padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                    constraints: const BoxConstraints(
+                      minWidth: 40,
+                      minHeight: 40,
+                    ),
                     style: IconButton.styleFrom(
                       backgroundColor: widget.model.accentSoft,
                       foregroundColor: widget.model.accent,
                     ),
-                    icon: Icon(hideNet ? Icons.visibility_outlined : Icons.visibility_off_outlined, size: 22),
+                    icon: Icon(
+                      hideNet
+                          ? Icons.visibility_outlined
+                          : Icons.visibility_off_outlined,
+                      size: 22,
+                    ),
                   ),
                 ],
               ),
@@ -405,29 +486,44 @@ class _CommandCenterTabState extends State<CommandCenterTab> with TickerProvider
                               ? Transform(
                                   alignment: Alignment.center,
                                   transformHitTests: true,
-                                  transform: Matrix4.identity()..rotateY(math.pi),
+                                  transform: Matrix4.identity()
+                                    ..rotateY(math.pi),
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
                                     children: [
-                                        Padding(
-                                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                                          child: _projectionCaption(context, projSeries, hideNet),
+                                      Padding(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 16,
                                         ),
+                                        child: _projectionCaption(
+                                          context,
+                                          projSeries,
+                                          hideNet,
+                                        ),
+                                      ),
                                       const SizedBox(height: 10),
                                       SizedBox(
                                         height: 300,
                                         width: double.infinity,
                                         child: NetWorthProjectionBarChart(
-                                          key: const ValueKey<String>('nw-proj-chart'),
+                                          key: const ValueKey<String>(
+                                            'nw-proj-chart',
+                                          ),
                                           series: projSeries,
-                                          selectedYearIndex: _projectionSelectedYear,
-                                          selectionBreakdown: _projectionSelectedYear == null
+                                          selectedYearIndex:
+                                              _projectionSelectedYear,
+                                          selectionBreakdown:
+                                              _projectionSelectedYear == null
                                               ? null
-                                              : widget.model.projectionYearBreakdown(
-                                                  _projectionSelectedYear!,
-                                                  projSeries,
-                                                ),
-                                          onTapYear: (i) => setState(() => _projectionSelectedYear = i),
+                                              : widget.model
+                                                    .projectionYearBreakdown(
+                                                      _projectionSelectedYear!,
+                                                      projSeries,
+                                                    ),
+                                          onTapYear: (i) => setState(
+                                            () => _projectionSelectedYear = i,
+                                          ),
                                         ),
                                       ),
                                     ],
@@ -440,23 +536,35 @@ class _CommandCenterTabState extends State<CommandCenterTab> with TickerProvider
                                   onNodeSelected: (n) {
                                     setState(() {
                                       _selectedNode = n;
-                                      _selectedKind = _kindFromLabel(n?.displayLabel);
+                                      _selectedKind = _kindFromLabel(
+                                        n?.displayLabel,
+                                      );
                                     });
                                   },
                                   onTapFlow: (f) async {
                                     if (widget.model.privacyHideAmounts) return;
-                                    final v0 = await _quickEditValue(context, f.label, f.monthly);
+                                    final v0 = await _quickEditValue(
+                                      context,
+                                      f.label,
+                                      f.monthly,
+                                    );
                                     if (v0 != null) {
-                                      if (f.kind == _FlowKind.expenseBucket && f.expenseKey != null) {
+                                      if (f.kind == _FlowKind.expenseBucket &&
+                                          f.expenseKey != null) {
                                         final key = f.expenseKey!;
                                         widget.model.setExpenseBucket(key, v0);
-                                      } else if (f.kind == _FlowKind.allocation && f.allocationKey != null) {
+                                      } else if (f.kind ==
+                                              _FlowKind.allocation &&
+                                          f.allocationKey != null) {
                                         switch (f.allocationKey) {
                                           case 'investments':
-                                            widget.model.setAllocationInvestments(v0);
+                                            widget.model
+                                                .setAllocationInvestments(v0);
                                             break;
                                           case 'savings':
-                                            widget.model.setAllocationSavings(v0);
+                                            widget.model.setAllocationSavings(
+                                              v0,
+                                            );
                                             break;
                                         }
                                       }
@@ -473,31 +581,45 @@ class _CommandCenterTabState extends State<CommandCenterTab> with TickerProvider
                       child: AnimatedBuilder(
                         animation: _chartFlipController,
                         builder: (context, _) {
-                          final faceProjection = _chartFlipController.value >= 0.5;
+                          final faceProjection =
+                              _chartFlipController.value >= 0.5;
                           final pillCs = Theme.of(context).colorScheme;
                           return Center(
                             child: DecoratedBox(
                               decoration: BoxDecoration(
-                                color: pillCs.surfaceContainerHigh.withValues(alpha: 0.97),
+                                color: pillCs.surfaceContainerHigh.withValues(
+                                  alpha: 0.97,
+                                ),
                                 borderRadius: BorderRadius.circular(21),
                                 boxShadow: [
                                   BoxShadow(
                                     color: pillCs.shadow.withValues(
-                                      alpha: Theme.of(context).brightness == Brightness.dark ? 0.4 : 0.08,
+                                      alpha:
+                                          Theme.of(context).brightness ==
+                                              Brightness.dark
+                                          ? 0.4
+                                          : 0.08,
                                     ),
                                     blurRadius: 8,
                                     offset: const Offset(0, 2),
                                   ),
                                 ],
-                                border: Border.all(color: pillCs.outlineVariant),
+                                border: Border.all(
+                                  color: pillCs.outlineVariant,
+                                ),
                               ),
                               child: Material(
                                 type: MaterialType.transparency,
                                 child: InkWell(
                                   borderRadius: BorderRadius.circular(21),
-                                  onTap: _chartFlipController.isAnimating ? null : _toggleTenYearProjection,
+                                  onTap: _chartFlipController.isAnimating
+                                      ? null
+                                      : _toggleTenYearProjection,
                                   child: Padding(
-                                    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 18,
+                                      vertical: 9,
+                                    ),
                                     child: Text(
                                       faceProjection ? 'Flow' : '10 yrs',
                                       style: TextStyle(
@@ -524,7 +646,8 @@ class _CommandCenterTabState extends State<CommandCenterTab> with TickerProvider
                       expanded: _expanded,
                       onGoToLedger: widget.onGoToLedger,
                       onGoToGoals: widget.onGoToGoals,
-                      onToggleDetails: () => setState(() => _expanded = !_expanded),
+                      onToggleDetails: () =>
+                          setState(() => _expanded = !_expanded),
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -548,14 +671,21 @@ class _CommandCenterTabState extends State<CommandCenterTab> with TickerProvider
           const SizedBox(height: 12),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: _RemindersCard(items: reminders, accent: widget.model.accent),
+            child: _RemindersCard(
+              items: reminders,
+              accent: widget.model.accent,
+            ),
           ),
         ],
       ],
     );
   }
 
-  Future<double?> _quickEditValue(BuildContext context, String title, double current) async {
+  Future<double?> _quickEditValue(
+    BuildContext context,
+    String title,
+    double current,
+  ) async {
     final ctrl = TextEditingController(text: current.round().toString());
     final res = await showLiquidGlassModalBottomSheet<double>(
       context: context,
@@ -570,12 +700,17 @@ class _CommandCenterTabState extends State<CommandCenterTab> with TickerProvider
             children: [
               Text(
                 'Quick edit',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
               ),
               const SizedBox(height: 6),
-              Text(title, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+              Text(
+                title,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
               const SizedBox(height: 14),
               TextField(
                 controller: ctrl,
@@ -605,12 +740,12 @@ class _CommandCenterTabState extends State<CommandCenterTab> with TickerProvider
 
 class _Flow {
   _Flow(this.label, this.monthly, this.color)
-      : from = '',
-        to = '',
-        stage = _FlowStage.sourceToMiddle;
+    : from = '',
+      to = '',
+      stage = _FlowStage.sourceToMiddle;
 
   _Flow._(this.from, this.to, this.monthly, this.color, {required this.stage})
-      : label = '$from → $to';
+    : label = '$from → $to';
 
   final String label;
   final String from;
@@ -649,7 +784,12 @@ class _SankeyPlaceholder extends StatelessWidget {
     SankeyNode? best;
     double bestDist = double.infinity;
     for (final n in nodes) {
-      final rect = Rect.fromLTWH(n.left, n.top, n.right - n.left, n.bottom - n.top);
+      final rect = Rect.fromLTWH(
+        n.left,
+        n.top,
+        n.right - n.left,
+        n.bottom - n.top,
+      );
       final isEdge = rect.left <= width * 0.14 || rect.right >= width * 0.86;
       final pad = isEdge ? 24.0 : 10.0;
       final hit = rect.inflate(pad);
@@ -677,7 +817,10 @@ class _SankeyPlaceholder extends StatelessWidget {
     if (monthly == null || monthly <= 0) return base;
 
     final annual = monthly * 12.0;
-    final formatted = formatCurrencyDisplay(annual, currency: model.displayCurrency);
+    final formatted = formatCurrencyDisplay(
+      annual,
+      currency: model.displayCurrency,
+    );
     return '$base • $formatted/yr';
   }
 
@@ -694,7 +837,9 @@ class _SankeyPlaceholder extends StatelessWidget {
               _selectionTitle(context),
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: Theme.of(context).brightness == Brightness.dark ? Colors.white : cs.onSurfaceVariant,
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.white
+                    : cs.onSurfaceVariant,
                 fontWeight: FontWeight.w800,
               ),
             ),
@@ -722,10 +867,12 @@ class _SankeyPlaceholder extends StatelessWidget {
                 // Clear semantic colors for key sinks.
                 if (l == 'taxes') return const Color(0xFF94A3B8); // grey
                 if (l == 'expenses') return const Color(0xFFEF4444); // red
-                if (l == 'investments' || l == 'savings') return const Color(0xFF10B981); // green
+                if (l == 'investments' || l == 'savings')
+                  return const Color(0xFF10B981); // green
 
                 // Keep income + middle in a blue family.
-                if (l == 'all income' || l == 'net income') return const Color(0xFF3B82F6);
+                if (l == 'all income' || l == 'net income')
+                  return const Color(0xFF3B82F6);
                 return const Color(0xFF1D4ED8); // sources
               }
 
@@ -735,7 +882,8 @@ class _SankeyPlaceholder extends StatelessWidget {
               }
 
               final nodeColors = <String, Color>{
-                for (final n in graph.nodes) n.displayLabel: colorForNodeLabel(nodeDisplayName(n)),
+                for (final n in graph.nodes)
+                  n.displayLabel: colorForNodeLabel(nodeDisplayName(n)),
               };
               final selectedId = selectedNode?.id;
 
@@ -759,7 +907,9 @@ class _SankeyPlaceholder extends StatelessWidget {
                     showTexture: true,
                     chartDark: Theme.of(context).brightness == Brightness.dark,
                     rightLabelStrong: Theme.of(context).colorScheme.onSurface,
-                    rightLabelMuted: Theme.of(context).colorScheme.onSurfaceVariant,
+                    rightLabelMuted: Theme.of(
+                      context,
+                    ).colorScheme.onSurfaceVariant,
                   ),
                 ),
               );
@@ -776,7 +926,6 @@ class _SankeyPlaceholder extends StatelessWidget {
       ],
     );
   }
-
 }
 
 enum _SelectedKind { income, expenses, investments, savings, taxes, totals }
@@ -828,7 +977,9 @@ class _SelectionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final narrow = MediaQuery.sizeOf(context).width < 420;
-    final ctaStyle = FilledButton.styleFrom(minimumSize: const Size(_ctaMinWidth, 48));
+    final ctaStyle = FilledButton.styleFrom(
+      minimumSize: const Size(_ctaMinWidth, 48),
+    );
     late final String title;
     late final String subtitle;
     late final VoidCallback primaryAction;
@@ -879,7 +1030,13 @@ class _SelectionCard extends StatelessWidget {
           ? Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(title, style: TextStyle(fontWeight: FontWeight.w900, color: cs.onSurface)),
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    color: cs.onSurface,
+                  ),
+                ),
                 const SizedBox(height: 4),
                 Text(subtitle, style: TextStyle(color: cs.onSurfaceVariant)),
                 const SizedBox(height: 10),
@@ -896,9 +1053,18 @@ class _SelectionCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(title, style: TextStyle(fontWeight: FontWeight.w900, color: cs.onSurface)),
+                      Text(
+                        title,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w900,
+                          color: cs.onSurface,
+                        ),
+                      ),
                       const SizedBox(height: 4),
-                      Text(subtitle, style: TextStyle(color: cs.onSurfaceVariant)),
+                      Text(
+                        subtitle,
+                        style: TextStyle(color: cs.onSurfaceVariant),
+                      ),
                     ],
                   ),
                 ),
@@ -932,7 +1098,12 @@ class _ExpenseDetailsRows extends StatelessWidget {
     final rows = <({String key, String label, double monthly, Color color})>[];
     for (final k in recurringExpenseBucketKeys) {
       final b = preset.buckets[k]!;
-      rows.add((key: k, label: b.label, monthly: (model.expenseBuckets[k] ?? b.value), color: bucketColorHighContrast(k)));
+      rows.add((
+        key: k,
+        label: b.label,
+        monthly: (model.expenseBuckets[k] ?? b.value),
+        color: bucketColorHighContrast(k),
+      ));
     }
     rows.sort((a, b) => b.monthly.compareTo(a.monthly));
 
@@ -949,9 +1120,15 @@ class _ExpenseDetailsRows extends StatelessWidget {
           Row(
             children: [
               const Expanded(
-                child: Text('Expense details', style: TextStyle(fontWeight: FontWeight.w900)),
+                child: Text(
+                  'Expense details',
+                  style: TextStyle(fontWeight: FontWeight.w900),
+                ),
               ),
-              TextButton(onPressed: onGoToLedger, child: const Text('Edit in Ledger')),
+              TextButton(
+                onPressed: onGoToLedger,
+                child: const Text('Edit in Ledger'),
+              ),
             ],
           ),
           const SizedBox(height: 6),
@@ -960,19 +1137,34 @@ class _ExpenseDetailsRows extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: 10),
               child: Row(
                 children: [
-                  Container(width: 10, height: 10, decoration: BoxDecoration(color: r.color, shape: BoxShape.circle)),
+                  Container(
+                    width: 10,
+                    height: 10,
+                    decoration: BoxDecoration(
+                      color: r.color,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       r.label,
-                      style: TextStyle(color: cs.onSurfaceVariant, fontWeight: FontWeight.w600),
+                      style: TextStyle(
+                        color: cs.onSurfaceVariant,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                   Text(
                     maskAmounts
-                        ? maskSensitiveNumberString(money(r.monthly, currency: model.displayCurrency))
+                        ? maskSensitiveNumberString(
+                            money(r.monthly, currency: model.displayCurrency),
+                          )
                         : money(r.monthly, currency: model.displayCurrency),
-                    style: TextStyle(fontWeight: FontWeight.w900, color: cs.onSurface),
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900,
+                      color: cs.onSurface,
+                    ),
                   ),
                 ],
               ),
@@ -1016,8 +1208,8 @@ class _RemindersCard extends StatelessWidget {
     final titleColor = hasUrgent
         ? cs.onSurface
         : isDark
-            ? cs.onSurfaceVariant.withValues(alpha: 0.42)
-            : cs.onSurfaceVariant.withValues(alpha: 0.88);
+        ? cs.onSurfaceVariant.withValues(alpha: 0.42)
+        : cs.onSurfaceVariant.withValues(alpha: 0.88);
     final titleWeight = hasUrgent ? FontWeight.w900 : FontWeight.w600;
 
     return LiquidGlassPanel(
@@ -1035,92 +1227,115 @@ class _RemindersCard extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           ...items.map(
-              (it) => Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Material(
-                  key: it.rowKey,
-                  color: it.overdue
-                      ? accent.withValues(alpha: 0.09)
-                      : isDark
-                          ? cs.surfaceContainerHighest.withValues(alpha: hasUrgent ? 0.65 : 0.38)
-                          : cs.outlineVariant.withValues(alpha: hasUrgent ? 0.14 : 0.10),
-                  borderRadius: BorderRadius.circular(12),
-                  child: InkWell(
-                    onTap: it.onTap,
-                    borderRadius: BorderRadius.circular(12),
-                    splashFactory: it.overdue ? InkSparkle.splashFactory : NoSplash.splashFactory,
-                    splashColor: it.overdue ? null : Colors.transparent,
-                    highlightColor: it.overdue ? null : Colors.transparent,
-                    hoverColor: it.overdue ? null : Colors.transparent,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          Icon(
-                            it.icon,
-                            size: 22,
-                            color: it.overdue
-                                ? accent
-                                : isDark
-                                    ? cs.outline.withValues(alpha: hasUrgent ? 0.85 : 0.45)
-                                    : cs.outline.withValues(alpha: hasUrgent ? 0.85 : 0.55),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  it.title,
-                                  style: TextStyle(
-                                    fontWeight: it.overdue ? FontWeight.w800 : FontWeight.w600,
-                                    fontSize: 15,
-                                    color: it.overdue
-                                        ? accent
-                                        : isDark
-                                            ? cs.onSurfaceVariant.withValues(alpha: hasUrgent ? 0.95 : 0.52)
-                                            : cs.onSurfaceVariant,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  it.detail,
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w600,
-                                    fontSize: 13,
-                                    height: 1.25,
-                                    color: it.overdue
-                                        ? accent.withValues(alpha: 0.88)
-                                        : isDark
-                                            ? cs.outline.withValues(alpha: hasUrgent ? 1.0 : 0.42)
-                                            : cs.outline,
-                                  ),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ],
-                            ),
-                          ),
-                          Icon(
-                            Icons.chevron_right,
-                            size: 22,
-                            color: it.overdue
-                                ? accent
-                                : isDark
-                                    ? cs.outline.withValues(alpha: hasUrgent ? 0.85 : 0.32)
-                                    : cs.outline.withValues(alpha: hasUrgent ? 0.85 : 0.45),
-                          ),
-                        ],
+            (it) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Material(
+                key: it.rowKey,
+                color: it.overdue
+                    ? accent.withValues(alpha: 0.09)
+                    : isDark
+                    ? cs.surfaceContainerHighest.withValues(
+                        alpha: hasUrgent ? 0.65 : 0.38,
+                      )
+                    : cs.outlineVariant.withValues(
+                        alpha: hasUrgent ? 0.14 : 0.10,
                       ),
+                borderRadius: BorderRadius.circular(12),
+                child: InkWell(
+                  onTap: it.onTap,
+                  borderRadius: BorderRadius.circular(12),
+                  splashFactory: it.overdue
+                      ? InkSparkle.splashFactory
+                      : NoSplash.splashFactory,
+                  splashColor: it.overdue ? null : Colors.transparent,
+                  highlightColor: it.overdue ? null : Colors.transparent,
+                  hoverColor: it.overdue ? null : Colors.transparent,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Icon(
+                          it.icon,
+                          size: 22,
+                          color: it.overdue
+                              ? accent
+                              : isDark
+                              ? cs.outline.withValues(
+                                  alpha: hasUrgent ? 0.85 : 0.45,
+                                )
+                              : cs.outline.withValues(
+                                  alpha: hasUrgent ? 0.85 : 0.55,
+                                ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                it.title,
+                                style: TextStyle(
+                                  fontWeight: it.overdue
+                                      ? FontWeight.w800
+                                      : FontWeight.w600,
+                                  fontSize: 15,
+                                  color: it.overdue
+                                      ? accent
+                                      : isDark
+                                      ? cs.onSurfaceVariant.withValues(
+                                          alpha: hasUrgent ? 0.95 : 0.52,
+                                        )
+                                      : cs.onSurfaceVariant,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                it.detail,
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 13,
+                                  height: 1.25,
+                                  color: it.overdue
+                                      ? accent.withValues(alpha: 0.88)
+                                      : isDark
+                                      ? cs.outline.withValues(
+                                          alpha: hasUrgent ? 1.0 : 0.42,
+                                        )
+                                      : cs.outline,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                        Icon(
+                          Icons.chevron_right,
+                          size: 22,
+                          color: it.overdue
+                              ? accent
+                              : isDark
+                              ? cs.outline.withValues(
+                                  alpha: hasUrgent ? 0.85 : 0.32,
+                                )
+                              : cs.outline.withValues(
+                                  alpha: hasUrgent ? 0.85 : 0.45,
+                                ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1136,17 +1351,15 @@ class _SankeyModel {
   final bool hideNumbers;
   final CurrencyCode displayCurrency;
 
-  double get maxValue => links.isEmpty
-      ? 1
-      : links.map((e) => e.monthly).reduce(math.max);
+  double get maxValue =>
+      links.isEmpty ? 1 : links.map((e) => e.monthly).reduce(math.max);
 
   double totalOut(String from) => links
       .where((e) => e.from == from)
       .fold<double>(0, (a, b) => a + b.monthly);
 
-  double totalIn(String to) => links
-      .where((e) => e.to == to)
-      .fold<double>(0, (a, b) => a + b.monthly);
+  double totalIn(String to) =>
+      links.where((e) => e.to == to).fold<double>(0, (a, b) => a + b.monthly);
 
   double? monthlyTotalForLabel(String label) {
     final inbound = totalIn(label);
@@ -1176,7 +1389,10 @@ class _SankeyModel {
     return name;
   }
 
-  SankeyDataSet toSankeyDataSet({required double width, required double height}) {
+  SankeyDataSet toSankeyDataSet({
+    required double width,
+    required double height,
+  }) {
     // Preserve ordering so larger buckets are laid out near the top (like the Reddit example).
     // We order within each column by total flow descending.
     double totalForLabel(String l) {
@@ -1185,19 +1401,23 @@ class _SankeyModel {
       return inbound > 0 ? inbound : outbound;
     }
 
-    final orderedSources = [...sources]..sort((a, b) => totalForLabel(b).compareTo(totalForLabel(a)));
-    final orderedMiddle = [...middle]..sort((a, b) => totalForLabel(b).compareTo(totalForLabel(a)));
-    final orderedSinks = [...sinks]..sort((a, b) => totalForLabel(b).compareTo(totalForLabel(a)));
+    final orderedSources = [...sources]
+      ..sort((a, b) => totalForLabel(b).compareTo(totalForLabel(a)));
+    final orderedMiddle = [...middle]
+      ..sort((a, b) => totalForLabel(b).compareTo(totalForLabel(a)));
+    final orderedSinks = [...sinks]
+      ..sort((a, b) => totalForLabel(b).compareTo(totalForLabel(a)));
 
-    final labels = <String>[...orderedSources, ...orderedMiddle, ...orderedSinks];
+    final labels = <String>[
+      ...orderedSources,
+      ...orderedMiddle,
+      ...orderedSinks,
+    ];
     final totals = {for (final l in labels) l: totalForLabel(l)};
 
     final nodes = <SankeyNode>[
       for (var i = 0; i < labels.length; i++)
-        SankeyNode(
-          id: i,
-          label: _sankeyNodeLabel(labels[i], totals),
-        ),
+        SankeyNode(id: i, label: _sankeyNodeLabel(labels[i], totals)),
     ];
 
     SankeyNode nodeOf(String label) => nodes[labels.indexOf(label)];
@@ -1213,14 +1433,15 @@ class _SankeyModel {
 
     final data = SankeyDataSet(nodes: nodes, links: sankeyLinks);
     final narrow = width < 380;
-    final layout = generateSankeyLayout(
-      width: width,
-      height: height,
-      nodeWidth: narrow ? 10 : 14,
-      nodePadding: narrow ? 18 : 26,
-    )
-      ..topBound = 14
-      ..bottomBound = height - 20;
+    final layout =
+        generateSankeyLayout(
+            width: width,
+            height: height,
+            nodeWidth: narrow ? 10 : 14,
+            nodePadding: narrow ? 18 : 26,
+          )
+          ..topBound = 14
+          ..bottomBound = height - 20;
     data.layout(layout);
     return data;
   }
@@ -1239,16 +1460,58 @@ class _SankeyModel {
     const sinks = ['Fixed costs', 'Fun', 'Investments'];
 
     final links = <_Flow>[
-      _Flow._('Salary', 'All income', 5200, blue, stage: _FlowStage.sourceToMiddle),
-      _Flow._('Dividends', 'All income', 420, teal, stage: _FlowStage.sourceToMiddle),
-      _Flow._('Side Hustle', 'All income', 380, amber, stage: _FlowStage.sourceToMiddle),
+      _Flow._(
+        'Salary',
+        'All income',
+        5200,
+        blue,
+        stage: _FlowStage.sourceToMiddle,
+      ),
+      _Flow._(
+        'Dividends',
+        'All income',
+        420,
+        teal,
+        stage: _FlowStage.sourceToMiddle,
+      ),
+      _Flow._(
+        'Side Hustle',
+        'All income',
+        380,
+        amber,
+        stage: _FlowStage.sourceToMiddle,
+      ),
 
-      _Flow._('All income', 'Net income', 4700, grey, stage: _FlowStage.middleToMiddle2),
-      _Flow._('All income', 'Taxes', 1300, grey, stage: _FlowStage.middleToMiddle2),
+      _Flow._(
+        'All income',
+        'Net income',
+        4700,
+        grey,
+        stage: _FlowStage.middleToMiddle2,
+      ),
+      _Flow._(
+        'All income',
+        'Taxes',
+        1300,
+        grey,
+        stage: _FlowStage.middleToMiddle2,
+      ),
 
-      _Flow._('Net income', 'Fixed costs', 2600, grey, stage: _FlowStage.middle2ToSink),
+      _Flow._(
+        'Net income',
+        'Fixed costs',
+        2600,
+        grey,
+        stage: _FlowStage.middle2ToSink,
+      ),
       _Flow._('Net income', 'Fun', 700, amber, stage: _FlowStage.middle2ToSink),
-      _Flow._('Net income', 'Investments', 1400, emerald, stage: _FlowStage.middle2ToSink),
+      _Flow._(
+        'Net income',
+        'Investments',
+        1400,
+        emerald,
+        stage: _FlowStage.middle2ToSink,
+      ),
     ];
 
     return _SankeyModel(
@@ -1276,13 +1539,25 @@ class _SankeyModel {
     final links = <_Flow>[];
 
     final totalIncomeMonthly = model.totalIncomeAnnualDisplay / 12.0;
-    final taxesMonthly = (model.effectiveTaxRatePct ?? 0).clamp(0, 100) / 100.0 * totalIncomeMonthly;
-    final netMonthly = (totalIncomeMonthly - taxesMonthly).clamp(0, double.infinity);
+    final taxesMonthly =
+        (model.effectiveTaxRatePct ?? 0).clamp(0, 100) /
+        100.0 *
+        totalIncomeMonthly;
+    final netMonthly = (totalIncomeMonthly - taxesMonthly).clamp(
+      0,
+      double.infinity,
+    );
     final showTaxes = taxesMonthly > 0;
     if (showTaxes) middle.add('Taxes');
 
     _Flow incomeLink(String from, double v, Color c) {
-      final f = _Flow._(from, 'All income', v, c, stage: _FlowStage.sourceToMiddle);
+      final f = _Flow._(
+        from,
+        'All income',
+        v,
+        c,
+        stage: _FlowStage.sourceToMiddle,
+      );
       f.kind = _FlowKind.incomeSource;
       return f;
     }
@@ -1308,11 +1583,23 @@ class _SankeyModel {
     }
 
     links.add(
-      _Flow._('All income', 'Net income', netMonthly.toDouble(), const Color(0xFF93C5FD), stage: _FlowStage.middleToMiddle2),
+      _Flow._(
+        'All income',
+        'Net income',
+        netMonthly.toDouble(),
+        const Color(0xFF93C5FD),
+        stage: _FlowStage.middleToMiddle2,
+      ),
     );
     if (showTaxes) {
       links.add(
-        _Flow._('All income', 'Taxes', taxesMonthly.toDouble(), const Color(0xFF1D4ED8), stage: _FlowStage.middleToMiddle2),
+        _Flow._(
+          'All income',
+          'Taxes',
+          taxesMonthly.toDouble(),
+          const Color(0xFF1D4ED8),
+          stage: _FlowStage.middleToMiddle2,
+        ),
       );
     }
 
@@ -1332,12 +1619,24 @@ class _SankeyModel {
     if (avail > 0) {
       // Do NOT notify from within build (Sankey is derived data only).
       model.normalizeAllocations(notify: false);
-      final inv = _Flow._('Net income', 'Investments', model.allocInvestmentsMonthly.toDouble(), const Color(0xFF3B82F6), stage: _FlowStage.middle2ToSink);
+      final inv = _Flow._(
+        'Net income',
+        'Investments',
+        model.allocInvestmentsMonthly.toDouble(),
+        const Color(0xFF3B82F6),
+        stage: _FlowStage.middle2ToSink,
+      );
       inv.kind = _FlowKind.allocation;
       inv.allocationKey = 'investments';
       links.add(inv);
 
-      final sav = _Flow._('Net income', 'Savings', model.allocSavingsMonthly.toDouble(), const Color(0xFF93C5FD), stage: _FlowStage.middle2ToSink);
+      final sav = _Flow._(
+        'Net income',
+        'Savings',
+        model.allocSavingsMonthly.toDouble(),
+        const Color(0xFF93C5FD),
+        stage: _FlowStage.middle2ToSink,
+      );
       sav.kind = _FlowKind.allocation;
       sav.allocationKey = 'savings';
       links.add(sav);
@@ -1364,4 +1663,3 @@ class _SankeyModel {
     required this.displayCurrency,
   });
 }
-

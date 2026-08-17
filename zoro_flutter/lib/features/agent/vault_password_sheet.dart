@@ -83,18 +83,26 @@ class _VaultPasswordBodyState extends State<_VaultPasswordBody> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            widget.unlockFailed ? 'Update saved password' : 'Save password for this type of file',
+            widget.unlockFailed
+                ? 'Update saved password'
+                : 'Save password for this type of file',
             style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 17),
           ),
           const SizedBox(height: 6),
           Text(
             widget.fileName,
-            style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, fontSize: 13),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              fontSize: 13,
+            ),
           ),
           const SizedBox(height: 16),
           DropdownButtonFormField<String>(
             initialValue: _typeId,
-            decoration: const InputDecoration(labelText: 'File type', border: OutlineInputBorder()),
+            decoration: const InputDecoration(
+              labelText: 'File type',
+              border: OutlineInputBorder(),
+            ),
             items: [
               for (final t in widget.types)
                 DropdownMenuItem(value: t.id, child: Text(t.label)),
@@ -117,7 +125,10 @@ class _VaultPasswordBodyState extends State<_VaultPasswordBody> {
           ),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
-            title: const Text('Save password for this type of file', style: TextStyle(fontWeight: FontWeight.w700)),
+            title: const Text(
+              'Save password for this type of file',
+              style: TextStyle(fontWeight: FontWeight.w700),
+            ),
             value: _save,
             onChanged: (v) => setState(() => _save = v),
           ),
@@ -127,7 +138,11 @@ class _VaultPasswordBodyState extends State<_VaultPasswordBody> {
               TextButton(
                 onPressed: () => Navigator.pop(
                   context,
-                  VaultPasswordChoice(typeId: _typeId, password: null, savePassword: false),
+                  VaultPasswordChoice(
+                    typeId: _typeId,
+                    password: null,
+                    savePassword: false,
+                  ),
                 ),
                 child: const Text('Skip'),
               ),

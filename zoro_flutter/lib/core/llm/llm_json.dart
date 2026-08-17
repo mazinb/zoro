@@ -61,8 +61,7 @@ Map<String, dynamic> decodeLlmJsonObject(String raw) {
     if (msg.contains('Unrecognized string escape')) {
       final fixed = _stripInvalidJsonEscapes(s);
       decoded = jsonDecode(fixed);
-    } else
-    if (msg.contains('Unterminated') || msg.contains('Unexpected end')) {
+    } else if (msg.contains('Unterminated') || msg.contains('Unexpected end')) {
       throw FormatException(
         'Model JSON looks truncated or invalid (try again or use fewer rows). Original: $msg',
         e.source,

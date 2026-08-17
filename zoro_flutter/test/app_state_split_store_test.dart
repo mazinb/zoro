@@ -43,7 +43,10 @@ void main() {
       final manifestFile = File('${tmp.path}/${AppStatePaths.manifestFile}');
       expect(await manifestFile.exists(), isTrue);
       final manifestText = await manifestFile.readAsString();
-      expect(manifestText.contains('"formatVersion": 2'), isTrue);
+      expect(
+        manifestText.contains('"formatVersion": $kAppStateSplitLayoutVersion'),
+        isTrue,
+      );
       expect(manifestText.contains('data/ledger.json'), isTrue);
       expect(manifestText.length < 800, isTrue);
 
@@ -71,8 +74,14 @@ void main() {
       expect((loaded!['settings'] as Map)['homeSummaryText'], 'legacy');
 
       final manifestText = await legacyFile.readAsString();
-      expect(manifestText.contains('"formatVersion": 2'), isTrue);
-      expect(await File('${tmp.path}/${AppStatePaths.ledgerFile}').exists(), isTrue);
+      expect(
+        manifestText.contains('"formatVersion": $kAppStateSplitLayoutVersion'),
+        isTrue,
+      );
+      expect(
+        await File('${tmp.path}/${AppStatePaths.ledgerFile}').exists(),
+        isTrue,
+      );
     });
   });
 }

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:sankey_flutter/sankey_painter.dart';
 
-
 /// Like package [InteractiveSankeyPainter], with per-node liquid-glass pills, theme-aware
 /// labels, and no link stripe texture in dark mode (avoids stray grey curves).
 class ZoroInteractiveSankeyPainter extends SankeyPainter {
@@ -29,7 +28,12 @@ class ZoroInteractiveSankeyPainter extends SankeyPainter {
   Color blendColors(Color a, Color b) => Color.lerp(a, b, 0.5) ?? a;
 
   /// Apple-like translucent “glass” pill; border follows [base] (node color).
-  void _paintGlassNode(Canvas canvas, Rect rect, {required Color base, required bool isSelected}) {
+  void _paintGlassNode(
+    Canvas canvas,
+    Rect rect, {
+    required Color base,
+    required bool isSelected,
+  }) {
     final r = RRect.fromRectAndRadius(rect, const Radius.circular(3));
 
     canvas.drawRRect(
@@ -53,10 +57,7 @@ class ZoroInteractiveSankeyPainter extends SankeyPainter {
             ],
       stops: const [0.0, 0.42, 1.0],
     );
-    canvas.drawRRect(
-      r,
-      Paint()..shader = sheen.createShader(rect),
-    );
+    canvas.drawRRect(r, Paint()..shader = sheen.createShader(rect));
 
     final specH = (rect.height * 0.28).clamp(1.0, 12.0);
     final spec = RRect.fromRectAndRadius(
@@ -87,7 +88,8 @@ class ZoroInteractiveSankeyPainter extends SankeyPainter {
       var sourceColor = nodeColors[source.displayLabel] ?? Colors.blue;
       var targetColor = nodeColors[target.displayLabel] ?? Colors.blue;
 
-      final isConnected = (selectedNodeId != null) &&
+      final isConnected =
+          (selectedNodeId != null) &&
           (source.id == selectedNodeId || target.id == selectedNodeId);
       sourceColor = sourceColor.withAlpha(isConnected ? 225 : 80);
       targetColor = targetColor.withAlpha(isConnected ? 225 : 80);
@@ -99,7 +101,12 @@ class ZoroInteractiveSankeyPainter extends SankeyPainter {
 
       final linkPaint = Paint()
         ..shader = gradient.createShader(
-          Rect.fromLTWH(source.right, source.bottom, target.left - source.right, target.top - source.bottom),
+          Rect.fromLTWH(
+            source.right,
+            source.bottom,
+            target.left - source.right,
+            target.top - source.bottom,
+          ),
         )
         ..style = PaintingStyle.stroke
         ..strokeWidth = link.width;
@@ -107,7 +114,14 @@ class ZoroInteractiveSankeyPainter extends SankeyPainter {
       var path = Path();
       final xMid = (source.right + target.left) / 2;
       path.moveTo(source.right, link.ySourceStart);
-      path.cubicTo(xMid, link.ySourceStart, xMid, link.yTargetEnd, target.left, link.yTargetEnd);
+      path.cubicTo(
+        xMid,
+        link.ySourceStart,
+        xMid,
+        link.yTargetEnd,
+        target.left,
+        link.yTargetEnd,
+      );
       canvas.drawPath(path, linkPaint);
 
       // Stripe texture reads as stray grey curves on dark backgrounds; keep for light only.
@@ -119,7 +133,14 @@ class ZoroInteractiveSankeyPainter extends SankeyPainter {
         for (var i = link.width / -2; i < link.width; i = i + 10) {
           path = Path();
           path.moveTo(source.right, link.ySourceStart + i);
-          path.cubicTo(xMid, link.ySourceStart + i, xMid, link.yTargetEnd + i, target.left, link.yTargetEnd + i);
+          path.cubicTo(
+            xMid,
+            link.ySourceStart + i,
+            xMid,
+            link.yTargetEnd + i,
+            target.left,
+            link.yTargetEnd + i,
+          );
           canvas.drawPath(path, texturePaint);
         }
       }
@@ -127,7 +148,12 @@ class ZoroInteractiveSankeyPainter extends SankeyPainter {
 
     for (final node in nodes) {
       final color = nodeColors[node.displayLabel] ?? Colors.blue;
-      final rect = Rect.fromLTWH(node.left, node.top, node.right - node.left, node.bottom - node.top);
+      final rect = Rect.fromLTWH(
+        node.left,
+        node.top,
+        node.right - node.left,
+        node.bottom - node.top,
+      );
       final isSelected = selectedNodeId != null && node.id == selectedNodeId;
 
       _paintGlassNode(canvas, rect, base: color, isSelected: isSelected);
@@ -165,13 +191,17 @@ class ZoroInteractiveSankeyPainter extends SankeyPainter {
         const margin = 6.0;
         final labelY = rect.top + (rect.height - textPainter.height) / 2;
         final labelOffsetRight = Offset(rect.right + margin, labelY);
-        final labelOffsetLeft = Offset(rect.left - margin - textPainter.width, labelY);
+        final labelOffsetLeft = Offset(
+          rect.left - margin - textPainter.width,
+          labelY,
+        );
 
-        final labelOffset = (rect.right + margin + textPainter.width <= size.width)
+        final labelOffset =
+            (rect.right + margin + textPainter.width <= size.width)
             ? labelOffsetRight
             : (rect.left - margin - textPainter.width >= 0)
-                ? labelOffsetLeft
-                : labelOffsetRight;
+            ? labelOffsetLeft
+            : labelOffsetRight;
 
         textPainter.paint(canvas, labelOffset);
       }

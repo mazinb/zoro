@@ -53,11 +53,15 @@ class MailboxStatus {
 
 /// Flutter client for getzoro mailbox claim / pending / ack.
 class MailboxClient {
-  MailboxClient({http.Client? httpClient}) : _client = httpClient ?? http.Client();
+  MailboxClient({http.Client? httpClient})
+    : _client = httpClient ?? http.Client();
 
   final http.Client _client;
 
-  Future<void> requestClaim({required String deviceId, required String email}) async {
+  Future<void> requestClaim({
+    required String deviceId,
+    required String email,
+  }) async {
     final uri = AppEnv.apiUri('/api/mobile/mailbox/claim');
     final res = await _client.post(
       uri,
@@ -66,12 +70,17 @@ class MailboxClient {
     );
     final body = _decode(res.body);
     if (res.statusCode != 200) {
-      throw ApiException(body['error']?.toString() ?? 'Could not send confirmation email', statusCode: res.statusCode);
+      throw ApiException(
+        body['error']?.toString() ?? 'Could not send confirmation email',
+        statusCode: res.statusCode,
+      );
     }
   }
 
   Future<MailboxStatus> claimStatus({required String deviceId}) async {
-    final uri = AppEnv.apiUri('/api/mobile/mailbox/claim').replace(queryParameters: {'deviceId': deviceId});
+    final uri = AppEnv.apiUri(
+      '/api/mobile/mailbox/claim',
+    ).replace(queryParameters: {'deviceId': deviceId});
     try {
       final res = await _client.get(uri);
       final body = _decode(res.body);
@@ -82,7 +91,10 @@ class MailboxClient {
     }
   }
 
-  Future<MailboxClaimInfo> finishClaim({required String deviceId, String? nonce}) async {
+  Future<MailboxClaimInfo> finishClaim({
+    required String deviceId,
+    String? nonce,
+  }) async {
     final uri = AppEnv.apiUri('/api/mobile/mailbox/claim/finish');
     final res = await _client.post(
       uri,
@@ -94,15 +106,24 @@ class MailboxClient {
     );
     final body = _decode(res.body);
     if (res.statusCode != 200) {
-      throw ApiException(body['error']?.toString() ?? 'Could not finish claim', statusCode: res.statusCode);
+      throw ApiException(
+        body['error']?.toString() ?? 'Could not finish claim',
+        statusCode: res.statusCode,
+      );
     }
     final data = body['data'];
-    if (data is! Map) throw ApiException('Invalid claim response', statusCode: res.statusCode);
+    if (data is! Map)
+      throw ApiException('Invalid claim response', statusCode: res.statusCode);
     final address = data['address']?.toString() ?? '';
     final token = data['mailboxToken']?.toString() ?? '';
     final email = data['claimedEmail']?.toString() ?? '';
-    if (address.isEmpty || token.isEmpty) throw ApiException('Invalid claim response', statusCode: res.statusCode);
-    return MailboxClaimInfo(address: address, mailboxToken: token, claimedEmail: email);
+    if (address.isEmpty || token.isEmpty)
+      throw ApiException('Invalid claim response', statusCode: res.statusCode);
+    return MailboxClaimInfo(
+      address: address,
+      mailboxToken: token,
+      claimedEmail: email,
+    );
   }
 
   Future<MailboxStatus> status({String? mailboxToken, String? deviceId}) async {
@@ -115,7 +136,8 @@ class MailboxClient {
       final res = await _client.get(
         uri,
         headers: {
-          if (mailboxToken != null && mailboxToken.isNotEmpty) 'Authorization': 'Bearer $mailboxToken',
+          if (mailboxToken != null && mailboxToken.isNotEmpty)
+            'Authorization': 'Bearer $mailboxToken',
         },
       );
       final body = _decode(res.body);
@@ -138,7 +160,10 @@ class MailboxClient {
     );
     if (res.statusCode != 200) {
       final body = _decode(res.body);
-      throw ApiException(body['error']?.toString() ?? 'Could not disconnect mailbox', statusCode: res.statusCode);
+      throw ApiException(
+        body['error']?.toString() ?? 'Could not disconnect mailbox',
+        statusCode: res.statusCode,
+      );
     }
   }
 
@@ -152,7 +177,8 @@ class MailboxClient {
         uri,
         headers: {
           'Content-Type': 'application/json',
-          if (mailboxToken != null && mailboxToken.isNotEmpty) 'Authorization': 'Bearer $mailboxToken',
+          if (mailboxToken != null && mailboxToken.isNotEmpty)
+            'Authorization': 'Bearer $mailboxToken',
         },
         body: jsonEncode({'deviceId': deviceId}),
       );
@@ -171,7 +197,9 @@ class MailboxClient {
     }
   }
 
-  Future<List<MailboxPendingItem>> pending({required String mailboxToken}) async {
+  Future<List<MailboxPendingItem>> pending({
+    required String mailboxToken,
+  }) async {
     final uri = AppEnv.apiUri('/api/mobile/mailbox/pending');
     try {
       final res = await _client.get(
@@ -180,7 +208,10 @@ class MailboxClient {
       );
       final body = _decode(res.body);
       if (res.statusCode == 401) {
-        throw ApiException(body['error']?.toString() ?? 'Mailbox authorization failed', statusCode: 401);
+        throw ApiException(
+          body['error']?.toString() ?? 'Mailbox authorization failed',
+          statusCode: 401,
+        );
       }
       if (res.statusCode != 200) return [];
       final data = body['data'];
@@ -204,7 +235,10 @@ class MailboxClient {
     }
   }
 
-  Future<Uint8List?> downloadBytes(MailboxPendingItem item, {required String mailboxToken}) async {
+  Future<Uint8List?> downloadBytes(
+    MailboxPendingItem item, {
+    required String mailboxToken,
+  }) async {
     if (item.bytesBase64 != null && item.bytesBase64!.isNotEmpty) {
       try {
         return Uint8List.fromList(base64Decode(item.bytesBase64!));
@@ -226,7 +260,10 @@ class MailboxClient {
     }
   }
 
-  Future<void> ack({required String mailboxToken, required String itemId}) async {
+  Future<void> ack({
+    required String mailboxToken,
+    required String itemId,
+  }) async {
     final uri = AppEnv.apiUri('/api/mobile/mailbox/ack');
     try {
       await _client.post(
@@ -245,7 +282,8 @@ class MailboxClient {
     return MailboxStatus(
       state: data['state']?.toString() ?? 'none',
       address: data['address']?.toString(),
-      claimedEmail: data['claimedEmail']?.toString() ?? data['email']?.toString(),
+      claimedEmail:
+          data['claimedEmail']?.toString() ?? data['email']?.toString(),
       pendingCount: (data['pendingCount'] as num?)?.toInt() ?? 0,
     );
   }
@@ -269,7 +307,8 @@ String? mailboxNonceFromUri(Uri uri) {
 
 bool isMailboxClaimUri(Uri uri) {
   if (uri.scheme == 'zoro' && uri.host == 'mailbox') return true;
-  if ((uri.scheme == 'https' || uri.scheme == 'http') && uri.path.startsWith('/mailbox/claim')) {
+  if ((uri.scheme == 'https' || uri.scheme == 'http') &&
+      uri.path.startsWith('/mailbox/claim')) {
     return true;
   }
   return false;

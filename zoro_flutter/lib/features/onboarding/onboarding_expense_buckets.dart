@@ -12,11 +12,11 @@ import '../../core/state/app_model.dart';
 import '../../shared/guided_mcq/structured_guide_page.dart';
 
 String presetCountryForDisplayCurrency(CurrencyCode c) => switch (c) {
-      CurrencyCode.inr => 'India',
-      CurrencyCode.thb => 'Thailand',
-      CurrencyCode.usd => 'US',
-      _ => 'US',
-    };
+  CurrencyCode.inr => 'India',
+  CurrencyCode.thb => 'Thailand',
+  CurrencyCode.usd => 'US',
+  _ => 'US',
+};
 
 /// Annual expense budget baseline: max(\$30k, 30% of net income), capped at 80% of net income.
 double onboardingTargetAnnualExpenseUsd(double netAnnualIncomeUsd) {
@@ -110,7 +110,10 @@ Map<String, double> deterministicOnboardingExpenseBuckets({
   for (var i = 0; i < keys.length; i++) {
     final k = keys[i];
     if (i == keys.length - 1) {
-      out[k] = (monthlyTargetDisplay - assigned).roundToDouble().clamp(0, double.infinity);
+      out[k] = (monthlyTargetDisplay - assigned).roundToDouble().clamp(
+        0,
+        double.infinity,
+      );
     } else {
       final share = monthlyTargetDisplay * weights[k]! / weightSum;
       final rounded = share.roundToDouble();
@@ -146,7 +149,10 @@ List<StructuredGuideStep> onboardingExpenseMcqSteps({
       choices: const [
         StructuredGuideChoice(id: 'rent', label: 'Renting'),
         StructuredGuideChoice(id: 'own', label: 'Own (mortgage or paid off)'),
-        StructuredGuideChoice(id: 'family', label: 'With family / low housing cost'),
+        StructuredGuideChoice(
+          id: 'family',
+          label: 'With family / low housing cost',
+        ),
         StructuredGuideChoice(id: 'nomad', label: 'Often between places'),
       ],
     ),
@@ -157,7 +163,10 @@ List<StructuredGuideStep> onboardingExpenseMcqSteps({
         StructuredGuideChoice(id: 'essential', label: 'Essentials first'),
         StructuredGuideChoice(id: 'balanced', label: 'Balanced'),
         StructuredGuideChoice(id: 'comfortable', label: 'Comfortable'),
-        StructuredGuideChoice(id: 'premium', label: 'Premium / high discretionary'),
+        StructuredGuideChoice(
+          id: 'premium',
+          label: 'Premium / high discretionary',
+        ),
       ],
     ),
     StructuredGuideStep(
@@ -167,7 +176,10 @@ List<StructuredGuideStep> onboardingExpenseMcqSteps({
         StructuredGuideChoice(id: 'solo', label: 'Just me'),
         StructuredGuideChoice(id: 'partner', label: 'Me + partner'),
         StructuredGuideChoice(id: 'kids', label: 'Family with kids'),
-        StructuredGuideChoice(id: 'parents', label: 'Supporting parents / relatives'),
+        StructuredGuideChoice(
+          id: 'parents',
+          label: 'Supporting parents / relatives',
+        ),
       ],
     ),
     StructuredGuideStep(
@@ -204,11 +216,17 @@ Future<Map<String, double>?> appleOnboardingExpenseBuckets({
   required Map<String, double> baselineBuckets,
 }) async {
   if (!model.appleFoundationRuntimeAvailable) return null;
-  if (!await LlmConsentGate.ensure(context, model, LlmProvider.appleFoundation)) {
+  if (!await LlmConsentGate.ensure(
+    context,
+    model,
+    LlmProvider.appleFoundation,
+  )) {
     return null;
   }
 
-  final baselineAnnualUsd = onboardingTargetAnnualExpenseUsd(netMonthlyIncomeUsd * 12);
+  final baselineAnnualUsd = onboardingTargetAnnualExpenseUsd(
+    netMonthlyIncomeUsd * 12,
+  );
   final payload = {
     'displayCurrency': expenseCurrency.name,
     'netMonthlyIncomeUsd': netMonthlyIncomeUsd,
@@ -217,10 +235,7 @@ Future<Map<String, double>?> appleOnboardingExpenseBuckets({
     'baselineBuckets': baselineBuckets,
     'mcqAnswers': [
       for (final a in mcq.answers)
-        {
-          'questionId': a.questionId,
-          'selectedIds': a.selectedIds.toList(),
-        },
+        {'questionId': a.questionId, 'selectedIds': a.selectedIds.toList()},
     ],
     'userNote': note.trim(),
   };
@@ -236,7 +251,11 @@ Future<Map<String, double>?> appleOnboardingExpenseBuckets({
       user: jsonEncode(payload),
       maxOutputTokens: 1200,
     );
-    model.recordLlmRequest(provider: provider, model: modelName, tokensUsed: result.tokensUsed);
+    model.recordLlmRequest(
+      provider: provider,
+      model: modelName,
+      tokensUsed: result.tokensUsed,
+    );
     final obj = decodeLlmJsonObject(result.text);
     final bucketsRaw = obj['expenseBuckets'];
     if (bucketsRaw is! Map) return null;

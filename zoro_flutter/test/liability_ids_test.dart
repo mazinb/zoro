@@ -69,7 +69,10 @@ void main() {
     expect(m.assetById('dup')?.contextMarkdown, 'US note');
     final india = m.assets.firstWhere((a) => a.name == 'India Index Fund');
     expect(india.contextMarkdown, 'India note');
-    m.setAssetContextMarkdown(assetId: india.id, markdown: 'Updated India only');
+    m.setAssetContextMarkdown(
+      assetId: india.id,
+      markdown: 'Updated India only',
+    );
     expect(m.assetById('dup')?.contextMarkdown, 'US note');
     expect(india.contextMarkdown, 'Updated India only');
   });
@@ -79,7 +82,10 @@ void main() {
     final ids = m.assets.map((a) => a.id).toSet();
     expect(ids.length, m.assets.length);
     expect(m.assetById(SeedLedgerIds.assetUsBrokerage)?.name, 'US Brokerage');
-    expect(m.assetById(SeedLedgerIds.assetIndiaIndex)?.name, 'India Index Fund');
+    expect(
+      m.assetById(SeedLedgerIds.assetIndiaIndex)?.name,
+      'India Index Fund',
+    );
   });
 
   test('newLedgerRowId is unique in a tight loop', () {

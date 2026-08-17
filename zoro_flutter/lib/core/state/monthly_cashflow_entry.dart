@@ -19,16 +19,15 @@ class MonthlyInvestmentLine {
   double amountAppliedToAssets;
 
   MonthlyInvestmentLine clone() => MonthlyInvestmentLine(
-        id: id,
-        assetId: assetId,
-        amount: amount,
-        contextMarkdown: contextMarkdown,
-        amountAppliedToAssets: amountAppliedToAssets,
-      );
+    id: id,
+    assetId: assetId,
+    amount: amount,
+    contextMarkdown: contextMarkdown,
+    amountAppliedToAssets: amountAppliedToAssets,
+  );
 
-  factory MonthlyInvestmentLine.blank() => MonthlyInvestmentLine(
-        id: newLedgerRowId('mi'),
-      );
+  factory MonthlyInvestmentLine.blank() =>
+      MonthlyInvestmentLine(id: newLedgerRowId('mi'));
 }
 
 double sumMonthlyInvestmentAmounts(Iterable<MonthlyInvestmentLine> lines) =>
@@ -55,17 +54,16 @@ class MonthlySavingsLine {
   double amountApplied;
 
   MonthlySavingsLine clone() => MonthlySavingsLine(
-        id: id,
-        assetId: assetId,
-        liabilityId: liabilityId,
-        amount: amount,
-        contextMarkdown: contextMarkdown,
-        amountApplied: amountApplied,
-      );
+    id: id,
+    assetId: assetId,
+    liabilityId: liabilityId,
+    amount: amount,
+    contextMarkdown: contextMarkdown,
+    amountApplied: amountApplied,
+  );
 
-  factory MonthlySavingsLine.blank() => MonthlySavingsLine(
-        id: newLedgerRowId('ms'),
-      );
+  factory MonthlySavingsLine.blank() =>
+      MonthlySavingsLine(id: newLedgerRowId('ms'));
 }
 
 double sumMonthlySavingsAmounts(Iterable<MonthlySavingsLine> lines) =>
@@ -166,12 +164,12 @@ class MonthlyCashflowEntry {
     this.contextMarkdown,
     List<MonthlyInvestmentLine>? investmentLines,
     List<MonthlySavingsLine>? savingsLines,
-  })  : investmentLines = investmentLines != null
-            ? investmentLines.map((e) => e.clone()).toList()
-            : [],
-        savingsLines = savingsLines != null
-            ? savingsLines.map((e) => e.clone()).toList()
-            : [];
+  }) : investmentLines = investmentLines != null
+           ? investmentLines.map((e) => e.clone()).toList()
+           : [],
+       savingsLines = savingsLines != null
+           ? savingsLines.map((e) => e.clone()).toList()
+           : [];
 
   final String monthKey;
 

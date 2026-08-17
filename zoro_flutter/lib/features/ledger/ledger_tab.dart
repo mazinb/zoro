@@ -97,13 +97,18 @@ Widget _ledgerTotalAndPercentRow({
                 controller: totalCtrl,
                 readOnly: totalReadOnly,
                 keyboardType: TextInputType.number,
-                inputFormatters: [GroupedIntegerTextInputFormatter(currency: currency)],
+                inputFormatters: [
+                  GroupedIntegerTextInputFormatter(currency: currency),
+                ],
                 decoration: InputDecoration(
                   labelText: 'Total',
-                  prefixText: currency == CurrencyCode.aed ? null : currency.symbol,
+                  prefixText: currency == CurrencyCode.aed
+                      ? null
+                      : currency.symbol,
                   prefixIcon: aedPrefix,
-                  prefixIconConstraints:
-                      currency == CurrencyCode.aed ? const BoxConstraints(minWidth: 38) : null,
+                  prefixIconConstraints: currency == CurrencyCode.aed
+                      ? const BoxConstraints(minWidth: 38)
+                      : null,
                   border: const OutlineInputBorder(),
                   isDense: true,
                 ),
@@ -256,7 +261,8 @@ class _LedgerTabState extends State<LedgerTab> {
       if (!mounted) return;
       final msg = StringBuffer('Review complete');
       if (out.budgetLine != null) msg.write('\n${out.budgetLine}');
-      if (out.trimmed) msg.write('\nSome context was trimmed for on-device limits.');
+      if (out.trimmed)
+        msg.write('\nSome context was trimmed for on-device limits.');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(msg.toString()),
@@ -309,7 +315,9 @@ class _LedgerTabState extends State<LedgerTab> {
       final i => m.assets[i].clone(),
     };
     final outcome =
-        await showLiquidGlassModalBottomSheet<_RowEditorOutcome<LedgerAssetRow>>(
+        await showLiquidGlassModalBottomSheet<
+          _RowEditorOutcome<LedgerAssetRow>
+        >(
           context: context,
           showDragHandle: true,
           isScrollControlled: true,
@@ -348,7 +356,9 @@ class _LedgerTabState extends State<LedgerTab> {
       final i => m.liabilities[i].clone(),
     };
     final outcome =
-        await showLiquidGlassModalBottomSheet<_RowEditorOutcome<LedgerLiabilityRow>>(
+        await showLiquidGlassModalBottomSheet<
+          _RowEditorOutcome<LedgerLiabilityRow>
+        >(
           context: context,
           showDragHandle: true,
           isScrollControlled: true,
@@ -397,8 +407,7 @@ class _LedgerTabState extends State<LedgerTab> {
   }) async {
     final m = widget.model;
     final lockMonth = initialMonthKey != null;
-    final month =
-        initialMonthKey ?? AppModel.defaultCashflowEditorMonthKey();
+    final month = initialMonthKey ?? AppModel.defaultCashflowEditorMonthKey();
     final entry = await Navigator.of(context).push<MonthlyCashflowEntry?>(
       MaterialPageRoute<MonthlyCashflowEntry?>(
         fullscreenDialog: true,
@@ -421,7 +430,8 @@ class _LedgerTabState extends State<LedgerTab> {
         final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
         final incomeEditing =
             _mode == LedgerMode.cashflow && _cashflowTabIndex == 0;
-        final bottomPad = 20.0 +
+        final bottomPad =
+            20.0 +
             (incomeEditing && keyboardInset > 0 ? keyboardInset + 52 : 0);
 
         return Stack(
@@ -431,158 +441,156 @@ class _LedgerTabState extends State<LedgerTab> {
               keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
               padding: EdgeInsets.fromLTRB(20, 20, 20, bottomPad),
               children: [
-        Row(
-          children: [
-            Text(
-              'Ledger',
-              style: Theme.of(
-                context,
-              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
-            ),
-            const Spacer(),
-            TabHeaderActions(
-              model: widget.model,
-              guideEnabled: widget.model.guideEnabledLedger,
-              help: TabHelpContent.ledger,
-              assistantRunning: _ledgerReviewRunning,
-              assistantTooltip: _mode == LedgerMode.cashflow
-                  ? 'Expense estimates'
-                  : (_mode == LedgerMode.assets ? 'Review assets' : 'Review liabilities'),
-              assistantEnabled: widget.model.helperEnabledLedger,
-              onAssistant: _onLedgerHelperPressed,
-            ),
-            const SizedBox(width: 10),
-            if (_mode == LedgerMode.cashflow)
-              IconButton.filledTonal(
-                onPressed: () {
-                  if (widget.model.privacyHideAmounts) {
-                    _privacyDenied();
-                    return;
-                  }
-                  _onTapAdd();
-                },
-                icon: const Icon(Icons.add),
-                tooltip: 'Monthly cash flow entry',
-                style: IconButton.styleFrom(
-                  backgroundColor: widget.model.accentSoft,
-                  foregroundColor: widget.model.accent,
+                Row(
+                  children: [
+                    Text(
+                      'Ledger',
+                      style: Theme.of(context).textTheme.headlineSmall
+                          ?.copyWith(fontWeight: FontWeight.w900),
+                    ),
+                    const Spacer(),
+                    TabHeaderActions(
+                      model: widget.model,
+                      guideEnabled: widget.model.guideEnabledLedger,
+                      help: TabHelpContent.ledger,
+                      assistantRunning: _ledgerReviewRunning,
+                      assistantTooltip: _mode == LedgerMode.cashflow
+                          ? 'Expense estimates'
+                          : (_mode == LedgerMode.assets
+                                ? 'Review assets'
+                                : 'Review liabilities'),
+                      assistantEnabled: widget.model.helperEnabledLedger,
+                      onAssistant: _onLedgerHelperPressed,
+                    ),
+                    const SizedBox(width: 10),
+                    if (_mode == LedgerMode.cashflow)
+                      IconButton.filledTonal(
+                        onPressed: () {
+                          if (widget.model.privacyHideAmounts) {
+                            _privacyDenied();
+                            return;
+                          }
+                          _onTapAdd();
+                        },
+                        icon: const Icon(Icons.add),
+                        tooltip: 'Monthly cash flow entry',
+                        style: IconButton.styleFrom(
+                          backgroundColor: widget.model.accentSoft,
+                          foregroundColor: widget.model.accent,
+                        ),
+                      )
+                    else if (_mode != LedgerMode.cashflow)
+                      IconButton.filledTonal(
+                        onPressed: () {
+                          if (widget.model.privacyHideAmounts) {
+                            _privacyDenied();
+                            return;
+                          }
+                          _onTapAdd();
+                        },
+                        icon: const Icon(Icons.add),
+                        tooltip: _mode == LedgerMode.assets
+                            ? 'Add asset'
+                            : 'Add liability',
+                      ),
+                  ],
                 ),
-              )
-            else if (_mode != LedgerMode.cashflow)
-              IconButton.filledTonal(
-                onPressed: () {
-                  if (widget.model.privacyHideAmounts) {
-                    _privacyDenied();
-                    return;
-                  }
-                  _onTapAdd();
-                },
-                icon: const Icon(Icons.add),
-                tooltip: _mode == LedgerMode.assets
-                    ? 'Add asset'
-                    : 'Add liability',
-              ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        _Segmented(
-          value: _mode,
-          onChanged: (v) {
-            setState(() {
-              _mode = v;
-              if (v == LedgerMode.cashflow) {
-                _cashflowTabIndex = 2;
-              }
-            });
-          },
-          accent: widget.model.accent,
-        ),
-        const SizedBox(height: 16),
-        if (_mode == LedgerMode.cashflow) ...[
-          _CashflowPane(
-            model: widget.model,
-            incomeKey: _incomeKey,
-            expensesKey: _expensesKey,
-            allocationsKey: _allocKey,
-            tabIndex: _cashflowTabIndex,
-            onTabChanged: (i) => setState(() => _cashflowTabIndex = i),
-            onMonthEntryTap: (mk) =>
-                _openMonthlyCashflowSheet(context, initialMonthKey: mk),
-            onPrivacyInteractionDenied: _privacyDenied,
-          ),
-        ] else if (_mode == LedgerMode.assets) ...[
-          ...widget.model.assets.asMap().entries.map(
-            (e) {
-              final slot = widget.model.ledgerAssetReviewById[e.value.id];
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: _LedgerAssetCard(
-                  model: widget.model,
-                  row: e.value,
-                  accent: widget.model.accent,
-                  displayCurrency: widget.model.displayCurrency,
-                  usdPerUnitOverrides: widget.model.fxUsdPerUnitResolved,
-                  privacyHideAmounts: widget.model.privacyHideAmounts,
-                  reviewSlot: slot,
-                  onTap: () {
-                    if (widget.model.privacyHideAmounts) {
-                      _privacyDenied();
-                      return;
-                    }
-                    _openAssetEditor(context, index: e.key);
+                const SizedBox(height: 12),
+                _Segmented(
+                  value: _mode,
+                  onChanged: (v) {
+                    setState(() {
+                      _mode = v;
+                      if (v == LedgerMode.cashflow) {
+                        _cashflowTabIndex = 2;
+                      }
+                    });
                   },
-                ),
-              );
-            },
-          ),
-          _AddLedgerRowCard(
-            label: 'Add asset',
-            accent: widget.model.accent,
-            onTap: () {
-              if (widget.model.privacyHideAmounts) {
-                _privacyDenied();
-                return;
-              }
-              _onTapAdd();
-            },
-          ),
-        ] else ...[
-          ...widget.model.liabilities.asMap().entries.map(
-            (e) {
-              final slot = widget.model.ledgerLiabilityReviewById[e.value.id];
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: _LedgerLiabilityCard(
-                  model: widget.model,
-                  row: e.value,
                   accent: widget.model.accent,
-                  displayCurrency: widget.model.displayCurrency,
-                  usdPerUnitOverrides: widget.model.fxUsdPerUnitResolved,
-                  privacyHideAmounts: widget.model.privacyHideAmounts,
-                  reviewSlot: slot,
-                  onTap: () {
-                    if (widget.model.privacyHideAmounts) {
-                      _privacyDenied();
-                      return;
-                    }
-                    _openLiabilityEditor(context, index: e.key);
-                  },
                 ),
-              );
-            },
-          ),
-          _AddLedgerRowCard(
-            label: 'Add liability',
-            accent: widget.model.accent,
-            onTap: () {
-              if (widget.model.privacyHideAmounts) {
-                _privacyDenied();
-                return;
-              }
-              _onTapAdd();
-            },
-          ),
-        ],
+                const SizedBox(height: 16),
+                if (_mode == LedgerMode.cashflow) ...[
+                  _CashflowPane(
+                    model: widget.model,
+                    incomeKey: _incomeKey,
+                    expensesKey: _expensesKey,
+                    allocationsKey: _allocKey,
+                    tabIndex: _cashflowTabIndex,
+                    onTabChanged: (i) => setState(() => _cashflowTabIndex = i),
+                    onMonthEntryTap: (mk) =>
+                        _openMonthlyCashflowSheet(context, initialMonthKey: mk),
+                    onPrivacyInteractionDenied: _privacyDenied,
+                  ),
+                ] else if (_mode == LedgerMode.assets) ...[
+                  ...widget.model.assets.asMap().entries.map((e) {
+                    final slot = widget.model.ledgerAssetReviewById[e.value.id];
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _LedgerAssetCard(
+                        model: widget.model,
+                        row: e.value,
+                        accent: widget.model.accent,
+                        displayCurrency: widget.model.displayCurrency,
+                        usdPerUnitOverrides: widget.model.fxUsdPerUnitResolved,
+                        privacyHideAmounts: widget.model.privacyHideAmounts,
+                        reviewSlot: slot,
+                        onTap: () {
+                          if (widget.model.privacyHideAmounts) {
+                            _privacyDenied();
+                            return;
+                          }
+                          _openAssetEditor(context, index: e.key);
+                        },
+                      ),
+                    );
+                  }),
+                  _AddLedgerRowCard(
+                    label: 'Add asset',
+                    accent: widget.model.accent,
+                    onTap: () {
+                      if (widget.model.privacyHideAmounts) {
+                        _privacyDenied();
+                        return;
+                      }
+                      _onTapAdd();
+                    },
+                  ),
+                ] else ...[
+                  ...widget.model.liabilities.asMap().entries.map((e) {
+                    final slot =
+                        widget.model.ledgerLiabilityReviewById[e.value.id];
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _LedgerLiabilityCard(
+                        model: widget.model,
+                        row: e.value,
+                        accent: widget.model.accent,
+                        displayCurrency: widget.model.displayCurrency,
+                        usdPerUnitOverrides: widget.model.fxUsdPerUnitResolved,
+                        privacyHideAmounts: widget.model.privacyHideAmounts,
+                        reviewSlot: slot,
+                        onTap: () {
+                          if (widget.model.privacyHideAmounts) {
+                            _privacyDenied();
+                            return;
+                          }
+                          _openLiabilityEditor(context, index: e.key);
+                        },
+                      ),
+                    );
+                  }),
+                  _AddLedgerRowCard(
+                    label: 'Add liability',
+                    accent: widget.model.accent,
+                    onTap: () {
+                      if (widget.model.privacyHideAmounts) {
+                        _privacyDenied();
+                        return;
+                      }
+                      _onTapAdd();
+                    },
+                  ),
+                ],
               ],
             ),
             KeyboardDoneBarOverlay(visible: incomeEditing),
@@ -1085,8 +1093,10 @@ class _MonthlyCashflowEditorPageState
                     controller: _invCtrl,
                     keyboardType: TextInputType.number,
                     textInputAction: TextInputAction.done,
-                    onEditingComplete: () => FocusManager.instance.primaryFocus?.unfocus(),
-                    onSubmitted: (_) => FocusManager.instance.primaryFocus?.unfocus(),
+                    onEditingComplete: () =>
+                        FocusManager.instance.primaryFocus?.unfocus(),
+                    onSubmitted: (_) =>
+                        FocusManager.instance.primaryFocus?.unfocus(),
                     inputFormatters: [
                       GroupedIntegerTextInputFormatter(
                         currency: m.displayCurrency,
@@ -1148,9 +1158,7 @@ class _MonthlyCashflowEditorPageState
                         style: TextStyle(
                           fontWeight: FontWeight.w900,
                           fontSize: 18,
-                          color: ok
-                              ? cs.onSurface
-                              : cs.error,
+                          color: ok ? cs.onSurface : cs.error,
                         ),
                       ),
                     ],
@@ -1222,9 +1230,7 @@ class _Segmented extends StatelessWidget {
           if (states.contains(WidgetState.selected)) return accent;
           return cs.onSurfaceVariant;
         }),
-        side: WidgetStatePropertyAll(
-          BorderSide(color: cs.outlineVariant),
-        ),
+        side: WidgetStatePropertyAll(BorderSide(color: cs.outlineVariant)),
       ),
     );
   }
@@ -1263,19 +1269,18 @@ class _LedgerAssetCard extends StatelessWidget {
         ? maskSensitiveNumberString(grouped)
         : grouped;
     final title = row.name.trim().isEmpty ? row.type.label : row.name;
-    final pendingSetup = model.demoLedgerSetupInProgress && model.isDemoLedgerSeedId(row.id);
+    final pendingSetup =
+        model.demoLedgerSetupInProgress && model.isDemoLedgerSeedId(row.id);
     final reviewing = reviewSlot?.reviewing ?? false;
     final effective = effectiveLedgerAssetStatus(model, row, reviewSlot);
     final showStatus = reviewing || effective != null;
 
     final localNote =
         !reviewing && (effective?.bannerNote.trim().isNotEmpty ?? false)
-            ? effective!.bannerNote.trim()
-            : '';
-    final subtitle =
-        localNote.isNotEmpty ? localNote : row.comment.trim();
-    final subtitleLevel =
-        localNote.isNotEmpty ? effective!.level : null;
+        ? effective!.bannerNote.trim()
+        : '';
+    final subtitle = localNote.isNotEmpty ? localNote : row.comment.trim();
+    final subtitleLevel = localNote.isNotEmpty ? effective!.level : null;
 
     return Card(
       child: InkWell(
@@ -1316,10 +1321,7 @@ class _LedgerAssetCard extends StatelessWidget {
                             : cs.onSurface,
                       ),
                     ),
-                    LedgerCardSubtitle(
-                      text: subtitle,
-                      level: subtitleLevel,
-                    ),
+                    LedgerCardSubtitle(text: subtitle, level: subtitleLevel),
                   ],
                 ),
               ),
@@ -1328,7 +1330,10 @@ class _LedgerAssetCard extends StatelessWidget {
                 SizedBox(
                   width: 22,
                   height: 22,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: accent),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: accent,
+                  ),
                 )
               else
                 Text(
@@ -1388,19 +1393,18 @@ class _LedgerLiabilityCard extends StatelessWidget {
         ? maskSensitiveNumberString(grouped)
         : grouped;
     final title = row.name.trim().isEmpty ? row.type.label : row.name;
-    final pendingSetup = model.demoLedgerSetupInProgress && model.isDemoLedgerSeedId(row.id);
+    final pendingSetup =
+        model.demoLedgerSetupInProgress && model.isDemoLedgerSeedId(row.id);
     final reviewing = reviewSlot?.reviewing ?? false;
     final effective = effectiveLedgerLiabilityStatus(model, row, reviewSlot);
     final showStatus = reviewing || effective != null;
 
     final localNote =
         !reviewing && (effective?.bannerNote.trim().isNotEmpty ?? false)
-            ? effective!.bannerNote.trim()
-            : '';
-    final subtitle =
-        localNote.isNotEmpty ? localNote : row.comment.trim();
-    final subtitleLevel =
-        localNote.isNotEmpty ? effective!.level : null;
+        ? effective!.bannerNote.trim()
+        : '';
+    final subtitle = localNote.isNotEmpty ? localNote : row.comment.trim();
+    final subtitleLevel = localNote.isNotEmpty ? effective!.level : null;
 
     return Card(
       child: InkWell(
@@ -1441,10 +1445,7 @@ class _LedgerLiabilityCard extends StatelessWidget {
                             : cs.onSurface,
                       ),
                     ),
-                    LedgerCardSubtitle(
-                      text: subtitle,
-                      level: subtitleLevel,
-                    ),
+                    LedgerCardSubtitle(text: subtitle, level: subtitleLevel),
                   ],
                 ),
               ),
@@ -1453,7 +1454,10 @@ class _LedgerLiabilityCard extends StatelessWidget {
                 SizedBox(
                   width: 22,
                   height: 22,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: accent),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: accent,
+                  ),
                 )
               else
                 Text(
@@ -1584,7 +1588,10 @@ class _AssetEditorSheetState extends State<_AssetEditorSheet> {
   Widget build(BuildContext context) {
     final keyboard = MediaQuery.viewInsetsOf(context).bottom;
     final native = currencyCodeForPresetCountry(_row.currencyCountry);
-    final maxH = (MediaQuery.sizeOf(context).height * 0.88 - keyboard).clamp(220.0, 4000.0);
+    final maxH = (MediaQuery.sizeOf(context).height * 0.88 - keyboard).clamp(
+      220.0,
+      4000.0,
+    );
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
       child: ConstrainedBox(
@@ -1600,8 +1607,8 @@ class _AssetEditorSheetState extends State<_AssetEditorSheet> {
                   child: Text(
                     widget.isNew ? 'New asset' : 'Edit asset',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w900,
-                        ),
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
                 ),
                 IconButton(
@@ -1694,7 +1701,8 @@ class _AssetEditorSheetState extends State<_AssetEditorSheet> {
               pctCtrl: _rateCtrl,
               currency: native,
               totalReadOnly: widget.model.primaryCashBalanceIsMirrored(_row),
-              totalReadOnlyChild: widget.model.primaryCashBalanceIsMirrored(_row)
+              totalReadOnlyChild:
+                  widget.model.primaryCashBalanceIsMirrored(_row)
                   ? InputDecorator(
                       decoration: const InputDecoration(
                         labelText: 'Balance',
@@ -1704,7 +1712,8 @@ class _AssetEditorSheetState extends State<_AssetEditorSheet> {
                       ),
                       child: Text(
                         formatGroupedInteger(
-                          (widget.model.latestCashClosingBalanceDisplay ?? 0).round(),
+                          (widget.model.latestCashClosingBalanceDisplay ?? 0)
+                              .round(),
                           currency: widget.model.displayCurrency,
                         ),
                         style: const TextStyle(fontWeight: FontWeight.w800),
@@ -1755,8 +1764,8 @@ class _AssetEditorSheetState extends State<_AssetEditorSheet> {
                 canDelete: widget.canDelete,
                 onDelete: widget.canDelete
                     ? () => Navigator.of(context).pop(
-                          const _RowEditorOutcome<LedgerAssetRow>(delete: true),
-                        )
+                        const _RowEditorOutcome<LedgerAssetRow>(delete: true),
+                      )
                     : null,
                 onSave: _save,
               ),
@@ -1806,7 +1815,13 @@ class _LiabilityEditorSheetState extends State<_LiabilityEditorSheet> {
           : formatGroupedInteger(_row.total.round(), currency: native),
     );
     _interestCtrl = TextEditingController(
-      text: _row.interestRatePct > 0 ? _row.interestRatePct.toStringAsFixed(_row.interestRatePct == _row.interestRatePct.roundToDouble() ? 0 : 1) : '',
+      text: _row.interestRatePct > 0
+          ? _row.interestRatePct.toStringAsFixed(
+              _row.interestRatePct == _row.interestRatePct.roundToDouble()
+                  ? 0
+                  : 1,
+            )
+          : '',
     );
     _commentCtrl = TextEditingController(text: _row.comment);
   }
@@ -1832,7 +1847,10 @@ class _LiabilityEditorSheetState extends State<_LiabilityEditorSheet> {
   Widget build(BuildContext context) {
     final keyboard = MediaQuery.viewInsetsOf(context).bottom;
     final native = currencyCodeForPresetCountry(_row.currencyCountry);
-    final maxH = (MediaQuery.sizeOf(context).height * 0.88 - keyboard).clamp(220.0, 4000.0);
+    final maxH = (MediaQuery.sizeOf(context).height * 0.88 - keyboard).clamp(
+      220.0,
+      4000.0,
+    );
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
       child: ConstrainedBox(
@@ -1848,8 +1866,8 @@ class _LiabilityEditorSheetState extends State<_LiabilityEditorSheet> {
                   child: Text(
                     widget.isNew ? 'New liability' : 'Edit liability',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w900,
-                        ),
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
                 ),
                 IconButton(
@@ -1950,8 +1968,8 @@ class _LiabilityEditorSheetState extends State<_LiabilityEditorSheet> {
               canDelete: widget.canDelete,
               onDelete: widget.canDelete
                   ? () => Navigator.of(context).pop(
-                        const _RowEditorOutcome<LedgerLiabilityRow>(delete: true),
-                      )
+                      const _RowEditorOutcome<LedgerLiabilityRow>(delete: true),
+                    )
                   : null,
               onSave: _save,
             ),
@@ -2073,9 +2091,7 @@ class _CashflowTabToggle extends StatelessWidget {
       style: ButtonStyle(
         visualDensity: VisualDensity.compact,
         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        side: WidgetStatePropertyAll(
-          BorderSide(color: cs.outlineVariant),
-        ),
+        side: WidgetStatePropertyAll(BorderSide(color: cs.outlineVariant)),
         backgroundColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
             return accent.withValues(alpha: 0.12);
@@ -2138,7 +2154,11 @@ class _IncomeSection extends StatelessWidget {
       children: [
         Text(
           'Income',
-          style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15, color: cs.onSurface),
+          style: TextStyle(
+            fontWeight: FontWeight.w900,
+            fontSize: 15,
+            color: cs.onSurface,
+          ),
         ),
         const SizedBox(height: 4),
         Text(
@@ -2330,10 +2350,10 @@ class _ExpensesSection extends StatelessWidget {
                 onTap: privacy
                     ? onPrivacyInteractionDenied
                     : () => openSingleExpenseBucketEditorSheet(
-                          context: context,
-                          model: model,
-                          bucketKey: s.key,
-                        ),
+                        context: context,
+                        model: model,
+                        bucketKey: s.key,
+                      ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -2376,7 +2396,10 @@ class _ExpensesSection extends StatelessWidget {
               onPressed: privacy
                   ? onPrivacyInteractionDenied
                   : () {
-                      openExpenseEstimatesEditorSheet(context: context, model: model);
+                      openExpenseEstimatesEditorSheet(
+                        context: context,
+                        model: model,
+                      );
                     },
               icon: Icon(
                 Icons.tune,
@@ -2457,7 +2480,8 @@ class _InteractiveExpenseDonut extends StatefulWidget {
   final double strokeWidth;
 
   @override
-  State<_InteractiveExpenseDonut> createState() => _InteractiveExpenseDonutState();
+  State<_InteractiveExpenseDonut> createState() =>
+      _InteractiveExpenseDonutState();
 }
 
 class _InteractiveExpenseDonutState extends State<_InteractiveExpenseDonut> {
@@ -2586,7 +2610,11 @@ class _MonthTableHeader extends StatelessWidget {
             flex: 3,
             child: Text(
               'Month',
-              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12, color: cs.onSurface),
+              style: TextStyle(
+                fontWeight: FontWeight.w900,
+                fontSize: 12,
+                color: cs.onSurface,
+              ),
             ),
           ),
           Expanded(
@@ -2692,7 +2720,11 @@ class _MonthTotalRow extends StatelessWidget {
             flex: 3,
             child: Text(
               AppModel.formatMonthKeyLabel(monthKey),
-              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: cs.onSurface),
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+                color: cs.onSurface,
+              ),
             ),
           ),
           Expanded(
@@ -2782,10 +2814,7 @@ Future<void> _showMonthInvestmentLinkSheet(
     builder: (ctx) => Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(ctx).bottom),
       child: SafeArea(
-        child: _MonthInvestmentLinkSheet(
-          model: model,
-          monthKey: monthKey,
-        ),
+        child: _MonthInvestmentLinkSheet(model: model, monthKey: monthKey),
       ),
     ),
   );
@@ -2804,10 +2833,7 @@ Future<void> _showMonthSavingsLinkSheet(
     builder: (ctx) => Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(ctx).bottom),
       child: SafeArea(
-        child: _MonthSavingsLinkSheet(
-          model: model,
-          monthKey: monthKey,
-        ),
+        child: _MonthSavingsLinkSheet(model: model, monthKey: monthKey),
       ),
     ),
   );
@@ -2917,9 +2943,9 @@ class _MonthInvestmentLinkSheetState extends State<_MonthInvestmentLinkSheet> {
       }
     }
     if (filtered.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Add at least one amount.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Add at least one amount.')));
       return;
     }
     final sum = sumMonthlyInvestmentAmounts(filtered);
@@ -2941,8 +2967,7 @@ class _MonthInvestmentLinkSheetState extends State<_MonthInvestmentLinkSheet> {
         return;
       }
     }
-    final complete =
-        m.commitMonthInvestmentLinking(widget.monthKey, filtered);
+    final complete = m.commitMonthInvestmentLinking(widget.monthKey, filtered);
     if (!context.mounted) return;
     Navigator.of(context).pop();
     if (complete) {
@@ -3002,7 +3027,11 @@ class _MonthInvestmentLinkSheetState extends State<_MonthInvestmentLinkSheet> {
                     ),
                   ),
                   if (match)
-                    Icon(Icons.check_circle, color: Colors.green.shade600, size: 22),
+                    Icon(
+                      Icons.check_circle,
+                      color: Colors.green.shade600,
+                      size: 22,
+                    ),
                 ],
               ),
               const SizedBox(height: 14),
@@ -3059,10 +3088,7 @@ void _applySavingsLineLinkKey(MonthlySavingsLine line, String? key) {
 }
 
 class _MonthSavingsLinkSheet extends StatefulWidget {
-  const _MonthSavingsLinkSheet({
-    required this.model,
-    required this.monthKey,
-  });
+  const _MonthSavingsLinkSheet({required this.model, required this.monthKey});
 
   final AppModel model;
   final String monthKey;
@@ -3159,9 +3185,9 @@ class _MonthSavingsLinkSheetState extends State<_MonthSavingsLinkSheet> {
       if (l.amount > 0.005) filtered.add(l);
     }
     if (filtered.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Add at least one amount.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Add at least one amount.')));
       return;
     }
     final sum = sumMonthlySavingsAmounts(filtered);
@@ -3180,7 +3206,9 @@ class _MonthSavingsLinkSheetState extends State<_MonthSavingsLinkSheet> {
       final hasLiab = (l.liabilityId ?? '').isNotEmpty;
       if (!hasAsset && !hasLiab) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Choose an asset or loan for each line.')),
+          const SnackBar(
+            content: Text('Choose an asset or loan for each line.'),
+          ),
         );
         return;
       }
@@ -3196,9 +3224,7 @@ class _MonthSavingsLinkSheetState extends State<_MonthSavingsLinkSheet> {
     Navigator.of(context).pop();
     if (complete) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Balances updated from savings link'),
-        ),
+        const SnackBar(content: Text('Balances updated from savings link')),
       );
     }
   }
@@ -3209,8 +3235,7 @@ class _MonthSavingsLinkSheetState extends State<_MonthSavingsLinkSheet> {
     final dc = m.displayCurrency;
     final cs = Theme.of(context).colorScheme;
     const edge = EdgeInsets.fromLTRB(20, 8, 20, 24);
-    final savAssets =
-        savingsPoolAssets(m.assets, m.assetsGoalsPolicy).toList();
+    final savAssets = savingsPoolAssets(m.assets, m.assetsGoalsPolicy).toList();
     return ListenableBuilder(
       listenable: m,
       builder: (ctx, _) {
@@ -3253,7 +3278,11 @@ class _MonthSavingsLinkSheetState extends State<_MonthSavingsLinkSheet> {
                     ),
                   ),
                   if (match)
-                    Icon(Icons.check_circle, color: Colors.green.shade600, size: 22),
+                    Icon(
+                      Icons.check_circle,
+                      color: Colors.green.shade600,
+                      size: 22,
+                    ),
                 ],
               ),
               const SizedBox(height: 14),
@@ -3383,7 +3412,9 @@ class _MonthSavingsSplitRow extends StatelessWidget {
             const SizedBox(height: 8),
             DropdownButtonFormField<String?>(
               key: ValueKey('sav-lnk-${line.id}-$linkKey'),
-              initialValue: linkKey != null && validKeys.contains(linkKey) ? linkKey : null,
+              initialValue: linkKey != null && validKeys.contains(linkKey)
+                  ? linkKey
+                  : null,
               decoration: const InputDecoration(
                 labelText: 'Link to asset or loan',
                 border: OutlineInputBorder(),
@@ -3461,9 +3492,11 @@ class _MonthInvestmentSplitRow extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             DropdownButtonFormField<String?>(
-              key: ValueKey('lnk-${line.id}-${line.assetId}-${model.assets.length}'),
-              initialValue: line.assetId != null &&
-                      model.assetById(line.assetId!) != null
+              key: ValueKey(
+                'lnk-${line.id}-${line.assetId}-${model.assets.length}',
+              ),
+              initialValue:
+                  line.assetId != null && model.assetById(line.assetId!) != null
                   ? line.assetId
                   : null,
               decoration: const InputDecoration(
@@ -3596,8 +3629,9 @@ class _CashPrimaryCashBarState extends State<_CashPrimaryCashBar> {
           );
         }
 
-        final label =
-            asset.name.trim().isEmpty ? asset.type.label : asset.name.trim();
+        final label = asset.name.trim().isEmpty
+            ? asset.type.label
+            : asset.name.trim();
 
         if (_editingName && _editNameCtrl != null) {
           return Padding(
@@ -3639,7 +3673,12 @@ class _CashPrimaryCashBarState extends State<_CashPrimaryCashBar> {
             color: cs.surfaceContainerHighest,
             borderRadius: BorderRadius.circular(10),
             child: Padding(
-              padding: const EdgeInsetsDirectional.only(start: 4, end: 0, top: 4, bottom: 4),
+              padding: const EdgeInsetsDirectional.only(
+                start: 4,
+                end: 0,
+                top: 4,
+                bottom: 4,
+              ),
               child: Row(
                 children: [
                   Padding(
@@ -3664,7 +3703,11 @@ class _CashPrimaryCashBarState extends State<_CashPrimaryCashBar> {
                   ),
                   IconButton(
                     tooltip: 'Edit name',
-                    icon: Icon(Icons.edit_outlined, size: 20, color: cs.onSurfaceVariant),
+                    icon: Icon(
+                      Icons.edit_outlined,
+                      size: 20,
+                      color: cs.onSurfaceVariant,
+                    ),
                     onPressed: () => _startRename(asset),
                   ),
                 ],
@@ -3764,8 +3807,9 @@ class _MonthSavingsSection extends StatelessWidget {
     }
     if (savingsMonths.isEmpty) return const SizedBox.shrink();
 
-    final needsAttention =
-        savingsMonths.any((mk) => _monthSavingsNeedsAction(model, mk));
+    final needsAttention = savingsMonths.any(
+      (mk) => _monthSavingsNeedsAction(model, mk),
+    );
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -3842,11 +3886,7 @@ class _MonthSavingsMonthTile extends StatelessWidget {
       ),
       subtitle: Text(
         savedTxt,
-        style: TextStyle(
-          fontSize: 12,
-          color: cs.onSurfaceVariant,
-          height: 1.3,
-        ),
+        style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant, height: 1.3),
       ),
       onTap: privacy
           ? onPrivacyInteractionDenied
@@ -3878,8 +3918,9 @@ class _MonthInvestmentsSection extends StatelessWidget {
     if (investMonths.isEmpty) {
       return const SizedBox.shrink();
     }
-    final needsAttention =
-        investMonths.any((mk) => _monthInvestmentNeedsAction(model, mk));
+    final needsAttention = investMonths.any(
+      (mk) => _monthInvestmentNeedsAction(model, mk),
+    );
     return ExpansionTile(
       initiallyExpanded: needsAttention,
       title: Text(
@@ -3952,11 +3993,7 @@ class _MonthInvestmentMonthTile extends StatelessWidget {
       ),
       subtitle: Text(
         invTxt,
-        style: TextStyle(
-          fontSize: 12,
-          color: cs.onSurfaceVariant,
-          height: 1.3,
-        ),
+        style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant, height: 1.3),
       ),
       onTap: privacy
           ? onPrivacyInteractionDenied
@@ -3989,7 +4026,11 @@ class _MonthlyCashflowSplitTableHeader extends StatelessWidget {
             width: 72,
             child: Text(
               'Month',
-              style: TextStyle(fontWeight: FontWeight.w900, fontSize: 11, color: cs.onSurface),
+              style: TextStyle(
+                fontWeight: FontWeight.w900,
+                fontSize: 11,
+                color: cs.onSurface,
+              ),
             ),
           ),
           Expanded(
@@ -4110,7 +4151,11 @@ class _MonthlyCashflowSplitTableRow extends StatelessWidget {
             width: 72,
             child: Text(
               AppModel.formatMonthKeyLabel(monthKey),
-              style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: cs.onSurface),
+              style: TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 12,
+                color: cs.onSurface,
+              ),
             ),
           ),
           Expanded(
@@ -4272,19 +4317,22 @@ Future<void> openLedgerLiabilityEditor({
 }) async {
   final index = model.liabilities.indexWhere((l) => l.id == liabilityId);
   if (index < 0) return;
-  final outcome = await showLiquidGlassModalBottomSheet<_RowEditorOutcome<LedgerLiabilityRow>>(
-    context: context,
-    showDragHandle: true,
-    isScrollControlled: true,
-    sizesToContent: true,
-    builder: (ctx) => _LiabilityEditorSheet(
-      draft: model.liabilities[index].clone(),
-      isNew: false,
-      canDelete: true,
-      model: model,
-      parentContext: context,
-    ),
-  );
+  final outcome =
+      await showLiquidGlassModalBottomSheet<
+        _RowEditorOutcome<LedgerLiabilityRow>
+      >(
+        context: context,
+        showDragHandle: true,
+        isScrollControlled: true,
+        sizesToContent: true,
+        builder: (ctx) => _LiabilityEditorSheet(
+          draft: model.liabilities[index].clone(),
+          isNew: false,
+          canDelete: true,
+          model: model,
+          parentContext: context,
+        ),
+      );
   if (!context.mounted || outcome == null) return;
   if (outcome.delete) {
     model.removeLiabilityAt(index);

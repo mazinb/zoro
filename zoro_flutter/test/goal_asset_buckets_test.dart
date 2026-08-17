@@ -9,16 +9,15 @@ void main() {
       required String id,
       required String name,
       required double total,
-    }) =>
-        LedgerAssetRow(
-          id: id,
-          type: LedgerAssetType.savings,
-          currencyCountry: 'US',
-          name: name,
-          total: total,
-          label: '',
-          comment: '',
-        );
+    }) => LedgerAssetRow(
+      id: id,
+      type: LedgerAssetType.savings,
+      currencyCountry: 'US',
+      name: name,
+      total: total,
+      label: '',
+      comment: '',
+    );
 
     final savings = savingsRow(id: 's1', name: 'Term', total: 50_000);
     final other = savingsRow(id: 's2', name: 'Cash', total: 10_000);

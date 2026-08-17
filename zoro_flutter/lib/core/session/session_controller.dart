@@ -8,11 +8,9 @@ const _kTokenKey = 'zoro_verification_token';
 const _kEmailKey = 'zoro_signed_in_email';
 
 class SessionController extends ChangeNotifier {
-  SessionController({
-    required ZoroApi api,
-    FlutterSecureStorage? storage,
-  })  : _api = api,
-        _storage = storage ?? const FlutterSecureStorage();
+  SessionController({required ZoroApi api, FlutterSecureStorage? storage})
+    : _api = api,
+      _storage = storage ?? const FlutterSecureStorage();
 
   final ZoroApi _api;
   final FlutterSecureStorage _storage;

@@ -51,3 +51,14 @@ flutter:
   uses-material-design: true
   assets:
     - assets/branding/
+    - assets/skills/finance/mailbox-triage/SKILL.md
+    - assets/skills/finance/ingest-pdf/SKILL.md
+    - assets/skills/finance/retirement-plan/SKILL.md
+    - assets/skills/finance/update-context/SKILL.md
+    - assets/skills/finance/ledger-from-statement/SKILL.md
+    - assets/skills/finance/ledger-review/SKILL.md
+    - assets/skills/finance/expense-calibration/SKILL.md
+    - assets/skills/finance/corpus-backtest/SKILL.md
+    - assets/skills/finance/savings-goals/SKILL.md
+    - assets/skills/finance/home-briefing/SKILL.md
+    - assets/skills/finance/notify-schedule/SKILL.md

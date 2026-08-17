@@ -39,10 +39,10 @@ Future<Object?> _decodeJsonFileText(String text) async {
   final port = ReceivePort();
   Isolate? isolate;
   try {
-    isolate = await Isolate.spawn<List<Object?>>(
-      _jsonDecodeWorker,
-      <Object?>[port.sendPort, text],
-    );
+    isolate = await Isolate.spawn<List<Object?>>(_jsonDecodeWorker, <Object?>[
+      port.sendPort,
+      text,
+    ]);
     return await port.first;
   } finally {
     port.close();
@@ -59,7 +59,8 @@ abstract final class AppStateSplitStore {
     return dir;
   }
 
-  static File _file(Directory root, String relativePath) => File('${root.path}/$relativePath');
+  static File _file(Directory root, String relativePath) =>
+      File('${root.path}/$relativePath');
 
   static Future<void> _writeJsonAtomic(File target, Object value) async {
     await target.parent.create(recursive: true);
@@ -78,17 +79,17 @@ abstract final class AppStateSplitStore {
   }
 
   static Map<String, dynamic> _manifestFromPaths() => {
-        'formatVersion': kAppStateSplitLayoutVersion,
-        'savedAtMs': DateTime.now().toUtc().millisecondsSinceEpoch,
-        'files': {
-          'ledger': AppStatePaths.ledgerFile,
-          'goals': AppStatePaths.goalsFile,
-          'settings': AppStatePaths.settingsFile,
-          'context': AppStatePaths.contextFile,
-          'internalAgents': AppStatePaths.internalAgentsFile,
-          'hermesHome': AppStatePaths.hermesHomeDir,
-        },
-      };
+    'formatVersion': kAppStateSplitLayoutVersion,
+    'savedAtMs': DateTime.now().toUtc().millisecondsSinceEpoch,
+    'files': {
+      'ledger': AppStatePaths.ledgerFile,
+      'goals': AppStatePaths.goalsFile,
+      'settings': AppStatePaths.settingsFile,
+      'context': AppStatePaths.contextFile,
+      'internalAgents': AppStatePaths.internalAgentsFile,
+      'hermesHome': AppStatePaths.hermesHomeDir,
+    },
+  };
 
   /// Writes split files from the in-memory monolithic snapshot [root].
   static Future<void> saveMonolithic(Map<String, dynamic> root) async {
@@ -109,7 +110,9 @@ abstract final class AppStateSplitStore {
 
     final goals = working['goals'];
     if (goals is List) {
-      await _writeJsonAtomic(_file(sup, AppStatePaths.goalsFile), {'goals': goals});
+      await _writeJsonAtomic(_file(sup, AppStatePaths.goalsFile), {
+        'goals': goals,
+      });
     }
 
     await _writeJsonAtomic(_file(sup, AppStatePaths.settingsFile), settingsMap);
@@ -121,7 +124,10 @@ abstract final class AppStateSplitStore {
 
     final internal = working['internalAgents'];
     if (internal is Map) {
-      await _writeJsonAtomic(_file(sup, AppStatePaths.internalAgentsFile), internal);
+      await _writeJsonAtomic(
+        _file(sup, AppStatePaths.internalAgentsFile),
+        internal,
+      );
     }
 
     final manifest = _manifestFromPaths();
@@ -130,26 +136,37 @@ abstract final class AppStateSplitStore {
   }
 
   static Future<Map<String, dynamic>?> _assembleSplit(Directory sup) async {
-    final ledgerDecoded = await _readJsonFile(_file(sup, AppStatePaths.ledgerFile));
+    final ledgerDecoded = await _readJsonFile(
+      _file(sup, AppStatePaths.ledgerFile),
+    );
     if (ledgerDecoded is! Map) return null;
 
-    final settingsDecoded = await _readJsonFile(_file(sup, AppStatePaths.settingsFile));
-    final settingsMap =
-        settingsDecoded is Map ? Map<String, dynamic>.from(settingsDecoded) : <String, dynamic>{};
+    final settingsDecoded = await _readJsonFile(
+      _file(sup, AppStatePaths.settingsFile),
+    );
+    final settingsMap = settingsDecoded is Map
+        ? Map<String, dynamic>.from(settingsDecoded)
+        : <String, dynamic>{};
 
     final goalsWrap = await _readJsonFile(_file(sup, AppStatePaths.goalsFile));
     final goals = goalsWrap is Map ? goalsWrap['goals'] : goalsWrap;
 
-    final contextDecoded = await _readJsonFile(_file(sup, AppStatePaths.contextFile));
-    final internalDecoded = await _readJsonFile(_file(sup, AppStatePaths.internalAgentsFile));
+    final contextDecoded = await _readJsonFile(
+      _file(sup, AppStatePaths.contextFile),
+    );
+    final internalDecoded = await _readJsonFile(
+      _file(sup, AppStatePaths.internalAgentsFile),
+    );
 
     final assembled = <String, dynamic>{
       'formatVersion': kAppStateFormatVersion,
       'ledger': Map<String, dynamic>.from(ledgerDecoded),
       'settings': settingsMap,
       if (goals is List) 'goals': goals,
-      if (contextDecoded is Map) 'context': Map<String, dynamic>.from(contextDecoded),
-      if (internalDecoded is Map) 'internalAgents': Map<String, dynamic>.from(internalDecoded),
+      if (contextDecoded is Map)
+        'context': Map<String, dynamic>.from(contextDecoded),
+      if (internalDecoded is Map)
+        'internalAgents': Map<String, dynamic>.from(internalDecoded),
     };
 
     try {
@@ -162,10 +179,15 @@ abstract final class AppStateSplitStore {
     return assembled;
   }
 
-  static Future<void> _migrateMonolithicV1(Directory sup, Map<String, dynamic> monolithic) async {
+  static Future<void> _migrateMonolithicV1(
+    Directory sup,
+    Map<String, dynamic> monolithic,
+  ) async {
     await saveMonolithic(monolithic);
     if (_shouldLogSplitStore) {
-      debugPrint('[AppStateSplitStore] migrated monolithic v1 → split v$kAppStateSplitLayoutVersion');
+      debugPrint(
+        '[AppStateSplitStore] migrated monolithic v1 → split v$kAppStateSplitLayoutVersion',
+      );
     }
   }
 
@@ -183,11 +205,16 @@ abstract final class AppStateSplitStore {
       final manifest = Map<String, dynamic>.from(manifestDecoded);
       final ver = manifest['formatVersion'];
 
-      if (ver == kAppStateSplitLayoutVersion || ver == kAppStateSplitLayoutVersionV2) {
+      final files = manifest['files'];
+      if ((ver == kAppStateSplitLayoutVersion ||
+              ver == kAppStateSplitLayoutVersionV2) &&
+          files is Map) {
         return _assembleSplit(sup);
       }
 
-      // Legacy v1: entire app lived in app_state.json.
+      // Legacy monolithic state can share a numeric version with a split
+      // layout. The presence of ledger data, rather than the number alone,
+      // distinguishes it from the split manifest.
       if (ver == kAppStateFormatVersion && manifest.containsKey('ledger')) {
         await _migrateMonolithicV1(sup, manifest);
         return loadAsMonolithic();

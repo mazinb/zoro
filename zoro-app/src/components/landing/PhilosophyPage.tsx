@@ -159,7 +159,8 @@ export const PhilosophyPage: React.FC<PhilosophyPageProps> = ({
               <strong className={theme.textClass}>Privacy first:</strong> Your financial data lives
               on your phone by default. We do not connect to your bank. Optional AI runs only after
               consent, and you can use on-device models, Zoro Cloud AI, or your own provider keys.
-              We do not sell your data.
+              The agent mailbox is a short-lived relay for PDFs you forward — files are pulled to
+              the phone and deleted. We do not sell your data.
             </p>
           </div>
         </div>
@@ -170,7 +171,7 @@ export const PhilosophyPage: React.FC<PhilosophyPageProps> = ({
             Plan with your own numbers
           </h3>
           <p className={`text-lg ${darkMode ? 'text-slate-700' : 'text-slate-200'} max-w-3xl mx-auto mb-8 text-center`}>
-            Use Goals in the app to set targets such as retirement and see how you are tracking
+            Use the Agent tab in the app to keep a living retirement plan and see how you are tracking
             against the ledger you control.
           </p>
           <div className="text-center mb-8">

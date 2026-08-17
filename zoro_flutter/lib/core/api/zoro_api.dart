@@ -26,8 +26,10 @@ class ZoroApi {
       body: jsonEncode({
         'deviceId': deviceId,
         'platform': platform,
-        if (appVersion?.trim().isNotEmpty == true) 'appVersion': appVersion!.trim(),
-        if (buildNumber?.trim().isNotEmpty == true) 'buildNumber': buildNumber!.trim(),
+        if (appVersion?.trim().isNotEmpty == true)
+          'appVersion': appVersion!.trim(),
+        if (buildNumber?.trim().isNotEmpty == true)
+          'buildNumber': buildNumber!.trim(),
       }),
     );
     final body = _decodeJson(res.body);
@@ -76,10 +78,7 @@ class ZoroApi {
     final res = await _client.post(
       uri,
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({
-        'deviceId': deviceId,
-        'productId': productId,
-      }),
+      body: jsonEncode({'deviceId': deviceId, 'productId': productId}),
     );
     final body = _decodeJson(res.body);
     if (res.statusCode != 200) {
@@ -109,7 +108,8 @@ class ZoroApi {
         'provider': provider,
         'consentedAt': consentedAtIso,
         'platform': platform,
-        if (appVersion?.trim().isNotEmpty == true) 'appVersion': appVersion!.trim(),
+        if (appVersion?.trim().isNotEmpty == true)
+          'appVersion': appVersion!.trim(),
         'privacyPolicyVersion': privacyPolicyVersion,
       }),
     );
@@ -130,10 +130,7 @@ class ZoroApi {
     final uri = AppEnv.apiUri('/api/mobile/ai-consent');
     final req = http.Request('DELETE', uri);
     req.headers['Content-Type'] = 'application/json';
-    req.body = jsonEncode({
-      'deviceId': deviceId,
-      'provider': provider,
-    });
+    req.body = jsonEncode({'deviceId': deviceId, 'provider': provider});
     final res = await _client.send(req).then(http.Response.fromStream);
     final body = _decodeJson(res.body);
     if (res.statusCode != 200) {
@@ -264,9 +261,7 @@ class ZoroApi {
       if (token != null && token.isNotEmpty) 'token': token,
       if (email != null && email.isNotEmpty) 'email': email,
     };
-    final uri = AppEnv.apiUri('/api/user-data').replace(
-      queryParameters: query,
-    );
+    final uri = AppEnv.apiUri('/api/user-data').replace(queryParameters: query);
     final res = await _client.get(uri);
     final body = _decodeJson(res.body);
     if (res.statusCode != 200) {
@@ -301,7 +296,9 @@ class ZoroApi {
       );
     }
     if (body['registered'] == false && body['invited'] != true) {
-      throw ApiException('No account for this email yet. Check your inbox for a signup link.');
+      throw ApiException(
+        'No account for this email yet. Check your inbox for a signup link.',
+      );
     }
   }
 
@@ -317,14 +314,13 @@ class ZoroApi {
     request.fields['token'] = token;
     request.fields['fileName'] = fileName;
     request.fields['month'] = month;
-    request.files.add(
-      await http.MultipartFile.fromPath('file', filePath),
-    );
+    request.files.add(await http.MultipartFile.fromPath('file', filePath));
     final streamed = await _client.send(request);
     final res = await http.Response.fromStream(streamed);
     final body = _decodeJson(res.body);
     if (res.statusCode != 200) {
-      final msg = body['error']?.toString() ??
+      final msg =
+          body['error']?.toString() ??
           body['message']?.toString() ??
           'Import failed';
       throw ApiException(msg, statusCode: res.statusCode);

@@ -27,7 +27,9 @@ String _body(FinancialGoal goal) {
     buf.writeln(existing);
     buf.writeln();
   } else {
-    buf.writeln('Living plan. Edit this file instead of overwriting a JSON field.');
+    buf.writeln(
+      'Living plan. Edit this file instead of overwriting a JSON field.',
+    );
     buf.writeln();
   }
   buf.writeln('## Numbers');

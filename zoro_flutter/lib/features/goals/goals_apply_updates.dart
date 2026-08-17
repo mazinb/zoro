@@ -2,7 +2,11 @@ import '../../core/finance/goals_calculator.dart';
 import '../../core/state/app_model.dart';
 
 /// Applies structured invest split and [goalUpdates] from Goals helper (§2) or LLM synth.
-void applyGoalsGuideStructured(AppModel model, Map<String, Object?> structured, {String? focusGoalId}) {
+void applyGoalsGuideStructured(
+  AppModel model,
+  Map<String, Object?> structured, {
+  String? focusGoalId,
+}) {
   final invest = structured['allocInvestmentsMonthly'];
   final savings = structured['allocSavingsMonthly'];
   if (invest is num && savings is num) {
@@ -13,7 +17,10 @@ void applyGoalsGuideStructured(AppModel model, Map<String, Object?> structured, 
   } else {
     final frac = structured['allocInvestFraction'];
     if (frac is num) {
-      model.setAllocInvestFraction(frac.toDouble().clamp(0.0, 1.0), quantize: false);
+      model.setAllocInvestFraction(
+        frac.toDouble().clamp(0.0, 1.0),
+        quantize: false,
+      );
     }
   }
 
@@ -77,11 +84,19 @@ void applyGoalsGuideStructured(AppModel model, Map<String, Object?> structured, 
       final cs = u['corpusSurplus'] ?? u['corpusAdjustment'];
       if (cs is num) next = next.copyWith(corpusSurplus: cs.toDouble());
       final swr = u['safeWithdrawalRatePct'];
-      if (swr is num) next = next.copyWith(safeWithdrawalRatePct: clampWithdrawalRatePct(swr.toDouble()));
+      if (swr is num)
+        next = next.copyWith(
+          safeWithdrawalRatePct: clampWithdrawalRatePct(swr.toDouble()),
+        );
       final buf = u['corpusBufferPct'];
-      if (buf is num) next = next.copyWith(corpusBufferPct: clampCorpusBufferPct(buf.toDouble()));
+      if (buf is num)
+        next = next.copyWith(
+          corpusBufferPct: clampCorpusBufferPct(buf.toDouble()),
+        );
       if (u['corpusAutoFromExpenses'] is bool) {
-        next = next.copyWith(corpusAutoFromExpenses: u['corpusAutoFromExpenses'] as bool);
+        next = next.copyWith(
+          corpusAutoFromExpenses: u['corpusAutoFromExpenses'] as bool,
+        );
       }
     }
 
@@ -99,17 +114,25 @@ void applyRetirementCorpusStructured(
   if (r == null) return;
   var next = r;
   final swr = structured['safeWithdrawalRatePct'];
-  if (swr is num) next = next.copyWith(safeWithdrawalRatePct: clampWithdrawalRatePct(swr.toDouble()));
+  if (swr is num)
+    next = next.copyWith(
+      safeWithdrawalRatePct: clampWithdrawalRatePct(swr.toDouble()),
+    );
   final buf = structured['corpusBufferPct'];
-  if (buf is num) next = next.copyWith(corpusBufferPct: clampCorpusBufferPct(buf.toDouble()));
+  if (buf is num)
+    next = next.copyWith(corpusBufferPct: clampCorpusBufferPct(buf.toDouble()));
   if (structured['corpusAutoFromExpenses'] is bool) {
-    next = next.copyWith(corpusAutoFromExpenses: structured['corpusAutoFromExpenses'] as bool);
+    next = next.copyWith(
+      corpusAutoFromExpenses: structured['corpusAutoFromExpenses'] as bool,
+    );
   }
   final target = structured['targetAmount'];
   if (target is num) next = next.copyWith(targetAmount: target.toDouble());
   final surplus = structured['corpusSurplus'];
   if (surplus is num) {
-    next = next.copyWith(corpusSurplus: surplus.toDouble().clamp(0, double.infinity));
+    next = next.copyWith(
+      corpusSurplus: surplus.toDouble().clamp(0, double.infinity),
+    );
   } else if (buf is num) {
     final base = model.goalRetirementCorpusBaseAmount(next);
     next = next.copyWith(

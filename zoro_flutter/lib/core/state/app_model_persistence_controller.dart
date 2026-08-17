@@ -8,7 +8,7 @@ typedef SnapshotBuilder = Map<String, dynamic> Function();
 /// controllers while preserving current behavior.
 class AppModelPersistenceController {
   AppModelPersistenceController({required SnapshotBuilder buildSnapshot})
-      : _buildSnapshot = buildSnapshot;
+    : _buildSnapshot = buildSnapshot;
 
   final SnapshotBuilder _buildSnapshot;
 
@@ -37,4 +37,3 @@ class AppModelPersistenceController {
     }
   }
 }
-

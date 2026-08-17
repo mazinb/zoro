@@ -18,13 +18,13 @@ abstract final class DataExportKind {
   static const all = [ledger, goals, settings, context, historicalReturns];
 
   static String label(String kind) => switch (kind) {
-        ledger => 'Ledger',
-        goals => 'Plan',
-        settings => 'Settings',
-        context => 'Context note',
-        historicalReturns => 'Historical returns',
-        _ => kind,
-      };
+    ledger => 'Ledger',
+    goals => 'Plan',
+    settings => 'Settings',
+    context => 'Context note',
+    historicalReturns => 'Historical returns',
+    _ => kind,
+  };
 }
 
 /// User-facing pick for a context export item.
@@ -44,10 +44,10 @@ abstract final class LedgerExportScope {
   static const all = [full, part];
 
   static String label(String scope) => switch (scope) {
-        full => 'Full',
-        part => 'Part',
-        _ => scope,
-      };
+    full => 'Full',
+    part => 'Part',
+    _ => scope,
+  };
 }
 
 /// Ledger subsection for partial export.
@@ -61,13 +61,13 @@ abstract final class LedgerPartGroup {
   static const all = [assets, liabilities, income, expenses, months];
 
   static String label(String group) => switch (group) {
-        assets => 'Assets',
-        liabilities => 'Liabilities',
-        income => 'Income',
-        expenses => 'Expenses',
-        months => 'Cashflow months',
-        _ => group,
-      };
+    assets => 'Assets',
+    liabilities => 'Liabilities',
+    income => 'Income',
+    expenses => 'Expenses',
+    months => 'Cashflow months',
+    _ => group,
+  };
 
   /// Sentinel [DataExportPick.id] — export entire [group], not one row.
   static const allItemsId = '*';
@@ -83,12 +83,12 @@ abstract final class ContextExportGroup {
   static const all = [assets, liabilities, buckets, months];
 
   static String label(String group) => switch (group) {
-        assets => 'Assets',
-        liabilities => 'Liabilities',
-        buckets => 'Expense buckets',
-        months => 'Cashflow months',
-        _ => group,
-      };
+    assets => 'Assets',
+    liabilities => 'Liabilities',
+    buckets => 'Expense buckets',
+    months => 'Cashflow months',
+    _ => group,
+  };
 }
 
 enum ImportApplyMode { merge, replace }
@@ -96,10 +96,7 @@ enum ImportApplyMode { merge, replace }
 enum ImportSummaryAction { add, update, replace, info }
 
 class ImportSummaryLine {
-  const ImportSummaryLine({
-    required this.label,
-    required this.action,
-  });
+  const ImportSummaryLine({required this.label, required this.action});
 
   final String label;
   final ImportSummaryAction action;
@@ -127,12 +124,15 @@ class ImportAnalysis {
 class AppStateTransfer {
   static const String ledgerExportKind = DataExportKind.ledger;
 
-  static Map<String, dynamic> _envelope(String exportKind, Map<String, dynamic> payload) => {
-        'formatVersion': kAppStateFormatVersion,
-        'exportKind': exportKind,
-        'savedAtMs': DateTime.now().toUtc().millisecondsSinceEpoch,
-        ...payload,
-      };
+  static Map<String, dynamic> _envelope(
+    String exportKind,
+    Map<String, dynamic> payload,
+  ) => {
+    'formatVersion': kAppStateFormatVersion,
+    'exportKind': exportKind,
+    'savedAtMs': DateTime.now().toUtc().millisecondsSinceEpoch,
+    ...payload,
+  };
 
   static Map<String, dynamic> buildLedgerExportMap(
     AppModel model, {
@@ -145,17 +145,19 @@ class AppStateTransfer {
       return _envelope(ledgerExportKind, {'ledger': full});
     }
     final group = partGroup ?? LedgerPartGroup.assets;
-    final ledger = _ledgerPartialMap(full, group: group, partPickId: partPickId);
-    return _envelope(
-      ledgerExportKind,
-      {
-        'ledger': ledger,
-        'ledgerPart': {
-          'group': group,
-          if (partPickId != null && partPickId != LedgerPartGroup.allItemsId) 'id': partPickId,
-        },
-      },
+    final ledger = _ledgerPartialMap(
+      full,
+      group: group,
+      partPickId: partPickId,
     );
+    return _envelope(ledgerExportKind, {
+      'ledger': ledger,
+      'ledgerPart': {
+        'group': group,
+        if (partPickId != null && partPickId != LedgerPartGroup.allItemsId)
+          'id': partPickId,
+      },
+    });
   }
 
   static Map<String, dynamic> _ledgerPartialMap(
@@ -163,35 +165,46 @@ class AppStateTransfer {
     required String group,
     String? partPickId,
   }) {
-    final allInGroup = partPickId == null || partPickId == LedgerPartGroup.allItemsId;
+    final allInGroup =
+        partPickId == null || partPickId == LedgerPartGroup.allItemsId;
     switch (group) {
       case LedgerPartGroup.assets:
         final raw = full['assets'];
         if (raw is! List) return {'assets': <dynamic>[]};
         if (allInGroup) return {'assets': raw};
         return {
-          'assets': [for (final e in raw) if (e is Map && e['id']?.toString() == partPickId) e],
+          'assets': [
+            for (final e in raw)
+              if (e is Map && e['id']?.toString() == partPickId) e,
+          ],
         };
       case LedgerPartGroup.liabilities:
         final raw = full['liabilities'];
         if (raw is! List) return {'liabilities': <dynamic>[]};
         if (allInGroup) return {'liabilities': raw};
         return {
-          'liabilities': [for (final e in raw) if (e is Map && e['id']?.toString() == partPickId) e],
+          'liabilities': [
+            for (final e in raw)
+              if (e is Map && e['id']?.toString() == partPickId) e,
+          ],
         };
       case LedgerPartGroup.income:
         final raw = full['incomeLines'];
         if (raw is! List) return {'incomeLines': <dynamic>[]};
         if (allInGroup) return {'incomeLines': raw};
         return {
-          'incomeLines': [for (final e in raw) if (e is Map && e['id']?.toString() == partPickId) e],
+          'incomeLines': [
+            for (final e in raw)
+              if (e is Map && e['id']?.toString() == partPickId) e,
+          ],
         };
       case LedgerPartGroup.expenses:
         final buckets = full['expenseBuckets'];
         final ctx = full['expenseBucketContextMarkdown'];
         if (allInGroup) {
           return {
-            if (full['ledgerDisplayCurrency'] != null) 'ledgerDisplayCurrency': full['ledgerDisplayCurrency'],
+            if (full['ledgerDisplayCurrency'] != null)
+              'ledgerDisplayCurrency': full['ledgerDisplayCurrency'],
             if (full['expenseEstimateCurrency'] != null)
               'expenseEstimateCurrency': full['expenseEstimateCurrency'],
             if (buckets is Map) 'expenseBuckets': buckets,
@@ -200,7 +213,8 @@ class AppStateTransfer {
         }
         final key = partPickId;
         final out = <String, dynamic>{};
-        if (full['ledgerDisplayCurrency'] != null) out['ledgerDisplayCurrency'] = full['ledgerDisplayCurrency'];
+        if (full['ledgerDisplayCurrency'] != null)
+          out['ledgerDisplayCurrency'] = full['ledgerDisplayCurrency'];
         if (full['expenseEstimateCurrency'] != null) {
           out['expenseEstimateCurrency'] = full['expenseEstimateCurrency'];
         }
@@ -216,14 +230,17 @@ class AppStateTransfer {
         if (raw is! Map) return {'monthlyCashflowByMonth': <String, dynamic>{}};
         if (allInGroup) {
           return {
-            if (full['ledgerDisplayCurrency'] != null) 'ledgerDisplayCurrency': full['ledgerDisplayCurrency'],
+            if (full['ledgerDisplayCurrency'] != null)
+              'ledgerDisplayCurrency': full['ledgerDisplayCurrency'],
             'monthlyCashflowByMonth': raw,
           };
         }
         final key = partPickId;
-        if (!raw.containsKey(key)) return {'monthlyCashflowByMonth': <String, dynamic>{}};
+        if (!raw.containsKey(key))
+          return {'monthlyCashflowByMonth': <String, dynamic>{}};
         return {
-          if (full['ledgerDisplayCurrency'] != null) 'ledgerDisplayCurrency': full['ledgerDisplayCurrency'],
+          if (full['ledgerDisplayCurrency'] != null)
+            'ledgerDisplayCurrency': full['ledgerDisplayCurrency'],
           'monthlyCashflowByMonth': {key: raw[key]},
         };
       default:
@@ -231,7 +248,10 @@ class AppStateTransfer {
     }
   }
 
-  static List<DataExportPick> listLedgerPartPicksForGroup(AppModel model, String group) {
+  static List<DataExportPick> listLedgerPartPicksForGroup(
+    AppModel model,
+    String group,
+  ) {
     final items = <DataExportPick>[
       const DataExportPick(id: LedgerPartGroup.allItemsId, label: 'All'),
     ];
@@ -255,7 +275,10 @@ class AppStateTransfer {
       case LedgerPartGroup.income:
         items.addAll([
           for (final line in model.incomeLines)
-            DataExportPick(id: line.id, label: line.label.trim().isNotEmpty ? line.label : 'Income'),
+            DataExportPick(
+              id: line.id,
+              label: line.label.trim().isNotEmpty ? line.label : 'Income',
+            ),
         ]);
       case LedgerPartGroup.expenses:
         items.addAll([
@@ -263,7 +286,8 @@ class AppStateTransfer {
         ]);
       case LedgerPartGroup.months:
         items.addAll([
-          for (final monthKey in model.monthlyCashflowByMonth.keys.toList()..sort())
+          for (final monthKey
+              in model.monthlyCashflowByMonth.keys.toList()..sort())
             DataExportPick(id: monthKey, label: monthKey),
         ]);
     }
@@ -271,30 +295,36 @@ class AppStateTransfer {
   }
 
   static Map<String, dynamic> buildGoalsExportMap(AppModel model) => _envelope(
-        DataExportKind.goals,
-        {
-          'goals': model.financialGoals.map(encodeFinancialGoal).toList(),
-          if (model.retirementMarkdownCache.trim().isNotEmpty)
-            'retirementMarkdown': model.retirementMarkdownCache,
+    DataExportKind.goals,
+    {
+      'goals': model.financialGoals.map(encodeFinancialGoal).toList(),
+      if (model.retirementMarkdownCache.trim().isNotEmpty)
+        'retirementMarkdown': model.retirementMarkdownCache,
+      'docs': {
+        'retirement': {
+          'markdown': model.retirementMarkdownCache,
+          if (model.agentPlanLastCommitAt != null)
+            'updatedAt': model.agentPlanLastCommitAt!.toUtc().toIso8601String(),
         },
-      );
+      },
+    },
+  );
 
   static Map<String, dynamic> buildHistoricalReturnsExportMap(AppModel model) {
     model.ensureDefaultHistoricalReturns();
-    return _envelope(
-      DataExportKind.historicalReturns,
-      {
-        'historicalReturns': {
-          'series': model.historicalReturnSeries.map(encodeHistoricalReturnSeries).toList(),
-          'corpusBacktest': encodeCorpusBacktestPrefs(
-            equityPct: model.corpusBacktestEquityPct,
-            equitySeriesId: model.corpusBacktestEquitySeriesId,
-            debtSeriesId: model.corpusBacktestDebtSeriesId,
-            startYear: model.corpusBacktestStartYear,
-          ),
-        },
+    return _envelope(DataExportKind.historicalReturns, {
+      'historicalReturns': {
+        'series': model.historicalReturnSeries
+            .map(encodeHistoricalReturnSeries)
+            .toList(),
+        'corpusBacktest': encodeCorpusBacktestPrefs(
+          equityPct: model.corpusBacktestEquityPct,
+          equitySeriesId: model.corpusBacktestEquitySeriesId,
+          debtSeriesId: model.corpusBacktestDebtSeriesId,
+          startYear: model.corpusBacktestStartYear,
+        ),
       },
-    );
+    });
   }
 
   static Map<String, dynamic> buildSettingsExportMap(AppModel model) {
@@ -304,20 +334,21 @@ class AppStateTransfer {
     return _envelope(DataExportKind.settings, {'settings': settings});
   }
 
-  static Map<String, dynamic> buildContextExportMap(AppModel model, String storageKey) {
+  static Map<String, dynamic> buildContextExportMap(
+    AppModel model,
+    String storageKey,
+  ) {
     final markdown = _contextMarkdownForKey(model, storageKey);
     final savedAt = model.contextNoteSavedAtUtc[storageKey];
-    return _envelope(
-      DataExportKind.context,
-      {
-        'context': {
-          'storageKey': storageKey,
-          'label': _contextLabelForKey(model, storageKey),
-          'markdown': markdown,
-          if (savedAt != null) 'savedAtMs': savedAt.toUtc().millisecondsSinceEpoch,
-        },
+    return _envelope(DataExportKind.context, {
+      'context': {
+        'storageKey': storageKey,
+        'label': _contextLabelForKey(model, storageKey),
+        'markdown': markdown,
+        if (savedAt != null)
+          'savedAtMs': savedAt.toUtc().millisecondsSinceEpoch,
       },
-    );
+    });
   }
 
   static String _contextMarkdownForKey(AppModel model, String storageKey) {
@@ -362,36 +393,43 @@ class AppStateTransfer {
   }
 
   static List<DataExportPick> listContextExportPicks(AppModel model) => [
-        ...listContextExportPicksForGroup(model, ContextExportGroup.assets),
-        ...listContextExportPicksForGroup(model, ContextExportGroup.liabilities),
-        ...listContextExportPicksForGroup(model, ContextExportGroup.buckets),
-        ...listContextExportPicksForGroup(model, ContextExportGroup.months),
-      ];
+    ...listContextExportPicksForGroup(model, ContextExportGroup.assets),
+    ...listContextExportPicksForGroup(model, ContextExportGroup.liabilities),
+    ...listContextExportPicksForGroup(model, ContextExportGroup.buckets),
+    ...listContextExportPicksForGroup(model, ContextExportGroup.months),
+  ];
 
-  static List<DataExportPick> listContextExportPicksForGroup(AppModel model, String group) {
+  static List<DataExportPick> listContextExportPicksForGroup(
+    AppModel model,
+    String group,
+  ) {
     return switch (group) {
       ContextExportGroup.assets => [
-          for (final a in model.assets)
-            DataExportPick(
-              id: AppModel.contextKeyAsset(a.id),
-              label: a.name.trim().isNotEmpty ? a.name : a.label,
-            ),
-        ],
+        for (final a in model.assets)
+          DataExportPick(
+            id: AppModel.contextKeyAsset(a.id),
+            label: a.name.trim().isNotEmpty ? a.name : a.label,
+          ),
+      ],
       ContextExportGroup.liabilities => [
-          for (final l in model.liabilities)
-            DataExportPick(
-              id: AppModel.contextKeyLiability(l.id),
-              label: l.name.trim().isNotEmpty ? l.name : l.type.label,
-            ),
-        ],
+        for (final l in model.liabilities)
+          DataExportPick(
+            id: AppModel.contextKeyLiability(l.id),
+            label: l.name.trim().isNotEmpty ? l.name : l.type.label,
+          ),
+      ],
       ContextExportGroup.buckets => [
-          for (final k in expenseBucketKeys)
-            DataExportPick(id: AppModel.contextKeyBucket(k), label: k),
-        ],
+        for (final k in expenseBucketKeys)
+          DataExportPick(id: AppModel.contextKeyBucket(k), label: k),
+      ],
       ContextExportGroup.months => [
-          for (final monthKey in model.monthlyCashflowByMonth.keys.toList()..sort())
-            DataExportPick(id: AppModel.contextKeyMonth(monthKey), label: monthKey),
-        ],
+        for (final monthKey
+            in model.monthlyCashflowByMonth.keys.toList()..sort())
+          DataExportPick(
+            id: AppModel.contextKeyMonth(monthKey),
+            label: monthKey,
+          ),
+      ],
       _ => const [],
     };
   }
@@ -406,14 +444,16 @@ class AppStateTransfer {
   }) {
     return switch (exportKind) {
       DataExportKind.ledger => buildLedgerExportMap(
-          model,
-          scope: ledgerScope,
-          partGroup: ledgerPartGroup,
-          partPickId: ledgerPartPickId ?? pickId,
-        ),
+        model,
+        scope: ledgerScope,
+        partGroup: ledgerPartGroup,
+        partPickId: ledgerPartPickId ?? pickId,
+      ),
       DataExportKind.goals => buildGoalsExportMap(model),
       DataExportKind.settings => buildSettingsExportMap(model),
-      DataExportKind.historicalReturns => buildHistoricalReturnsExportMap(model),
+      DataExportKind.historicalReturns => buildHistoricalReturnsExportMap(
+        model,
+      ),
       DataExportKind.context => buildContextExportMap(model, pickId ?? ''),
       _ => throw ArgumentError('Unknown export kind: $exportKind'),
     };
@@ -475,7 +515,9 @@ class AppStateTransfer {
       DataExportKind.context =>
         root['context'] is Map ? null : 'Missing "context" object.',
       DataExportKind.historicalReturns =>
-        root['historicalReturns'] is Map ? null : 'Missing "historicalReturns" object.',
+        root['historicalReturns'] is Map
+            ? null
+            : 'Missing "historicalReturns" object.',
       _ => 'Unknown exportKind.',
     };
   }
@@ -487,7 +529,10 @@ class AppStateTransfer {
     return Map<String, dynamic>.from(decoded as Map);
   }
 
-  static ImportAnalysis analyzeImport(AppModel model, Map<String, dynamic> root) {
+  static ImportAnalysis analyzeImport(
+    AppModel model,
+    Map<String, dynamic> root,
+  ) {
     final kind = root['exportKind']!.toString();
     final title = DataExportKind.label(kind);
     final lines = <ImportSummaryLine>[];
@@ -518,11 +563,28 @@ class AppStateTransfer {
             add++;
           }
         }
-        if (add > 0) lines.add(ImportSummaryLine(label: '$add goal(s) to add', action: ImportSummaryAction.add));
+        if (add > 0)
+          lines.add(
+            ImportSummaryLine(
+              label: '$add goal(s) to add',
+              action: ImportSummaryAction.add,
+            ),
+          );
         if (upd > 0) {
-          lines.add(ImportSummaryLine(label: '$upd goal(s) to update by id', action: ImportSummaryAction.update));
+          lines.add(
+            ImportSummaryLine(
+              label: '$upd goal(s) to update by id',
+              action: ImportSummaryAction.update,
+            ),
+          );
         }
-        if (lines.isEmpty) lines.add(const ImportSummaryLine(label: 'No goals in file', action: ImportSummaryAction.info));
+        if (lines.isEmpty)
+          lines.add(
+            const ImportSummaryLine(
+              label: 'No goals in file',
+              action: ImportSummaryAction.info,
+            ),
+          );
         return ImportAnalysis(
           exportKind: kind,
           title: title,
@@ -532,7 +594,12 @@ class AppStateTransfer {
           supportsReplace: true,
         );
       case DataExportKind.settings:
-        lines.add(const ImportSummaryLine(label: 'App preferences and reminders', action: ImportSummaryAction.replace));
+        lines.add(
+          const ImportSummaryLine(
+            label: 'App preferences and reminders',
+            action: ImportSummaryAction.replace,
+          ),
+        );
         return ImportAnalysis(
           exportKind: kind,
           title: title,
@@ -550,7 +617,9 @@ class AppStateTransfer {
         lines.add(
           ImportSummaryLine(
             label: exists ? 'Update context: $label' : 'Add context: $label',
-            action: exists ? ImportSummaryAction.update : ImportSummaryAction.add,
+            action: exists
+                ? ImportSummaryAction.update
+                : ImportSummaryAction.add,
           ),
         );
         lines.add(
@@ -574,8 +643,18 @@ class AppStateTransfer {
           final raw = block['series'];
           if (raw is List) seriesCount = raw.length;
         }
-        lines.add(ImportSummaryLine(label: '$seriesCount return series', action: ImportSummaryAction.update));
-        lines.add(const ImportSummaryLine(label: 'Corpus backtest prefs if present', action: ImportSummaryAction.info));
+        lines.add(
+          ImportSummaryLine(
+            label: '$seriesCount return series',
+            action: ImportSummaryAction.update,
+          ),
+        );
+        lines.add(
+          const ImportSummaryLine(
+            label: 'Corpus backtest prefs if present',
+            action: ImportSummaryAction.info,
+          ),
+        );
         return ImportAnalysis(
           exportKind: kind,
           title: title,
@@ -629,9 +708,20 @@ class AppStateTransfer {
           add++;
         }
       }
-      if (add > 0) lines.add(ImportSummaryLine(label: '$add $label to add', action: ImportSummaryAction.add));
+      if (add > 0)
+        lines.add(
+          ImportSummaryLine(
+            label: '$add $label to add',
+            action: ImportSummaryAction.add,
+          ),
+        );
       if (upd > 0) {
-        lines.add(ImportSummaryLine(label: '$upd $label to update by id', action: ImportSummaryAction.update));
+        lines.add(
+          ImportSummaryLine(
+            label: '$upd $label to update by id',
+            action: ImportSummaryAction.update,
+          ),
+        );
       }
     }
 
@@ -666,12 +756,29 @@ class AppStateTransfer {
           add++;
         }
       }
-      if (add > 0) lines.add(ImportSummaryLine(label: '$add month(s) to add', action: ImportSummaryAction.add));
-      if (upd > 0) lines.add(ImportSummaryLine(label: '$upd month(s) to update', action: ImportSummaryAction.update));
+      if (add > 0)
+        lines.add(
+          ImportSummaryLine(
+            label: '$add month(s) to add',
+            action: ImportSummaryAction.add,
+          ),
+        );
+      if (upd > 0)
+        lines.add(
+          ImportSummaryLine(
+            label: '$upd month(s) to update',
+            action: ImportSummaryAction.update,
+          ),
+        );
     }
 
     if (lines.isEmpty) {
-      lines.add(const ImportSummaryLine(label: 'Ledger data in file', action: ImportSummaryAction.info));
+      lines.add(
+        const ImportSummaryLine(
+          label: 'Ledger data in file',
+          action: ImportSummaryAction.info,
+        ),
+      );
     }
   }
 
@@ -717,7 +824,8 @@ class AppStateTransfer {
     final incoming = <HistoricalReturnSeries>[
       if (raw is List)
         for (final e in raw)
-          if (decodeHistoricalReturnSeries(e) != null) decodeHistoricalReturnSeries(e)!,
+          if (decodeHistoricalReturnSeries(e) != null)
+            decodeHistoricalReturnSeries(e)!,
     ];
     if (mode == ImportApplyMode.replace) {
       await model.replaceHistoricalReturnSeriesFromImport(incoming);
@@ -730,9 +838,11 @@ class AppStateTransfer {
       final eq = p['equityPct'];
       if (eq is num) model.setCorpusBacktestEquityPct(eq.toDouble());
       final es = p['equitySeriesId']?.toString();
-      if (es != null && es.isNotEmpty) model.setCorpusBacktestSeriesIds(equityId: es);
+      if (es != null && es.isNotEmpty)
+        model.setCorpusBacktestSeriesIds(equityId: es);
       final ds = p['debtSeriesId']?.toString();
-      if (ds != null && ds.isNotEmpty) model.setCorpusBacktestSeriesIds(debtId: ds);
+      if (ds != null && ds.isNotEmpty)
+        model.setCorpusBacktestSeriesIds(debtId: ds);
     }
   }
 
@@ -753,7 +863,14 @@ class AppStateTransfer {
         model.upsertFinancialGoal(g);
       }
     }
-    final md = root['retirementMarkdown']?.toString();
+    final md =
+        root['retirementMarkdown']?.toString() ??
+        ((root['docs'] is Map)
+            ? ((root['docs'] as Map)['retirement'] is Map
+                  ? ((root['docs'] as Map)['retirement'] as Map)['markdown']
+                        ?.toString()
+                  : null)
+            : null);
     await model.migrateImportedRetirementIfNeeded(markdown: md);
   }
 
@@ -763,35 +880,62 @@ class AppStateTransfer {
     ImportApplyMode mode,
   ) async {
     final settings = Map<String, dynamic>.from(root['settings'] as Map);
-    await model.applyImportedSettings(settings, replace: mode == ImportApplyMode.replace);
+    await model.applyImportedSettings(
+      settings,
+      replace: mode == ImportApplyMode.replace,
+    );
   }
 
-  static Future<void> _applyContextImport(AppModel model, Map<String, dynamic> root) async {
+  static Future<void> _applyContextImport(
+    AppModel model,
+    Map<String, dynamic> root,
+  ) async {
     final ctx = Map<String, dynamic>.from(root['context'] as Map);
     final key = ctx['storageKey']?.toString();
-    if (key == null || key.isEmpty) throw FormatException('Missing context storageKey.');
+    if (key == null || key.isEmpty)
+      throw FormatException('Missing context storageKey.');
     final markdown = ctx['markdown']?.toString() ?? '';
     final savedMs = ctx['savedAtMs'];
     if (key.startsWith('asset:')) {
-      model.setAssetContextMarkdown(assetId: key.substring(6), markdown: markdown);
+      model.setAssetContextMarkdown(
+        assetId: key.substring(6),
+        markdown: markdown,
+      );
     } else if (key.startsWith('liability:')) {
-      model.setLiabilityContextMarkdown(liabilityId: key.substring(10), markdown: markdown);
+      model.setLiabilityContextMarkdown(
+        liabilityId: key.substring(10),
+        markdown: markdown,
+      );
     } else if (key.startsWith('bucket:')) {
-      model.setExpenseBucketContextMarkdown(bucketKey: key.substring(7), markdown: markdown);
+      model.setExpenseBucketContextMarkdown(
+        bucketKey: key.substring(7),
+        markdown: markdown,
+      );
     } else if (key.startsWith('month:')) {
       final monthKey = key.substring(6);
       if (model.monthlyEntryFor(monthKey) == null) {
-        throw FormatException('No cashflow row for month $monthKey — add the month in Ledger first.');
+        throw FormatException(
+          'No cashflow row for month $monthKey — add the month in Ledger first.',
+        );
       }
-      model.setMonthlyEntryContextMarkdown(monthKey: monthKey, markdown: markdown);
+      model.setMonthlyEntryContextMarkdown(
+        monthKey: monthKey,
+        markdown: markdown,
+      );
     }
     if (savedMs is int) {
-      model.contextNoteSavedAtUtc[key] = DateTime.fromMillisecondsSinceEpoch(savedMs, isUtc: true);
+      model.contextNoteSavedAtUtc[key] = DateTime.fromMillisecondsSinceEpoch(
+        savedMs,
+        isUtc: true,
+      );
       await model.persistAppStateToDisk();
     }
   }
 
-  static String suggestedExportFileName({String exportKind = ledgerExportKind, String? pickLabel}) {
+  static String suggestedExportFileName({
+    String exportKind = ledgerExportKind,
+    String? pickLabel,
+  }) {
     final n = DateTime.now();
     final stamp =
         '${n.year}${n.month.toString().padLeft(2, '0')}${n.day.toString().padLeft(2, '0')}_'
