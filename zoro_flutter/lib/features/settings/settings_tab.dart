@@ -28,11 +28,6 @@ import 'data_transfer_pane.dart';
 import 'internal_agent_prompt_editor_page.dart';
 import 'token_usage_card.dart';
 
-bool _helperReplacedBySkill(AppModel model, String id) {
-  final skill = InternalAppAgentIds.replacedBySkill[id];
-  return skill != null && model.agentWorkspace.hasSkill(skill);
-}
-
 abstract class SettingsTabIndex {
   static const int reminders = 0;
   static const int agents = 1;
@@ -924,8 +919,7 @@ class _AgentsPaneState extends State<_AgentsPane> {
     return ListView(
       children: [
         TokenUsageCard(model: model),
-        if (homeHelperDef != null &&
-            !_helperReplacedBySkill(model, homeHelperDef.id)) ...[
+        if (homeHelperDef != null) ...[
           const SizedBox(height: 16),
           Card(
             child: ListTile(
@@ -977,11 +971,7 @@ class _AgentsPaneState extends State<_AgentsPane> {
     };
     final defs =
         kInternalAppAgentDefinitions
-            .where(
-              (d) =>
-                  contextIds.contains(d.id) &&
-                  !_helperReplacedBySkill(model, d.id),
-            )
+            .where((d) => contextIds.contains(d.id))
             .toList()
           ..sort((a, b) {
             if (a.id == InternalAppAgentIds.contextOrchestrator) return -1;
@@ -1052,11 +1042,7 @@ class _AgentsPaneState extends State<_AgentsPane> {
     };
     final defs =
         kInternalAppAgentDefinitions
-            .where(
-              (d) =>
-                  goalsIds.contains(d.id) &&
-                  !_helperReplacedBySkill(model, d.id),
-            )
+            .where((d) => goalsIds.contains(d.id))
             .toList()
           ..sort((a, b) {
             const order = [
@@ -1219,9 +1205,7 @@ class _AgentsPaneState extends State<_AgentsPane> {
           child: ListView(
             padding: EdgeInsets.zero,
             children: [
-              for (final def in kInternalAppAgentDefinitions.where(
-                (d) => isLedger(d) && !_helperReplacedBySkill(model, d.id),
-              ))
+              for (final def in kInternalAppAgentDefinitions.where(isLedger))
                 Padding(
                   padding: const EdgeInsets.only(bottom: 10),
                   child: Card(

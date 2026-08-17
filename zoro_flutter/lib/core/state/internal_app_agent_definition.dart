@@ -29,29 +29,6 @@ abstract final class InternalAppAgentIds {
 
   static const exportSanitizer = 'export_sanitizer';
   static const homeSummaryHelper = 'home_summary_helper';
-
-  /// Settings helpers hidden once the matching skill pack is installed.
-  static const replacedBySkill = <String, String>{
-    goalsRetirementCorpus: 'retirement-plan',
-    goalsRetirementSplit: 'retirement-plan',
-    goalsRetirementBuckets: 'retirement-plan',
-    goalsReviewAssumptions: 'retirement-plan',
-    goalsReviewLiabilities: 'retirement-plan',
-    goalsReviewAssetReturns: 'retirement-plan',
-    goalsExpenseEstimator: 'expense-calibration',
-    ledgerAddAssets: 'ledger-from-statement',
-    ledgerAddLiabilities: 'ledger-from-statement',
-    ledgerAddActualExpenses: 'ledger-from-statement',
-    ledgerReviewAsset: 'ledger-review',
-    ledgerReviewLiability: 'ledger-review',
-    ledgerOrchestrator: 'expense-calibration',
-    assetContext: 'update-context',
-    liabilityContext: 'update-context',
-    expenseBucketContext: 'update-context',
-    monthCashflowContext: 'update-context',
-    contextOrchestrator: 'update-context',
-    homeSummaryHelper: 'home-briefing',
-  };
 }
 
 /// Registry entry for Settings → App helpers. Add rows here to surface new built-in helpers.
@@ -553,7 +530,7 @@ Only include bucket keys from payload.bucketKeys. Amounts are monthly in display
   InternalAppAgentDefinition(
     id: InternalAppAgentIds.homeSummaryHelper,
     title: 'Home briefing',
-    listSubtitle: 'Coming as an agent skill',
+    listSubtitle: 'Daily briefing prompt · also runs as an agent skill',
     icon: Icons.wb_sunny_outlined,
     defaultSystemPrompt: '''
 You rotate through one area of the user's finances each day (assets, liabilities, cash flow, context notes, or goals).

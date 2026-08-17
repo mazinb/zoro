@@ -239,8 +239,7 @@ class _MainScaffoldState extends State<MainScaffold>
         ? 0.0
         : MediaQuery.paddingOf(context).bottom +
               navBarHeight +
-              LiquidGlassBar.defaultMargin.vertical +
-              8;
+              LiquidGlassBar.defaultMargin.vertical;
 
     return Scaffold(
       extendBody: true,

@@ -1015,12 +1015,12 @@ class _AgentBody extends StatelessWidget {
             color: cs.surface.withValues(alpha: isDark ? 0.94 : 0.98),
             elevation: 6,
             shadowColor: Colors.black26,
-            child: SafeArea(
-              top: false,
-              minimum: EdgeInsets.zero,
-              child: Padding(
-                padding: EdgeInsets.fromLTRB(10, 6, 10, keyboardOpen ? 6 : 8),
-                child: Row(
+            // No SafeArea here: MainScaffold already reserves the home
+            // indicator plus the floating tab bar, so adding the bottom inset
+            // again would push the composer up and shrink the thread.
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(10, 6, 10, keyboardOpen ? 6 : 4),
+              child: Row(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Padding(
@@ -1108,7 +1108,6 @@ class _AgentBody extends StatelessWidget {
                 ),
               ),
             ),
-          ),
         ],
       ),
     );
