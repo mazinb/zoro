@@ -15,7 +15,7 @@ Future<void> openGoalsAllocationSheet({
   );
 }
 
-/// Context notes for the invest / save split (slider stays on Goals tab).
+/// Context notes for the invest / save split (slider lives on Ledger → Cash).
 class _GoalsAllocationNotesSheet extends StatefulWidget {
   const _GoalsAllocationNotesSheet({required this.model});
 

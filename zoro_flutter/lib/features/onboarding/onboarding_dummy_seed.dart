@@ -458,7 +458,7 @@ Future<bool> synthesizeDummyLedgerWithApple(
       user: jsonEncode(payload),
       maxOutputTokens: 2500,
     );
-    model.recordLlmRequest(provider: provider, model: modelName);
+    model.recordLlmRequest(provider: provider, model: modelName, tokensUsed: result.tokensUsed);
     final obj = decodeLlmJsonObject(result.text);
     final assetsRaw = obj['assets'];
     final liabsRaw = obj['liabilities'];

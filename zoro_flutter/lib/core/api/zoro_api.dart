@@ -195,6 +195,7 @@ class ZoroApi {
     required String system,
     required String user,
     List<Map<String, dynamic>> attachments = const [],
+    bool onboardingPhase = false,
   }) async {
     final uri = AppEnv.apiUri('/api/mobile/ledger-import');
     final res = await _client.post(
@@ -205,6 +206,7 @@ class ZoroApi {
         'kind': kind,
         'system': system,
         'user': user,
+        'onboardingPhase': onboardingPhase,
         if (attachments.isNotEmpty) 'attachments': attachments,
       }),
     );
@@ -225,6 +227,7 @@ class ZoroApi {
     required String user,
     bool preferJsonObject = false,
     int? maxOutputTokens,
+    bool onboardingPhase = false,
   }) async {
     final uri = AppEnv.apiUri('/api/mobile/assistant');
     final res = await _client.post(
@@ -236,6 +239,7 @@ class ZoroApi {
         'user': user,
         if (preferJsonObject) 'preferJsonObject': true,
         if (maxOutputTokens != null) 'maxOutputTokens': maxOutputTokens,
+        'onboardingPhase': onboardingPhase,
       }),
     );
     final body = _decodeJson(res.body);

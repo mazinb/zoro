@@ -234,10 +234,10 @@ class _CommandCenterTabState extends State<CommandCenterTab> with TickerProvider
       if (widget.model.remindersGoalsCadence != ReminderCadence.off)
         _ReminderItem(
           rowKey: const ValueKey<String>('reminder-goals'),
-          title: 'Goals',
+          title: 'Plan',
           detail: _lastUpdatedDetail(widget.model.retirementPlanLastUpdatedAt(), now),
           onTap: widget.onGoToGoals ?? widget.onOpenGoalsHelper ?? () {},
-          icon: Icons.flag_outlined,
+          icon: Icons.smart_toy_outlined,
           overdue: widget.model.goalsReviewOverdueAt(now),
         ),
     ];
@@ -304,76 +304,6 @@ class _CommandCenterTabState extends State<CommandCenterTab> with TickerProvider
           ),
         ),
         const SizedBox(height: 10),
-        if (widget.model.homeSummaryText.trim().isNotEmpty ||
-            widget.model.homeSummaryHelperRunning)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Card(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(14, 6, 6, 14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    if (widget.model.homeSummaryText.trim().isNotEmpty)
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: IconButton(
-                          tooltip: 'Dismiss',
-                          onPressed: () => widget.model.setHomeSummaryText(''),
-                          icon: const Icon(Icons.close, size: 16),
-                          iconSize: 16,
-                          visualDensity: VisualDensity.compact,
-                          padding: const EdgeInsets.all(4),
-                          constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-                          style: IconButton.styleFrom(
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            foregroundColor: Theme.of(context).colorScheme.outline,
-                          ),
-                        ),
-                      ),
-                    if (widget.model.homeSummaryHelperRunning &&
-                        widget.model.homeSummaryText.trim().isEmpty)
-                      Row(
-                        children: [
-                          SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: widget.model.accent,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Text(
-                              'Writing today\'s note…',
-                              style: TextStyle(
-                                color: Theme.of(context).colorScheme.onSurfaceVariant,
-                                fontSize: 15,
-                                height: 1.55,
-                              ),
-                            ),
-                          ),
-                        ],
-                      )
-                    else
-                      Text(
-                        widget.model.homeSummaryText.trim(),
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.onSurface,
-                          fontWeight: FontWeight.w400,
-                          fontSize: 15,
-                          height: 1.55,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        if (widget.model.homeSummaryText.trim().isNotEmpty ||
-            widget.model.homeSummaryHelperRunning)
-          const SizedBox(height: 10),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Card(

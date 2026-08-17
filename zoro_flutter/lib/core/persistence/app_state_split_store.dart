@@ -11,7 +11,10 @@ import 'context_markdown_sidecar.dart';
 
 /// On-disk manifest layout version. Documented in repo `zoro-app/README.md` (On-device data layout).
 /// Bump this constant and the README table when paths or split rules change.
-const int kAppStateSplitLayoutVersion = 2;
+const int kAppStateSplitLayoutVersion = 3;
+
+/// Previous split layout (v2) still loads; save always writes [kAppStateSplitLayoutVersion].
+const int kAppStateSplitLayoutVersionV2 = 2;
 
 bool get _shouldLogSplitStore =>
     kDebugMode && !Platform.environment.containsKey('FLUTTER_TEST');
@@ -83,6 +86,7 @@ abstract final class AppStateSplitStore {
           'settings': AppStatePaths.settingsFile,
           'context': AppStatePaths.contextFile,
           'internalAgents': AppStatePaths.internalAgentsFile,
+          'hermesHome': AppStatePaths.hermesHomeDir,
         },
       };
 
@@ -161,7 +165,7 @@ abstract final class AppStateSplitStore {
   static Future<void> _migrateMonolithicV1(Directory sup, Map<String, dynamic> monolithic) async {
     await saveMonolithic(monolithic);
     if (_shouldLogSplitStore) {
-      debugPrint('[AppStateSplitStore] migrated monolithic v1 → split v2');
+      debugPrint('[AppStateSplitStore] migrated monolithic v1 → split v$kAppStateSplitLayoutVersion');
     }
   }
 
@@ -179,7 +183,7 @@ abstract final class AppStateSplitStore {
       final manifest = Map<String, dynamic>.from(manifestDecoded);
       final ver = manifest['formatVersion'];
 
-      if (ver == kAppStateSplitLayoutVersion) {
+      if (ver == kAppStateSplitLayoutVersion || ver == kAppStateSplitLayoutVersionV2) {
         return _assembleSplit(sup);
       }
 

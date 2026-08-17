@@ -1,6 +1,8 @@
 import 'dart:convert';
 
 import '../api/api_exception.dart';
+import '../entitlements/mobile_entitlements.dart';
+import '../entitlements/token_billing.dart';
 import '../platform/platform_ai.dart';
 import '../llm/apple_foundation_channel.dart';
 import '../llm/llm_client.dart';
@@ -36,6 +38,7 @@ class LedgerImportService {
           kind: kind,
           system: system,
           user: user,
+          onboardingPhase: model.inSetupImportPhase,
           attachments: attachments
               .map(
                 (a) => {
@@ -46,7 +49,12 @@ class LedgerImportService {
               )
               .toList(),
         );
-        model.recordImportRequest(cloud: true);
+        final billed = TokenBilling.parseCount(body['tokensUsed']);
+        model.recordImportRequest(
+          cloud: true,
+          tokensUsed: billed > 0 ? billed : null,
+          entitlementsApiBody: MobileEntitlements.wrapApiData(body['entitlements']),
+        );
         final data = body['data'];
         if (data is! Map) throw const FormatException('Import returned invalid data');
         return Map<String, dynamic>.from(data);
@@ -88,7 +96,10 @@ class LedgerImportService {
         user: user,
         maxOutputTokens: budget.reservedForOutput,
       );
-      model.recordImportRequest(cloud: false);
+      model.recordImportRequest(
+        cloud: false,
+        tokensUsed: tokens + (raw.length / 4).ceil(),
+      );
       return decodeLlmJsonObject(raw);
     } catch (e) {
       throw StateError(_importErrorMessage(e));
@@ -96,7 +107,12 @@ class LedgerImportService {
   }
 
   static String _importErrorMessage(Object e) {
-    if (e is ApiException) return e.message;
+    if (e is ApiException) {
+      if (e.statusCode == 402) {
+        return 'Not enough tokens. Buy a token pack or upgrade to Pro in Settings → Usage.';
+      }
+      return e.message;
+    }
     final msg = e.toString();
     if (msg.startsWith('ApiException')) {
       final idx = msg.indexOf(': ');

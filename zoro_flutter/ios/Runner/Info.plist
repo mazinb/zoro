@@ -68,6 +68,21 @@
 	</array>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>FlutterDeepLinkingEnabled</key>
+	<true/>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.getzoro.zoroFlutter.mailbox</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>zoro</string>
+			</array>
+		</dict>
+	</array>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Used for optional on-device model download and inference helpers.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

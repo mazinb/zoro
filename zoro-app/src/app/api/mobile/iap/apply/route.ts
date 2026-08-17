@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-import { effectiveIsPro } from '@/lib/mobile-entitlements';
+import { entitlementsApiData } from '@/lib/mobile-token-billing';
 import { getSupabaseServiceRole } from '@/lib/supabase-server';
 
 function toNonEmptyString(v: unknown): string | null {
@@ -36,26 +36,15 @@ export async function POST(request: NextRequest) {
 
   const { data, error } = await supabase
     .from('mobile_entitlements')
-    .select('device_id,is_pro,pro_expires_at,credits_balance,free_ai_month_key,free_ai_used,updated_at')
+    .select(
+      'device_id,is_pro,pro_expires_at,credits_balance,token_balance,tokens_used_total,free_ai_month_key,free_ai_used,onboarding_imports_used,onboarding_imports_eligible,updated_at',
+    )
     .eq('device_id', deviceId)
     .maybeSingle();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!data) return NextResponse.json({ error: 'Entitlements missing' }, { status: 500 });
 
-  return NextResponse.json({
-    data: {
-      deviceId: data.device_id,
-      isPro: effectiveIsPro({
-        is_pro: !!data.is_pro,
-        pro_expires_at: data.pro_expires_at,
-      }),
-      proExpiresAt: data.pro_expires_at,
-      creditsBalance: data.credits_balance ?? 0,
-      freeAiMonthKey: data.free_ai_month_key,
-      freeAiUsed: !!data.free_ai_used,
-      updatedAt: data.updated_at,
-    },
-  });
+  return NextResponse.json({ data: entitlementsApiData(data) });
 }
 

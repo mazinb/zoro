@@ -236,7 +236,7 @@ Future<Map<String, double>?> appleOnboardingExpenseBuckets({
       user: jsonEncode(payload),
       maxOutputTokens: 1200,
     );
-    model.recordLlmRequest(provider: provider, model: modelName);
+    model.recordLlmRequest(provider: provider, model: modelName, tokensUsed: result.tokensUsed);
     final obj = decodeLlmJsonObject(result.text);
     final bucketsRaw = obj['expenseBuckets'];
     if (bucketsRaw is! Map) return null;

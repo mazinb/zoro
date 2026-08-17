@@ -489,9 +489,17 @@ class _ContextEditorPageState extends State<ContextEditorPage> {
         user: user,
         attachments: bundle.attachments,
         maxOutputTokens: 1800,
-        preferJsonObjectOutput: provider == LlmProvider.openai,
+        preferJsonObjectOutput: provider == LlmProvider.openai || provider == LlmProvider.zoroCloud,
+        zoroApi: provider == LlmProvider.zoroCloud ? m.api : null,
+        zoroDeviceId: provider == LlmProvider.zoroCloud ? m.deviceId : null,
+        onboardingPhase: m.inSetupImportPhase,
       );
-      m.recordLlmRequest(provider: provider, model: modelName);
+      m.recordLlmRequest(
+        provider: provider,
+        model: modelName,
+        tokensUsed: completion.tokensUsed,
+        entitlementsApiBody: completion.entitlementsApiBody,
+      );
       m.setPendingLlmCompletionMetadata(
         model: '${provider.name}:$modelName',
         tokensUsed: completion.tokensUsed,

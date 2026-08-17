@@ -8,23 +8,24 @@ import 'package:in_app_purchase/in_app_purchase.dart';
 
 import '../../core/finance/currency.dart';
 import '../../shared/help/tab_help_content.dart';
-import '../../shared/settings/home_messages_settings_card.dart';
 import '../../shared/widgets/tab_header_actions.dart';
 import '../../core/entitlements/mobile_entitlements.dart';
+import '../../core/entitlements/token_billing.dart';
 import '../../shared/widgets/cloud_import_consent_sheet.dart';
 import 'dart:io' show Platform;
 
 import '../../core/iap/apple_subscription_store.dart';
 import '../../core/iap/play_subscription_store.dart';
 import '../../core/platform/platform_ai.dart';
+import '../../core/agent/vault_index.dart';
 import '../../core/legal/legal_urls.dart';
 import '../../core/legal/open_legal_url.dart';
 import '../../core/notifications/notification_service.dart';
 import '../../core/state/app_model.dart';
 import '../../core/state/internal_app_agent_definition.dart';
 import 'data_transfer_pane.dart';
-import '../command_center/home_summary_helper_sheet.dart';
 import 'internal_agent_prompt_editor_page.dart';
+import 'token_usage_card.dart';
 
 abstract class SettingsTabIndex {
   static const int reminders = 0;
@@ -643,11 +644,6 @@ class _GeneralPaneState extends State<_GeneralPane> {
             const SizedBox(height: 12),
             _currencyAssumptionsCard(),
             const SizedBox(height: 12),
-            HomeMessagesSettingsCard(
-              model: model,
-              onOpenHomeSettings: () => _openAgentSettingsSection(AgentSettingsSection.home),
-            ),
-            const SizedBox(height: 12),
             _NotificationsCard(model: model),
         if (model.notificationsEnabled) ...[
           const SizedBox(height: 12),
@@ -657,9 +653,20 @@ class _GeneralPaneState extends State<_GeneralPane> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _CadenceRow(
-                  label: 'Goals',
+                  label: 'Plan',
                   value: model.remindersGoalsCadence,
                   onChanged: model.setReminderCadenceGoals,
+                ),
+                const SizedBox(height: 10),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Agent jobs', style: TextStyle(fontWeight: FontWeight.w800)),
+                  subtitle: const Text(
+                    'Local alerts for on-device agent schedules. Off does not delete jobs.',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                  value: model.agentJobsEnabled,
+                  onChanged: model.setAgentJobsEnabled,
                 ),
                 const SizedBox(height: 10),
                 _CadenceRow(
@@ -716,15 +723,10 @@ class _AgentsPane extends StatefulWidget {
 
 class _AgentsPaneState extends State<_AgentsPane> {
   AgentSettingsSection _section = AgentSettingsSection.context;
-  late final TextEditingController _homeSummaryCtrl;
-  final FocusNode _homeSummaryFocus = FocusNode();
-  bool _suppressHomeSummaryOnChanged = false;
 
   @override
   void initState() {
     super.initState();
-    _homeSummaryCtrl = TextEditingController(text: widget.model.homeSummaryText);
-    widget.model.addListener(_syncHomeSummaryCtrlFromModel);
     widget.sectionListenable?.addListener(_onSectionListenable);
     _onSectionListenable();
   }
@@ -739,23 +741,7 @@ class _AgentsPaneState extends State<_AgentsPane> {
   @override
   void dispose() {
     widget.sectionListenable?.removeListener(_onSectionListenable);
-    widget.model.removeListener(_syncHomeSummaryCtrlFromModel);
-    _homeSummaryCtrl.dispose();
-    _homeSummaryFocus.dispose();
     super.dispose();
-  }
-
-  void _syncHomeSummaryCtrlFromModel() {
-    if (!mounted) return;
-    if (_homeSummaryFocus.hasFocus) return;
-    final m = widget.model.homeSummaryText;
-    if (_homeSummaryCtrl.text == m) return;
-    _suppressHomeSummaryOnChanged = true;
-    _homeSummaryCtrl.value = TextEditingValue(
-      text: m,
-      selection: TextSelection.collapsed(offset: m.length),
-    );
-    _suppressHomeSummaryOnChanged = false;
   }
 
   Widget _iconSwitcher() {
@@ -793,7 +779,7 @@ class _AgentsPaneState extends State<_AgentsPane> {
           const SizedBox(width: 16),
           iconTab(s: AgentSettingsSection.context, icon: Icons.library_books_outlined),
           const SizedBox(width: 16),
-          iconTab(s: AgentSettingsSection.goals, icon: Icons.flag_outlined),
+          iconTab(s: AgentSettingsSection.goals, icon: Icons.smart_toy_outlined),
           const SizedBox(width: 16),
           iconTab(s: AgentSettingsSection.data, icon: Icons.import_export),
         ],
@@ -804,10 +790,11 @@ class _AgentsPaneState extends State<_AgentsPane> {
   Widget _homePane() {
     final model = widget.model;
     final homeHelperDef = internalAppAgentDefinitionById(InternalAppAgentIds.homeSummaryHelper);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
+    return ListView(
       children: [
+        TokenUsageCard(model: model),
         if (homeHelperDef != null) ...[
+          const SizedBox(height: 16),
           Card(
             child: ListTile(
               leading: CircleAvatar(
@@ -832,57 +819,7 @@ class _AgentsPaneState extends State<_AgentsPane> {
               },
             ),
           ),
-          const SizedBox(height: 12),
         ],
-        Row(
-          children: [
-            Text(
-              'Home summary',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
-            ),
-            IconButton(
-              tooltip: 'Daily focus topics',
-              visualDensity: VisualDensity.compact,
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-              onPressed: () => showHomeSummaryHelperSheet(context, model),
-              icon: Icon(Icons.info_outline, size: 20, color: Theme.of(context).colorScheme.outline),
-            ),
-            const Spacer(),
-            TextButton(
-              onPressed: model.homeSummaryText.trim().isEmpty
-                  ? null
-                  : () {
-                      _suppressHomeSummaryOnChanged = true;
-                      _homeSummaryCtrl.value = const TextEditingValue();
-                      _suppressHomeSummaryOnChanged = false;
-                      model.setHomeSummaryText('');
-                    },
-              child: const Text('Clear'),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        Expanded(
-          child: TextField(
-            controller: _homeSummaryCtrl,
-            focusNode: _homeSummaryFocus,
-            expands: true,
-            maxLines: null,
-            minLines: null,
-            keyboardType: TextInputType.multiline,
-            textAlignVertical: TextAlignVertical.top,
-            decoration: const InputDecoration(
-              border: OutlineInputBorder(),
-              hintText: 'Add a short note that shows on Home…',
-              contentPadding: EdgeInsets.all(12),
-            ),
-            onChanged: (v) {
-              if (_suppressHomeSummaryOnChanged) return;
-              model.setHomeSummaryText(v);
-            },
-          ),
-        ),
       ],
     );
   }
@@ -942,6 +879,7 @@ class _AgentsPaneState extends State<_AgentsPane> {
   Widget _goalsPane() {
     final model = widget.model;
     final cs = Theme.of(context).colorScheme;
+    final types = model.agentWorkspace.vaultIndex?.types ?? VaultIndex.presets();
     const goalsIds = {
       InternalAppAgentIds.goalsRetirementCorpus,
       InternalAppAgentIds.goalsRetirementSplit,
@@ -972,6 +910,50 @@ class _AgentsPaneState extends State<_AgentsPane> {
           child: ListView(
             padding: EdgeInsets.zero,
             children: [
+              Text(
+                'File passwords',
+                style: TextStyle(fontWeight: FontWeight.w900, color: cs.onSurface, fontSize: 15),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Saved in the device keychain for a type of PDF. Never exported.',
+                style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12),
+              ),
+              const SizedBox(height: 8),
+              for (final t in types)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Card(
+                    child: FutureBuilder<bool>(
+                      future: model.agentWorkspace.vault.hasFileTypePassword(t.id),
+                      builder: (context, snap) {
+                        final has = snap.data == true;
+                        return ListTile(
+                          title: Text(t.label, style: const TextStyle(fontWeight: FontWeight.w800)),
+                          subtitle: Text(
+                            has
+                                ? (t.lastUsedAt == null
+                                    ? 'Password saved'
+                                    : 'Last used ${t.lastUsedAt!.toLocal().toString().split('.').first}')
+                                : 'No password saved',
+                            style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12),
+                          ),
+                          trailing: has
+                              ? IconButton(
+                                  tooltip: 'Delete saved password',
+                                  icon: const Icon(Icons.delete_outline),
+                                  onPressed: () async {
+                                    await model.agentWorkspace.vault.deleteFileTypePassword(t.id);
+                                    if (context.mounted) setState(() {});
+                                  },
+                                )
+                              : null,
+                        );
+                      },
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 16),
               Text(
                 'Guide prompts',
                 style: TextStyle(fontWeight: FontWeight.w900, color: cs.onSurface, fontSize: 15),
@@ -1106,27 +1088,24 @@ class _UsagePaneState extends State<_UsagePane> {
     super.dispose();
   }
 
-  static String _freePlanLine(AppModel model, MobileEntitlements? ent, int credits) {
+  static String _freePlanLine(AppModel model, MobileEntitlements? ent, int tokens) {
+    final pack = TokenBilling.formatCount(tokens);
     if (model.inSetupImportPhase && ent != null) {
-      return '${ent.onboardingImportsRemaining} of ${MobileEntitlements.onboardingImportAllowance} setup imports left · $credits credits';
+      return '${ent.onboardingImportsRemaining} of ${MobileEntitlements.onboardingImportAllowance} setup Cloud AI imports left · $pack tokens';
     }
-    if (ent?.freeAiUsed == true) {
-      return 'Monthly free import used · $credits credits';
-    }
-    return '1 free import this month · $credits credits';
+    return '$pack tokens left';
   }
 
   static String _importLimitDetail(AppModel model, MobileEntitlements? ent) {
-    if (model.isPro) return 'Unlimited imports with Pro.';
+    final monthly = TokenBilling.formatCount(TokenBilling.monthlyFreeTokens);
+    final pack = TokenBilling.formatCount(TokenBilling.tokensPerPack);
+    if (model.isPro) return 'Unlimited Cloud AI with Pro.';
     if (model.inSetupImportPhase && ent != null) {
-      return 'During setup you can run up to ${MobileEntitlements.onboardingImportAllowance} imports '
-          '(${ent.onboardingImportsRemaining} left). After assets and 6 months of expenses are in, '
-          'you get 1 free import per month.';
+      return 'During setup you can run up to ${MobileEntitlements.onboardingImportAllowance} Cloud AI imports '
+          '(${ent.onboardingImportsRemaining} left) without spending tokens. After assets and 6 months of expenses are in, '
+          'you get $monthly tokens each month.';
     }
-    if (ent?.freeAiUsed == true) {
-      return 'Your free import this month is used. Buy credits or upgrade to Pro for more.';
-    }
-    return 'After setup: 1 free import per month, then 1 credit per import.';
+    return 'Free includes $monthly tokens each month. Buy a $pack token pack or upgrade to Pro for unlimited Cloud AI.';
   }
 
   @override
@@ -1136,7 +1115,7 @@ class _UsagePaneState extends State<_UsagePane> {
     final catalog = iap.catalog;
     final isPro = model.isPro;
     final ent = model.mobileEntitlements;
-    final credits = model.creditsBalance;
+    final tokens = model.tokenBalance;
 
     Future<void> buy(ProductDetails? p) async {
       if (p == null) return;
@@ -1175,13 +1154,13 @@ class _UsagePaneState extends State<_UsagePane> {
               if (isPro) ...[
                 const SizedBox(height: 8),
                 Text(
-                  'Unlimited imports and exports',
+                  'Unlimited Cloud AI',
                   style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13, height: 1.35),
                 ),
               ] else ...[
                 const SizedBox(height: 8),
                 Text(
-                  _freePlanLine(model, ent, credits),
+                  _freePlanLine(model, ent, tokens),
                   style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13, height: 1.35),
                 ),
                 const SizedBox(height: 6),
@@ -1198,6 +1177,8 @@ class _UsagePaneState extends State<_UsagePane> {
           Text(iap.lastError!, style: TextStyle(color: cs.error, fontWeight: FontWeight.w700)),
           const SizedBox(height: 12),
         ],
+        card(child: TokenUsageCard(model: model, showTitle: false)),
+        const SizedBox(height: 8),
         card(child: _ImportAiUsageSection(model: model)),
         const SizedBox(height: 12),
         card(
@@ -1215,7 +1196,9 @@ class _UsagePaneState extends State<_UsagePane> {
                 OutlinedButton(
                   onPressed: iap.available && !iap.busy ? () => buy(catalog?.credit1) : null,
                   child: Text(
-                    catalog?.credit1 == null ? 'Credits' : 'Credits · ${catalog!.credit1!.price}',
+                    catalog?.credit1 == null
+                        ? 'Token pack · ${TokenBilling.formatCount(TokenBilling.tokensPerPack)} tokens'
+                        : 'Token pack · ${TokenBilling.formatCount(TokenBilling.tokensPerPack)} · ${catalog!.credit1!.price}',
                   ),
                 ),
                 TextButton(
@@ -1318,6 +1301,7 @@ class _ImportAiUsageSectionState extends State<_ImportAiUsageSection> {
           title: PlatformAi.onDeviceSettingsTitle,
           icon: Icons.memory_outlined,
           requests: model.onDeviceRequestCount,
+          tokens: model.onDeviceTokensUsed,
           note: onDeviceNote,
         ),
         const SizedBox(height: 8),
@@ -1328,7 +1312,7 @@ class _ImportAiUsageSectionState extends State<_ImportAiUsageSection> {
             const SizedBox(width: 10),
             Expanded(
               child: Text(
-                'Cloud AI · ${model.cloudAiRequestCount} requests',
+                'Cloud AI · ${model.cloudAiRequestCount} requests · ${TokenBilling.formatCount(model.cloudTokensUsed)} tokens',
                 style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
               ),
             ),
@@ -1348,12 +1332,14 @@ class _ImportAiUsageRow extends StatelessWidget {
     required this.title,
     required this.icon,
     required this.requests,
+    required this.tokens,
     this.note,
   });
 
   final String title;
   final IconData icon;
   final int requests;
+  final int tokens;
   final String? note;
 
   @override
@@ -1369,7 +1355,7 @@ class _ImportAiUsageRow extends StatelessWidget {
             const SizedBox(width: 10),
             Expanded(
               child: Text(
-                '$title · $requests requests',
+                '$title · $requests requests · ${TokenBilling.formatCount(tokens)} tokens',
                 style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
               ),
             ),

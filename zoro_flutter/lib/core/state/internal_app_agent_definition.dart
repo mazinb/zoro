@@ -511,8 +511,8 @@ Only include bucket keys from payload.bucketKeys. Amounts are monthly in display
   ),
   InternalAppAgentDefinition(
     id: InternalAppAgentIds.homeSummaryHelper,
-    title: 'Home summary',
-    listSubtitle: 'Home → daily note (on-device)',
+    title: 'Home briefing',
+    listSubtitle: 'Coming as a Hermes skill',
     icon: Icons.wb_sunny_outlined,
     defaultSystemPrompt: '''
 You rotate through one area of the user's finances each day (assets, liabilities, cash flow, context notes, or goals).
@@ -520,9 +520,9 @@ You rotate through one area of the user's finances each day (assets, liabilities
 Be practical: call out what looks stale, missing, or on track. One gentle nudge is enough.
 ''',
     infoWhatItDoes:
-        'When the app opens, writes a short daily note on Home — one topic per day, sized for Apple on-device models.',
+        'Will write a short Home briefing when the on-device agent is installed. Not run automatically today.',
     infoContextSent:
-        'Compact JSON for the day\'s focus only: totals, review freshness, a few row names, or goals snapshot.',
+        'Compact JSON for the day\'s focus only: totals, review freshness, a few row names, or a plan snapshot.',
     modelDomainHints: 'Plain text only; never return JSON.',
   ),
   InternalAppAgentDefinition(

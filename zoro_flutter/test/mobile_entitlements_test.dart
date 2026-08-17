@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:zoro_flutter/core/entitlements/mobile_entitlements.dart';
+import 'package:zoro_flutter/core/entitlements/token_billing.dart';
 
 void main() {
   test('effectiveIsPro respects grace after expiry', () {
@@ -43,10 +44,44 @@ void main() {
       isPro: true,
       proExpiresAtIso: expires.toIso8601String(),
       creditsBalance: 0,
+      tokenBalance: 0,
+      tokensUsedTotal: 0,
       freeAiMonthKey: null,
       freeAiUsed: false,
       updatedAtIso: DateTime.now().toUtc().toIso8601String(),
     );
     expect(ent.isInProGracePeriod, isFalse);
+  });
+
+  test('tryFromApi prefers tokenBalance', () {
+    final ent = MobileEntitlements.tryFromApi({
+      'data': {
+        'deviceId': 'd',
+        'isPro': false,
+        'creditsBalance': 2,
+        'tokenBalance': 150000,
+        'tokensUsedTotal': 40,
+        'freeAiUsed': false,
+        'updatedAt': '2026-08-17T00:00:00.000Z',
+      },
+    });
+    expect(ent, isNotNull);
+    expect(ent!.tokenBalance, 150000);
+    expect(ent.tokensUsedTotal, 40);
+    expect(ent.creditsBalance, 2);
+  });
+
+  test('tryFromApi falls back to credits times pack size', () {
+    final ent = MobileEntitlements.tryFromApi({
+      'data': {
+        'deviceId': 'd',
+        'isPro': false,
+        'creditsBalance': 2,
+        'freeAiUsed': false,
+        'updatedAt': '2026-08-17T00:00:00.000Z',
+      },
+    });
+    expect(ent, isNotNull);
+    expect(ent!.tokenBalance, 2 * TokenBilling.tokensPerPack);
   });
 }

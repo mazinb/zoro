@@ -19,7 +19,7 @@ abstract final class TabHelpContent {
       'Income lines are annual amounts per source; tax % is an approx effective tax rate for calculations.',
       'Expense estimates are planned monthly buckets separate from actual spending in Cash.',
       'AI asset import can auto-populate context notes with extracted details.',
-      'Import with AI uses credits (or Pro) to extract assets, liabilities, and cash flow.',
+      'Import with AI spends Cloud AI tokens (or is unlimited with Pro). On-device import is not billed.',
       PlatformAi.helperTabHelpLine(),
     ],
   );
@@ -34,13 +34,24 @@ abstract final class TabHelpContent {
     ],
   );
 
-  static const goals = HowItWorksContent(
-    title: 'How Goals works',
+  static const agent = HowItWorksContent(
+    title: 'How Agent works',
     bullets: [
-      'The split slider divides what’s left after expenses between savings and investments.',
+      'Claim a private mailbox with your email. Zoro assigns a forwarding address; send PDFs only from that claimed address.',
+      'One email can have one active mailbox at a time. Opening the magic link returns you to this app.',
+      'The living retirement plan is a markdown file on this phone. Saving creates a new revision instead of overwriting.',
+      'PDFs you drop or fetch stay on device. Passwords are stored in the keychain per file type.',
+      'getzoro.com only holds PDF attachments briefly until the phone downloads and deletes them.',
+      'The invest/savings split lives on Ledger → Cash. Plan helper (✨) still walks corpus and paydown until skills ship.',
+    ],
+  );
+
+  static const goals = HowItWorksContent(
+    title: 'How the plan helper works',
+    bullets: [
       'Retirement corpus can track expenses automatically or a custom target.',
-      'Goals helper walks structured steps (corpus, allocation, paydown) with optional AI.',
-      'The ✨ action opens Goals helper so you can adjust inputs and backtest your plan.',
+      'Plan helper walks structured steps (corpus, allocation, paydown) with optional AI.',
+      'The ✨ action opens the helper so you can adjust inputs and backtest your plan.',
     ],
   );
 
@@ -49,8 +60,8 @@ abstract final class TabHelpContent {
     bullets: [
       'General: theme, privacy mask, display currency, FX rates, and projection assumptions.',
       'Open ? to choose which tabs show the how-it-works button (Settings always keeps ? here).',
-      'Helpers: tune built-in agent prompts used by ✨ actions across the app.',
-      'Usage: Free vs Pro, credits, and restores purchases.',
+      'Helpers: tune built-in agent prompts. The Home pane shows overall token usage.',
+      'Usage: Free vs Pro, token packs, and restores purchases.',
       'Export / import is in Helpers → Data (Pro only).',
     ],
   );

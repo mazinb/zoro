@@ -27,8 +27,14 @@ Future<String> completeForActiveProvider(
         (provider == LlmProvider.openai || provider == LlmProvider.zoroCloud),
     zoroApi: provider == LlmProvider.zoroCloud ? model.api : null,
     zoroDeviceId: provider == LlmProvider.zoroCloud ? model.deviceId : null,
+    onboardingPhase: model.inSetupImportPhase,
   );
-  model.recordLlmRequest(provider: provider, model: modelName);
+  model.recordLlmRequest(
+    provider: provider,
+    model: modelName,
+    tokensUsed: out.tokensUsed,
+    entitlementsApiBody: out.entitlementsApiBody,
+  );
   model.setPendingLlmCompletionMetadata(
     model: '${provider.name}:$modelName',
     tokensUsed: out.tokensUsed,

@@ -10,4 +10,5 @@ abstract final class AppStatePaths {
   static const internalAgentsFile = 'data/internal_agents.json';
 
   static const contextMarkdownDir = 'context_markdown';
+  static const hermesHomeDir = 'hermes_home';
 }

@@ -71,6 +71,12 @@ extension AppModelNotifications on AppModel {
       return;
     }
     await syncNotifications();
+    try {
+      await agentWorkspace.cron?.sync(
+        notificationsEnabled: notificationsEnabled,
+        agentJobsEnabled: agentJobsEnabled,
+      );
+    } catch (_) {}
     await maybePostDailyReminder();
     _maybeFireGoalTimeMilestones();
   }

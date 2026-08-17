@@ -6,10 +6,12 @@ Privacy-first finance on device. Production API: **getzoro.com**. On-device stor
 
 ## Next
 
-- [x] **Home summary helper** — daily on-app-open rotation (assets / liabilities / cashflow / context / goals); Apple on-device prompt budget; Home (i) sheet for focus toggles + last run.
+- [x] **Phase 0 — tokens + Home note** — Home no longer auto-writes a daily note. Helpers → Home shows overall token usage. Cloud AI is billed in tokens; Pro is unlimited; `com.getzoro.credit_1` is a 100,000-token pack. Apply [`../zoro-app/supabase/migrations/20260817130000_token_billing.sql`](../zoro-app/supabase/migrations/20260817130000_token_billing.sql). Home briefing returns as a Hermes skill in Phase 3c.
+- [x] **Home summary helper (unhooked)** — kept as seed for `home-briefing`; not run on app open.
 - [x] **Onboarding (v1)** — 3-step first-run: USD + 2 FX picks, income (salary/bonus/RSU/tax), 4× expense MCQ + optional Apple on-device note. Tab ? how-it-works + Reddit footer.
 - [x] **Onboarding demo ledger** — optional demo assets/liabilities (condo, US brokerage, India fund, cash, mortgage, car loan) via Apple on-device customization from onboarding currencies; clear untouched rows from header bolt. Expense estimate currency picker (USD + FX picks); `expenseEstimateCurrency` on export/import.
 - [ ] **Onboarding (v2)** — split slider, retirement date vs invest /mo (Goals editor retire panel).
+- [ ] **Phase 1 remainder** — mailbox backend, Hermes contract doc, agent tests.
 
 ---
 
@@ -45,7 +47,7 @@ Privacy-first finance on device. Production API: **getzoro.com**. On-device stor
 - [x] Cloud AI helpers via getzoro.com when on-device unavailable (`/api/mobile/assistant`); Usage layout + legal links fixed; Goals tab unlocked after onboarding
 - [ ] **Physical device required:** upload new AAB to internal testing; verify on-device helpers + IAP
 - [ ] Play Console IAP: `com.getzoro.pro_monthly_sub` + `com.getzoro.credit_1` — see [`docs/android-play-console.md`](docs/android-play-console.md) (internal testing already live)
-- [ ] License testers: Pro purchase, credit purchase, restore, manage subscription (Play Store link)
+- [ ] License testers: Pro purchase, token pack purchase, restore, manage subscription (Play Store link)
 - [ ] Device smoke (Android): onboarding → on-device helper (Gemini Nano) or Cloud AI → PDF/photo import → notifications → export/import
 - [ ] Production listing + `NEXT_PUBLIC_ANDROID_APP_URL` on Vercel when going public
 - [ ] No secrets in `--dart-define-from-file` for release builds
@@ -71,7 +73,7 @@ Helper hub: `goals_helper_hub_page.dart` + `goals_structured_sections.dart`. Tes
 
 ## App surface
 
-`MainScaffold`: Home, Ledger, Context, Goals, Settings.
+`MainScaffold`: Home, Ledger, Context, Agent, Settings.
 
 ---
 

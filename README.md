@@ -53,7 +53,7 @@ cd zoro-app && npm install && npm run dev
 **Product**
 
 - Wire a real Hermes runtime (replace the stub) and ship skill packs.
-- Mailbox API on getzoro (`/api/mobile/mailbox/*` client exists; routes are not in `zoro-app` yet).
+- Mailbox API on getzoro (`/api/mobile/mailbox/*`) plus Resend inbound webhook — configure `MAILBOX_INBOUND_DOMAIN` and `RESEND_INBOUND_WEBHOOK_SECRET`.
 - Deduct Cloud AI tokens on `/api/mobile/assistant` (helpers exist; the route still returns `{ text }` only).
 - Onboarding v2 (split slider + retire-date vs invest/mo).
 - Store / Play smoke and listings.
