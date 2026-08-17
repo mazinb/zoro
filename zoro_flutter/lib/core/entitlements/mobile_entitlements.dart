@@ -1,8 +1,12 @@
+import 'token_billing.dart';
+
 class MobileEntitlements {
   const MobileEntitlements({
     required this.deviceId,
     required this.isPro,
     required this.creditsBalance,
+    required this.tokenBalance,
+    required this.tokensUsedTotal,
     required this.freeAiMonthKey,
     required this.freeAiUsed,
     required this.updatedAtIso,
@@ -21,7 +25,10 @@ class MobileEntitlements {
   /// Server flag; use [effectiveIsPro] for gating features.
   final bool isPro;
   final String? proExpiresAtIso;
+  /// Legacy pack count (`floor(tokenBalance / tokensPerPack)`).
   final int creditsBalance;
+  final int tokenBalance;
+  final int tokensUsedTotal;
   final String? freeAiMonthKey;
   final bool freeAiUsed;
   final int onboardingImportsUsed;
@@ -70,6 +77,14 @@ class MobileEntitlements {
     return expires.toUtc().add(const Duration(days: proGraceDays));
   }
 
+  /// Wraps a nested entitlements object from assistant/import JSON.
+  static Map<String, dynamic>? wrapApiData(Object? data) {
+    if (data is! Map) return null;
+    final m = Map<String, dynamic>.from(data);
+    if ((m['deviceId'] ?? '').toString().trim().isEmpty) return null;
+    return {'data': m};
+  }
+
   static MobileEntitlements? tryFromApi(Map<String, dynamic> body) {
     final data = body['data'];
     if (data is! Map) return null;
@@ -78,11 +93,14 @@ class MobileEntitlements {
     if (deviceId.isEmpty) return null;
     final isPro = m['isPro'] == true;
     final proExpiresAtIso = m['proExpiresAt']?.toString();
-    final credits = int.tryParse((m['creditsBalance'] ?? '0').toString()) ?? 0;
+    final credits = TokenBilling.parseCount(m['creditsBalance']);
+    final tokenBalance = m.containsKey('tokenBalance')
+        ? TokenBilling.parseCount(m['tokenBalance'])
+        : credits * TokenBilling.tokensPerPack;
+    final tokensUsedTotal = TokenBilling.parseCount(m['tokensUsedTotal']);
     final freeAiMonthKey = m['freeAiMonthKey']?.toString();
     final freeAiUsed = m['freeAiUsed'] == true;
-    final onboardingImportsUsed =
-        int.tryParse((m['onboardingImportsUsed'] ?? '0').toString()) ?? 0;
+    final onboardingImportsUsed = TokenBilling.parseCount(m['onboardingImportsUsed']);
     final onboardingImportsEligible = m['onboardingImportsEligible'] != false;
     final updatedAt = (m['updatedAt'] ?? '').toString();
     if (updatedAt.trim().isEmpty) return null;
@@ -90,10 +108,12 @@ class MobileEntitlements {
       deviceId: deviceId,
       isPro: isPro,
       proExpiresAtIso: proExpiresAtIso,
-      creditsBalance: credits < 0 ? 0 : credits,
+      creditsBalance: credits,
+      tokenBalance: tokenBalance,
+      tokensUsedTotal: tokensUsedTotal,
       freeAiMonthKey: freeAiMonthKey,
       freeAiUsed: freeAiUsed,
-      onboardingImportsUsed: onboardingImportsUsed < 0 ? 0 : onboardingImportsUsed,
+      onboardingImportsUsed: onboardingImportsUsed,
       onboardingImportsEligible: onboardingImportsEligible,
       updatedAtIso: updatedAt,
     );

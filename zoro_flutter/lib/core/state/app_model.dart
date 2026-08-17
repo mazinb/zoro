@@ -24,6 +24,10 @@ import '../notifications/notification_service.dart';
 import '../persistence/app_state_codec.dart' as app_state;
 import '../persistence/app_state_store.dart';
 import '../home/home_summary_focus_domain.dart';
+import '../agent/agent_workspace.dart';
+import '../agent/mailbox_client.dart';
+import '../agent/retirement_migration.dart';
+import '../agent/retirement_plan_codec.dart';
 import '../api/zoro_api.dart';
 import '../entitlements/device_id_store.dart';
 import '../entitlements/mobile_entitlements.dart';
@@ -103,6 +107,10 @@ class AppModel extends ChangeNotifier {
   String? deviceId;
   MobileEntitlements? mobileEntitlements;
 
+  final AgentWorkspace agentWorkspace = AgentWorkspace();
+  String retirementMarkdownCache = '';
+  DateTime? agentPlanLastCommitAt;
+
   bool helperEnabledLedger = true;
   bool helperEnabledContext = true;
   bool helperEnabledGoals = true;
@@ -156,6 +164,7 @@ class AppModel extends ChangeNotifier {
         setAppleFoundationEnabled(true);
       }
       _syncActiveProviderIfKeyRemoved();
+      await _prepareAgentWorkspace();
       await reconcileNotifications();
     } finally {
       _bootstrapped = true;
@@ -163,6 +172,86 @@ class AppModel extends ChangeNotifier {
     }
     // Entitlements + IAP catalog refresh in background — do not block the UI.
     unawaited(_bootstrapEntitlementsInBackground());
+  }
+
+  Future<void> _prepareAgentWorkspace() async {
+    await agentWorkspace.prepare(
+      retirementGoal: retirementGoal,
+      investMonthly: allocInvestmentsMonthly,
+      onRetirementLoaded: (doc) {
+        final g = retirementGoal;
+        if (g != null) applyDocToGoal(g, doc);
+      },
+    );
+    retirementMarkdownCache = await agentWorkspace.retirementMarkdown();
+    agentPlanLastCommitAt = await agentWorkspace.loadPlanUpdatedAt();
+  }
+
+  Future<void> fetchAgentMailbox() async {
+    if (!agentWorkspace.ready) return;
+    await agentWorkspace.fetchMailbox(deviceId: deviceId);
+  }
+
+  Future<void> requestMailboxClaim(String email) async {
+    final id = deviceId?.trim();
+    if (id == null || id.isEmpty) {
+      throw StateError('Device is not ready yet.');
+    }
+    await agentWorkspace.requestClaim(deviceId: id, email: email);
+  }
+
+  Future<void> finishMailboxClaim({String? nonce}) async {
+    final id = deviceId?.trim();
+    if (id == null || id.isEmpty) {
+      throw StateError('Device is not ready yet.');
+    }
+    await agentWorkspace.finishClaim(deviceId: id, nonce: nonce);
+  }
+
+  Future<void> revokeAgentMailbox() => agentWorkspace.revokeMailbox();
+
+  Future<void> rotateAgentMailbox() async {
+    final id = deviceId?.trim();
+    if (id == null || id.isEmpty) return;
+    await agentWorkspace.rotateMailbox(deviceId: id);
+  }
+
+  Future<bool> handleMailboxClaimUri(Uri uri) async {
+    if (!isMailboxClaimUri(uri)) return false;
+    final nonce = mailboxNonceFromUri(uri);
+    if (nonce == null || nonce.isEmpty) return false;
+    await finishMailboxClaim(nonce: nonce);
+    return true;
+  }
+
+  Future<void> commitRetirementPlan({
+    required String markdown,
+    required String reason,
+  }) async {
+    await agentWorkspace.saveRetirement(markdown: markdown, reason: reason);
+    final raw = await agentWorkspace.retirementMarkdown();
+    retirementMarkdownCache = raw;
+    agentPlanLastCommitAt = await agentWorkspace.loadPlanUpdatedAt();
+    final g = retirementGoal;
+    if (g != null && raw.trim().isNotEmpty) {
+      applyDocToGoal(g, RetirementPlanDoc.parse(raw));
+    }
+    markGoalsUpdated();
+  }
+
+  Future<void> migrateImportedRetirementIfNeeded({String? markdown}) async {
+    if (!agentWorkspace.ready) return;
+    final incoming = (markdown ?? '').trim();
+    if (incoming.isNotEmpty) {
+      await commitRetirementPlan(markdown: incoming, reason: 'import');
+      return;
+    }
+    final existing = await agentWorkspace.retirementMarkdown();
+    if (existing.trim().isNotEmpty) return;
+    final g = retirementGoal;
+    if (g == null) return;
+    final seeded = seedRetirementMarkdown(goal: g, investMonthly: allocInvestmentsMonthly);
+    await commitRetirementPlan(markdown: seeded, reason: 'import seed');
   }
 
   Future<void> _bootstrapEntitlementsInBackground() async {
@@ -217,6 +306,8 @@ class AppModel extends ChangeNotifier {
 
   bool get isPro => mobileEntitlements?.effectiveIsPro == true;
   int get creditsBalance => mobileEntitlements?.creditsBalance ?? 0;
+  int get tokenBalance => mobileEntitlements?.tokenBalance ?? 0;
+  int get serverTokensUsedTotal => mobileEntitlements?.tokensUsedTotal ?? 0;
 
   void setHelperEnabledLedger(bool v) {
     if (helperEnabledLedger == v) return;
@@ -859,9 +950,14 @@ class AppModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  void recordImportRequest({required bool cloud}) {
+  void recordImportRequest({required bool cloud, int? tokensUsed, Map<String, dynamic>? entitlementsApiBody}) {
     final key = cloud ? importRequestKeyCloud : importRequestKeyOnDevice;
     llmRequestsByModelKey[key] = (llmRequestsByModelKey[key] ?? 0) + 1;
+    final t = tokensUsed ?? 0;
+    if (t > 0) {
+      llmTokensByModelKey[key] = (llmTokensByModelKey[key] ?? 0) + t;
+    }
+    if (entitlementsApiBody != null) applyMobileEntitlementsBody(entitlementsApiBody);
     _scheduleAppStatePersist();
     notifyListeners();
   }
@@ -1011,6 +1107,9 @@ class AppModel extends ChangeNotifier {
   /// When false, no notification of any kind is posted.
   bool notificationsEnabled = false;
 
+  /// When false, Hermes cron jobs stay on disk but do not post OS banners.
+  bool agentJobsEnabled = true;
+
   /// Daily Home summary helper (Helpers → Home). Off by default.
   bool homeMessagesEnabled = false;
 
@@ -1074,6 +1173,9 @@ class AppModel extends ChangeNotifier {
 
   /// Simple usage stats: request count per provider+model key (e.g. "openai:gpt-4o").
   Map<String, int> llmRequestsByModelKey = {};
+
+  /// Cumulative tokens per the same keys as [llmRequestsByModelKey].
+  Map<String, int> llmTokensByModelKey = {};
 
   /// THB matches [expensePresetCountry] bucket units so the Sankey and ledger stay aligned at boot.
   CurrencyCode displayCurrency = CurrencyCode.thb;
@@ -3005,6 +3107,14 @@ class AppModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setAgentJobsEnabled(bool v) {
+    if (agentJobsEnabled == v) return;
+    agentJobsEnabled = v;
+    _scheduleAppStatePersist();
+    unawaited(reconcileNotifications());
+    notifyListeners();
+  }
+
   void setHomeMessagesEnabled(bool v) {
     if (homeMessagesEnabled == v) return;
     homeMessagesEnabled = v;
@@ -3788,6 +3898,7 @@ class AppModel extends ChangeNotifier {
       final b = best;
       if (b == null || d.isAfter(b)) best = d;
     }
+    consider(agentPlanLastCommitAt);
     consider(retirementCorpusLastUpdated);
     consider(allocationTargetLastUpdated);
     consider(retirementBucketsLastUpdated);
@@ -3970,12 +4081,47 @@ class AppModel extends ChangeNotifier {
     notifyListeners();
   }
 
-  void recordLlmRequest({required LlmProvider provider, required String model}) {
+  void recordLlmRequest({
+    required LlmProvider provider,
+    required String model,
+    int? tokensUsed,
+    Map<String, dynamic>? entitlementsApiBody,
+  }) {
     final key = '${provider.name}:$model';
     llmRequestsByModelKey[key] = (llmRequestsByModelKey[key] ?? 0) + 1;
+    final t = tokensUsed ?? 0;
+    if (t > 0) {
+      llmTokensByModelKey[key] = (llmTokensByModelKey[key] ?? 0) + t;
+    }
+    if (entitlementsApiBody != null) applyMobileEntitlementsBody(entitlementsApiBody);
     _scheduleAppStatePersist();
     notifyListeners();
   }
+
+  int _sumIntMapWithPrefix(Map<String, int> map, String prefix) {
+    var total = 0;
+    for (final e in map.entries) {
+      if (e.key.startsWith(prefix)) total += e.value;
+    }
+    return total;
+  }
+
+  int get overallTokensUsed {
+    var total = 0;
+    for (final v in llmTokensByModelKey.values) {
+      total += v;
+    }
+    return total;
+  }
+
+  int get onDeviceTokensUsed => _sumIntMapWithPrefix(llmTokensByModelKey, '${LlmProvider.appleFoundation.name}:');
+
+  int get cloudTokensUsed => _sumIntMapWithPrefix(llmTokensByModelKey, '${LlmProvider.zoroCloud.name}:');
+
+  int get byoKeyTokensUsed =>
+      _sumIntMapWithPrefix(llmTokensByModelKey, '${LlmProvider.openai.name}:') +
+      _sumIntMapWithPrefix(llmTokensByModelKey, '${LlmProvider.anthropic.name}:') +
+      _sumIntMapWithPrefix(llmTokensByModelKey, '${LlmProvider.gemini.name}:');
 
   /// Total helper LLM calls recorded for [provider] (all models).
   int llmRequestCountFor(LlmProvider provider) {
@@ -4247,6 +4393,7 @@ class AppModel extends ChangeNotifier {
         'dummyDataActive': dummyDataActive,
         'dummySeedSnapshot': dummySeedSnapshot,
         'llmRequestsByModelKey': llmRequestsByModelKey,
+        'llmTokensByModelKey': llmTokensByModelKey,
         'homeSummaryText': homeSummaryText,
         'homeSummaryHelperLastRunDayKey': homeSummaryHelperLastRunDayKey,
         'homeSummaryHelperRotationIndex': homeSummaryHelperRotationIndex,
@@ -4395,6 +4542,13 @@ class AppModel extends ChangeNotifier {
       if (usage is Map) {
         llmRequestsByModelKey = {
           for (final e in usage.entries) e.key.toString(): (e.value is num ? (e.value as num).round() : int.tryParse(e.value.toString()) ?? 0),
+        };
+      }
+      final tokenUsage = s['llmTokensByModelKey'];
+      if (tokenUsage is Map) {
+        llmTokensByModelKey = {
+          for (final e in tokenUsage.entries)
+            e.key.toString(): (e.value is num ? (e.value as num).round() : int.tryParse(e.value.toString()) ?? 0),
         };
       }
       if (s.containsKey('helperEnabledLedger')) {
@@ -4928,7 +5082,7 @@ String reminderDomainLabel(ReminderDomain d) => switch (d) {
       ReminderDomain.income => 'Income',
       ReminderDomain.assets => 'Assets',
       ReminderDomain.liabilities => 'Liabilities',
-      ReminderDomain.goals => 'Goals',
+      ReminderDomain.goals => 'Plan',
     };
 
 enum LlmProvider { appleFoundation, zoroCloud, openai, anthropic, gemini }

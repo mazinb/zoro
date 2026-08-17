@@ -34,7 +34,7 @@ If Play blocks upload with `USE_EXACT_ALARM`:
 | Product ID | Type |
 |------------|------|
 | `com.getzoro.pro_monthly_sub` | Subscription (monthly Pro) |
-| `com.getzoro.credit_1` | Consumable (1 import credit) |
+| `com.getzoro.credit_1` | Consumable (100,000-token pack; product id unchanged) |
 
 Must match [`lib/core/iap/iap_product_ids.dart`](../lib/core/iap/iap_product_ids.dart).
 
@@ -42,7 +42,7 @@ Must match [`lib/core/iap/iap_product_ids.dart`](../lib/core/iap/iap_product_ids
 
 **Settings → License testing** → add Google accounts on test devices.
 
-Test: Pro subscribe, credit buy, restore, **Manage subscription** (opens Play Store).
+Test: Pro subscribe, token pack buy, restore, **Manage subscription** (opens Play Store).
 
 ## 5. Device smoke (physical Android)
 

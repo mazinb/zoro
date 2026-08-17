@@ -42,17 +42,25 @@ Do not commit `.env` or service-role keys.
 | `RESEND_API_KEY` / `RESEND_FROM` | Transactional email |
 | `SUBMISSION_NOTIFY_EMAIL` | Lead/form notification inbox |
 | `NEXT_PUBLIC_BASE_URL` | Public site URL |
-| `GEMINI_API_KEY` | Server: PDF / savings flows |
+| `GEMINI_API_KEY` | Server: PDF / savings / Cloud AI **fallback** |
+| `QWEN_BASE_URL` | Optional: OpenAI-compatible base (`…/v1`) for Cloud AI assistants (DGX Spark / vLLM). If set, `/api/mobile/assistant` uses Qwen instead of Gemini. See `docs/mobile-cloud-ai-qwen.md`. |
+| `QWEN_API_KEY` | Optional Bearer for Qwen/vLLM (tunnel auth or placeholder) |
+| `QWEN_MODEL` | Optional model id (default `nvidia/Qwen3.6-35B-A3B-NVFP4`) |
 | `NEXT_PUBLIC_APP_URL` / `VERCEL_URL` | Magic-link URL resolution |
 | `NEXT_PUBLIC_IOS_APP_URL` | App Store link on download page |
 | `NEXT_PUBLIC_ANDROID_APP_URL` | Play Store link on download page |
 | `NEXT_PUBLIC_APP_DEMO_VIDEO` | Optional demo video (default `/videos/demo.mp4`) |
+| `MAILBOX_INBOUND_DOMAIN` | Hermes mailbox domain (default `inbox.getzoro.com`) |
+| `RESEND_INBOUND_WEBHOOK_SECRET` | Svix secret for `/api/webhooks/resend/inbound` |
+| `MAILBOX_RETENTION_HOURS` | Pending PDF TTL (default 48) |
 
 Schema and migrations: Supabase / repo migrations are source of truth.
 
 ### Related docs
 
 - **Nags cron:** `docs/nag/supabase-cron.md`
+- **Mobile Cloud AI (Qwen / Gemini):** `docs/mobile-cloud-ai-qwen.md`
+- **Hermes mailbox:** `docs/mobile-mailbox.md`
 
 ---
 

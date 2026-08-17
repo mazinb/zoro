@@ -41,7 +41,7 @@ class HowItWorksGuidesPanel extends StatelessWidget {
           ),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
-            title: const Text('Goals', style: TextStyle(fontWeight: FontWeight.w800)),
+            title: const Text('Agent', style: TextStyle(fontWeight: FontWeight.w800)),
             value: model.guideEnabledGoals,
             onChanged: model.setGuideEnabledGoals,
           ),

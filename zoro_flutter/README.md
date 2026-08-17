@@ -1,10 +1,10 @@
 # Zoro Flutter
 
-iOS-first Flutter client for [Zoro](https://www.getzoro.com). Local-first finance on device; optional LLM calls go through Settings → Usage (Pro, credits, or Apple on-device).
+iOS-first Flutter client for [Zoro](https://www.getzoro.com). Local-first finance on device; optional Cloud AI is billed in tokens (Pro is unlimited). On-device AI is not billed.
 
 ## Tabs
 
-Home · Ledger · Context · Goals · Settings
+Home · Ledger · Context · Agent · Settings
 
 ## Run
 

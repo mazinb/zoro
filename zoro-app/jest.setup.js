@@ -4,14 +4,12 @@ import { TextEncoder, TextDecoder } from 'util'
 global.TextEncoder = TextEncoder
 global.TextDecoder = TextDecoder
 
-// Polyfill fetch and Request/Response for Jest JSDOM
+// Polyfill fetch and Request/Response
 const { TextEncoder: TextEncoderImpl, TextDecoder: TextDecoderImpl } = require('util');
 global.TextEncoder = TextEncoderImpl;
 global.TextDecoder = TextDecoderImpl;
 
 if (typeof global.Request === 'undefined') {
-    const { Request, Response, Headers } = require('next/dist/server/web/spec-extension/adapters/headers');
-
     global.Request = class Request {
         constructor(input, init) {
             Object.defineProperty(this, 'url', { value: input, writable: true, configurable: true });
@@ -21,7 +19,6 @@ if (typeof global.Request === 'undefined') {
         }
         json() { return Promise.resolve(JSON.parse(this.body)); }
     };
-
     global.Response = class Response {
         constructor(body, init) {
             this.body = body;
@@ -29,13 +26,11 @@ if (typeof global.Request === 'undefined') {
         }
         json() { return Promise.resolve(this.body); }
     };
-
     global.Headers = class Headers {
         constructor(init) { this.map = new Map(Object.entries(init || {})); }
         get(key) { return this.map.get(key.toLowerCase()); }
     };
 }
-
 jest.mock('@supabase/supabase-js', () => ({
     createClient: jest.fn(() => ({
         auth: {

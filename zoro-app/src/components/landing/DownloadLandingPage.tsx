@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { Moon, Sun, Shield, Smartphone, Ban, Sparkles } from 'lucide-react';
+import { Moon, Sun, Shield, Smartphone, Ban, Sparkles, Github } from 'lucide-react';
 import { ZoroLogo } from '@/components/ZoroLogo';
 import { useThemeClasses } from '@/hooks/useThemeClasses';
 import { DownloadButtons } from '@/components/landing/DownloadButtons';
@@ -157,6 +157,23 @@ const faqs: FaqItem[] = [
         Anyone who wants a clear, private view of their money. It is especially useful for HNIs
         with diversified portfolios across multiple currencies who need one place for assets,
         liabilities, cash flow, and long-term goals without linking bank accounts.
+      </>
+    ),
+  },
+  {
+    question: 'Is Zoro open source?',
+    answer: (
+      <>
+        Yes. The monorepo (mobile app, website, and related services) is MIT-licensed on GitHub at{' '}
+        <a
+          href="https://github.com/mazinb/zoro"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="underline underline-offset-2 hover:opacity-80"
+        >
+          github.com/mazinb/zoro
+        </a>
+        . You can read the code, report issues, and contribute.
       </>
     ),
   },
@@ -316,6 +333,29 @@ export const DownloadLandingPage: React.FC<DownloadLandingPageProps> = ({
             borderClass={theme.borderClass}
             showCaptions={false}
           />
+        </div>
+      </section>
+
+      {/* Open source */}
+      <section className={`border-t ${theme.borderClass} py-20 lg:py-24`}>
+        <div className="max-w-3xl mx-auto px-6 text-center">
+          <h2 className={`text-2xl sm:text-3xl font-bold ${headerTextClass} mb-3`}>
+            Open source
+          </h2>
+          <p className={`${theme.textSecondaryClass} mb-8 leading-relaxed`}>
+            Zoro is MIT-licensed. Read the code, fork it, or contribute on GitHub.
+          </p>
+          <a
+            href="https://github.com/mazinb/zoro"
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition-opacity hover:opacity-90 ${
+              darkMode ? 'bg-white text-slate-900' : 'bg-slate-900 text-white'
+            }`}
+          >
+            <Github className="h-4 w-4" aria-hidden />
+            View on GitHub
+          </a>
         </div>
       </section>
 

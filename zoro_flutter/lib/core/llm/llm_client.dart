@@ -4,6 +4,8 @@ import 'package:http/http.dart' as http;
 
 import '../api/api_exception.dart';
 import '../api/zoro_api.dart';
+import '../entitlements/mobile_entitlements.dart';
+import '../entitlements/token_billing.dart';
 import '../state/app_model.dart';
 import 'apple_foundation_channel.dart';
 
@@ -23,10 +25,11 @@ class LlmAttachment {
 }
 
 class LlmCompleteResult {
-  const LlmCompleteResult({required this.text, this.tokensUsed});
+  const LlmCompleteResult({required this.text, this.tokensUsed, this.entitlementsApiBody});
 
   final String text;
   final int? tokensUsed;
+  final Map<String, dynamic>? entitlementsApiBody;
 }
 
 class LlmClient {
@@ -50,6 +53,7 @@ class LlmClient {
     bool preferJsonObjectOutput = false,
     ZoroApi? zoroApi,
     String? zoroDeviceId,
+    bool onboardingPhase = false,
   }) async {
     switch (provider) {
       case LlmProvider.appleFoundation:
@@ -84,14 +88,27 @@ class LlmClient {
             user: user,
             preferJsonObject: preferJsonObjectOutput,
             maxOutputTokens: maxOutputTokens,
+            onboardingPhase: onboardingPhase,
           );
           final text = body['text']?.toString().trim() ?? '';
           if (text.isEmpty) {
             throw const LlmException('Cloud AI returned empty text.');
           }
-          final tokens = ((system.length + user.length + text.length) / 4).ceil();
-          return LlmCompleteResult(text: text, tokensUsed: tokens);
+          final billed = TokenBilling.parseCount(body['tokensUsed']);
+          final tokens = billed > 0
+              ? billed
+              : ((system.length + user.length + text.length) / 4).ceil();
+          return LlmCompleteResult(
+            text: text,
+            tokensUsed: tokens,
+            entitlementsApiBody: MobileEntitlements.wrapApiData(body['data']),
+          );
         } on ApiException catch (e) {
+          if (e.statusCode == 402) {
+            throw const LlmException(
+              'Not enough tokens. Buy a token pack or upgrade to Pro in Settings → Usage.',
+            );
+          }
           throw LlmException(e.message);
         }
       case LlmProvider.openai:

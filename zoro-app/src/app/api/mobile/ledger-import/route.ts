@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+import { estimateTokensFromText, tokensFromGeminiUsage } from '@/lib/llm-usage';
+import { entitlementsApiDataFromConsume } from '@/lib/mobile-token-billing';
+import { getSupabaseServiceRole } from '@/lib/supabase-server';
+
 function toNonEmptyString(v: unknown): string | null {
   if (typeof v !== 'string') return null;
   const t = v.trim();
@@ -18,7 +22,7 @@ async function geminiJsonCompletion(params: {
   system: string;
   user: string;
   attachments?: AttachmentIn[];
-}): Promise<Record<string, unknown>> {
+}): Promise<{ obj: Record<string, unknown>; tokensUsed: number }> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error('Cloud import is unavailable');
 
@@ -64,11 +68,15 @@ async function geminiJsonCompletion(params: {
 
   const data = (await res.json()) as {
     candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+    usageMetadata?: unknown;
   };
   const content = data.candidates?.[0]?.content?.parts?.map((p) => p.text ?? '').join('') ?? '';
   if (!content.trim()) throw new Error('Import returned no content');
+  const tokensUsed =
+    tokensFromGeminiUsage(data.usageMetadata) ||
+    estimateTokensFromText([system, params.user, content]);
   try {
-    return JSON.parse(content) as Record<string, unknown>;
+    return { obj: JSON.parse(content) as Record<string, unknown>, tokensUsed };
   } catch {
     throw new Error('Import returned invalid JSON');
   }
@@ -116,9 +124,36 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  const onboardingPhase = o.onboardingPhase === true;
+  const supabase = getSupabaseServiceRole();
+  const preflight = await supabase.rpc('mobile_consume_tokens', {
+    device_id_in: deviceId,
+    tokens_in: 0,
+    onboarding_phase_in: onboardingPhase,
+  });
+  if (preflight.error) {
+    const msg = /not enough tokens/i.test(preflight.error.message)
+      ? 'Not enough tokens'
+      : preflight.error.message;
+    return NextResponse.json({ error: msg }, { status: msg === 'Not enough tokens' ? 402 : 500 });
+  }
+
   try {
-    const obj = await geminiJsonCompletion({ system, user, attachments });
-    return NextResponse.json({ data: obj });
+    const { obj, tokensUsed } = await geminiJsonCompletion({ system, user, attachments });
+    const billed = Math.max(1, tokensUsed);
+    const consumed = await supabase.rpc('mobile_consume_tokens', {
+      device_id_in: deviceId,
+      tokens_in: billed,
+      onboarding_phase_in: onboardingPhase,
+    });
+    const row = Array.isArray(consumed.data) ? consumed.data[0] : consumed.data;
+    return NextResponse.json({
+      data: obj,
+      tokensUsed: billed,
+      entitlements: row
+        ? entitlementsApiDataFromConsume(row as Record<string, unknown>, deviceId)
+        : undefined,
+    });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Import failed';
     if (msg === 'FILE_TOO_LONG') {

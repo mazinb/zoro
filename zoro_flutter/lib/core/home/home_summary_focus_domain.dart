@@ -15,7 +15,7 @@ extension HomeSummaryFocusDomainX on HomeSummaryFocusDomain {
         HomeSummaryFocusDomain.liabilities => 'Liabilities',
         HomeSummaryFocusDomain.cashflow => 'Cash flow',
         HomeSummaryFocusDomain.context => 'Context',
-        HomeSummaryFocusDomain.goals => 'Goals',
+        HomeSummaryFocusDomain.goals => 'Plan',
       };
 
 }

@@ -24,6 +24,7 @@ import '../../shared/widgets/keyboard_done_bar.dart';
 import 'ledger_expense_helper_page.dart';
 import 'ledger_import_page.dart';
 import 'ledger_row_review_service.dart';
+import 'allocation_split_panel.dart';
 
 enum LedgerMode { assets, liabilities, cashflow }
 
@@ -3699,6 +3700,8 @@ class _CashTabSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _CashPrimaryCashBar(model: model),
+        const SizedBox(height: 12),
+        AllocationSplitPanel(model: model),
         if (monthKeysForTable.isEmpty)
           const SizedBox(height: 4)
         else

@@ -152,7 +152,9 @@ class HowItWorksPage extends StatelessWidget {
 bool _bulletsVisibleForContent(AppModel model, HowItWorksContent content) {
   if (identical(content, TabHelpContent.ledger)) return model.guideEnabledLedger;
   if (identical(content, TabHelpContent.context)) return model.guideEnabledContext;
-  if (identical(content, TabHelpContent.goals)) return model.guideEnabledGoals;
+  if (identical(content, TabHelpContent.goals) || identical(content, TabHelpContent.agent)) {
+    return model.guideEnabledGoals;
+  }
   if (identical(content, TabHelpContent.settings)) return model.guideEnabledSettings;
   return true;
 }

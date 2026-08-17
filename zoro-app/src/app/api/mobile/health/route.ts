@@ -18,6 +18,11 @@ export async function GET(_request: NextRequest) {
       ),
       openaiApiKey: !!process.env.OPENAI_API_KEY,
       geminiApiKey: !!process.env.GEMINI_API_KEY,
+      /** Cloud AI assistant uses Qwen/vLLM when QWEN_BASE_URL is set; else Gemini. */
+      qwenBaseUrl: !!process.env.QWEN_BASE_URL?.trim(),
+      qwenApiKey: !!process.env.QWEN_API_KEY?.trim(),
+      mailboxInboundDomain: !!process.env.MAILBOX_INBOUND_DOMAIN?.trim(),
+      resendInboundWebhook: !!(process.env.RESEND_INBOUND_WEBHOOK_SECRET?.trim() || process.env.WEBHOOK_SECRET?.trim()),
       nodeEnv: process.env.NODE_ENV ?? null,
     },
   });

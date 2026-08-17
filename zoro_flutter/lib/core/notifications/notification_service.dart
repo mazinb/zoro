@@ -307,6 +307,11 @@ class NotificationService {
     await _plugin.cancelAll();
   }
 
+  Future<void> cancelId(int id) async {
+    await init();
+    await _plugin.cancel(id);
+  }
+
   NotificationDetails _defaultDetails() {
     return NotificationDetails(
       android: AndroidNotificationDetails(
@@ -347,7 +352,7 @@ class NotificationService {
         ReminderDomain.income => 'Income needs a refresh',
         ReminderDomain.assets => 'Assets need a refresh',
         ReminderDomain.liabilities => 'Liabilities need a refresh',
-        ReminderDomain.goals => 'Goals need a check-in',
+        ReminderDomain.goals => 'Plan needs a check-in',
       };
 
   static String _reminderBodyFor(ReminderDomain d) => switch (d) {
@@ -356,7 +361,7 @@ class NotificationService {
         ReminderDomain.income => 'Confirm your income lines are still accurate.',
         ReminderDomain.assets => 'Take a moment to refresh your asset balances.',
         ReminderDomain.liabilities => 'Update your liability balances.',
-        ReminderDomain.goals => 'Tap to open Goals helper and review your plan.',
+        ReminderDomain.goals => 'Tap to open Agent and review your living plan.',
       };
 
   static const int _goalMilestoneNotificationId = 901;

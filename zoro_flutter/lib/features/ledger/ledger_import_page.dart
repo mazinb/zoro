@@ -523,14 +523,6 @@ Infer **monthKey** from the document or statement period; use this hint only if 
         }
       }
 
-      // Consume monthly free import or credits (server is source of truth).
-      final entBody = await m.api.consumeImportAllowance(
-        deviceId: deviceId,
-        kind: _kindApiValue,
-        onboardingPhase: m.inSetupImportPhase,
-      );
-      m.applyMobileEntitlementsBody(entBody);
-
       final userPrompt = [
         'Files: ${_pickedFiles.map((f) => f.name).join(', ')}',
         '',
@@ -1378,7 +1370,7 @@ Infer **monthKey** from the document or statement period; use this hint only if 
 
   @override
   Widget build(BuildContext context) {
-    // Free users can import with monthly free import or credits (enforced server-side on Run AI).
+    // Free users spend Cloud AI tokens on Run AI; on-device import is not billed.
     final muted = Theme.of(context).colorScheme.onSurfaceVariant;
     final fileName = _pickedFiles.isEmpty
         ? ''

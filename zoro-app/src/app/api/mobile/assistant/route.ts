@@ -1,58 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+import { cloudAssistantCompletion } from '@/lib/mobile-assistant-llm';
+import { entitlementsApiDataFromConsume } from '@/lib/mobile-token-billing';
+import { getSupabaseServiceRole } from '@/lib/supabase-server';
+
 function toNonEmptyString(v: unknown): string | null {
   if (typeof v !== 'string') return null;
   const t = v.trim();
   return t ? t : null;
-}
-
-async function geminiTextCompletion(params: {
-  system: string;
-  user: string;
-  preferJsonObject?: boolean;
-  maxOutputTokens?: number;
-}): Promise<string> {
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error('Cloud AI is unavailable');
-
-  const model =
-    process.env.GEMINI_LEDGER_IMPORT_MODEL?.trim() || 'gemini-2.5-flash';
-
-  const system = params.preferJsonObject && !params.system.toLowerCase().includes('json')
-    ? `${params.system.slice(0, 60_000)}\n\nReturn a JSON object only (valid json).`
-    : params.system.slice(0, 60_000);
-
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`;
-
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      systemInstruction: { parts: [{ text: system }] },
-      contents: [{ role: 'user', parts: [{ text: params.user.slice(0, 120_000) }] }],
-      generationConfig: {
-        temperature: 0.2,
-        ...(params.preferJsonObject ? { responseMimeType: 'application/json' } : {}),
-        maxOutputTokens: params.maxOutputTokens ?? 8192,
-      },
-    }),
-  });
-
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    const lower = text.toLowerCase();
-    if (res.status === 400 && (lower.includes('token') || lower.includes('too large'))) {
-      throw new Error('FILE_TOO_LONG');
-    }
-    throw new Error(`Assistant failed (${res.status})`);
-  }
-
-  const data = (await res.json()) as {
-    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
-  };
-  const content = data.candidates?.[0]?.content?.parts?.map((p) => p.text ?? '').join('') ?? '';
-  if (!content.trim()) throw new Error('Assistant returned no content');
-  return content;
 }
 
 export async function POST(request: NextRequest) {
@@ -79,15 +34,40 @@ export async function POST(request: NextRequest) {
     typeof o.maxOutputTokens === 'number' && Number.isFinite(o.maxOutputTokens)
       ? Math.min(Math.max(Math.round(o.maxOutputTokens), 64), 8192)
       : undefined;
+  const onboardingPhase = o.onboardingPhase === true;
+
+  const supabase = getSupabaseServiceRole();
+  const preflight = await supabase.rpc('mobile_consume_tokens', {
+    device_id_in: deviceId,
+    tokens_in: 0,
+    onboarding_phase_in: onboardingPhase,
+  });
+  if (preflight.error) {
+    const msg = /not enough tokens/i.test(preflight.error.message)
+      ? 'Not enough tokens'
+      : preflight.error.message;
+    return NextResponse.json({ error: msg }, { status: msg === 'Not enough tokens' ? 402 : 500 });
+  }
 
   try {
-    const text = await geminiTextCompletion({
+    const { text, tokensUsed } = await cloudAssistantCompletion({
       system,
       user,
       preferJsonObject,
       maxOutputTokens,
     });
-    return NextResponse.json({ text });
+    const billed = Math.max(1, tokensUsed);
+    const consumed = await supabase.rpc('mobile_consume_tokens', {
+      device_id_in: deviceId,
+      tokens_in: billed,
+      onboarding_phase_in: onboardingPhase,
+    });
+    const row = Array.isArray(consumed.data) ? consumed.data[0] : consumed.data;
+    return NextResponse.json({
+      text,
+      tokensUsed: billed,
+      data: row ? entitlementsApiDataFromConsume(row as Record<string, unknown>, deviceId) : undefined,
+    });
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Assistant failed';
     if (msg === 'FILE_TOO_LONG') {

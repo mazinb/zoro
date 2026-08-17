@@ -338,6 +338,7 @@ Map<String, dynamic> encodeNotificationsBlock(AppModel m) {
   int? toMs(DateTime? d) => d?.toUtc().millisecondsSinceEpoch;
   return {
     'enabled': m.notificationsEnabled,
+    'agentJobsEnabled': m.agentJobsEnabled,
     if (m.homeMessagesNotifications) 'homeMessagesNotify': m.homeMessagesNotifications,
     if (toMs(m.homeMessagesLastNotifiedOn) != null) 'homeMessagesLastNotifiedOnMs': toMs(m.homeMessagesLastNotifiedOn),
     'reminderHour': m.reminderNotifyHour,
@@ -357,6 +358,9 @@ void decodeNotificationsBlock(AppModel m, Object? raw) {
   if (raw is! Map) return;
   final n = Map<String, dynamic>.from(raw);
   m.notificationsEnabled = n['enabled'] == true;
+  if (n.containsKey('agentJobsEnabled')) {
+    m.agentJobsEnabled = n['agentJobsEnabled'] != false;
+  }
   if (n.containsKey('homeMessages')) {
     final legacy = n['homeMessages'] == true;
     m.homeMessagesEnabled = legacy;

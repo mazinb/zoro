@@ -90,8 +90,14 @@ If privacyHideAmounts is true, avoid dollar amounts and speak in general terms.
         maxOutputTokens: _maxOutputTokens,
         zoroApi: provider == LlmProvider.zoroCloud ? model.api : null,
         zoroDeviceId: provider == LlmProvider.zoroCloud ? model.deviceId : null,
+        onboardingPhase: model.inSetupImportPhase,
       );
-      model.recordLlmRequest(provider: provider, model: modelName);
+      model.recordLlmRequest(
+        provider: provider,
+        model: modelName,
+        tokensUsed: result.tokensUsed,
+        entitlementsApiBody: result.entitlementsApiBody,
+      );
       model.setPendingLlmCompletionMetadata(
         model: '${provider.name}:$modelName',
         tokensUsed: result.tokensUsed,

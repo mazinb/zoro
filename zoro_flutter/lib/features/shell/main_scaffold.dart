@@ -2,16 +2,15 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../core/agent/cron_bridge.dart';
 import '../../core/notifications/notification_payload.dart';
 import '../../core/notifications/notification_service.dart';
 import '../../core/state/app_model.dart';
 import '../../shared/widgets/liquid_glass.dart';
 import '../command_center/command_center_tab.dart';
-import '../../core/home/home_summary_focus_domain.dart';
-import '../command_center/home_summary_helper_service.dart';
 import '../context/context_tab.dart';
 import '../ledger/ledger_tab.dart';
-import '../goals/goals_tab.dart';
+import '../agent/agent_tab.dart';
 import '../settings/settings_tab.dart';
 
 class MainScaffold extends StatefulWidget {
@@ -33,12 +32,10 @@ class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver
   static const int _homeIndex = 0;
   static const int _ledgerIndex = 1;
   static const int _contextIndex = 2;
-  static const int _goalsIndex = 3;
+  static const int _agentIndex = 3;
   static const int _settingsIndex = 4;
   bool _pendingOpenGoalsHelper = false;
-  final GlobalKey<GoalsTabState> _goalsTabKey = GlobalKey<GoalsTabState>();
-  String? _homeSummaryHelperAttemptedDayKey;
-  bool _homeSummaryHelperBootstrapHandled = false;
+  final GlobalKey<AgentTabState> _agentTabKey = GlobalKey<AgentTabState>();
 
   void _onPrivacyInteractionDenied() {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -84,7 +81,6 @@ class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    widget.model.addListener(_onAppModelChanged);
     _notifTapSub = NotificationService.instance.onTap.listen(_handleNotificationPayload);
     // Drain any payload that launched the app from a terminated state.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -102,7 +98,6 @@ class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver
 
   @override
   void dispose() {
-    widget.model.removeListener(_onAppModelChanged);
     _notifTapSub?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     _settingsTabIndex.dispose();
@@ -118,26 +113,8 @@ class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver
     if (state == AppLifecycleState.resumed) {
       unawaited(widget.model.reconcileNotifications());
       unawaited(widget.model.refreshMobileEntitlements());
-      _maybeRunHomeSummaryHelper();
+      unawaited(widget.model.fetchAgentMailbox());
     }
-  }
-
-  void _onAppModelChanged() {
-    if (!widget.model.bootstrapped || _homeSummaryHelperBootstrapHandled) return;
-    _homeSummaryHelperBootstrapHandled = true;
-    // Defer until after bootstrap notifications reconcile — avoids overlapping Apple FM calls.
-    Future<void>.delayed(const Duration(milliseconds: 800), () {
-      if (!mounted) return;
-      _maybeRunHomeSummaryHelper();
-    });
-  }
-
-  void _maybeRunHomeSummaryHelper() {
-    if (!widget.model.bootstrapped || !widget.model.onboardingComplete) return;
-    final dayKey = homeSummaryCalendarDayKey(DateTime.now());
-    if (_homeSummaryHelperAttemptedDayKey == dayKey) return;
-    _homeSummaryHelperAttemptedDayKey = dayKey;
-    unawaited(HomeSummaryHelperService().maybeRunOnAppOpen(widget.model));
   }
 
   void _clearReviewStateForTab(int tabIndex) {
@@ -160,8 +137,8 @@ class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver
     });
   }
 
-  bool _trySelectGoalsTab({void Function()? andThen}) {
-    _selectShellTab(_goalsIndex, andThen: andThen);
+  bool _trySelectAgentTab({void Function()? andThen}) {
+    _selectShellTab(_agentIndex, andThen: andThen);
     return true;
   }
 
@@ -169,8 +146,8 @@ class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver
     _selectShellTab(next);
   }
 
-  void _goToGoalsAndOpenHelper() {
-    if (!_trySelectGoalsTab(andThen: () {
+  void _goToAgentAndOpenHelper() {
+    if (!_trySelectAgentTab(andThen: () {
       _ledgerFocus = null;
       _pendingOpenGoalsHelper = true;
     })) {
@@ -178,7 +155,7 @@ class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      _goalsTabKey.currentState?.openHelperHub();
+      _agentTabKey.currentState?.openHelperHub();
       if (mounted) setState(() => _pendingOpenGoalsHelper = false);
     });
   }
@@ -187,12 +164,16 @@ class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver
     if (!mounted) return;
     switch (payload.kind) {
       case NotificationKind.agentTask:
+        if (HermesNotificationIds.isHermesTask(payload.taskId)) {
+          _trySelectAgentTab(andThen: () => _ledgerFocus = null);
+          return;
+        }
         _selectShellTab(_homeIndex, andThen: () => _ledgerFocus = null);
       case NotificationKind.reminder:
         final domain = payload.domain;
         if (domain == null) return;
         if (domain == ReminderDomain.goals) {
-          _goToGoalsAndOpenHelper();
+          _trySelectAgentTab(andThen: () => _ledgerFocus = null);
           return;
         }
         _selectShellTab(_ledgerIndex, andThen: () => _ledgerFocus = domain.name);
@@ -205,8 +186,8 @@ class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver
       CommandCenterTab(
         model: widget.model,
         onGoToLedger: (section) => _selectShellTab(_ledgerIndex, andThen: () => _ledgerFocus = section),
-        onGoToGoals: () => _trySelectGoalsTab(andThen: () => _ledgerFocus = null),
-        onOpenGoalsHelper: _goToGoalsAndOpenHelper,
+        onGoToGoals: () => _trySelectAgentTab(andThen: () => _ledgerFocus = null),
+        onOpenGoalsHelper: _goToAgentAndOpenHelper,
       ),
       LedgerTab(
         model: widget.model,
@@ -214,14 +195,13 @@ class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver
         onPrivacyInteractionDenied: _onPrivacyInteractionDenied,
       ),
       ContextTab(model: widget.model),
-      GoalsTab(
-        key: _goalsTabKey,
+      AgentTab(
+        key: _agentTabKey,
         model: widget.model,
         pendingOpenHelper: _pendingOpenGoalsHelper,
         onPendingOpenHelperHandled: () {
           if (_pendingOpenGoalsHelper) setState(() => _pendingOpenGoalsHelper = false);
         },
-        onGoToLedger: (section) => _selectShellTab(_ledgerIndex, andThen: () => _ledgerFocus = section),
       ),
       SettingsTab(
         model: widget.model,
@@ -275,9 +255,9 @@ class _MainScaffoldState extends State<MainScaffold> with WidgetsBindingObserver
                   label: 'Context',
                 ),
                 NavigationDestination(
-                  icon: Icon(Icons.flag_outlined),
-                  selectedIcon: Icon(Icons.flag),
-                  label: 'Goals',
+                  icon: Icon(Icons.smart_toy_outlined),
+                  selectedIcon: Icon(Icons.smart_toy),
+                  label: 'Agent',
                 ),
                 NavigationDestination(
                   icon: Icon(Icons.settings_outlined),

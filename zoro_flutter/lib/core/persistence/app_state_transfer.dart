@@ -19,7 +19,7 @@ abstract final class DataExportKind {
 
   static String label(String kind) => switch (kind) {
         ledger => 'Ledger',
-        goals => 'Goals',
+        goals => 'Plan',
         settings => 'Settings',
         context => 'Context note',
         historicalReturns => 'Historical returns',
@@ -272,7 +272,11 @@ class AppStateTransfer {
 
   static Map<String, dynamic> buildGoalsExportMap(AppModel model) => _envelope(
         DataExportKind.goals,
-        {'goals': model.financialGoals.map(encodeFinancialGoal).toList()},
+        {
+          'goals': model.financialGoals.map(encodeFinancialGoal).toList(),
+          if (model.retirementMarkdownCache.trim().isNotEmpty)
+            'retirementMarkdown': model.retirementMarkdownCache,
+        },
       );
 
   static Map<String, dynamic> buildHistoricalReturnsExportMap(AppModel model) {
@@ -744,11 +748,13 @@ class AppStateTransfer {
     ];
     if (mode == ImportApplyMode.replace) {
       await model.replaceAllGoalsFromImport(incoming);
-      return;
+    } else {
+      for (final g in incoming) {
+        model.upsertFinancialGoal(g);
+      }
     }
-    for (final g in incoming) {
-      model.upsertFinancialGoal(g);
-    }
+    final md = root['retirementMarkdown']?.toString();
+    await model.migrateImportedRetirementIfNeeded(markdown: md);
   }
 
   static Future<void> _applySettingsImport(
