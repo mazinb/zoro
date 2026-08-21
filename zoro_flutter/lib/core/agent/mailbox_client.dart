@@ -36,6 +36,22 @@ class MailboxClaimInfo {
   final String claimedEmail;
 }
 
+class MailboxUsernameCheck {
+  const MailboxUsernameCheck({
+    required this.available,
+    required this.username,
+    this.address,
+    this.domain,
+    this.reason,
+  });
+
+  final bool available;
+  final String username;
+  final String? address;
+  final String? domain;
+  final String? reason;
+}
+
 class MailboxStatus {
   const MailboxStatus({
     required this.state,
@@ -61,18 +77,60 @@ class MailboxClient {
   Future<void> requestClaim({
     required String deviceId,
     required String email,
+    required String username,
   }) async {
     final uri = AppEnv.apiUri('/api/mobile/mailbox/claim');
     final res = await _client.post(
       uri,
       headers: {'Content-Type': 'application/json'},
-      body: jsonEncode({'deviceId': deviceId, 'email': email}),
+      body: jsonEncode({
+        'deviceId': deviceId,
+        'email': email,
+        'username': username,
+      }),
     );
     final body = _decode(res.body);
     if (res.statusCode != 200) {
       throw ApiException(
         body['error']?.toString() ?? 'Could not send confirmation email',
         statusCode: res.statusCode,
+      );
+    }
+  }
+
+  Future<MailboxUsernameCheck> checkUsername({
+    required String username,
+    String? deviceId,
+  }) async {
+    final uri = AppEnv.apiUri('/api/mobile/mailbox/username').replace(
+      queryParameters: {
+        'username': username,
+        if (deviceId != null && deviceId.isNotEmpty) 'deviceId': deviceId,
+      },
+    );
+    try {
+      final res = await _client.get(uri);
+      final body = _decode(res.body);
+      final data = body['data'];
+      if (res.statusCode != 200 || data is! Map) {
+        return MailboxUsernameCheck(
+          available: false,
+          username: username,
+          reason: body['error']?.toString() ?? 'Could not check username',
+        );
+      }
+      return MailboxUsernameCheck(
+        available: data['available'] == true,
+        username: data['username']?.toString() ?? username,
+        address: data['address']?.toString(),
+        domain: data['domain']?.toString(),
+        reason: data['reason']?.toString(),
+      );
+    } catch (_) {
+      return MailboxUsernameCheck(
+        available: false,
+        username: username,
+        reason: 'Could not check username',
       );
     }
   }

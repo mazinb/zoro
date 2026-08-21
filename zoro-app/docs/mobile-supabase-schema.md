@@ -21,12 +21,13 @@ Last applied: `token_billing_consume_rpcs` (after `token_billing` columns + `mob
 - RLS enabled; service role only from app API
 
 ### Hermes mailbox
-- `mobile_mailbox_claims` — short-lived email proof (`nonce_hash`, `email_verified_at`, `consumed_at`)
-- `mobile_mailboxes` — one active row per claimed email and per device; `token_hash` only
+- `mobile_mailbox_claims` — short-lived email proof (`nonce_hash`, `local_part` username, `email_verified_at`, `consumed_at`)
+- `mobile_mailboxes` — one active row per claimed email and per device; address is `username@domain`; `token_hash` only
 - `mobile_mailbox_messages` — pending PDFs with `expires_at` / `acked_at`
 - `mobile_mailbox_webhook_events` — inbound idempotency
 - Storage bucket `mailbox-attachments` (private). RLS on; service-role API only.
 - RPC `mobile_mailbox_purge_expired()`
+- Ingest: Resend Svix webhook and/or `/api/mobile/mailbox/ingest` from the external mail pipeline
 
 ## RPCs
 

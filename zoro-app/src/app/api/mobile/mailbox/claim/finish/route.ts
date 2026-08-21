@@ -7,10 +7,12 @@ import {
   findActiveByDevice,
   findActiveByEmail,
   hashSecret,
-  inboundDomain,
+  isLocalPartAvailable,
+  mailboxAddressFor,
   newMailboxToken,
   normalizeEmail,
   revokeMailbox,
+  validateLocalPart,
 } from '@/lib/mobile-mailbox';
 import { mailboxErrorResponse, mailboxJson } from '@/lib/mobile-mailbox-http';
 import { getSupabaseServiceRole } from '@/lib/supabase-server';
@@ -25,7 +27,7 @@ async function loadClaimByNonce(nonce: string) {
   const supabase = getSupabaseServiceRole();
   const { data, error } = await supabase
     .from('mobile_mailbox_claims')
-    .select('id,device_id,email,nonce_hash,expires_at,email_verified_at,consumed_at')
+    .select('id,device_id,email,local_part,nonce_hash,expires_at,email_verified_at,consumed_at')
     .eq('nonce_hash', hashSecret(nonce))
     .maybeSingle();
   if (error) throw new MailboxError(error.message, 500);
@@ -71,6 +73,7 @@ export async function POST(request: NextRequest) {
       id: string;
       device_id: string;
       email: string;
+      local_part: string | null;
       expires_at: string;
       email_verified_at: string | null;
       consumed_at: string | null;
@@ -82,7 +85,7 @@ export async function POST(request: NextRequest) {
     } else {
       const { data } = await supabase
         .from('mobile_mailbox_claims')
-        .select('id,device_id,email,expires_at,email_verified_at,consumed_at')
+        .select('id,device_id,email,local_part,expires_at,email_verified_at,consumed_at')
         .eq('device_id', deviceId)
         .is('consumed_at', null)
         .not('email_verified_at', 'is', null)
@@ -144,9 +147,23 @@ export async function POST(request: NextRequest) {
     const user = await ensureUserForEmail(supabase, email);
     await supabase.from('users').update({ is_verified: true, updated_at: now }).eq('id', user.id);
 
+    const usernameRaw = claim.local_part?.trim() || '';
+    const checked = validateLocalPart(usernameRaw);
+    if (!checked.ok) {
+      throw new MailboxError(
+        'This claim is missing a username. Start the claim again and pick one.',
+        409,
+        'username_required',
+      );
+    }
+    const stillFree = await isLocalPartAvailable(supabase, checked.localPart, {
+      excludeDeviceId: deviceId,
+    });
+    if (!stillFree) {
+      throw new MailboxError('That username was taken. Pick another and reclaim.', 409, 'username_taken');
+    }
+    const address = mailboxAddressFor(checked.localPart);
     const token = newMailboxToken();
-    const localPart = `zoro-${claim.id.replace(/-/g, '').slice(0, 12)}`;
-    const address = `${localPart}@${inboundDomain()}`.toLowerCase();
 
     const { data: created, error: insertErr } = await supabase
       .from('mobile_mailboxes')
@@ -162,6 +179,9 @@ export async function POST(request: NextRequest) {
     if (insertErr || !created) {
       if (/mobile_mailboxes_one_active_email/i.test(insertErr?.message ?? '')) {
         throw new MailboxError('This email already has a mailbox on another device.', 409, 'email_in_use');
+      }
+      if (/mobile_mailboxes_address|duplicate key.*address/i.test(insertErr?.message ?? '')) {
+        throw new MailboxError('That username is taken', 409, 'username_taken');
       }
       throw new MailboxError(insertErr?.message ?? 'Could not create mailbox', 500);
     }

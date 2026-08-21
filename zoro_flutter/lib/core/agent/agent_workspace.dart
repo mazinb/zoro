@@ -227,11 +227,23 @@ class AgentWorkspace extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> requestClaim({required String deviceId, required String email}) {
+  Future<void> requestClaim({
+    required String deviceId,
+    required String email,
+    required String username,
+  }) {
     return mailbox.requestClaim(
       deviceId: deviceId,
       email: email.trim().toLowerCase(),
+      username: username.trim().toLowerCase(),
     );
+  }
+
+  Future<MailboxUsernameCheck> checkUsername({
+    required String username,
+    String? deviceId,
+  }) {
+    return mailbox.checkUsername(username: username, deviceId: deviceId);
   }
 
   Future<MailboxClaimInfo> finishClaim({

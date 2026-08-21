@@ -113,6 +113,95 @@ export function parseRecipientList(to: unknown): string[] {
     .filter(Boolean);
 }
 
+const RESERVED_LOCAL_PARTS = new Set([
+  'admin',
+  'administrator',
+  'abuse',
+  'api',
+  'billing',
+  'contact',
+  'help',
+  'hermes',
+  'hostmaster',
+  'inbound',
+  'info',
+  'mail',
+  'mailbox',
+  'mailer-daemon',
+  'no-reply',
+  'noreply',
+  'postmaster',
+  'root',
+  'security',
+  'support',
+  'system',
+  'webmaster',
+  'www',
+  'zoro',
+]);
+
+/** Normalize a user-picked mailbox username (local-part). */
+export function normalizeLocalPart(raw: string): string {
+  return raw.trim().toLowerCase().replace(/^@/, '');
+}
+
+/**
+ * Validate username for `username@MAILBOX_INBOUND_DOMAIN`.
+ * 3–32 chars, starts with a letter, letters/digits/hyphen/underscore only.
+ */
+export function validateLocalPart(raw: string): { ok: true; localPart: string } | { ok: false; error: string } {
+  const localPart = normalizeLocalPart(raw);
+  if (localPart.length < 3 || localPart.length > 32) {
+    return { ok: false, error: 'Username must be 3–32 characters' };
+  }
+  if (!/^[a-z][a-z0-9_-]*$/.test(localPart)) {
+    return {
+      ok: false,
+      error: 'Username must start with a letter and use only letters, numbers, hyphens, or underscores',
+    };
+  }
+  if (RESERVED_LOCAL_PARTS.has(localPart)) {
+    return { ok: false, error: 'That username is reserved' };
+  }
+  if (localPart.startsWith('zoro-')) {
+    return { ok: false, error: 'Usernames starting with zoro- are reserved' };
+  }
+  return { ok: true, localPart };
+}
+
+export function mailboxAddressFor(localPart: string): string {
+  return `${normalizeLocalPart(localPart)}@${inboundDomain()}`.toLowerCase();
+}
+
+export async function isLocalPartAvailable(
+  supabase: SupabaseClient,
+  localPart: string,
+  opts?: { excludeDeviceId?: string },
+): Promise<boolean> {
+  const address = mailboxAddressFor(localPart);
+  const { data: active, error } = await supabase
+    .from('mobile_mailboxes')
+    .select('id,device_id')
+    .eq('address', address)
+    .is('revoked_at', null)
+    .maybeSingle();
+  if (error) throw new MailboxError(error.message, 500);
+  if (active && active.device_id !== opts?.excludeDeviceId) return false;
+
+  const { data: pending, error: claimErr } = await supabase
+    .from('mobile_mailbox_claims')
+    .select('id,device_id')
+    .ilike('local_part', localPart)
+    .is('consumed_at', null)
+    .gt('expires_at', new Date().toISOString())
+    .limit(5);
+  if (claimErr) throw new MailboxError(claimErr.message, 500);
+  for (const row of pending ?? []) {
+    if (row.device_id !== opts?.excludeDeviceId) return false;
+  }
+  return true;
+}
+
 export type InboundAttachment = {
   attachmentId?: string;
   fileName: string;
@@ -144,7 +233,12 @@ export function parseResendInbound(payload: unknown): {
     '';
   const fromRaw = typeof data.from === 'string' ? data.from : '';
   const subject = typeof data.subject === 'string' ? data.subject : '';
-  const to = parseRecipientList(data.to);
+  // Resend may put the mailbox address in `to`, `cc`, and/or `received_for` (forwards).
+  const to = [
+    ...parseRecipientList(data.to),
+    ...parseRecipientList(data.cc),
+    ...parseRecipientList(data.received_for),
+  ].filter((addr, i, arr) => arr.indexOf(addr) === i);
   const attsRaw = Array.isArray(data.attachments) ? data.attachments : [];
   const attachments: InboundAttachment[] = [];
   for (const a of attsRaw) {
