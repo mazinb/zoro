@@ -22,6 +22,9 @@ export async function GET(_request: NextRequest) {
       qwenBaseUrl: !!process.env.QWEN_BASE_URL?.trim(),
       qwenApiKey: !!process.env.QWEN_API_KEY?.trim(),
       mailboxInboundDomain: !!process.env.MAILBOX_INBOUND_DOMAIN?.trim(),
+      mailboxIngestSecret: !!(
+        process.env.MAILBOX_INGEST_SECRET?.trim() || process.env.NAG_DISPATCH_KEY?.trim()
+      ),
       resendApiKey: !!process.env.RESEND_API_KEY?.trim(),
       resendFrom: !!process.env.RESEND_FROM?.trim(),
       resendInboundWebhook: !!(process.env.RESEND_INBOUND_WEBHOOK_SECRET?.trim() || process.env.WEBHOOK_SECRET?.trim()),

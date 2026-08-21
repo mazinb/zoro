@@ -52,6 +52,7 @@ Do not commit `.env` or service-role keys.
 | `NEXT_PUBLIC_APP_DEMO_VIDEO` | Optional demo video (default `/videos/demo.mp4`) |
 | `MAILBOX_INBOUND_DOMAIN` | Optional Hermes receiving-domain override (default `getzoro.com`) |
 | `RESEND_INBOUND_WEBHOOK_SECRET` | Svix secret for `/api/webhooks/resend/inbound` |
+| `MAILBOX_INGEST_SECRET` | Shared secret for external mail pipeline → `/api/mobile/mailbox/ingest` |
 | `MAILBOX_RETENTION_HOURS` | Pending PDF TTL (default 48) |
 
 Schema and migrations: Supabase / repo migrations are source of truth.

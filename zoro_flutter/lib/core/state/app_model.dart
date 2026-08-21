@@ -221,12 +221,23 @@ class AppModel extends ChangeNotifier {
     await agentWorkspace.fetchMailbox(deviceId: deviceId);
   }
 
-  Future<void> requestMailboxClaim(String email) async {
+  Future<void> requestMailboxClaim(String email, {required String username}) async {
     final id = deviceId?.trim();
     if (id == null || id.isEmpty) {
       throw StateError('Device is not ready yet.');
     }
-    await agentWorkspace.requestClaim(deviceId: id, email: email);
+    await agentWorkspace.requestClaim(
+      deviceId: id,
+      email: email,
+      username: username,
+    );
+  }
+
+  Future<MailboxUsernameCheck> checkMailboxUsername(String username) {
+    return agentWorkspace.checkUsername(
+      username: username,
+      deviceId: deviceId,
+    );
   }
 
   Future<void> finishMailboxClaim({String? nonce}) async {

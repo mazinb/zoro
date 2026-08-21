@@ -5,8 +5,10 @@ import {
   extractEmailAddress,
   hashSecret,
   looksLikePdf,
+  mailboxAddressFor,
   parseRecipientList,
   parseResendInbound,
+  validateLocalPart,
 } from '@/lib/mobile-mailbox';
 import { verifySvixSignature } from '@/lib/svix-webhook';
 
@@ -41,9 +43,10 @@ describe('mailbox helpers', () => {
     const parsed = parseResendInbound({
       type: 'email.received',
       data: {
-        id: 'evt_1',
+        email_id: 'evt_1',
         from: 'Ada <ada@example.com>',
-        to: ['zoro-abc@getzoro.com'],
+        to: ['other@x.com'],
+        received_for: ['ada@getzoro.com'],
         subject: 'Statement',
         attachments: [
           {
@@ -55,10 +58,22 @@ describe('mailbox helpers', () => {
       },
     });
     expect(parsed?.from).toBe('ada@example.com');
-    expect(parsed?.to).toEqual(['zoro-abc@getzoro.com']);
+    expect(parsed?.to).toEqual(['other@x.com', 'ada@getzoro.com']);
     expect(parsed?.emailId).toBe('evt_1');
     expect(parsed?.attachments[0].attachmentId).toBe('att_1');
     expect(parsed?.attachments[0].fileName).toBe('ibkr.pdf');
+  });
+
+  it('validates mailbox usernames', () => {
+    expect(validateLocalPart('Ada_01').ok).toBe(true);
+    expect(validateLocalPart('ab').ok).toBe(false);
+    expect(validateLocalPart('admin').ok).toBe(false);
+    expect(validateLocalPart('zoro-abc').ok).toBe(false);
+    expect(validateLocalPart('1ada').ok).toBe(false);
+  });
+
+  it('builds mailbox addresses from usernames', () => {
+    expect(mailboxAddressFor('Ada')).toMatch(/^ada@/);
   });
 
   it('hashes tokens stably', () => {

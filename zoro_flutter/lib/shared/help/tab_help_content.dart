@@ -39,7 +39,7 @@ abstract final class TabHelpContent {
     bullets: [
       'Chat is the main Agent surface. It prefers Apple on-device Intelligence when available, otherwise Cloud AI or your API key.',
       'Retirement plan, inbox, PDF import, and mailbox are actions above the chat instead of permanent dashboard cards.',
-      'Claim a private mailbox with your email. Zoro assigns a forwarding address; send PDFs only from that claimed address.',
+      'Claim a private mailbox: pick a unique username (you@getzoro.com style address). Zoro verifies the email you forward PDFs from.',
       'One email can have one active mailbox at a time. Opening the magic link returns you to this app.',
       'The living retirement plan is a markdown file on this phone. Saving creates a new revision instead of overwriting.',
       'PDFs you drop or fetch stay on device. Passwords are stored in the keychain per file type.',
