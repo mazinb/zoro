@@ -18,20 +18,13 @@ function getPublicSupabase() {
   });
 }
 
-/** GET cached S&P 500 Greenblatt snapshot for the index map UI. */
 export async function GET(request: NextRequest) {
   try {
     const supabase = getPublicSupabase();
     const snapshot = await loadGreenblattSnapshot(supabase);
 
     if (!snapshot) {
-      return NextResponse.json(
-        {
-          error: 'No Greenblatt snapshot yet',
-          hint: 'Run POST /api/cron/usmarket-greenblatt with NAG_DISPATCH_KEY to seed data.',
-        },
-        { status: 404 },
-      );
+      return NextResponse.json({ error: 'No data yet' }, { status: 404 });
     }
 
     const stale = isSnapshotStale(snapshot.meta.refreshedAt);
@@ -42,17 +35,14 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       data: {
-        meta: {
-          ...snapshot.meta,
-          stale,
-        },
+        meta: { ...snapshot.meta, stale },
         stocks,
       },
     });
   } catch (error) {
     return NextResponse.json(
       {
-        error: 'Failed to load Greenblatt snapshot',
+        error: 'Failed to load snapshot',
         details: error instanceof Error ? error.message : 'Unknown error',
       },
       { status: 500 },

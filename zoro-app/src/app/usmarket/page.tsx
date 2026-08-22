@@ -1,48 +1,83 @@
 'use client';
 
-import Link from 'next/link';
-import { ArrowRight, ScatterChart } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 
+import { GreenblattMap } from '@/components/usmarket/GreenblattMap';
+import { GreenblattTable } from '@/components/usmarket/GreenblattTable';
 import { UsMarketChrome } from '@/components/usmarket/UsMarketChrome';
 import { useDarkMode } from '@/hooks/useDarkMode';
 import { useThemeClasses } from '@/hooks/useThemeClasses';
+import type { GreenblattSnapshotMeta, GreenblattStockMetrics } from '@/lib/usmarket/types';
+
+function formatRefreshedAt(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return date.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+}
 
 export default function UsMarketPage() {
   const { darkMode } = useDarkMode();
   const theme = useThemeClasses(darkMode);
+  const [meta, setMeta] = useState<GreenblattSnapshotMeta | null>(null);
+  const [stocks, setStocks] = useState<GreenblattStockMetrics[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch('/api/usmarket')
+      .then(async (res) => {
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error ?? 'Failed to load');
+        setMeta(json.data.meta);
+        setStocks(json.data.stocks ?? []);
+      })
+      .catch((e) => setError(e instanceof Error ? e.message : 'Failed to load'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const plottableCount = useMemo(
+    () => stocks.filter((s) => s.earningsYield != null && s.returnOnCapital != null).length,
+    [stocks],
+  );
 
   return (
-    <UsMarketChrome
-      title="US market screens"
-      subtitle="Research views on large-cap US equities. Screens refresh from public market data on a daily cadence and are for education only — not investment advice."
-    >
-      <div className="grid gap-6 md:grid-cols-2">
-        <Link
-          href="/usmarket/greenblatt"
-          className={`group rounded-2xl border p-6 transition-colors ${theme.cardBorderClass} ${theme.cardBgClass} ${theme.cardHoverClass}`}
-        >
-          <div className="flex items-start justify-between gap-4">
+    <UsMarketChrome title="US Market">
+      {loading && <p className={theme.textSecondaryClass}>Loading…</p>}
+      {!loading && error && <p className={theme.textSecondaryClass}>{error}</p>}
+
+      {!loading && !error && meta && (
+        <>
+          <div
+            className={`mb-6 grid grid-cols-2 gap-3 rounded-xl border p-4 sm:grid-cols-4 ${theme.cardBorderClass} ${theme.accentBgClass}`}
+          >
             <div>
-              <div className={`inline-flex rounded-xl p-3 ${theme.accentBgClass}`}>
-                <ScatterChart className={`h-6 w-6 ${theme.linkClass}`} />
-              </div>
-              <h2 className={`mt-4 text-xl font-semibold ${theme.textClass}`}>
-                Greenblatt index map
-              </h2>
-              <p className={`mt-2 leading-7 ${theme.textSecondaryClass}`}>
-                Plot S&amp;P 500 names by Return on Capital (quality) and Earnings Yield (cheapness).
-                Highlights clusters of opportunity and risk using Joel Greenblatt&apos;s Magic Formula lens.
-              </p>
+              <p className={`text-xs ${theme.textSecondaryClass}`}>Universe</p>
+              <p className={`text-xl font-semibold ${theme.textClass}`}>{meta.stockCount}</p>
             </div>
-            <ArrowRight className={`mt-2 h-5 w-5 shrink-0 ${theme.textSecondaryClass} group-hover:translate-x-0.5 transition-transform`} />
+            <div>
+              <p className={`text-xs ${theme.textSecondaryClass}`}>Plotted</p>
+              <p className={`text-xl font-semibold ${theme.textClass}`}>{plottableCount}</p>
+            </div>
+            <div>
+              <p className={`text-xs ${theme.textSecondaryClass}`}>Updated</p>
+              <p className={`text-sm font-medium ${theme.textClass}`}>{formatRefreshedAt(meta.refreshedAt)}</p>
+            </div>
+            <div>
+              <p className={`text-xs ${theme.textSecondaryClass}`}>Source</p>
+              <p className={`text-sm font-medium ${theme.textClass}`}>{meta.source}</p>
+            </div>
           </div>
-          <ul className={`mt-4 space-y-1 text-sm ${theme.textSecondaryClass}`}>
-            <li>Excludes Financials and Utilities (Greenblatt convention)</li>
-            <li>TTM EBIT from quarterly filings; EV from latest market prices</li>
-            <li>Combined rank = ROC rank + earnings-yield rank</li>
-          </ul>
-        </Link>
-      </div>
+
+          <section className="mb-10">
+            <GreenblattMap stocks={stocks} darkMode={darkMode} />
+          </section>
+
+          <section>
+            <h2 className={`mb-3 text-lg font-semibold ${theme.textClass}`}>Ranks</h2>
+            <GreenblattTable stocks={stocks} darkMode={darkMode} />
+          </section>
+        </>
+      )}
     </UsMarketChrome>
   );
 }

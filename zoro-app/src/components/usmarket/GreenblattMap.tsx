@@ -76,11 +76,6 @@ function StockDetailPanel({
               style={{ backgroundColor: sectorColor }}
             />
             <h3 className={`text-lg font-semibold ${labelText}`}>{stock.symbol}</h3>
-            {pinned && (
-              <span className={`rounded-full px-2 py-0.5 text-xs ${darkMode ? 'bg-slate-700 text-slate-300' : 'bg-slate-100 text-slate-600'}`}>
-                Selected
-              </span>
-            )}
           </div>
           <p className={`mt-1 truncate text-sm ${axisText}`}>{stock.name}</p>
           <p className={`mt-1 text-xs ${axisText}`}>{stock.sector}</p>
@@ -102,7 +97,7 @@ function StockDetailPanel({
 
       <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
         <div>
-          <dt className={axisText}>Return on capital</dt>
+          <dt className={axisText}>ROC</dt>
           <dd className={`font-medium ${labelText}`}>{formatPercent(stock.returnOnCapital)}</dd>
         </div>
         <div>
@@ -110,7 +105,7 @@ function StockDetailPanel({
           <dd className={`font-medium ${labelText}`}>{formatPercent(stock.earningsYield)}</dd>
         </div>
         <div>
-          <dt className={axisText}>Combined rank</dt>
+          <dt className={axisText}>Rank</dt>
           <dd className={`font-medium ${labelText}`}>{stock.combinedRank ?? '—'}</dd>
         </div>
         <div>
@@ -118,15 +113,15 @@ function StockDetailPanel({
           <dd className={`font-medium ${labelText}`}>{stock.rocRank ?? '—'}</dd>
         </div>
         <div>
-          <dt className={axisText}>Earnings yield rank</dt>
+          <dt className={axisText}>EY rank</dt>
           <dd className={`font-medium ${labelText}`}>{stock.eyRank ?? '—'}</dd>
         </div>
         <div>
-          <dt className={axisText}>TTM EBIT</dt>
+          <dt className={axisText}>EBIT</dt>
           <dd className={`font-medium ${labelText}`}>{formatCompactUsd(stock.ebit)}</dd>
         </div>
         <div>
-          <dt className={axisText}>Enterprise value</dt>
+          <dt className={axisText}>EV</dt>
           <dd className={`font-medium ${labelText}`}>{formatCompactUsd(stock.enterpriseValue)}</dd>
         </div>
         <div>
@@ -226,7 +221,7 @@ export function GreenblattMap({ stocks, darkMode }: GreenblattMapProps) {
                 : 'border-slate-200 bg-white text-slate-900'
             }`}
           >
-            <option value="all">All sectors ({plottableAll.length} names)</option>
+            <option value="all">All</option>
             {sectors.map((sector) => (
               <option key={sector} value={sector}>
                 {sector}
@@ -234,12 +229,9 @@ export function GreenblattMap({ stocks, darkMode }: GreenblattMapProps) {
             ))}
           </select>
         </label>
-        <span className={`text-sm ${darkMode ? 'text-slate-400' : 'text-slate-600'}`}>
-          Tap or click a dot to inspect a company
-        </span>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <div className={`grid gap-4 ${focused ? 'lg:grid-cols-[minmax(0,1fr)_300px]' : ''}`}>
         <div
           className={`overflow-x-auto rounded-2xl border p-4 ${
             darkMode ? 'border-slate-700 bg-slate-900/40' : 'border-slate-200 bg-slate-50'
@@ -312,7 +304,7 @@ export function GreenblattMap({ stocks, darkMode }: GreenblattMapProps) {
               fontSize="13"
               pointerEvents="none"
             >
-              Earnings yield (EBIT ÷ Enterprise Value) →
+              Earnings yield →
             </text>
             <text
               x={16}
@@ -323,7 +315,7 @@ export function GreenblattMap({ stocks, darkMode }: GreenblattMapProps) {
               transform={`rotate(-90 16 ${PLOT.padTop + innerH / 2})`}
               pointerEvents="none"
             >
-              Return on capital (EBIT ÷ invested capital) →
+              Return on capital →
             </text>
 
             <text
@@ -334,7 +326,7 @@ export function GreenblattMap({ stocks, darkMode }: GreenblattMapProps) {
               fontSize="11"
               pointerEvents="none"
             >
-              Quality + cheap
+              Cheap + quality
             </text>
             <text
               x={PLOT.padLeft + 8}
@@ -344,7 +336,7 @@ export function GreenblattMap({ stocks, darkMode }: GreenblattMapProps) {
               fontSize="11"
               pointerEvents="none"
             >
-              Weak + expensive
+              Expensive + weak
             </text>
 
             {plottable.map((stock) => {
@@ -410,26 +402,16 @@ export function GreenblattMap({ stocks, darkMode }: GreenblattMapProps) {
           </svg>
         </div>
 
-        <div className="lg:sticky lg:top-6 lg:self-start">
-          {focused ? (
+        {focused && (
+          <div className="lg:sticky lg:top-6 lg:self-start">
             <StockDetailPanel
               stock={focused}
               darkMode={darkMode}
               pinned={selected?.symbol === focused.symbol}
               onClear={() => setSelected(null)}
             />
-          ) : (
-            <div
-              className={`flex h-full min-h-[220px] items-center justify-center rounded-xl border border-dashed p-6 text-center text-sm ${
-                darkMode
-                  ? 'border-slate-700 bg-slate-900/20 text-slate-400'
-                  : 'border-slate-300 bg-white text-slate-500'
-              }`}
-            >
-              Click a dot on the map to see company metrics, ranks, and valuation inputs.
-            </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       <div className="flex flex-wrap gap-3">
