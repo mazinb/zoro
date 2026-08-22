@@ -27,7 +27,8 @@
     "react": "19.2.0",
     "react-dom": "19.2.0",
     "resend": "^4.1.0",
-    "undici": "^7.21.0"
+    "undici": "^7.21.0",
+    "yahoo-finance2": "^4.0.2"
   },
   "devDependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1",
