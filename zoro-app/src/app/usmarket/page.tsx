@@ -23,6 +23,8 @@ export default function UsMarketPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [selectedSector, setSelectedSector] = useState('all');
+
   useEffect(() => {
     fetch('/api/usmarket')
       .then(async (res) => {
@@ -69,12 +71,17 @@ export default function UsMarketPage() {
           </div>
 
           <section className="mb-10">
-            <GreenblattMap stocks={stocks} darkMode={darkMode} />
+            <GreenblattMap
+              stocks={stocks}
+              darkMode={darkMode}
+              selectedSector={selectedSector}
+              onSectorChange={setSelectedSector}
+            />
           </section>
 
           <section>
             <h2 className={`mb-3 text-lg font-semibold ${theme.textClass}`}>Ranks</h2>
-            <GreenblattTable stocks={stocks} darkMode={darkMode} />
+            <GreenblattTable stocks={stocks} darkMode={darkMode} selectedSector={selectedSector} />
           </section>
         </>
       )}

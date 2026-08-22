@@ -136,12 +136,18 @@ function StockDetailPanel({
 interface GreenblattMapProps {
   stocks: GreenblattStockMetrics[];
   darkMode: boolean;
+  selectedSector: string;
+  onSectorChange: (sector: string) => void;
 }
 
-export function GreenblattMap({ stocks, darkMode }: GreenblattMapProps) {
+export function GreenblattMap({
+  stocks,
+  darkMode,
+  selectedSector,
+  onSectorChange,
+}: GreenblattMapProps) {
   const [hovered, setHovered] = useState<GreenblattStockMetrics | null>(null);
   const [selected, setSelected] = useState<GreenblattStockMetrics | null>(null);
-  const [selectedSector, setSelectedSector] = useState<string>('all');
 
   const plottableAll = useMemo(
     () => stocks.filter((s) => s.earningsYield != null && s.returnOnCapital != null),
@@ -212,7 +218,7 @@ export function GreenblattMap({ stocks, darkMode }: GreenblattMapProps) {
           <select
             value={selectedSector}
             onChange={(e) => {
-              setSelectedSector(e.target.value);
+              onSectorChange(e.target.value);
               setSelected(null);
             }}
             className={`ml-2 rounded-lg border px-3 py-1.5 text-sm ${

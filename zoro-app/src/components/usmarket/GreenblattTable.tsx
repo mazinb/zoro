@@ -6,12 +6,20 @@ import type { GreenblattStockMetrics } from '@/lib/usmarket/types';
 interface GreenblattTableProps {
   stocks: GreenblattStockMetrics[];
   darkMode: boolean;
+  selectedSector?: string;
   limit?: number;
 }
 
-export function GreenblattTable({ stocks, darkMode, limit = 50 }: GreenblattTableProps) {
+export function GreenblattTable({
+  stocks,
+  darkMode,
+  selectedSector = 'all',
+  limit = 50,
+}: GreenblattTableProps) {
   const rows = stocks
     .filter((s) => s.combinedRank != null)
+    .filter((s) => selectedSector === 'all' || s.sector === selectedSector)
+    .sort((a, b) => (a.combinedRank ?? Infinity) - (b.combinedRank ?? Infinity))
     .slice(0, limit);
 
   const headerClass = darkMode ? 'text-slate-400' : 'text-slate-500';
