@@ -23,7 +23,8 @@ export function GreenblattTable({ stocks, darkMode, limit = 50 }: GreenblattTabl
       <table className="min-w-full text-left text-sm">
         <thead className={darkMode ? 'bg-slate-800/80' : 'bg-slate-50'}>
           <tr>
-            <th className={`px-4 py-3 font-medium ${headerClass}`}>Rank</th>
+            <th className={`px-4 py-3 font-medium ${headerClass}`}>#</th>
+            <th className={`px-4 py-3 font-medium ${headerClass}`}>Score</th>
             <th className={`px-4 py-3 font-medium ${headerClass}`}>Symbol</th>
             <th className={`px-4 py-3 font-medium ${headerClass}`}>Company</th>
             <th className={`px-4 py-3 font-medium ${headerClass}`}>ROC</th>
@@ -33,8 +34,9 @@ export function GreenblattTable({ stocks, darkMode, limit = 50 }: GreenblattTabl
           </tr>
         </thead>
         <tbody>
-          {rows.map((stock) => (
+          {rows.map((stock, index) => (
             <tr key={stock.symbol} className={`border-t ${rowBorder}`}>
+              <td className={`px-4 py-3 font-mono ${cellClass}`}>{index + 1}</td>
               <td className={`px-4 py-3 font-mono ${cellClass}`}>{stock.combinedRank}</td>
               <td className={`px-4 py-3 font-semibold ${cellClass}`}>{stock.symbol}</td>
               <td className={`px-4 py-3 ${cellClass}`}>{stock.name}</td>

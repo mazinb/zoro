@@ -105,7 +105,7 @@ function StockDetailPanel({
           <dd className={`font-medium ${labelText}`}>{formatPercent(stock.earningsYield)}</dd>
         </div>
         <div>
-          <dt className={axisText}>Rank</dt>
+          <dt className={axisText}>Score</dt>
           <dd className={`font-medium ${labelText}`}>{stock.combinedRank ?? '—'}</dd>
         </div>
         <div>
