@@ -40,15 +40,17 @@ export function GreenblattMap({ stocks, darkMode }: GreenblattMapProps) {
   const [hovered, setHovered] = useState<GreenblattStockMetrics | null>(null);
   const [selectedSector, setSelectedSector] = useState<string>('all');
 
+  const plottableAll = useMemo(
+    () => stocks.filter((s) => s.earningsYield != null && s.returnOnCapital != null),
+    [stocks],
+  );
+
   const plottable = useMemo(
     () =>
-      stocks.filter(
-        (s) =>
-          s.earningsYield != null &&
-          s.returnOnCapital != null &&
-          (selectedSector === 'all' || s.sector === selectedSector),
+      plottableAll.filter(
+        (s) => selectedSector === 'all' || s.sector === selectedSector,
       ),
-    [selectedSector, stocks],
+    [plottableAll, selectedSector],
   );
 
   const sectors = useMemo(
@@ -103,7 +105,7 @@ export function GreenblattMap({ stocks, darkMode }: GreenblattMapProps) {
                 : 'border-slate-200 bg-white text-slate-900'
             }`}
           >
-            <option value="all">All sectors</option>
+            <option value="all">All sectors ({plottableAll.length} names)</option>
             {sectors.map((sector) => (
               <option key={sector} value={sector}>
                 {sector}
@@ -111,7 +113,11 @@ export function GreenblattMap({ stocks, darkMode }: GreenblattMapProps) {
             ))}
           </select>
         </label>
-        <span className={`text-sm ${axisText}`}>{plottable.length} companies plotted</span>
+        <span className={`text-sm ${axisText}`}>
+          {selectedSector === 'all'
+            ? `${plottable.length} of ${stocks.length} eligible names plotted`
+            : `${plottable.length} ${selectedSector} names plotted (${plottableAll.length} total on map when showing all sectors)`}
+        </span>
       </div>
 
       <div

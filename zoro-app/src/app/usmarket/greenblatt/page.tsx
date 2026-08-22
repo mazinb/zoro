@@ -41,6 +41,16 @@ export default function GreenblattPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  const rankedCount = useMemo(
+    () => stocks.filter((s) => s.combinedRank != null).length,
+    [stocks],
+  );
+
+  const plottableCount = useMemo(
+    () => stocks.filter((s) => s.earningsYield != null && s.returnOnCapital != null).length,
+    [stocks],
+  );
+
   const topQuadrantCount = useMemo(() => {
     if (!stocks.length) return 0;
     const plottable = stocks.filter((s) => s.earningsYield != null && s.returnOnCapital != null);
@@ -82,15 +92,33 @@ export default function GreenblattPage() {
       {!loading && !error && meta && (
         <>
           <div
-            className={`mb-8 grid gap-4 rounded-2xl border p-5 sm:grid-cols-2 lg:grid-cols-4 ${theme.cardBorderClass} ${theme.accentBgClass}`}
+            className={`mb-8 grid gap-4 rounded-2xl border p-5 sm:grid-cols-2 lg:grid-cols-5 ${theme.cardBorderClass} ${theme.accentBgClass}`}
           >
             <div>
-              <p className={`text-sm ${theme.textSecondaryClass}`}>Universe</p>
-              <p className={`text-2xl font-semibold ${theme.textClass}`}>{meta.stockCount} stocks</p>
+              <p className={`text-sm ${theme.textSecondaryClass}`}>Eligible universe</p>
+              <p className={`text-2xl font-semibold ${theme.textClass}`}>{meta.stockCount} names</p>
+              <p className={`mt-1 text-xs ${theme.textSecondaryClass}`}>
+                S&amp;P 500 minus Financials &amp; Utilities
+              </p>
             </div>
             <div>
-              <p className={`text-sm ${theme.textSecondaryClass}`}>Quality + cheap quadrant</p>
+              <p className={`text-sm ${theme.textSecondaryClass}`}>Plotted on map</p>
+              <p className={`text-2xl font-semibold ${theme.textClass}`}>{plottableCount}</p>
+              <p className={`mt-1 text-xs ${theme.textSecondaryClass}`}>
+                Have both ROC and earnings yield
+              </p>
+            </div>
+            <div>
+              <p className={`text-sm ${theme.textSecondaryClass}`}>Magic Formula ranks</p>
+              <p className={`text-2xl font-semibold ${theme.textClass}`}>{rankedCount}</p>
+              <p className={`mt-1 text-xs ${theme.textSecondaryClass}`}>
+                {meta.stockCount - rankedCount} names skipped (missing inputs)
+              </p>
+            </div>
+            <div>
+              <p className={`text-sm ${theme.textSecondaryClass}`}>Quality + cheap</p>
               <p className={`text-2xl font-semibold ${theme.textClass}`}>{topQuadrantCount}</p>
+              <p className={`mt-1 text-xs ${theme.textSecondaryClass}`}>Above average on both axes</p>
             </div>
             <div>
               <p className={`text-sm ${theme.textSecondaryClass}`}>Last refresh</p>
