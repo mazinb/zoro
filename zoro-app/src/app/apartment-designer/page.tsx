@@ -20,15 +20,35 @@ interface Annotation {
   color: string;
 }
 
-type Tool = 'measure' | 'annotate' | 'pan';
+interface Wall {
+  id: string;
+  startX: number;
+  startY: number;
+  endX: number;
+  endY: number;
+  type: 'new' | 'remove';
+  color: string;
+}
+
+interface Room {
+  id: string;
+  name: string;
+  points: { x: number; y: number }[];
+  color: string;
+}
+
+type Tool = 'measure' | 'annotate' | 'pan' | 'wall' | 'remove-wall' | 'area';
 
 export default function ApartmentDesigner() {
   const [floorPlanImage, setFloorPlanImage] = useState<string | null>(null);
   const [measurements, setMeasurements] = useState<Measurement[]>([]);
   const [annotations, setAnnotations] = useState<Annotation[]>([]);
+  const [walls, setWalls] = useState<Wall[]>([]);
+  const [rooms, setRooms] = useState<Room[]>([]);
   const [currentTool, setCurrentTool] = useState<Tool>('measure');
   const [isDrawing, setIsDrawing] = useState(false);
   const [startPoint, setStartPoint] = useState<{ x: number; y: number } | null>(null);
+  const [currentPoints, setCurrentPoints] = useState<{ x: number; y: number }[]>([]);
   const [scale, setScale] = useState(1);
   const [scaleCalibration, setScaleCalibration] = useState<number>(100);
   const [scaleUnit, setScaleUnit] = useState<'ft' | 'm' | 'cm'>('ft');
@@ -36,6 +56,7 @@ export default function ApartmentDesigner() {
   const [isDragging, setIsDragging] = useState(false);
   const [imageOffset, setImageOffset] = useState({ x: 0, y: 0 });
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [imageOpacity, setImageOpacity] = useState(1);
   
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -107,6 +128,23 @@ export default function ApartmentDesigner() {
         };
         setAnnotations([...annotations, newAnnotation]);
       }
+    } else if (currentTool === 'wall' || currentTool === 'remove-wall') {
+      setIsDrawing(true);
+      setStartPoint(coords);
+    } else if (currentTool === 'area') {
+      setCurrentPoints([...currentPoints, coords]);
+      if (e.shiftKey && currentPoints.length >= 2) {
+        const roomName = prompt('Enter room name (e.g., Study, Living Room):') || 'Room';
+        const area = calculateArea([...currentPoints, coords]);
+        const newRoom: Room = {
+          id: Date.now().toString(),
+          name: `${roomName} (${area.toFixed(1)} ${scaleUnit}²)`,
+          points: [...currentPoints, coords],
+          color: `rgba(${Math.random() * 255}, ${Math.random() * 255}, ${Math.random() * 255}, 0.3)`
+        };
+        setRooms([...rooms, newRoom]);
+        setCurrentPoints([]);
+      }
     }
   };
 
@@ -147,6 +185,20 @@ export default function ApartmentDesigner() {
       setMeasurements([...measurements, newMeasurement]);
       setIsDrawing(false);
       setStartPoint(null);
+    } else if (isDrawing && startPoint && (currentTool === 'wall' || currentTool === 'remove-wall')) {
+      const endCoords = getCanvasCoordinates(e);
+      const newWall: Wall = {
+        id: Date.now().toString(),
+        startX: startPoint.x,
+        startY: startPoint.y,
+        endX: endCoords.x,
+        endY: endCoords.y,
+        type: currentTool === 'wall' ? 'new' : 'remove',
+        color: currentTool === 'wall' ? '#00FF00' : '#FF0000'
+      };
+      setWalls([...walls, newWall]);
+      setIsDrawing(false);
+      setStartPoint(null);
     }
   };
 
@@ -159,11 +211,31 @@ export default function ApartmentDesigner() {
     setAnnotations(annotations.filter(a => a.id !== id));
   };
 
+  const deleteWall = (id: string) => {
+    setWalls(walls.filter(w => w.id !== id));
+  };
+
+  const calculateArea = (points: { x: number; y: number }[]) => {
+    if (points.length < 3) return 0;
+    let area = 0;
+    for (let i = 0; i < points.length; i++) {
+      const j = (i + 1) % points.length;
+      area += points[i].x * points[j].y;
+      area -= points[j].x * points[i].y;
+    }
+    area = Math.abs(area) / 2;
+    const pixelsPerUnit = 100 / scaleCalibration;
+    const realArea = area / (pixelsPerUnit * pixelsPerUnit);
+    return realArea;
+  };
+
   const exportData = () => {
     const data = {
       floorPlanImage,
       measurements,
       annotations,
+      walls,
+      rooms,
       scale: scaleCalibration,
       unit: scaleUnit
     };
@@ -172,7 +244,7 @@ export default function ApartmentDesigner() {
     const url = URL.createObjectURL(dataBlob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = 'floor-plan-measurements.json';
+    link.download = 'apartment-redesign.json';
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -203,7 +275,9 @@ export default function ApartmentDesigner() {
       ctx.save();
       ctx.translate(imageOffset.x, imageOffset.y);
       ctx.scale(scale, scale);
+      ctx.globalAlpha = imageOpacity;
       ctx.drawImage(img, 0, 0);
+      ctx.globalAlpha = 1;
       
       measurements.forEach(m => {
         ctx.beginPath();
@@ -245,10 +319,68 @@ export default function ApartmentDesigner() {
         ctx.stroke();
       });
       
+      walls.forEach(w => {
+        ctx.beginPath();
+        ctx.moveTo(w.startX, w.startY);
+        ctx.lineTo(w.endX, w.endY);
+        ctx.strokeStyle = w.color;
+        ctx.lineWidth = 5 / scale;
+        ctx.stroke();
+        
+        if (w.type === 'new') {
+          ctx.fillStyle = w.color;
+          ctx.font = `${14 / scale}px Arial`;
+          const midX = (w.startX + w.endX) / 2;
+          const midY = (w.startY + w.endY) / 2;
+          ctx.fillText('NEW WALL', midX, midY - 10 / scale);
+        } else {
+          ctx.setLineDash([10 / scale, 10 / scale]);
+          ctx.beginPath();
+          ctx.moveTo(w.startX, w.startY);
+          ctx.lineTo(w.endX, w.endY);
+          ctx.strokeStyle = w.color;
+          ctx.lineWidth = 3 / scale;
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+      });
+      
+      rooms.forEach(r => {
+        if (r.points.length >= 3) {
+          ctx.beginPath();
+          ctx.moveTo(r.points[0].x, r.points[0].y);
+          for (let i = 1; i < r.points.length; i++) {
+            ctx.lineTo(r.points[i].x, r.points[i].y);
+          }
+          ctx.closePath();
+          ctx.fillStyle = r.color;
+          ctx.fill();
+          ctx.strokeStyle = '#000000';
+          ctx.lineWidth = 2 / scale;
+          ctx.stroke();
+          
+          const centerX = r.points.reduce((sum, p) => sum + p.x, 0) / r.points.length;
+          const centerY = r.points.reduce((sum, p) => sum + p.y, 0) / r.points.length;
+          ctx.fillStyle = '#000000';
+          ctx.font = `bold ${16 / scale}px Arial`;
+          ctx.textAlign = 'center';
+          ctx.fillText(r.name, centerX, centerY);
+        }
+      });
+      
+      if (currentPoints.length > 0) {
+        ctx.fillStyle = 'rgba(255, 165, 0, 0.5)';
+        currentPoints.forEach(p => {
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, 5 / scale, 0, 2 * Math.PI);
+          ctx.fill();
+        });
+      }
+      
       ctx.restore();
     };
     img.src = floorPlanImage;
-  }, [floorPlanImage, measurements, annotations, scale, selectedMeasurement, imageOffset]);
+  }, [floorPlanImage, measurements, annotations, walls, rooms, currentPoints, scale, selectedMeasurement, imageOffset, imageOpacity]);
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
@@ -283,33 +415,63 @@ export default function ApartmentDesigner() {
               <div className="space-y-2">
                 <button
                   onClick={() => setCurrentTool('measure')}
-                  className={`w-full py-2 px-4 rounded transition-colors ${
+                  className={`w-full py-2 px-4 rounded transition-colors text-sm ${
                     currentTool === 'measure' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
                   }`}
                 >
                   📏 Measure Distance
                 </button>
                 <button
+                  onClick={() => setCurrentTool('wall')}
+                  className={`w-full py-2 px-4 rounded transition-colors text-sm ${
+                    currentTool === 'wall' ? 'bg-green-500 text-white' : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                  }`}
+                >
+                  🧱 Draw New Wall
+                </button>
+                <button
+                  onClick={() => setCurrentTool('remove-wall')}
+                  className={`w-full py-2 px-4 rounded transition-colors text-sm ${
+                    currentTool === 'remove-wall' ? 'bg-red-500 text-white' : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                  }`}
+                >
+                  🔨 Mark Wall to Remove
+                </button>
+                <button
+                  onClick={() => setCurrentTool('area')}
+                  className={`w-full py-2 px-4 rounded transition-colors text-sm ${
+                    currentTool === 'area' ? 'bg-purple-500 text-white' : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                  }`}
+                >
+                  📐 Define Room Area
+                </button>
+                <button
                   onClick={() => setCurrentTool('annotate')}
-                  className={`w-full py-2 px-4 rounded transition-colors ${
+                  className={`w-full py-2 px-4 rounded transition-colors text-sm ${
                     currentTool === 'annotate' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
                   }`}
                 >
-                  📝 Add Annotation
+                  📝 Add Label
                 </button>
                 <button
                   onClick={() => setCurrentTool('pan')}
-                  className={`w-full py-2 px-4 rounded transition-colors ${
+                  className={`w-full py-2 px-4 rounded transition-colors text-sm ${
                     currentTool === 'pan' ? 'bg-blue-500 text-white' : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
                   }`}
                 >
                   🖐️ Pan/Move
                 </button>
               </div>
+              {currentTool === 'area' && (
+                <div className="mt-3 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs">
+                  <p className="font-semibold">Area Tool:</p>
+                  <p>Click points to define room shape. Hold SHIFT and click to finish.</p>
+                </div>
+              )}
             </div>
 
             <div className="bg-white rounded-lg shadow p-4">
-              <h2 className="text-xl font-semibold mb-4 text-gray-800">Scale Calibration</h2>
+              <h2 className="text-xl font-semibold mb-4 text-gray-800">Scale & View</h2>
               <div className="space-y-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -347,12 +509,26 @@ export default function ApartmentDesigner() {
                     className="w-full"
                   />
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Floor Plan Opacity: {(imageOpacity * 100).toFixed(0)}%
+                  </label>
+                  <input
+                    type="range"
+                    min="0.2"
+                    max="1"
+                    step="0.1"
+                    value={imageOpacity}
+                    onChange={(e) => setImageOpacity(parseFloat(e.target.value))}
+                    className="w-full"
+                  />
+                </div>
               </div>
             </div>
 
             <div className="bg-white rounded-lg shadow p-4">
               <h2 className="text-xl font-semibold mb-4 text-gray-800">Measurements</h2>
-              <div className="space-y-2 max-h-48 overflow-y-auto">
+              <div className="space-y-2 max-h-40 overflow-y-auto">
                 {measurements.map(m => (
                   <div
                     key={m.id}
@@ -366,7 +542,49 @@ export default function ApartmentDesigner() {
                       onClick={(e) => { e.stopPropagation(); deleteMeasurement(m.id); }}
                       className="text-red-500 hover:text-red-700 text-xs"
                     >
-                      Delete
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg shadow p-4">
+              <h2 className="text-xl font-semibold mb-4 text-gray-800">Rooms</h2>
+              <div className="space-y-2 max-h-40 overflow-y-auto">
+                {rooms.map(r => (
+                  <div
+                    key={r.id}
+                    className="p-2 rounded flex justify-between items-center bg-gray-50"
+                  >
+                    <span className="text-sm">{r.name}</span>
+                    <button
+                      onClick={() => setRooms(rooms.filter(rm => rm.id !== r.id))}
+                      className="text-red-500 hover:text-red-700 text-xs"
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="bg-white rounded-lg shadow p-4">
+              <h2 className="text-xl font-semibold mb-4 text-gray-800">Wall Changes</h2>
+              <div className="space-y-2 max-h-32 overflow-y-auto">
+                {walls.map(w => (
+                  <div
+                    key={w.id}
+                    className="p-2 rounded flex justify-between items-center bg-gray-50"
+                  >
+                    <span className="text-sm">
+                      {w.type === 'new' ? '🟢 New Wall' : '🔴 Remove Wall'}
+                    </span>
+                    <button
+                      onClick={() => deleteWall(w.id)}
+                      className="text-red-500 hover:text-red-700 text-xs"
+                    >
+                      ×
                     </button>
                   </div>
                 ))}
@@ -421,15 +639,16 @@ export default function ApartmentDesigner() {
                 )}
               </div>
               <div className="mt-4 text-sm text-gray-600">
-                <p><strong>Instructions:</strong></p>
-                <ul className="list-disc list-inside space-y-1 mt-2">
-                  <li>Upload or drag a floor plan image onto the canvas</li>
-                  <li>Set scale calibration (e.g., 100 pixels = 10 feet)</li>
-                  <li>Use Measure tool: click start point, click end point to draw measurement</li>
-                  <li>Use Annotate tool: click to add text notes</li>
-                  <li>Use Pan tool: drag to move the image around</li>
-                  <li>Adjust zoom slider to see details</li>
-                  <li>Export your measurements as JSON or annotated image as PNG</li>
+                <p><strong>Combining Two Apartments Instructions:</strong></p>
+                <ul className="list-disc list-inside space-y-1 mt-2 text-xs">
+                  <li>Upload floor plan showing both 2-bed units</li>
+                  <li>Set scale (e.g., 100px = 10 feet)</li>
+                  <li><strong>Red tool:</strong> Mark walls to remove (combine spaces)</li>
+                  <li><strong>Green tool:</strong> Draw new walls (create study)</li>
+                  <li><strong>Area tool:</strong> Click corners, SHIFT+click to finish and label rooms</li>
+                  <li><strong>Measure:</strong> Check dimensions for furniture fit</li>
+                  <li>Reduce opacity to see your changes clearly</li>
+                  <li>Export your redesign plan</li>
                 </ul>
               </div>
             </div>
