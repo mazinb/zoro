@@ -1,59 +1,72 @@
 # Apartment Designer Tool
 
-An interactive web-based apartment layout designer that allows users to create custom floor plans with rooms and furniture.
+An interactive web-based tool for uploading floor plan images and measuring distances with precision. Perfect for apartment planning, renovation projects, and space analysis.
 
 ## Features
 
-### Room Management
-- **Add Rooms**: Create multiple rooms with customizable dimensions
-- **Room Customization**: 
-  - Edit room names
-  - Adjust width and height
-  - Choose from 8 color schemes
-- **Drag & Drop**: Reposition rooms on the canvas by dragging
+### Image Upload
+- **Drag & Drop**: Drop floor plan images directly onto the canvas
+- **File Upload**: Choose images from your device
+- **Supported Formats**: All standard image formats (PNG, JPG, PDF screenshots, etc.)
 
-### Furniture Placement
-- **Furniture Library**: Pre-built furniture items including:
-  - Sofa
-  - Bed
-  - Table
-  - Chair
-  - Desk
-  - Bookshelf
-- **Furniture Controls**:
-  - Drag furniture to desired locations
-  - Rotate furniture in 90° increments
-  - Delete unwanted items
+### Measurement Tools
+- **Distance Measurement**: Click two points to measure distances
+- **Real-world Scale**: Calibrate pixel-to-real-world ratio
+- **Multiple Units**: Support for feet (ft), meters (m), and centimeters (cm)
+- **Visual Indicators**: Red lines with distance labels overlay the floor plan
+- **Multiple Measurements**: Add unlimited measurements to your floor plan
 
-### Canvas Features
-- **Interactive Canvas**: 600px height with full-width responsive design
-- **Visual Selection**: Selected items are highlighted with colored borders
-- **Real-time Updates**: Instant visual feedback for all changes
+### Annotation System
+- **Text Annotations**: Click to add notes and labels anywhere on the plan
+- **Color Coding**: Customize annotation colors
+- **Delete/Edit**: Manage all annotations easily
 
-### Data Management
-- **Export Design**: Save your apartment layout as JSON
-- **Clear All**: Reset the entire design with confirmation
-- **Properties Panel**: Edit selected room properties in real-time
+### Canvas Controls
+- **Pan/Move Tool**: Drag the image to reposition it
+- **Zoom Control**: Slider for 50% to 300% zoom
+- **Interactive Canvas**: Smooth, responsive interaction with the floor plan
+
+### Scale Calibration
+- **Custom Calibration**: Set how many real-world units equal 100 pixels
+- **Unit Selection**: Choose between feet, meters, or centimeters
+- **Accurate Measurements**: All distances automatically calculated based on calibration
+
+### Export Options
+- **JSON Export**: Save all measurements and annotations as structured data
+- **PNG Export**: Download an annotated image with all measurements visible
+- **Data Persistence**: Reload your work later (import feature coming soon)
 
 ## Usage
 
-1. **Start Designing**:
-   - Click "Add Room" to create your first room
-   - Customize the room name, size, and color in the properties panel
+1. **Upload Your Floor Plan**:
+   - Click "Choose Image" or drag/drop an image onto the canvas
+   - Your floor plan will appear on the canvas
 
-2. **Add Furniture**:
-   - Click any furniture item from the left sidebar
-   - The item will appear on the canvas
-   - Drag it to the desired position
+2. **Calibrate the Scale**:
+   - Set "100 pixels = X units" based on a known dimension in your floor plan
+   - Choose your preferred unit (ft, m, or cm)
+   - Example: If 100 pixels = 10 feet on your plan, enter "10" and select "ft"
 
-3. **Customize**:
-   - Click any room or furniture item to select it
-   - Use the properties panel to adjust room dimensions and colors
-   - Rotate furniture using the "Rotate" button
+3. **Measure Distances**:
+   - Select the "Measure Distance" tool
+   - Click on your starting point
+   - Click on your ending point
+   - The distance will be calculated and displayed
 
-4. **Save Your Work**:
-   - Click "Export" to download your design as JSON
-   - Import this file later to continue editing (import feature coming soon)
+4. **Add Annotations**:
+   - Select the "Add Annotation" tool
+   - Click where you want to place a note
+   - Enter your text in the prompt
+   - The annotation appears on the floor plan
+
+5. **Navigate the Canvas**:
+   - Use the "Pan/Move" tool to drag the image around
+   - Adjust the zoom slider to see fine details
+   - Click measurements in the sidebar to highlight them
+
+6. **Export Your Work**:
+   - Click "Export Data (JSON)" to save measurements and annotations
+   - Click "Export Image (PNG)" to download the annotated floor plan
 
 ## Technical Details
 
@@ -74,18 +87,33 @@ Access the tool at: `https://getzoro.com/apartment-designer`
 - All positions and sizes are in pixels
 - Rotation angles: 0°, 90°, 180°, 270°
 
+## Use Cases
+
+- **Apartment Shopping**: Measure rooms to see if your furniture will fit
+- **Renovation Planning**: Calculate wall lengths, room dimensions, and material needs
+- **Interior Design**: Plan furniture placement with accurate measurements
+- **Real Estate**: Annotate floor plans for clients or documentation
+- **Space Planning**: Analyze room sizes and proportions
+
+## Pro Tips
+
+- **Calibration is Key**: Use a known dimension (like a standard door width of 3ft/36in) to calibrate accurately
+- **Multiple References**: Take measurements from multiple known dimensions to verify accuracy
+- **Label Everything**: Use annotations to mark room names, furniture locations, and special features
+- **Compare Plans**: Upload different floor plan options to compare measurements side-by-side
+
 ## Future Enhancements
 
-- Import saved designs
-- Room connection/doorways
-- Measurement tools (real-world dimensions)
-- 3D view toggle
-- Furniture scaling
-- Custom furniture creation
-- Share designs via URL
-- Print/PDF export
-- Snap-to-grid functionality
+- Import saved JSON designs
+- Area calculation (square footage)
+- Angle measurements
+- Shape drawing tools (circles, rectangles)
+- Furniture templates overlay
+- PDF direct upload
+- Multiple floor plan comparison
 - Undo/Redo functionality
+- Sharing via URL
+- Collaborative editing
 
 ## Browser Compatibility
 
