@@ -75,7 +75,7 @@ Privacy-first: ledger, goals, context, and chat stay **on the phone**. No bank s
 2. **Ledger** — Assets, liabilities, income, expenses, cashflow  
 3. **Context** — Notes and orchestrator  
 4. **Goals** — Retirement / target goals  
-5. **Settings** — API keys, reminders, agents, **ledger export/import**
+5. **Settings** — API keys, reminders, agents, **ledger export/import**, **Covered Call Assistant** (live IBKR NAV from portfolio.getzoro.com)
 
 Ship checklist, bundle IDs, CI, and iOS troubleshooting: **`zoro_flutter/TASKS.md`**.
 

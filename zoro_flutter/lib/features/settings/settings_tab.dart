@@ -8,6 +8,7 @@ import 'package:in_app_purchase/in_app_purchase.dart';
 
 import '../../core/finance/currency.dart';
 import '../../shared/help/tab_help_content.dart';
+import '../../shared/settings/covered_call_assistant_card.dart';
 import '../../shared/widgets/tab_header_actions.dart';
 import '../../core/entitlements/mobile_entitlements.dart';
 import '../../core/entitlements/token_billing.dart';
@@ -754,6 +755,8 @@ class _GeneralPaneState extends State<_GeneralPane> {
             _fxCard(context),
             const SizedBox(height: 12),
             _currencyAssumptionsCard(),
+            const SizedBox(height: 12),
+            CoveredCallAssistantCard(model: model),
             const SizedBox(height: 12),
             _NotificationsCard(model: model),
             if (model.notificationsEnabled) ...[

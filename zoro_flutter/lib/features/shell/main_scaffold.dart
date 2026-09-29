@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../core/agent/cron_bridge.dart';
+import '../../core/api/portfolio_link_sync.dart';
 import '../../core/notifications/notification_payload.dart';
 import '../../core/notifications/notification_service.dart';
 import '../../core/state/app_model.dart';
@@ -97,6 +98,7 @@ class _MainScaffoldState extends State<MainScaffold>
       // If bootstrap already finished (hot reload), reconcile once here.
       if (widget.model.bootstrapped) {
         unawaited(widget.model.reconcileNotifications());
+        unawaited(PortfolioLinkSync().refresh(widget.model));
       }
     });
   }
@@ -120,6 +122,7 @@ class _MainScaffoldState extends State<MainScaffold>
       unawaited(widget.model.reconcileNotifications());
       unawaited(widget.model.refreshMobileEntitlements());
       unawaited(widget.model.fetchAgentMailbox());
+      unawaited(PortfolioLinkSync().refresh(widget.model));
     }
   }
 

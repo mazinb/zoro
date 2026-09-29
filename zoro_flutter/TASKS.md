@@ -10,6 +10,7 @@ Privacy-first finance on device. Production API: **getzoro.com**. On-device stor
 - [x] **Home summary helper (unhooked)** — kept as seed for `home-briefing`; not run on app open.
 - [x] **Onboarding (v1)** — 3-step first-run: USD + 2 FX picks, income (salary/bonus/RSU/tax), 4× expense MCQ + optional Apple on-device note. Tab ? how-it-works + Reddit footer.
 - [x] **Onboarding demo ledger** — optional demo assets/liabilities (condo, US brokerage, India fund, cash, mortgage, car loan) via Apple on-device customization from onboarding currencies; clear untouched rows from header bolt. Expense estimate currency picker (USD + FX picks); `expenseEstimateCurrency` on export/import.
+- [x] **Covered Call Assistant link (2026-09-29)** — Settings → Covered Call Assistant: paste portfolio share token; live NAV updates one USD investments row; refresh on app open/resume. Desk: portfolio.getzoro.com Account → Zoro.
 - [ ] **Onboarding (v2)** — split slider, retirement date vs invest /mo (Goals editor retire panel).
 - [x] **Phase 1 Agent surface** — Agent chat is primary; retirement plan, inbox, PDF import, and private mailbox moved behind chat actions. Chat prefers Apple on-device Intelligence, then Cloud AI / BYO key.
 - [x] **Phase 1 turn status prototype** — one-shot replies show pulsing thinking, switch to an amber long-wait state after 28s, and retain a failed state on errors.
