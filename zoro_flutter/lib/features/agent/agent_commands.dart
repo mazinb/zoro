@@ -45,6 +45,11 @@ abstract final class AgentCommands {
       icon: Icons.note_add_outlined,
     ),
     AgentCommand(
+      name: 'desk',
+      description: 'Qwen covered-call desk chat (IBKR tools)',
+      icon: Icons.support_agent_outlined,
+    ),
+    AgentCommand(
       name: 'clear',
       description: 'Delete this conversation from the phone',
       icon: Icons.delete_sweep_outlined,

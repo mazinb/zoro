@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../core/api/portfolio_chat_service.dart';
 import '../../core/api/portfolio_link_store.dart';
 import '../../core/api/portfolio_link_sync.dart';
 import '../../core/api/portfolio_valuation_service.dart';
 import '../../core/finance/currency.dart';
 import '../../core/state/app_model.dart';
+import '../settings/portfolio_desk_chat_page.dart';
 
 /// Settings card: link one Covered Call Assistant account and pull live NAV.
 class CoveredCallAssistantCard extends StatefulWidget {
@@ -142,6 +144,19 @@ class _CoveredCallAssistantCardState extends State<CoveredCallAssistantCard> {
     });
   }
 
+  Future<void> _openDeskChat() async {
+    final token = await PortfolioLinkStore().readToken();
+    if (!mounted) return;
+    if (token == null) {
+      final uri = PortfolioChatService().chatPageUri;
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+      return;
+    }
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => const PortfolioDeskChatPage()),
+    );
+  }
+
   Future<void> _openDesk() async {
     final uri = Uri.parse(PortfolioValuationService.defaultBase);
     await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -211,6 +226,10 @@ class _CoveredCallAssistantCardState extends State<CoveredCallAssistantCard> {
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : const Text('Refresh'),
+                  ),
+                  OutlinedButton(
+                    onPressed: _busy ? null : _openDeskChat,
+                    child: const Text('Desk chat'),
                   ),
                   OutlinedButton(
                     onPressed: _busy ? null : _openDesk,

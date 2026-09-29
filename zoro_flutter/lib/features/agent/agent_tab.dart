@@ -17,6 +17,7 @@ import '../../core/state/app_model.dart';
 import '../../shared/help/tab_help_content.dart';
 import '../../shared/widgets/tab_header_actions.dart';
 import '../goals/goals_ai_flow.dart';
+import '../settings/portfolio_desk_chat_page.dart';
 import 'agent_commands.dart';
 import 'mailbox_claim_page.dart';
 import 'retirement_plan_editor_page.dart';
@@ -211,6 +212,10 @@ class AgentTabState extends State<AgentTab> {
         );
       case 'import':
         await _pickPdf();
+      case 'desk':
+        await Navigator.of(context).push(
+          MaterialPageRoute<void>(builder: (_) => const PortfolioDeskChatPage()),
+        );
       case 'clear':
         await _clearHistory();
       case 'skills':
