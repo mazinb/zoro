@@ -14,7 +14,7 @@ flutter pub get
 flutter run --dart-define=API_BASE_URL=https://www.getzoro.com
 ```
 
-Device on LAN: use your Mac’s IP instead of `127.0.0.1`. iOS signing and TestFlight: **`TASKS.md`**.
+Device on LAN: use your Mac’s IP instead of `127.0.0.1`. iOS signing and TestFlight: **`TASKS.md`** · Xcode Cloud: **[`docs/xcode-cloud.md`](docs/xcode-cloud.md)**.
 
 ## Layout
 

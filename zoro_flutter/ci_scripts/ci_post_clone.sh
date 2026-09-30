@@ -1,5 +1,6 @@
 #!/bin/sh
-# Xcode Cloud when the Git repository root is this Flutter app (not the monorepo).
+# Legacy location (package root). Prefer ios/ci_scripts/ for Xcode Cloud.
+# Kept so older workflow notes still work.
 set -e
-cd "$(dirname "$0")/.."
-./scripts/ci_ios_prepare.sh
+cd "$(dirname "$0")/../ios/ci_scripts"
+exec /bin/sh ./ci_post_clone.sh

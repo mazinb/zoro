@@ -105,7 +105,7 @@ Settings → Helpers → Data. Tests: `test/app_state_transfer_test.dart`, `test
 2. `open ios/Runner.xcworkspace` — Signing → Team
 3. `flutter run -d <id> --dart-define=API_BASE_URL=...`
 4. **objective_c / device install:** `path_provider_foundation: 2.5.1` in `dependency_overrides`; `ios/scripts/resign_embedded_frameworks.sh` after embed Pods
-5. **CI / Xcode Cloud:** `./scripts/ci_ios_prepare.sh` from `zoro_flutter`
+5. **CI / Xcode Cloud:** see [`docs/xcode-cloud.md`](docs/xcode-cloud.md) — hooks under `ios/ci_scripts/` install Flutter, then Archive → TestFlight. Create the workflow once in Xcode (**Product → Xcode Cloud → Create Workflow**) pointing at `zoro_flutter/ios/Runner.xcworkspace` / scheme **Runner**.
 
 | Flavor | Bundle / applicationId |
 |--------|-------------------------|
