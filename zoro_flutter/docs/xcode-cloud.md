@@ -48,7 +48,8 @@ App Store Connect alternative: [appstoreconnect.apple.com](https://appstoreconne
 cd zoro_flutter
 ./scripts/setup_ios.sh
 ./scripts/build_app_store_ipa.sh
-./scripts/open_ipa_in_transporter.sh
+./scripts/upload_app_store_ipa.sh   # uses Apple ID signed into Xcode
+# or: ./scripts/open_ipa_in_transporter.sh
 ```
 
 ## Troubleshooting
