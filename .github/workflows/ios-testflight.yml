@@ -18,7 +18,8 @@ on:
 
 concurrency:
   group: ios-testflight-main
-  cancel-in-progress: true
+  # Never cancel an in-flight archive/upload; queue instead.
+  cancel-in-progress: false
 
 jobs:
   testflight:
