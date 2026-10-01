@@ -86,6 +86,7 @@ BUILD_NUMBER=15 ./scripts/build_app_store_ipa.sh
 | TestFlight has no new build | Wait for ASC processing; confirm Internal **Automatic Distribution** |
 | Xcode Cloud `flutter: command not found` | Confirm `ios/ci_scripts/ci_post_clone.sh` is executable and committed |
 | Scheme “may only exist locally” | Shared scheme under `Runner.xcworkspace/xcshareddata/xcschemes/` |
+| Xcode Cloud: deployment target 14.0 unsupported | Set `IPHONEOS_DEPLOYMENT_TARGET` to **16.0** (match Podfile) |
 
 Scripts must be executable in git:
 
