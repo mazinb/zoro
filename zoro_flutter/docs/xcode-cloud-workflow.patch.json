@@ -1,0 +1,24 @@
+{
+  "name": "Main → TestFlight Internal",
+  "description": "On every commit to main: Archive Runner and auto-distribute to TestFlight Internal Testing.",
+  "isEnabled": true,
+  "startConditions": {
+    "branch": {
+      "source": {
+        "kind": "branch",
+        "isAllMatch": false,
+        "patterns": [{ "pattern": "main", "isPrefix": false }]
+      },
+      "autoCancel": true
+    }
+  },
+  "notes": [
+    "Apply via App Store Connect → Xcode Cloud → Untitled Workflow (or asc web xcode-cloud workflows edit).",
+    "Product id: 31F72565-0711-4B7E-B67A-C02DB0BAE5CC",
+    "Workflow id: 17342224-F160-4B4B-8D18-5E70BFD73ED7",
+    "App id: 6767001446",
+    "Actions: Archive - iOS, scheme Runner, workspace zoro_flutter/ios/Runner.xcworkspace",
+    "Post-action: TestFlight Internal Testing with Automatic Distribution to your Internal group",
+    "Primary automation today is GitHub Actions on zoro-mac-mini (.github/workflows/ios-testflight.yml)."
+  ]
+}

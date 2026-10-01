@@ -1,0 +1,70 @@
+# Push/merge to main → build Zoro iOS on the Mac mini → upload to TestFlight.
+# Runner: self-hosted label `zoro-mac-mini` (LaunchAgent on zoro's Mac mini).
+name: iOS TestFlight
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "zoro_flutter/**"
+      - "ci_scripts/**"
+      - ".github/workflows/ios-testflight.yml"
+  workflow_dispatch:
+    inputs:
+      build_number:
+        description: "Optional CFBundleVersion override (default: 2000 + run number)"
+        required: false
+        type: string
+
+concurrency:
+  group: ios-testflight-main
+  cancel-in-progress: true
+
+jobs:
+  testflight:
+    name: Build + upload TestFlight
+    runs-on: [self-hosted, macOS, ARM64, zoro-mac-mini]
+    timeout-minutes: 90
+    defaults:
+      run:
+        working-directory: zoro_flutter
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve build number
+        id: ver
+        run: |
+          set -euo pipefail
+          if [[ -n "${{ github.event.inputs.build_number }}" ]]; then
+            BN="${{ github.event.inputs.build_number }}"
+          else
+            # Stay above manually uploaded builds (e.g. 14) and Xcode Cloud numbers.
+            BN=$((2000 + ${{ github.run_number }}))
+          fi
+          NAME="$(python3 -c 'import pathlib; v=pathlib.Path("pubspec.yaml").read_text().split("version:",1)[1].splitlines()[0].strip(); print(v.split("+",1)[0])')"
+          echo "build_number=$BN" >> "$GITHUB_OUTPUT"
+          echo "build_name=$NAME" >> "$GITHUB_OUTPUT"
+          echo "Using $NAME ($BN)"
+
+      - name: Build App Store IPA
+        env:
+          API_BASE_URL: https://www.getzoro.com
+          BUILD_NAME: ${{ steps.ver.outputs.build_name }}
+          BUILD_NUMBER: ${{ steps.ver.outputs.build_number }}
+        run: ./scripts/build_app_store_ipa.sh
+
+      - name: Upload to App Store Connect
+        run: ./scripts/upload_app_store_ipa.sh
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "## TestFlight upload"
+            echo ""
+            echo "- Version: \`${{ steps.ver.outputs.build_name }} (${{ steps.ver.outputs.build_number }})\`"
+            echo "- Commit: \`${{ github.sha }}\`"
+            echo "- After ASC processing (often 5–30 min), open TestFlight → Zoro on your iPhone."
+            echo "- Internal group should have **Automatic Distribution** enabled in App Store Connect."
+          } >> "$GITHUB_STEP_SUMMARY"

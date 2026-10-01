@@ -8,7 +8,7 @@ import '../../core/api/portfolio_link_sync.dart';
 import '../../core/api/portfolio_valuation_service.dart';
 import '../../core/finance/currency.dart';
 import '../../core/state/app_model.dart';
-import '../settings/portfolio_desk_chat_page.dart';
+import '../../features/settings/portfolio_desk_chat_page.dart';
 
 /// Settings card: link one Covered Call Assistant account and pull live NAV.
 class CoveredCallAssistantCard extends StatefulWidget {
