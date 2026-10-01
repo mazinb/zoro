@@ -11,17 +11,29 @@ if ! command -v flutter >/dev/null 2>&1; then
   exit 1
 fi
 
+API_BASE_URL="${API_BASE_URL:-https://www.getzoro.com}"
+
 echo "==> flutter pub get (writes ios/Flutter/Generated.xcconfig)"
 flutter pub get
 
+echo "==> flutter build ios --config-only (Release, API_BASE_URL=${API_BASE_URL})"
+flutter build ios --config-only --release --dart-define=API_BASE_URL="${API_BASE_URL}"
+
+# Xcode Cloud's CI_BUILD_NUMBER must win over pubspec's +N or TestFlight rejects the upload.
+if [ -n "${CI_BUILD_NUMBER:-}" ]; then
+  echo "==> FLUTTER_BUILD_NUMBER=${CI_BUILD_NUMBER}"
+  sed -i '' "s/^FLUTTER_BUILD_NUMBER=.*/FLUTTER_BUILD_NUMBER=${CI_BUILD_NUMBER}/" ios/Flutter/Generated.xcconfig
+fi
+
 if ! command -v pod >/dev/null 2>&1; then
-  echo "error: pod (CocoaPods) not on PATH." >&2
-  exit 1
+  echo "==> Installing CocoaPods"
+  HOMEBREW_NO_AUTO_UPDATE=1 brew install cocoapods
 fi
 
 echo "==> pod install"
-pushd ios >/dev/null
-pod install
-popd >/dev/null
+(
+  cd ios
+  pod install
+)
 
 echo "==> iOS tree ready for xcodebuild / Xcode Cloud."

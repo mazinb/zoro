@@ -32,9 +32,10 @@ function parseCsvLine(line: string): string[] {
 }
 
 export async function fetchSp500Constituents(): Promise<Sp500Constituent[]> {
-  const res = await fetch(SP500_CSV_URL, {
+  const init: RequestInit & { next?: { revalidate: number } } = {
     next: { revalidate: 86400 },
-  });
+  };
+  const res = await fetch(SP500_CSV_URL, init);
   if (!res.ok) {
     throw new Error(`Failed to fetch S&P 500 constituents (${res.status})`);
   }

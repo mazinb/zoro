@@ -15,7 +15,8 @@
     "mcp:wealth": "node mcp/wealth-server.mjs",
     "mcp:orchestrator": "node mcp/orchestrator-server.mjs",
     "mcp:goals": "node mcp/goals-server.mjs",
-    "nag:cron": "node scripts/trigger-nag-cron.js"
+    "nag:cron": "node scripts/trigger-nag-cron.js",
+    "usmarket:refresh": "npx tsx scripts/refresh-greenblatt.ts"
   },
   "dependencies": {
     "@google/genai": "^1.41.0",

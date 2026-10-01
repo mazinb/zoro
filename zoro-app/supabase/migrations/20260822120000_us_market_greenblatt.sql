@@ -41,19 +41,34 @@ ALTER TABLE us_market_greenblatt_stocks ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Public read greenblatt meta" ON us_market_greenblatt_meta;
 CREATE POLICY "Public read greenblatt meta"
-  ON us_market_greenblatt_meta FOR SELECT USING (true);
+  ON us_market_greenblatt_meta FOR SELECT
+  TO anon, authenticated
+  USING (true);
 
 DROP POLICY IF EXISTS "Public read greenblatt stocks" ON us_market_greenblatt_stocks;
 CREATE POLICY "Public read greenblatt stocks"
-  ON us_market_greenblatt_stocks FOR SELECT USING (true);
+  ON us_market_greenblatt_stocks FOR SELECT
+  TO anon, authenticated
+  USING (true);
 
 DROP POLICY IF EXISTS "Service role greenblatt meta" ON us_market_greenblatt_meta;
 CREATE POLICY "Service role greenblatt meta"
-  ON us_market_greenblatt_meta FOR ALL USING (true) WITH CHECK (true);
+  ON us_market_greenblatt_meta FOR ALL
+  TO service_role
+  USING (true) WITH CHECK (true);
 
 DROP POLICY IF EXISTS "Service role greenblatt stocks" ON us_market_greenblatt_stocks;
 CREATE POLICY "Service role greenblatt stocks"
-  ON us_market_greenblatt_stocks FOR ALL USING (true) WITH CHECK (true);
+  ON us_market_greenblatt_stocks FOR ALL
+  TO service_role
+  USING (true) WITH CHECK (true);
+
+GRANT SELECT ON TABLE us_market_greenblatt_meta TO anon, authenticated;
+GRANT SELECT ON TABLE us_market_greenblatt_stocks TO anon, authenticated;
+GRANT ALL ON TABLE us_market_greenblatt_meta TO service_role;
+GRANT ALL ON TABLE us_market_greenblatt_stocks TO service_role;
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON TABLE us_market_greenblatt_meta FROM anon, authenticated;
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE ON TABLE us_market_greenblatt_stocks FROM anon, authenticated;
 
 INSERT INTO us_market_greenblatt_meta (id, refreshed_at, stock_count, source, notes)
 VALUES (1, '1970-01-01'::timestamptz, 0, 'yahoo', 'Awaiting first refresh')

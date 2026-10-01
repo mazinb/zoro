@@ -188,8 +188,15 @@ class AgentTabState extends State<AgentTab> {
 
     switch (command.name) {
       case 'plan':
+        _addLocalTurn(fromAgent: true, text: 'Opening your retirement plan.');
         _openPlan();
       case 'inbox':
+        _addLocalTurn(
+          fromAgent: true,
+          text: _inbox.isEmpty
+              ? 'Inbox is empty on this phone.'
+              : 'Opening the inbox · ${_inbox.length} PDF(s).',
+        );
         _showInbox();
       case 'mailbox':
         _showMailbox();
