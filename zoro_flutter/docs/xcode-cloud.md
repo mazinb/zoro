@@ -26,6 +26,8 @@ Manual trigger: GitHub → Actions → **iOS TestFlight** → Run workflow.
 
 Runner status: `gh api repos/mazinb/zoro/actions/runners --jq '.runners[] | {name,status}'`
 
+The Mac mini keeps the runner alive via LaunchAgent `com.getzoro.gh-actions-runner` (no `SessionCreate`; `KeepAlive`). If archive fails with `errSecInternalComponent`, add GitHub secret `MAC_KEYCHAIN_PASSWORD` (login keychain password) or ensure a user GUI session is logged in.
+
 ## Secondary path: Xcode Cloud
 
 Product **zoro_flutter** already exists (app `6767001446`). Enabled workflow **Untitled Workflow** (`17342224-F160-4B4B-8D18-5E70BFD73ED7`) already starts on **`main`** branch changes (build #6 failed on a covered-call import bug; fixed in PR).
