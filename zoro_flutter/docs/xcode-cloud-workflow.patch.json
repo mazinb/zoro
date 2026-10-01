@@ -1,6 +1,6 @@
 {
-  "name": "Main → TestFlight Internal",
-  "description": "On every commit to main: Archive Runner and auto-distribute to TestFlight Internal Testing.",
+  "name": "Default",
+  "description": "On every commit to main: Archive Runner for App Store / TestFlight (Mac-off path).",
   "isEnabled": true,
   "startConditions": {
     "branch": {
@@ -13,12 +13,13 @@
     }
   },
   "notes": [
-    "Apply via App Store Connect → Xcode Cloud → Untitled Workflow (or asc web xcode-cloud workflows edit).",
+    "Preferred Mac-off path: Xcode Cloud workflow Default (Archive - iOS).",
     "Product id: 31F72565-0711-4B7E-B67A-C02DB0BAE5CC",
-    "Workflow id: 17342224-F160-4B4B-8D18-5E70BFD73ED7",
+    "Workflow id: 61F658E4-4EBC-484A-B559-76D2C46875DA",
     "App id: 6767001446",
     "Actions: Archive - iOS, scheme Runner, workspace zoro_flutter/ios/Runner.xcworkspace",
-    "Post-action: TestFlight Internal Testing with Automatic Distribution to your Internal group",
-    "Primary automation today is GitHub Actions on zoro-mac-mini (.github/workflows/ios-testflight.yml)."
+    "Untitled Workflow (17342224-…) is Build-only and should stay disabled.",
+    "ci_ios_prepare.sh pins Flutter 3.41.6 so pdfrx_engine 0.3.9 compiles.",
+    "Optional backup: GitHub Actions on zoro-mac-mini (.github/workflows/ios-testflight.yml)."
   ]
 }
