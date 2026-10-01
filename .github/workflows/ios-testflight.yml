@@ -48,6 +48,25 @@ jobs:
           echo "build_name=$NAME" >> "$GITHUB_OUTPUT"
           echo "Using $NAME ($BN)"
 
+      # LaunchAgent runners hit errSecInternalComponent unless login.keychain is unlocked.
+      # Prefer running ~/actions-runner/run.sh from a logged-in GUI/agent session.
+      # If MAC_KEYCHAIN_PASSWORD is set, unlock explicitly for headless LaunchAgents.
+      - name: Unlock login keychain (optional)
+        working-directory: .
+        env:
+          MAC_KEYCHAIN_PASSWORD: ${{ secrets.MAC_KEYCHAIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          KC="$HOME/Library/Keychains/login.keychain-db"
+          if [[ -z "${MAC_KEYCHAIN_PASSWORD:-}" ]]; then
+            echo "No MAC_KEYCHAIN_PASSWORD secret; relying on session keychain access."
+            security show-keychain-info "$KC" || true
+            exit 0
+          fi
+          security unlock-keychain -p "$MAC_KEYCHAIN_PASSWORD" "$KC"
+          security set-keychain-settings -lut 21600 "$KC"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$MAC_KEYCHAIN_PASSWORD" "$KC" >/dev/null
+
       - name: Build App Store IPA
         env:
           API_BASE_URL: https://www.getzoro.com
