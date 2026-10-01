@@ -6,8 +6,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 API_BASE_URL="${API_BASE_URL:-https://www.getzoro.com}"
-echo "Building 1.0.0 (7) with API_BASE_URL=${API_BASE_URL}"
-echo "  pubspec: $(grep '^version:' pubspec.yaml)"
+VERSION_LINE="$(grep '^version:' pubspec.yaml)"
+echo "Building ${VERSION_LINE#version: } with API_BASE_URL=${API_BASE_URL}"
 
 flutter pub get
 (
