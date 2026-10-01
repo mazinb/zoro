@@ -140,13 +140,19 @@ fi
 
 if [[ -n "${IPA}" && -f "${IPA}" && -d "/Applications/Transporter.app" ]]; then
   echo "Opening Transporter with ${IPA}"
-  open -a Transporter "${IPA}"
+  open -a Transporter "${IPA}" || true
   echo "Click Deliver in Transporter (sign in with Apple ID if asked)."
+  # In CI, opening Transporter is not a successful upload.
+  if [[ -n "${CI:-}${GITHUB_ACTIONS:-}" ]]; then
+    echo "error: no non-interactive upload auth available in CI." >&2
+    echo "Add APP_STORE_CONNECT_API_KEY_* secrets or re-sign into Xcode Accounts." >&2
+    exit 1
+  fi
   exit 0
 fi
 
 echo "No upload method succeeded. Need one of:" >&2
 echo "  - ASC API key env (APP_STORE_CONNECT_API_KEY_ID/ISSUER_ID/API_KEY_P8)" >&2
 echo "  - Apple ID signed into Xcode with App Store Connect access" >&2
-echo "  - Transporter.app + a local IPA" >&2
+echo "  - Transporter.app + a local IPA (interactive only)" >&2
 exit 1
