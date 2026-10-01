@@ -77,7 +77,7 @@ BUILD_NUMBER=15 ./scripts/build_app_store_ipa.sh
 | Xcode Cloud PhaseScript / `pdfrx_engine` nullability | Keep `dependency_overrides` for `pdfrx` 2.4.7 + `pdfrx_engine` 0.4.5 (or newer once Flutter meta allows) |
 | Xcode Cloud `flutter: command not found` | Confirm `ios/ci_scripts/ci_post_clone.sh` is executable and committed |
 | Scheme “may only exist locally” | Shared scheme under `Runner.xcworkspace/xcshareddata/xcschemes/` |
-| Xcode Cloud: deployment target 14.0 unsupported | `IPHONEOS_DEPLOYMENT_TARGET` **16.0** (match Podfile) |
+| Xcode Cloud: deployment target 14.0 / pods &lt;15 unsupported | Runner + Podfile `platform` **16.0**; `post_install` forces every pod target to **16.0** |
 | TestFlight has no new build | Wait for ASC processing; confirm Internal **Automatic Distribution** |
 | Actions job queued forever | Runner offline — Mac must be on for the optional GH Actions path |
 
